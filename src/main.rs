@@ -52,7 +52,6 @@ impl<W> StrWriter<W>
     pub fn write<'a, S>(&mut self, s: S)
     where S: Into<&'a str>{
         let write_str = s.into();
-        let ends_with_newline = write_str.ends_with("\n");
         let mut iter = write_str.split("\n").peekable();
         while let Some(line) = iter.next() {
             if !line.is_empty() {
@@ -62,9 +61,6 @@ impl<W> StrWriter<W>
             if let Some(_) = iter.peek() {
                 self.write_raw("\n");
             }
-        }
-        if ends_with_newline {
-            self.writeln();
         }
     }
 
@@ -238,7 +234,7 @@ fn write_md<'a, W>(nodes: &Vec<&Node>, out: &mut StrWriter<W>)
             // Node::MdxJsxTextElement(_) => {}
             // Node::MdxTextExpression(_) => {}
             // Node::MdxjsEsm(_) => {}
-            Node::Paragraph(p) => MdSpec::children(|cs| {cs.after_children = Cow::Borrowed("\n\n")} ),
+            Node::Paragraph(p) => MdSpec::children(|cs| {cs.after_children = Cow::Borrowed("\n")} ),
             Node::Root(_) => Skip,
             // Node::Strong(_) => {}
             // Node::Table(_) => {}
