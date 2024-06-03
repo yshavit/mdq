@@ -1,8 +1,12 @@
+use std::borrow::Cow;
 use std::io;
 use std::io::{Read, stdin, Write};
+use std::ops::Deref;
 
 use markdown::mdast::Node;
+use markdown::mdast::Node::ListItem;
 use serde_yaml::Value;
+use crate::MdSpec::{Skip, Unknown};
 
 use crate::Resolver::{Current, Next, Until};
 
@@ -21,10 +25,247 @@ fn main() {
         None => { println!("no match") }
         Some(found) => {
             println!("found:");
-            for node in found {
-                let _ = io::stdout().write(node.to_string().as_bytes());
-                println!();
+            let mut out = StrWriter::new(io::stdout());
+            write_md(&found, &mut out);
+        }
+    }
+}
+
+struct StrWriter<W>
+    where W: Write
+{
+    indents: Vec<String>,
+    out: W,
+    at_new_line: bool,
+}
+
+impl<W> StrWriter<W>
+    where W: Write {
+    pub fn new(out: W) -> Self {
+        Self {
+            out,
+            indents: Vec::new(),
+            at_new_line: true,
+        }
+    }
+
+    pub fn write<'a, S>(&mut self, s: S)
+    where S: Into<&'a str>{
+        let write_str = s.into();
+        let ends_with_newline = write_str.ends_with("\n");
+        let mut iter = write_str.split("\n").peekable();
+        while let Some(line) = iter.next() {
+            if !line.is_empty() {
+                self.write_indents();
+                self.write_raw(line)
             }
+            if let Some(_) = iter.peek() {
+                self.write_raw("\n");
+            }
+        }
+        if ends_with_newline {
+            self.writeln();
+        }
+    }
+
+    pub fn writeln(&mut self) {
+        self.write_raw("\n");
+    }
+
+    pub fn push_indent<S>(&mut self, indent: S)
+        where S: ToString
+    {
+        self.indents.push(indent.to_string());
+    }
+
+    pub fn pop_indent(&mut self) {
+        self.indents.pop();
+    }
+
+    fn write_indents(&mut self) {
+        if self.at_new_line {
+            for s in &self.indents {
+                // TODO de-dupe with write_raw; borrow mutability errors
+                if let Err(err) = self.out.write(s.as_bytes()) {
+                    eprintln!("error: {}", err);
+                }
+                self.at_new_line = s.ends_with("\n");
+            }
+        }
+    }
+
+    fn write_raw(&mut self, s: &str) {
+        if let Err(err) = self.out.write(s.as_bytes()) {
+            eprintln!("error: {}", err);
+        }
+        self.at_new_line = s.ends_with("\n");
+    }
+}
+
+struct MdWrite<'a> {
+    indent: Cow<'a, str>,
+    literal: Cow<'a, str>,
+    before_children: Cow<'a, str>,
+    before_each: fn(child_idx: usize) -> String,
+    after_children: Cow<'a, str>,
+}
+
+enum MdSpec<'a> {
+    Write(MdWrite<'a>),
+    Skip,
+    Unknown(&'a str),
+}
+
+impl<'a> MdSpec<'a> {
+    fn children<F>(f: F) -> Self
+        where F: FnOnce(&mut MdWrite)
+    {
+        let mut write = MdWrite {
+            indent: Cow::default(),
+            literal: Cow::default(),
+            before_children: Cow::default(),
+            before_each: (|x| "".to_string()),
+            after_children: Cow::default(),
+        };
+        f(&mut write);
+        return Self::Write(write);
+    }
+}
+
+impl<'a> MdWrite<'a> {
+    pub fn write<S>(&mut self, value: S) -> &mut Self
+        where S: Into<Cow<'a, str>>
+    {
+        self.literal = Cow::from(value.into());
+        self
+    }
+
+    pub fn indent<S>(&mut self, value: S) -> &mut Self
+        where S: Into<Cow<'a, str>>
+    {
+        self.indent = Cow::from(value.into());
+        self
+    }
+
+    pub fn surround<S>(&mut self, surround_children: S) -> &mut Self
+        where S: Into<Cow<'a, str>>
+    {
+        let str_cow = surround_children.into();
+
+        self.before_children = str_cow.clone();
+        self.after_children = str_cow;
+        self
+    }
+}
+
+fn write_md<'a, W>(nodes: &Vec<&Node>, out: &mut StrWriter<W>)
+    where W: Write,
+{
+    for node in nodes {
+        // TODO I don't reall like this MdSpec thing. I think I should either find the real pattern that everything uses,
+        // or else just do everything inline (with a helper that's similar to MdSpec::children)
+        let md_spec = match node {
+            Node::BlockQuote(_) => MdSpec::children(|cs| {cs.surround("\n```\n");}),
+            Node::Break(_) => MdSpec::children(|cs| {cs.write("\n");}),
+            Node::Code(_) => MdSpec::children(|cs| {cs.surround("\n```\n");}),
+            Node::Definition(_) => MdSpec::Unknown("Definition"),
+            Node::Delete(_) => MdSpec::children(|cs| {cs.surround("~~");}),
+            Node::Emphasis(_) => MdSpec::children(|cs| {cs.surround("*");}),
+            Node::FootnoteDefinition(_) => MdSpec::Unknown("FootnoteDefinition"),
+            Node::FootnoteReference(_) => MdSpec::Unknown("FootnoteReference"),
+            Node::Heading(h) => MdSpec::children(|cs| {
+                cs.surround("\n").indent("#".repeat(h.depth as usize));
+            }),
+            Node::Html(h) => {
+                out.write(h.value.deref());
+                MdSpec::Skip
+            }
+            Node::Image(i) => {
+                out.write("![");
+                out.write(i.alt.deref());
+                out.write("](");
+                out.write(i.url.deref());
+                out.write(")");
+                MdSpec::Skip
+            }
+            Node::ImageReference(_) => MdSpec::Unknown("ImageRef"),
+            Node::InlineCode(c) => {
+                out.write(c.value.deref());
+                MdSpec::Skip
+            }
+            Node::InlineMath(_) => MdSpec::Unknown("InlineMath"),
+            Node::Link(i) => {
+                out.write("[");
+                let children_borrows = i.children.iter().map(|c| c).collect();
+                write_md(&children_borrows, out);
+                out.write("](");
+                out.write(i.url.deref());
+                out.write(")");
+                MdSpec::Skip
+            }
+            Node::LinkReference(_) => MdSpec::Unknown("LinkRef"),
+            Node::List(list) => {
+                out.write("\n");
+
+                for (idx, li) in list.children.iter().enumerate() {
+                    let Some(li_nodes) = li.children() else {
+                        continue;
+                    };
+                    let counter = if list.ordered {
+                        format!("{}.", idx + 1) // TODO align when we have different number of digits
+                    } else if let ListItem(li_details) = li {
+                        (match li_details.checked {
+                            None => "- ",
+                            Some(true) => "- [x]",
+                            Some(false) => "- [ ]",
+                        }).to_string()// TODO  remove need for to_string() here and in the else below.
+                    } else {
+                        "- ".to_string()
+                    };
+                    out.write(&*counter); // what the heck is even this
+                    out.push_indent(" ".repeat(counter.len()));
+                    write_md(&li_nodes.iter().map(|n| n).collect(), out);
+                    out.pop_indent();
+                }
+
+                out.write("\n");
+                Skip
+            }
+            Node::ListItem(i) => Unknown("internal error"),
+            // Node::Math(_) => {}
+            // Node::MdxFlowExpression(_) => {}
+            // Node::MdxJsxFlowElement(_) => {}
+            // Node::MdxJsxTextElement(_) => {}
+            // Node::MdxTextExpression(_) => {}
+            // Node::MdxjsEsm(_) => {}
+            Node::Paragraph(p) => MdSpec::children(|cs| {cs.after_children = Cow::Borrowed("\n\n")} ),
+            Node::Root(_) => Skip,
+            // Node::Strong(_) => {}
+            // Node::Table(_) => {}
+            // Node::TableCell(_) => {}
+            // Node::TableRow(_) => {}
+            Node::Text(t) => {
+                out.write(t.value.deref());
+                Skip
+            }
+            // Node::ThematicBreak(_) => {}
+            // Node::Toml(_) => {}
+            // Node::Yaml(_) => {}
+            _ => Skip, // TODO remove thi
+        };
+        match md_spec{
+            MdSpec::Write(spec) => {
+                out.push_indent(spec.indent);
+                out.write(spec.literal.deref()); // all these derefs feel wrong! I think I have the wrong generic on out.write.
+                out.write(spec.before_children.deref());
+                if let Some(children) = node.children() {
+                    write_md(&children.iter().map(|c| c).collect(), out); // TODO this stupid Node -> &Node trick
+                }
+                out.write(spec.after_children.deref());
+                out.pop_indent();
+            }
+            Skip => {}
+            Unknown(msg) => {eprintln!("unknown node: {}", msg)}
         }
     }
 }
@@ -49,7 +290,7 @@ enum Selector {
 enum Resolver { // TODO need better name
     Current,
     Next,
-    Until(fn(&Node, &Node) -> bool)
+    Until(fn(&Node, &Node) -> bool),
 }
 
 impl Resolver {
@@ -59,7 +300,7 @@ impl Resolver {
     fn resolve<'a>(&self, root_node: &'a Node, path: &Vec<usize>) -> Option<Vec<&'a Node>> {
         // first, find the parent
         let mut parent = root_node;
-        for &idx in &path[..path.len()-1] {
+        for &idx in &path[..path.len() - 1] {
             match parent.children() {
                 None => {
                     return None;
@@ -88,9 +329,9 @@ impl Resolver {
             Next => siblings.get(my_sibling_idx + 1).map(|s| vec!(s)),
             Until(predicate) => {
                 let Some(current_node) = siblings.get(my_sibling_idx) else {
-                    return None
+                    return None;
                 };
-                let later_siblings = &siblings[my_sibling_idx+1..];
+                let later_siblings = &siblings[my_sibling_idx + 1..];
                 let mut result = Vec::new();
                 for sibling in later_siblings {
                     if predicate(current_node, sibling) {
@@ -123,7 +364,7 @@ impl Selector {
                 for (idx, child) in children.iter().enumerate() {
                     children_path.push(idx);
                     if let result @ Some(_) = self.find_0(root, child, children_path) {
-                        return result
+                        return result;
                     }
                     children_path.pop();
                 }
@@ -139,7 +380,6 @@ impl Selector {
             }
             (Selector::Heading(matcher), Node::Heading(h)) => {
                 if matcher.matches(node.to_string()) {
-                    let my_depth = h.depth;
                     Some(Until(Self::smaller_header))
                 } else {
                     None
@@ -148,7 +388,7 @@ impl Selector {
             (Selector::List(_matcher, _list_type, _selected), Node::List(_list)) => {
                 None // TODO
             }
-            (Selector::Image{ /*text, href*/ .. }, Node::Image(_img)) => {
+            (Selector::Image { /*text, href*/ .. }, Node::Image(_img)) => {
                 // TODO see note on "Link" below
                 None // TODO
             }
@@ -172,7 +412,7 @@ impl Selector {
         }
     }
 
-    fn smaller_header(target_node: &Node, check_node: &Node ) -> bool {
+    fn smaller_header(target_node: &Node, check_node: &Node) -> bool {
         match (target_node, check_node) {
             (Node::Heading(target_heading), Node::Heading(check_heading)) => {
                 target_heading.depth >= check_heading.depth
