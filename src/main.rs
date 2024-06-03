@@ -1,6 +1,7 @@
 use markdown::mdast::Node;
 use serde_yaml::Value;
 use std::io::{stdin, Read};
+use crate::Resolver::{Current, Next};
 
 fn main() {
     let mut contents = String::new();
@@ -11,6 +12,201 @@ fn main() {
     let parsed = to_json(&ast);
     let y = serde_yaml::to_string(&parsed).expect("err");
     println!("{}", y);
+    println!();
+    let selector = Selector::Heading(Matcher::Substring { look_for: "Hello".to_string(), anchored_left: true, anchored_right: false });
+    match selector.find(&ast) {
+        None => { println!("no match") }
+        Some(found) => {
+            println!("found:");
+            let j = to_json(found);
+            let y = serde_yaml::to_string(&j).expect("err");
+            println!("{}", y);
+        }
+    }
+}
+
+type Selected = Option<bool>;
+
+enum ListType {
+    Ordered,
+    Unordered,
+}
+
+enum Selector {
+    BlockQuote(Matcher),
+    List(Matcher, ListType, Selected),
+    Image { text: Matcher, href: Matcher },
+    Link { text: Matcher, href: Matcher },
+    CodeBlock(Matcher),
+    Heading(Matcher),
+}
+
+enum Resolver { // TODO need better name
+    Current,
+    Next,
+    // Parent
+}
+
+// struct NodeParentage<'a> {
+//     parent: NavigableNode<'a>,
+//     position_within_siblings: usize,
+// }
+//
+// impl<'a> NodeParentage<'a> {
+//     fn new(/*parent: NavigableNode<'a>,*/ position_within_siblings: usize) -> Self {
+//         Self {
+//             parent,
+//             position_within_siblings,
+//         }
+//     }
+// }
+//
+// struct NavigableNode<'a> {
+//     node: &'a Node,
+//     parentage: Option<NodeParentage<'a>>,
+// }
+//
+// impl<'a> NavigableNode<'a> {
+//     fn new(root: &Node) -> Self {
+//         Self {
+//             node,
+//             parentage: None,
+//         }
+//     }
+//
+//     fn children(&self) -> Option<Vec<NavigableNode<'a>>> {
+//         match self.node.children() {
+//             None => None,
+//             Some(children) => {
+//                 let mut result = Vec::with_capacity(children.len());
+//                 for (idx, child) in children.iter().enumerate() {
+//                     let child_nav = Self {
+//                         node: child,
+//                         parentage: Some(NodeParentage::new(idx)),
+//                     };
+//                     result.push(child_nav)
+//                 }
+//                 Some(result)
+//             }
+//         }
+//     }
+//
+// }
+
+impl Resolver {
+    /// Tries to resolve a breadcrumb-style path of nodes to a single node. The breadcrumbs are
+    /// implemented as a stack, with the "current" node as the last element, and the root as the
+    /// first.
+    fn resolve<'a>(&self, root_node: &'a Node, path: &Vec<usize>) -> Option<&'a Node> {
+        // first, find the parent
+        let mut parent = root_node;
+        for &idx in &path[..path.len()-1] {
+            match parent.children() {
+                None => {
+                    return None;
+                }
+                Some(children) => {
+                    match children.get(idx) {
+                        None => {
+                            return None;
+                        }
+                        Some(child) => {
+                            parent = child;
+                        }
+                    }
+                }
+            }
+        }
+        let Some(&my_sibling_idx) = path.last() else {
+            return None;
+        };
+        let Some(siblings) = parent.children() else {
+            return None;
+        };
+        match self {
+            Current => siblings.get(my_sibling_idx),
+            Next => siblings.get(my_sibling_idx + 1),
+        }
+    }
+}
+
+impl Selector {
+    pub fn find<'a>(&'a self, node: &'a Node) -> Option<&Node> {
+        let mut children = Vec::new();
+        return self.find_0(node, node, &mut children);
+    }
+
+    fn find_0<'a>(&self, root: &'a Node, node: &'a Node, children_path: &mut Vec<usize>) -> Option<&'a Node> {
+        if let Some(resolver) = self.find_at_node_exactly(node) {
+            return resolver.resolve(root, children_path);
+        }
+        match node.children() {
+            None => None,
+            Some(children) => {
+                for (idx, child) in children.iter().enumerate() {
+                    children_path.push(idx);
+                    if let result @ Some(_) = self.find_0(root, child, children_path) {
+                        return result
+                    }
+                    children_path.pop();
+                }
+                None
+            }
+        }
+    }
+
+    fn find_at_node_exactly<'a>(&'a self, node: &'a Node) -> Option<Resolver> {
+        match (self, node) {
+            (Selector::BlockQuote(matcher), Node::BlockQuote(_)) => {
+                if matcher.matches(node.to_string()) { Some(Current) } else { None }
+            }
+            (Selector::Heading(matcher), Node::Heading(_h)) => {
+                if matcher.matches(node.to_string()) { Some(Next) } else { None }
+            }
+            (Selector::List(_matcher, _list_type, _selected), Node::List(_list)) => {
+                None // TODO
+            }
+            (Selector::Image{ /*text, href*/ .. }, Node::Image(_img)) => {
+                None // TODO
+            }
+            (Selector::Link { /*text, href*/ .. }, Node::Link(_link)) => {
+                None // TODO
+            }
+            (Selector::CodeBlock(_matcher), Node::Code(_code)) => {
+                None // TODO
+            }
+
+            (_, _) => None,
+        }
+    }
+}
+
+enum Matcher {
+    Any,
+    Substring { look_for: String, anchored_left: bool, anchored_right: bool },
+    Regex(regex::Regex),
+}
+
+impl Matcher {
+    fn matches(&self, text: String) -> bool {
+        match self {
+            Matcher::Any => true,
+            Matcher::Substring { look_for, anchored_left, anchored_right } => {
+                // TODO we can do this more efficiently, but this is good for now.
+                // In the future, we could take an approach of comparing each char of look_for to
+                // the next char in the &strs list.
+                match (anchored_left, anchored_right) {
+                    (false, false) => text.contains(look_for),
+                    (true, false) => text.starts_with(look_for),
+                    (false, true) => text.ends_with(look_for),
+                    (true, true) => text.eq(look_for),
+                }
+            }
+            Matcher::Regex(pattern) => {
+                pattern.is_match(&text)
+            }
+        }
+    }
 }
 
 fn yaml_str(s: &str) -> Value {
