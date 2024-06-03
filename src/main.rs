@@ -1,4 +1,5 @@
-use std::io::{Read, stdin};
+use std::io;
+use std::io::{Read, stdin, Write};
 
 use markdown::mdast::Node;
 use serde_yaml::Value;
@@ -13,18 +14,16 @@ fn main() {
     let ast = markdown::to_mdast(&mut contents, &markdown::ParseOptions::gfm()).unwrap();
     let parsed = to_json(&ast);
     let y = serde_yaml::to_string(&parsed).expect("err");
-    println!("{}", y);
-    println!();
+    eprintln!("{}", y);
+    eprintln!();
     let selector = Selector::Heading(Matcher::Substring { look_for: "Hello".to_string(), anchored_left: true, anchored_right: false });
     match selector.find(&ast) {
         None => { println!("no match") }
         Some(found) => {
             println!("found:");
             for node in found {
+                let _ = io::stdout().write(node.to_string().as_bytes());
                 println!();
-                let j = to_json(node);
-                let y = serde_yaml::to_string(&j).expect("err");
-                println!("{}", y);
             }
         }
     }

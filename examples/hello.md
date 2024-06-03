@@ -4,6 +4,10 @@ How are you!
 
 *I'm* doing well.
 
+## Details
+
+In fact, I'm doing very well!
+
 # Second Section
 
 ## Heading `with inline code` again
