@@ -39,6 +39,7 @@ enum Selector {
     Link { text: Matcher, href: Matcher },
     CodeBlock(Matcher),
     Heading(Matcher),
+    // TODO I need an "any", or maybe just a "paragraph", or maybe both
 }
 
 enum Resolver { // TODO need better name
@@ -46,52 +47,6 @@ enum Resolver { // TODO need better name
     Next,
     // Parent
 }
-
-// struct NodeParentage<'a> {
-//     parent: NavigableNode<'a>,
-//     position_within_siblings: usize,
-// }
-//
-// impl<'a> NodeParentage<'a> {
-//     fn new(/*parent: NavigableNode<'a>,*/ position_within_siblings: usize) -> Self {
-//         Self {
-//             parent,
-//             position_within_siblings,
-//         }
-//     }
-// }
-//
-// struct NavigableNode<'a> {
-//     node: &'a Node,
-//     parentage: Option<NodeParentage<'a>>,
-// }
-//
-// impl<'a> NavigableNode<'a> {
-//     fn new(root: &Node) -> Self {
-//         Self {
-//             node,
-//             parentage: None,
-//         }
-//     }
-//
-//     fn children(&self) -> Option<Vec<NavigableNode<'a>>> {
-//         match self.node.children() {
-//             None => None,
-//             Some(children) => {
-//                 let mut result = Vec::with_capacity(children.len());
-//                 for (idx, child) in children.iter().enumerate() {
-//                     let child_nav = Self {
-//                         node: child,
-//                         parentage: Some(NodeParentage::new(idx)),
-//                     };
-//                     result.push(child_nav)
-//                 }
-//                 Some(result)
-//             }
-//         }
-//     }
-//
-// }
 
 impl Resolver {
     /// Tries to resolve a breadcrumb-style path of nodes to a single node. The breadcrumbs are
@@ -117,6 +72,7 @@ impl Resolver {
                 }
             }
         }
+        // Now, resolve based on that parent
         let Some(&my_sibling_idx) = path.last() else {
             return None;
         };
@@ -137,6 +93,9 @@ impl Selector {
     }
 
     fn find_0<'a>(&self, root: &'a Node, node: &'a Node, children_path: &mut Vec<usize>) -> Option<&'a Node> {
+        // TODO this needs to be able to return a Vec<Node>, not just a single Node.
+        // That's because a header's result are basically all of its siblings until the next header.
+        // Alternatively, I could just restructure it as a pre-pass.
         if let Some(resolver) = self.find_at_node_exactly(node) {
             return resolver.resolve(root, children_path);
         }
@@ -167,9 +126,19 @@ impl Selector {
                 None // TODO
             }
             (Selector::Image{ /*text, href*/ .. }, Node::Image(_img)) => {
+                // TODO see note on "Link" below
                 None // TODO
             }
             (Selector::Link { /*text, href*/ .. }, Node::Link(_link)) => {
+                // TODO I should normalize these such that link references are just inline links.
+                // In other words, this:
+                //
+                //  [foo](https://example.com)
+                //
+                // should be equivalent to this:
+                //
+                //  [foo][1]
+                //  [1]: https://example.com
                 None // TODO
             }
             (Selector::CodeBlock(_matcher), Node::Code(_code)) => {
