@@ -1,7 +1,9 @@
+use std::io::{Read, stdin};
+
 use markdown::mdast::Node;
 use serde_yaml::Value;
-use std::io::{stdin, Read};
-use crate::Resolver::{Current, Next};
+
+use crate::Resolver::{Current, Next, Until};
 
 fn main() {
     let mut contents = String::new();
@@ -18,9 +20,12 @@ fn main() {
         None => { println!("no match") }
         Some(found) => {
             println!("found:");
-            let j = to_json(found);
-            let y = serde_yaml::to_string(&j).expect("err");
-            println!("{}", y);
+            for node in found {
+                println!();
+                let j = to_json(node);
+                let y = serde_yaml::to_string(&j).expect("err");
+                println!("{}", y);
+            }
         }
     }
 }
@@ -45,14 +50,14 @@ enum Selector {
 enum Resolver { // TODO need better name
     Current,
     Next,
-    // Parent
+    Until(fn(&Node, &Node) -> bool)
 }
 
 impl Resolver {
     /// Tries to resolve a breadcrumb-style path of nodes to a single node. The breadcrumbs are
     /// implemented as a stack, with the "current" node as the last element, and the root as the
     /// first.
-    fn resolve<'a>(&self, root_node: &'a Node, path: &Vec<usize>) -> Option<&'a Node> {
+    fn resolve<'a>(&self, root_node: &'a Node, path: &Vec<usize>) -> Option<Vec<&'a Node>> {
         // first, find the parent
         let mut parent = root_node;
         for &idx in &path[..path.len()-1] {
@@ -80,19 +85,33 @@ impl Resolver {
             return None;
         };
         match self {
-            Current => siblings.get(my_sibling_idx),
-            Next => siblings.get(my_sibling_idx + 1),
+            Current => siblings.get(my_sibling_idx).map(|s| vec!(s)),
+            Next => siblings.get(my_sibling_idx + 1).map(|s| vec!(s)),
+            Until(predicate) => {
+                let Some(current_node) = siblings.get(my_sibling_idx) else {
+                    return None
+                };
+                let later_siblings = &siblings[my_sibling_idx+1..];
+                let mut result = Vec::new();
+                for sibling in later_siblings {
+                    if predicate(current_node, sibling) {
+                        break;
+                    }
+                    result.push(sibling);
+                }
+                return Some(result);
+            }
         }
     }
 }
 
 impl Selector {
-    pub fn find<'a>(&'a self, node: &'a Node) -> Option<&Node> {
+    pub fn find<'a>(&'a self, node: &'a Node) -> Option<Vec<&Node>> {
         let mut children = Vec::new();
         return self.find_0(node, node, &mut children);
     }
 
-    fn find_0<'a>(&self, root: &'a Node, node: &'a Node, children_path: &mut Vec<usize>) -> Option<&'a Node> {
+    fn find_0<'a>(&self, root: &'a Node, node: &'a Node, children_path: &mut Vec<usize>) -> Option<Vec<&'a Node>> {
         // TODO this needs to be able to return a Vec<Node>, not just a single Node.
         // That's because a header's result are basically all of its siblings until the next header.
         // Alternatively, I could just restructure it as a pre-pass.
@@ -119,8 +138,13 @@ impl Selector {
             (Selector::BlockQuote(matcher), Node::BlockQuote(_)) => {
                 if matcher.matches(node.to_string()) { Some(Current) } else { None }
             }
-            (Selector::Heading(matcher), Node::Heading(_h)) => {
-                if matcher.matches(node.to_string()) { Some(Next) } else { None }
+            (Selector::Heading(matcher), Node::Heading(h)) => {
+                if matcher.matches(node.to_string()) {
+                    let my_depth = h.depth;
+                    Some(Until(Self::smaller_header))
+                } else {
+                    None
+                }
             }
             (Selector::List(_matcher, _list_type, _selected), Node::List(_list)) => {
                 None // TODO
@@ -146,6 +170,15 @@ impl Selector {
             }
 
             (_, _) => None,
+        }
+    }
+
+    fn smaller_header(target_node: &Node, check_node: &Node ) -> bool {
+        match (target_node, check_node) {
+            (Node::Heading(target_heading), Node::Heading(check_heading)) => {
+                target_heading.depth >= check_heading.depth
+            }
+            (_, _) => false
         }
     }
 }
