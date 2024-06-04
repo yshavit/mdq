@@ -1,3 +1,5 @@
+mod output;
+
 use std::borrow::Cow;
 use std::io;
 use std::io::{Read, stdin, Write};
