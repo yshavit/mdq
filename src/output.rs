@@ -21,14 +21,6 @@ impl<W: Write> Output<W> {
         }
     }
 
-    pub fn into_output(self) -> W {
-        self.stream
-    }
-
-    pub fn output(&self) -> &W {
-        &self.stream
-    }
-
     pub fn push_block(&mut self, block: Block) {
         self.ensure_newlines(2);
         let block_close = match block {
@@ -80,7 +72,7 @@ impl<W: Write> Output<W> {
         }
     }
 
-    pub fn write_line(&mut self, text: &str) {
+    fn write_line(&mut self, text: &str) {
         if let WritingState::HaveNotWrittenAnything = self.writing_state {
             if self.pending_indents.is_empty() && text.is_empty() {
                 // ie, we're not about to write anything (including not any indents)

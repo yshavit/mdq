@@ -20,13 +20,18 @@ fn main() {
     let ast = markdown::to_mdast(&mut contents, &markdown::ParseOptions::gfm()).unwrap();
     let parsed = to_json(&ast);
     let y = serde_yaml::to_string(&parsed).expect("err");
+
+    let mut out = output::Output::new(io::stdout());
+
     eprintln!("{}", y);
     eprintln!();
     let selector = Selector::Heading(Matcher::Substring { look_for: "Hello".to_string(), anchored_left: true, anchored_right: false });
     match selector.find(&ast) {
         None => { println!("no match") }
         Some(found) => {
-            println!("found:");
+            out.push_block(output::Block::Plain);
+            out.write_str("Found the following:");
+            out.pop_block();
             let mut out = StrWriter::new(io::stdout());
             write_md(&found, &mut out);
         }
