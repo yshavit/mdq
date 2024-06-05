@@ -160,11 +160,13 @@ fn write_md<'a, N, W>(nodes: &[N], out: &mut output::Output<W>)
 
 type Selected = Option<bool>;
 
+#[allow(dead_code)]
 enum ListType {
     Ordered,
     Unordered,
 }
 
+#[allow(dead_code)]
 enum Selector {
     BlockQuote(Matcher),
     List(Matcher, ListType, Selected),
@@ -175,6 +177,7 @@ enum Selector {
     // TODO I need an "any", or maybe just a "paragraph", or maybe both
 }
 
+#[allow(dead_code)]
 enum Resolver { // TODO need better name
     Current,
     Next,
@@ -310,6 +313,7 @@ impl Selector {
     }
 }
 
+#[allow(dead_code)]
 enum Matcher {
     Any,
     Substring { look_for: String, anchored_left: bool, anchored_right: bool },

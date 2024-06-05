@@ -156,7 +156,8 @@ impl<W: Write> Output<W> {
 pub enum Block {
     Plain,
     Indent(String),
-    Surround(String, String),
+    #[allow(dead_code)]
+    Surround(String, String), // TODO how does ``` work?
 }
 
 enum WritingState {
@@ -171,6 +172,7 @@ enum BlockClose {
     EndSurround(String),
 }
 
+#[cfg(test)]
 mod tests {
     use std::fmt::{Display, Error};
     use super::*;

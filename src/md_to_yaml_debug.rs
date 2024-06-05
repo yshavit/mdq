@@ -1,7 +1,7 @@
-use std::borrow::Borrow;
 use markdown::mdast::Node;
 use serde_yaml::Value;
 
+#[allow(dead_code)]
 pub fn nodes_to_yaml<N>(node: &Node) -> String {
     let parsed = to_json(&node);
     serde_yaml::to_string(&parsed).expect("err")
