@@ -22,7 +22,8 @@ impl<W: Write> Output<W> {
     }
 
     pub fn with_block<F>(&mut self, block: Block, action: F)
-        where F: FnOnce(&mut Self)
+    where
+        F: FnOnce(&mut Self),
     {
         self.push_block(block);
         action(self);
@@ -53,18 +54,16 @@ impl<W: Write> Output<W> {
         }
         match self.blocks.pop() {
             None => {}
-            Some(block_close) => {
-                match block_close {
-                    BlockClose::NoAction => {}
-                    BlockClose::RemoveIndent => {
-                        self.indents.pop();
-                    }
-                    BlockClose::EndSurround(end_text) => {
-                        self.ensure_newlines(1);
-                        self.write_str(&end_text);
-                    }
+            Some(block_close) => match block_close {
+                BlockClose::NoAction => {}
+                BlockClose::RemoveIndent => {
+                    self.indents.pop();
                 }
-            }
+                BlockClose::EndSurround(end_text) => {
+                    self.ensure_newlines(1);
+                    self.write_str(&end_text);
+                }
+            },
         }
         self.ensure_newlines(2);
     }
@@ -101,7 +100,8 @@ impl<W: Write> Output<W> {
                 // But after that, we also want to write our indents.
                 if self.pending_newlines > 0 {
                     self.write_raw("\n");
-                    for _ in 1..self.pending_newlines { // from 1 because we already wrote the first
+                    for _ in 1..self.pending_newlines {
+                        // from 1 because we already wrote the first
                         self.write_raw(&indent);
                         self.write_raw("\n");
                     }
@@ -128,7 +128,6 @@ impl<W: Write> Output<W> {
             }
         }
 
-
         self.write_raw(text);
     }
 
@@ -142,9 +141,11 @@ impl<W: Write> Output<W> {
 
     fn write_raw(&mut self, text: &str) {
         match self.writing_state {
-            WritingState::HaveNotWrittenAnything => { self.writing_state = WritingState::WroteSome }
+            WritingState::HaveNotWrittenAnything => self.writing_state = WritingState::WroteSome,
             WritingState::WroteSome => {}
-            WritingState::Error => { return; }
+            WritingState::Error => {
+                return;
+            }
         }
         if let Err(e) = self.stream.write(text.as_bytes()) {
             eprintln!("error while writing output: {}", e);
@@ -173,12 +174,12 @@ enum BlockClose {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::{Display, Error};
     use super::*;
+    use std::fmt::{Display, Error};
 
     #[test]
     fn simple_string() {
-        let mut out = Output::new(vec!());
+        let mut out = Output::new(vec![]);
 
         out.write_str("hello");
 
@@ -187,7 +188,7 @@ mod tests {
 
     #[test]
     fn pop_block_when_there_is_none() {
-        let mut out = Output::new(vec!());
+        let mut out = Output::new(vec![]);
 
         out.pop_block(); // no-op
         out.write_str("hello world");
@@ -197,60 +198,46 @@ mod tests {
 
     #[test]
     fn plain_block() {
-        let mut out = Output::new(vec!());
+        let mut out = Output::new(vec![]);
 
         write_test_block(&mut out, Block::Plain);
 
         assert_eq!(
-            [
-                "before",
-                "",
-                "hello world",
-                "",
-                "after",
-            ].join("\n"),
-            out.to_string());
+            ["before", "", "hello world", "", "after",].join("\n"),
+            out.to_string()
+        );
     }
 
     #[test]
     fn indent_block() {
-        let mut out = Output::new(vec!());
+        let mut out = Output::new(vec![]);
 
         write_test_block(&mut out, Block::Indent(">".to_string()));
 
         assert_eq!(
-            [
-                "before",
-                "",
-                "> hello world",
-                "",
-                "after",
-            ].join("\n"),
-            out.to_string());
+            ["before", "", "> hello world", "", "after",].join("\n"),
+            out.to_string()
+        );
     }
 
     #[test]
     fn surround_block() {
-        let mut out = Output::new(vec!());
+        let mut out = Output::new(vec![]);
 
-        write_test_block(&mut out, Block::Surround("vvv".to_string(), "^^^".to_string()));
+        write_test_block(
+            &mut out,
+            Block::Surround("vvv".to_string(), "^^^".to_string()),
+        );
 
         assert_eq!(
-            [
-                "before",
-                "",
-                "vvv",
-                "hello world",
-                "^^^",
-                "",
-                "after",
-            ].join("\n"),
-            out.to_string());
+            ["before", "", "vvv", "hello world", "^^^", "", "after",].join("\n"),
+            out.to_string()
+        );
     }
 
     #[test]
     fn nested_blocks() {
-        let mut out = Output::new(vec!());
+        let mut out = Output::new(vec![]);
 
         out.with_block(Block::Indent(">".to_string()), |out| {
             out.write_str("hello ");
@@ -259,9 +246,10 @@ mod tests {
             out.with_block(Block::Indent(">".to_string()), |out| {
                 out.write_str("second level");
                 // no ensuring newline
-                out.with_block(Block::Surround("```".to_string(), "```".to_string()), |out| {
-                    out.write_str("some code")
-                })
+                out.with_block(
+                    Block::Surround("```".to_string(), "```".to_string()),
+                    |out| out.write_str("some code"),
+                )
             })
         });
         out.write_str("after");
@@ -277,62 +265,48 @@ mod tests {
                 ">> ```",
                 "",
                 "after",
-            ].join("\n"),
-            out.to_string());
+            ]
+            .join("\n"),
+            out.to_string()
+        );
     }
 
     #[test]
     fn nested_blocks_jump_a_few() {
-        let mut out = Output::new(vec!());
+        let mut out = Output::new(vec![]);
 
         out.write_str("before");
         out.with_block(Block::Indent(">".to_string()), |out| {
             out.with_block(Block::Indent("!".to_string()), |out| {
-                out.with_block(Block::Indent("%".to_string()), |out| {
-                    out.write_str("hello")
-                });
+                out.with_block(Block::Indent("%".to_string()), |out| out.write_str("hello"));
             });
         });
         out.write_str("after");
 
         assert_eq!(
-            [
-                "before",
-                "",
-                ">!% hello",
-                "",
-                "after",
-            ].join("\n"),
-            out.to_string());
+            ["before", "", ">!% hello", "", "after",].join("\n"),
+            out.to_string()
+        );
     }
 
     #[test]
     fn indents_without_inner_writes() {
-        let mut out = Output::new(vec!());
+        let mut out = Output::new(vec![]);
 
         out.push_block(Block::Indent(">".to_string()));
         out.pop_block();
 
-        assert_eq!(
-            [
-                ">",
-            ].join("\n"),
-            out.to_string());
+        assert_eq!([">",].join("\n"), out.to_string());
     }
 
     #[test]
     fn surrounds_without_inner_writes() {
-        let mut out = Output::new(vec!());
+        let mut out = Output::new(vec![]);
 
         out.push_block(Block::Surround("vvv".to_string(), "^^^".to_string()));
         out.pop_block();
 
-        assert_eq!(
-            [
-                "vvv",
-                "^^^",
-            ].join("\n"),
-            out.to_string());
+        assert_eq!(["vvv", "^^^",].join("\n"), out.to_string());
     }
 
     fn write_test_block(out: &mut Output<Vec<u8>>, block: Block) {

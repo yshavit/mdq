@@ -1,13 +1,13 @@
-mod output;
 mod md_to_yaml_debug;
+mod output;
 
-use std::borrow::{Borrow};
+use std::borrow::Borrow;
 use std::io;
-use std::io::{Read, stdin, Write};
+use std::io::{stdin, Read, Write};
 use std::string::ToString;
 
-use markdown::mdast::Node;
 use crate::output::Block;
+use markdown::mdast::Node;
 
 use crate::Resolver::{Current, Next, Until};
 
@@ -20,12 +20,14 @@ fn main() {
 
     let mut out = output::Output::new(io::stdout());
 
-    let selector = Selector::Heading(Matcher::Substring { look_for: "Hello".to_string(), anchored_left: true, anchored_right: false });
+    let selector = Selector::Heading(Matcher::Substring {
+        look_for: "Hello".to_string(),
+        anchored_left: true,
+        anchored_right: false,
+    });
 
     match selector.find(&ast) {
-        None => {
-            out.write_str("(no match)")
-        }
+        None => out.write_str("(no match)"),
         Some(found) => {
             write_md(&found, &mut out);
         }
@@ -34,16 +36,15 @@ fn main() {
 }
 
 fn write_md<'a, N, W>(nodes: &[N], out: &mut output::Output<W>)
-    where N: Borrow<Node>,
-          W: Write,
+where
+    N: Borrow<Node>,
+    W: Write,
 {
     for node in nodes {
         match node.borrow() {
-            Node::BlockQuote(node) => {
-                out.with_block(Block::Indent(">".to_string()), |out| {
-                    write_md(&node.children, out);
-                })
-            }
+            Node::BlockQuote(node) => out.with_block(Block::Indent(">".to_string()), |out| {
+                write_md(&node.children, out);
+            }),
             Node::Break(_) => {
                 out.write_str("\n");
             }
@@ -131,12 +132,13 @@ fn write_md<'a, N, W>(nodes: &[N], out: &mut output::Output<W>)
                             None => "- ",
                             Some(true) => "- [x]",
                             Some(false) => "- [ ]",
-                        }).to_string()// TODO  remove need for to_string() here and in the else below.
+                        })
+                        .to_string() // TODO  remove need for to_string() here and in the else below.
                     } else {
                         "- ".to_string()
                     };
                     out.write_str(&*counter); // what the heck is even this
-                    // TODO set up indent
+                                              // TODO set up indent
                     write_md(&li_nodes, out);
                 }
                 out.write_str("\n");
@@ -150,11 +152,9 @@ fn write_md<'a, N, W>(nodes: &[N], out: &mut output::Output<W>)
             // Node::MdxJsxTextElement(_) => {}
             // Node::MdxTextExpression(_) => {}
             // Node::MdxjsEsm(_) => {}
-            Node::Paragraph(node) => {
-                out.with_block(Block::Plain, |out| {
-                    write_md(&node.children, out);
-                })
-            }
+            Node::Paragraph(node) => out.with_block(Block::Plain, |out| {
+                write_md(&node.children, out);
+            }),
             Node::Root(node) => {
                 write_md(&node.children, out);
             }
@@ -193,7 +193,8 @@ enum Selector {
 }
 
 #[allow(dead_code)]
-enum Resolver { // TODO need better name
+enum Resolver {
+    // TODO need better name
     Current,
     Next,
     Until(fn(&Node, &Node) -> bool),
@@ -211,16 +212,14 @@ impl Resolver {
                 None => {
                     return None;
                 }
-                Some(children) => {
-                    match children.get(idx) {
-                        None => {
-                            return None;
-                        }
-                        Some(child) => {
-                            parent = child;
-                        }
+                Some(children) => match children.get(idx) {
+                    None => {
+                        return None;
                     }
-                }
+                    Some(child) => {
+                        parent = child;
+                    }
+                },
             }
         }
         // Now, resolve based on that parent
@@ -231,8 +230,8 @@ impl Resolver {
             return None;
         };
         match self {
-            Current => siblings.get(my_sibling_idx).map(|s| vec!(s)),
-            Next => siblings.get(my_sibling_idx + 1).map(|s| vec!(s)),
+            Current => siblings.get(my_sibling_idx).map(|s| vec![s]),
+            Next => siblings.get(my_sibling_idx + 1).map(|s| vec![s]),
             Until(predicate) => {
                 let Some(current_node) = siblings.get(my_sibling_idx) else {
                     return None;
@@ -257,7 +256,12 @@ impl Selector {
         return self.find_0(node, node, &mut children);
     }
 
-    fn find_0<'a>(&self, root: &'a Node, node: &'a Node, children_path: &mut Vec<usize>) -> Option<Vec<&'a Node>> {
+    fn find_0<'a>(
+        &self,
+        root: &'a Node,
+        node: &'a Node,
+        children_path: &mut Vec<usize>,
+    ) -> Option<Vec<&'a Node>> {
         // TODO this needs to be able to return a Vec<Node>, not just a single Node.
         // That's because a header's result are basically all of its siblings until the next header.
         // Alternatively, I could just restructure it as a pre-pass.
@@ -323,7 +327,7 @@ impl Selector {
             (Node::Heading(target_heading), Node::Heading(check_heading)) => {
                 target_heading.depth >= check_heading.depth
             }
-            (_, _) => false
+            (_, _) => false,
         }
     }
 }
@@ -331,7 +335,11 @@ impl Selector {
 #[allow(dead_code)]
 enum Matcher {
     Any,
-    Substring { look_for: String, anchored_left: bool, anchored_right: bool },
+    Substring {
+        look_for: String,
+        anchored_left: bool,
+        anchored_right: bool,
+    },
     Regex(regex::Regex),
 }
 
@@ -339,7 +347,11 @@ impl Matcher {
     fn matches(&self, text: String) -> bool {
         match self {
             Matcher::Any => true,
-            Matcher::Substring { look_for, anchored_left, anchored_right } => {
+            Matcher::Substring {
+                look_for,
+                anchored_left,
+                anchored_right,
+            } => {
                 // TODO we can do this more efficiently, but this is good for now.
                 // In the future, we could take an approach of comparing each char of look_for to
                 // the next char in the &strs list.
@@ -350,9 +362,7 @@ impl Matcher {
                     (true, true) => text.eq(look_for),
                 }
             }
-            Matcher::Regex(pattern) => {
-                pattern.is_match(&text)
-            }
+            Matcher::Regex(pattern) => pattern.is_match(&text),
         }
     }
 }
