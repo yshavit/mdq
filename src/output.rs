@@ -21,6 +21,14 @@ impl<W: Write> Output<W> {
         }
     }
 
+    pub fn with_block<F>(&mut self, block: Block, action: F)
+        where F: FnOnce(&mut Self)
+    {
+        self.push_block(block);
+        action(self);
+        self.pop_block();
+    }
+
     pub fn push_block(&mut self, block: Block) {
         self.ensure_newlines(2);
         let block_close = match block {
@@ -134,7 +142,7 @@ impl<W: Write> Output<W> {
 
     fn write_raw(&mut self, text: &str) {
         match self.writing_state {
-            WritingState::HaveNotWrittenAnything => {self.writing_state = WritingState::WroteSome}
+            WritingState::HaveNotWrittenAnything => { self.writing_state = WritingState::WroteSome }
             WritingState::WroteSome => {}
             WritingState::Error => { return; }
         }
@@ -243,14 +251,14 @@ mod tests {
     fn nested_blocks() {
         let mut out = Output::new(vec!());
 
-        with_block(&mut out, Block::Indent(">".to_string()), |out| {
+        out.with_block(Block::Indent(">".to_string()), |out| {
             out.write_str("hello ");
             out.write_str("world");
 
-            with_block(out, Block::Indent(">".to_string()), |out| {
+            out.with_block(Block::Indent(">".to_string()), |out| {
                 out.write_str("second level");
                 // no ensuring newline
-                with_block(out, Block::Surround("```".to_string(), "```".to_string()), |out| {
+                out.with_block(Block::Surround("```".to_string(), "```".to_string()), |out| {
                     out.write_str("some code")
                 })
             })
@@ -277,9 +285,9 @@ mod tests {
         let mut out = Output::new(vec!());
 
         out.write_str("before");
-        with_block(&mut out, Block::Indent(">".to_string()), |out| {
-            with_block(out, Block::Indent("!".to_string()), |out| {
-                with_block(out, Block::Indent("%".to_string()), |out| {
+        out.with_block(Block::Indent(">".to_string()), |out| {
+            out.with_block(Block::Indent("!".to_string()), |out| {
+                out.with_block(Block::Indent("%".to_string()), |out| {
                     out.write_str("hello")
                 });
             });
@@ -328,16 +336,8 @@ mod tests {
 
     fn write_test_block(out: &mut Output<Vec<u8>>, block: Block) {
         out.write_str("before");
-        with_block(out, block, |out| out.write_str("hello world"));
+        out.with_block(block, |out| out.write_str("hello world"));
         out.write_str("after");
-    }
-
-    fn with_block<F>(out: &mut Output<Vec<u8>>, block: Block, action: F)
-        where F: FnOnce(&mut Output<Vec<u8>>)
-    {
-        out.push_block(block);
-        action(out);
-        out.pop_block();
     }
 
     impl Display for Output<Vec<u8>> {

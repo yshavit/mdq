@@ -1,14 +1,13 @@
 mod output;
+mod md_to_yaml_debug;
 
-use std::borrow::Cow;
+use std::borrow::{Borrow};
 use std::io;
 use std::io::{Read, stdin, Write};
-use std::ops::Deref;
+use std::string::ToString;
 
 use markdown::mdast::Node;
-use markdown::mdast::Node::ListItem;
-use serde_yaml::Value;
-use crate::MdSpec::{Skip, Unknown};
+use crate::output::Block;
 
 use crate::Resolver::{Current, Next, Until};
 
@@ -18,205 +17,101 @@ fn main() {
         .read_to_string(&mut contents)
         .expect("invalid input (not utf8)");
     let ast = markdown::to_mdast(&mut contents, &markdown::ParseOptions::gfm()).unwrap();
-    let parsed = to_json(&ast);
-    let y = serde_yaml::to_string(&parsed).expect("err");
 
     let mut out = output::Output::new(io::stdout());
 
-    eprintln!("{}", y);
-    eprintln!();
     let selector = Selector::Heading(Matcher::Substring { look_for: "Hello".to_string(), anchored_left: true, anchored_right: false });
+
     match selector.find(&ast) {
-        None => { println!("no match") }
+        None => {
+            out.write_str("(no match)")
+        }
         Some(found) => {
-            out.push_block(output::Block::Plain);
-            out.write_str("Found the following:");
-            out.pop_block();
-            let mut out = StrWriter::new(io::stdout());
             write_md(&found, &mut out);
         }
     }
+    out.write_str("\n");
 }
 
-struct StrWriter<W>
-    where W: Write
-{
-    indents: Vec<String>,
-    out: W,
-    at_new_line: bool,
-}
-
-impl<W> StrWriter<W>
-    where W: Write {
-    pub fn new(out: W) -> Self {
-        Self {
-            out,
-            indents: Vec::new(),
-            at_new_line: true,
-        }
-    }
-
-    pub fn write<'a, S>(&mut self, s: S)
-    where S: Into<&'a str>{
-        let write_str = s.into();
-        let mut iter = write_str.split("\n").peekable();
-        while let Some(line) = iter.next() {
-            if !line.is_empty() {
-                self.write_indents();
-                self.write_raw(line)
-            }
-            if let Some(_) = iter.peek() {
-                self.write_raw("\n");
-            }
-        }
-    }
-
-    pub fn writeln(&mut self) {
-        self.write_raw("\n");
-    }
-
-    pub fn push_indent<S>(&mut self, indent: S)
-        where S: ToString
-    {
-        self.indents.push(indent.to_string());
-    }
-
-    pub fn pop_indent(&mut self) {
-        self.indents.pop();
-    }
-
-    fn write_indents(&mut self) {
-        if self.at_new_line {
-            for s in &self.indents {
-                // TODO de-dupe with write_raw; borrow mutability errors
-                if let Err(err) = self.out.write(s.as_bytes()) {
-                    eprintln!("error: {}", err);
-                }
-                self.at_new_line = s.ends_with("\n");
-            }
-        }
-    }
-
-    fn write_raw(&mut self, s: &str) {
-        if let Err(err) = self.out.write(s.as_bytes()) {
-            eprintln!("error: {}", err);
-        }
-        self.at_new_line = s.ends_with("\n");
-    }
-}
-
-struct MdWrite<'a> {
-    indent: Cow<'a, str>,
-    literal: Cow<'a, str>,
-    before_children: Cow<'a, str>,
-    before_each: fn(child_idx: usize) -> String,
-    after_children: Cow<'a, str>,
-}
-
-enum MdSpec<'a> {
-    Write(MdWrite<'a>),
-    Skip,
-    Unknown(&'a str),
-}
-
-impl<'a> MdSpec<'a> {
-    fn children<F>(f: F) -> Self
-        where F: FnOnce(&mut MdWrite)
-    {
-        let mut write = MdWrite {
-            indent: Cow::default(),
-            literal: Cow::default(),
-            before_children: Cow::default(),
-            before_each: (|x| "".to_string()),
-            after_children: Cow::default(),
-        };
-        f(&mut write);
-        return Self::Write(write);
-    }
-}
-
-impl<'a> MdWrite<'a> {
-    pub fn write<S>(&mut self, value: S) -> &mut Self
-        where S: Into<Cow<'a, str>>
-    {
-        self.literal = Cow::from(value.into());
-        self
-    }
-
-    pub fn indent<S>(&mut self, value: S) -> &mut Self
-        where S: Into<Cow<'a, str>>
-    {
-        self.indent = Cow::from(value.into());
-        self
-    }
-
-    pub fn surround<S>(&mut self, surround_children: S) -> &mut Self
-        where S: Into<Cow<'a, str>>
-    {
-        let str_cow = surround_children.into();
-
-        self.before_children = str_cow.clone();
-        self.after_children = str_cow;
-        self
-    }
-}
-
-fn write_md<'a, W>(nodes: &Vec<&Node>, out: &mut StrWriter<W>)
-    where W: Write,
+fn write_md<'a, N, W>(nodes: &[N], out: &mut output::Output<W>)
+    where N: Borrow<Node>,
+          W: Write,
 {
     for node in nodes {
-        // TODO I don't reall like this MdSpec thing. I think I should either find the real pattern that everything uses,
-        // or else just do everything inline (with a helper that's similar to MdSpec::children)
-        let md_spec = match node {
-            Node::BlockQuote(_) => MdSpec::children(|cs| {cs.surround("\n```\n");}),
-            Node::Break(_) => MdSpec::children(|cs| {cs.write("\n");}),
-            Node::Code(_) => MdSpec::children(|cs| {cs.surround("\n```\n");}),
-            Node::Definition(_) => MdSpec::Unknown("Definition"),
-            Node::Delete(_) => MdSpec::children(|cs| {cs.surround("~~");}),
-            Node::Emphasis(_) => MdSpec::children(|cs| {cs.surround("*");}),
-            Node::FootnoteDefinition(_) => MdSpec::Unknown("FootnoteDefinition"),
-            Node::FootnoteReference(_) => MdSpec::Unknown("FootnoteReference"),
-            Node::Heading(h) => MdSpec::children(|cs| {
-                cs.surround("\n").indent("#".repeat(h.depth as usize));
-            }),
-            Node::Html(h) => {
-                out.write(h.value.deref());
-                MdSpec::Skip
+        match node.borrow() {
+            Node::BlockQuote(node) =>
+                out.with_block(Block::Indent(">".to_string()), |out| {
+                    write_md(&node.children, out);
+                }),
+            Node::Break(_) => {
+                out.write_str("\n");
             }
-            Node::Image(i) => {
-                out.write("![");
-                out.write(i.alt.deref());
-                out.write("](");
-                out.write(i.url.deref());
-                out.write(")");
-                MdSpec::Skip
+            Node::Code(_node) => {
+                // TODO
             }
-            Node::ImageReference(_) => MdSpec::Unknown("ImageRef"),
-            Node::InlineCode(c) => {
-                out.write(c.value.deref());
-                MdSpec::Skip
+            Node::Definition(_) => {
+                // TODO
             }
-            Node::InlineMath(_) => MdSpec::Unknown("InlineMath"),
-            Node::Link(i) => {
-                out.write("[");
-                let children_borrows = i.children.iter().map(|c| c).collect();
-                write_md(&children_borrows, out);
-                out.write("](");
-                out.write(i.url.deref());
-                out.write(")");
-                MdSpec::Skip
+            Node::Delete(node) => {
+                out.write_str("~~");
+                write_md(&node.children, out);
+                out.write_str("~~");
             }
-            Node::LinkReference(_) => MdSpec::Unknown("LinkRef"),
-            Node::List(list) => {
-                out.write("\n");
+            Node::Emphasis(node) => {
+                out.write_str("*");
+                write_md(&node.children, out);
+                out.write_str("*");
+            }
+            Node::FootnoteDefinition(_) => {}
+            Node::FootnoteReference(_) => {}
+            Node::Heading(node) => {
+                out.with_block(Block::Indent("#".repeat(node.depth as usize)), |out| {
+                    write_md(&node.children, out);
+                })
+            }
+            Node::Html(node) => {
+                out.write_str(&node.value);
+            }
+            Node::Image(node) => {
+                out.write_str("![");
+                out.write_str(&node.alt);
+                out.write_str("](");
+                out.write_str(&node.url);
+                out.write_str(")");
+            }
+            Node::ImageReference(_) => {
+                // TODO
+            }
+            Node::InlineCode(node) => {
+                out.write_str("`");
+                out.write_str(&node.value);
+                out.write_str("`");
+            }
+            Node::InlineMath(node) => {
+                out.write_str("$");
+                out.write_str(&node.value);
+                out.write_str("$");
+            }
+            Node::Link(node) => {
+                out.write_str("[");
+                write_md(&node.children, out);
+                out.write_str("](");
+                out.write_str(&node.url);
+                out.write_str(")");
+            }
+            Node::LinkReference(_) => {
+                // TODO
+            }
+            Node::List(node) => {
+                out.write_str("\n");
 
-                for (idx, li) in list.children.iter().enumerate() {
+                for (idx, li) in node.children.iter().enumerate() {
                     let Some(li_nodes) = li.children() else {
                         continue;
                     };
-                    let counter = if list.ordered {
+                    let counter = if node.ordered {
                         format!("{}.", idx + 1) // TODO align when we have different number of digits
-                    } else if let ListItem(li_details) = li {
+                    } else if let Node::ListItem(li_details) = li {
                         (match li_details.checked {
                             None => "- ",
                             Some(true) => "- [x]",
@@ -225,51 +120,41 @@ fn write_md<'a, W>(nodes: &Vec<&Node>, out: &mut StrWriter<W>)
                     } else {
                         "- ".to_string()
                     };
-                    out.write(&*counter); // what the heck is even this
-                    out.push_indent(" ".repeat(counter.len()));
-                    write_md(&li_nodes.iter().map(|n| n).collect(), out);
-                    out.pop_indent();
+                    out.write_str(&*counter); // what the heck is even this
+                    // TODO set up indent
+                    write_md(&li_nodes, out);
                 }
-
-                out.write("\n");
-                Skip
+                out.write_str("\n");
             }
-            Node::ListItem(i) => Unknown("internal error"),
+            Node::ListItem(_) => {
+                panic!("internal error") // should already have been handled
+            }
             // Node::Math(_) => {}
             // Node::MdxFlowExpression(_) => {}
             // Node::MdxJsxFlowElement(_) => {}
             // Node::MdxJsxTextElement(_) => {}
             // Node::MdxTextExpression(_) => {}
             // Node::MdxjsEsm(_) => {}
-            Node::Paragraph(p) => MdSpec::children(|cs| {cs.after_children = Cow::Borrowed("\n")} ),
-            Node::Root(_) => Skip,
+            Node::Paragraph(node) => {
+                out.with_block(Block::Plain, |out| {
+                    write_md(&node.children, out);
+                })
+            }
+            Node::Root(node) => {
+                write_md(&node.children, out);
+            }
             // Node::Strong(_) => {}
             // Node::Table(_) => {}
             // Node::TableCell(_) => {}
             // Node::TableRow(_) => {}
-            Node::Text(t) => {
-                out.write(t.value.deref());
-                Skip
+            Node::Text(node) => {
+                out.write_str(&node.value);
             }
             // Node::ThematicBreak(_) => {}
             // Node::Toml(_) => {}
             // Node::Yaml(_) => {}
-            _ => Skip, // TODO remove thi
+            _ => {} // TODO remove this
         };
-        match md_spec{
-            MdSpec::Write(spec) => {
-                out.push_indent(spec.indent);
-                out.write(spec.literal.deref()); // all these derefs feel wrong! I think I have the wrong generic on out.write.
-                out.write(spec.before_children.deref());
-                if let Some(children) = node.children() {
-                    write_md(&children.iter().map(|c| c).collect(), out); // TODO this stupid Node -> &Node trick
-                }
-                out.write(spec.after_children.deref());
-                out.pop_indent();
-            }
-            Skip => {}
-            Unknown(msg) => {eprintln!("unknown node: {}", msg)}
-        }
     }
 }
 
@@ -381,7 +266,7 @@ impl Selector {
             (Selector::BlockQuote(matcher), Node::BlockQuote(_)) => {
                 if matcher.matches(node.to_string()) { Some(Current) } else { None }
             }
-            (Selector::Heading(matcher), Node::Heading(h)) => {
+            (Selector::Heading(matcher), Node::Heading(_)) => {
                 if matcher.matches(node.to_string()) {
                     Some(Until(Self::smaller_header))
                 } else {
@@ -451,79 +336,4 @@ impl Matcher {
             }
         }
     }
-}
-
-fn yaml_str(s: &str) -> Value {
-    Value::String(s.to_string())
-}
-
-fn to_json(md_node: &Node) -> Value {
-    let (node_type, node_details) = match md_node {
-        Node::Root(_) => ("root", None),
-        Node::BlockQuote(_) => ("block_quote", None),
-        Node::FootnoteDefinition(val) => {
-            let mut details = serde_yaml::Mapping::new();
-            details.insert(yaml_str("id"), yaml_str(&val.identifier));
-            if let Some(label) = &val.label {
-                details.insert(yaml_str("label"), yaml_str(label));
-            }
-            ("footnote_definition", Some(Value::Mapping(details)))
-        }
-        Node::List(val) => {
-            let list_type = if val.ordered { "ordered" } else { "unordered" };
-            ("list", Some(yaml_str(list_type)))
-        }
-        Node::MdxJsxFlowElement(_)
-        | Node::MdxjsEsm(_)
-        | Node::MdxTextExpression(_)
-        | Node::MdxJsxTextElement(_)
-        | Node::MdxFlowExpression(_) => ("mdx", None),
-        Node::Toml(_) => ("toml", None),
-        Node::Yaml(_) => ("yaml", None),
-        Node::Break(_) => ("break", None),
-        Node::InlineCode(val) => ("inline_code", Some(yaml_str(&val.value))),
-        Node::InlineMath(val) => ("math:inline", Some(yaml_str(&val.value))),
-        Node::Delete(_) => ("delete", None),
-        Node::Emphasis(_) => ("em", None),
-        Node::FootnoteReference(val) => ("footnote_ref", Some(yaml_str(&val.identifier))),
-        Node::Html(val) => ("html", Some(yaml_str(&val.value))),
-        Node::Image(val) => ("img", Some(yaml_str(&val.url))),
-        Node::ImageReference(val) => ("img_ref", Some(yaml_str(&val.identifier))),
-        Node::Link(val) => {
-            let mut obj = serde_yaml::Mapping::new();
-            obj.insert(yaml_str("url"), yaml_str(&val.url));
-            ("link", Some(obj.into()))
-        }
-        Node::LinkReference(val) => ("link_ref", Some(yaml_str(&val.identifier))),
-        Node::Strong(_) => ("strong", None),
-        Node::Text(val) => ("text", Some(yaml_str(&val.value))),
-        Node::Code(val) => ("code_block", Some(yaml_str(&val.value))),
-        Node::Math(val) => ("math_block", Some(yaml_str(&val.value))),
-        Node::Heading(val) => ("heading", Some(Value::Number(val.depth.into()))),
-        Node::Table(_) => ("table", None),
-        Node::ThematicBreak(_) => ("break", None),
-        Node::TableRow(_) => ("tr", None),
-        Node::TableCell(_) => ("td", None),
-        Node::ListItem(val) => {
-            let desc = match &val.checked {
-                Some(c) if *c => "checked",
-                Some(_) => "unchecked",
-                None => "li",
-            };
-            (desc, None)
-        }
-        Node::Definition(val) => ("dev", Some(yaml_str(&val.identifier))),
-        Node::Paragraph(_) => ("paragraph", None),
-    };
-
-    let mut obj = serde_yaml::Mapping::new();
-    obj.insert(
-        Value::String(node_type.to_string()),
-        node_details.unwrap_or_else(|| Value::String("_".to_string())),
-    );
-    if let Some(children) = md_node.children() {
-        let children_jsons = children.iter().map(|c| to_json(c)).collect();
-        obj.insert(Value::String("children".to_string()), children_jsons);
-    }
-    Value::Mapping(obj)
 }
