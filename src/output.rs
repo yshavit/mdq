@@ -156,8 +156,7 @@ impl<W: Write> Output<W> {
 pub enum Block {
     Plain,
     Indent(String),
-    #[allow(dead_code)]
-    Surround(String, String), // TODO how does ``` work?
+    Surround(String, String),
 }
 
 enum WritingState {

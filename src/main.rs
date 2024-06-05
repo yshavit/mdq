@@ -39,15 +39,30 @@ fn write_md<'a, N, W>(nodes: &[N], out: &mut output::Output<W>)
 {
     for node in nodes {
         match node.borrow() {
-            Node::BlockQuote(node) =>
+            Node::BlockQuote(node) => {
                 out.with_block(Block::Indent(">".to_string()), |out| {
                     write_md(&node.children, out);
-                }),
+                })
+            }
             Node::Break(_) => {
                 out.write_str("\n");
             }
-            Node::Code(_node) => {
-                // TODO
+            Node::Code(node) => {
+                let starting_ticks = match &node.lang {
+                    None => "```".to_string(),
+                    Some(lang) => {
+                        let mut ticks = format!("```{}", lang);
+                        if let Some(metadata) = &node.meta {
+                            // as far as I can tell, this is only ever Some if we also have a language
+                            ticks.push(' ');
+                            ticks.push_str(metadata);
+                        }
+                        ticks
+                    }
+                };
+                out.with_block(Block::Surround(starting_ticks, "```".to_string()), |out| {
+                    out.write_str(&node.value);
+                })
             }
             Node::Definition(_) => {
                 // TODO

@@ -8,6 +8,26 @@ How are you!
 
 In fact, I'm doing very well!
 
+> I say:
+> ```types
+> here is some code
+> it is
+> 
+> fun
+> ```
+
+There's also a
+
+```text title="Code block with metadata"
+Block A
+```
+
+and 
+
+``` title="Code block with only metadata"
+Block B
+```
+
 # Second Section
 
 ## Heading `with inline code` again
