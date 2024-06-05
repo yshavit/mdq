@@ -10,6 +10,16 @@ pub struct Output<W: Write> {
     writing_state: WritingState,
 }
 
+pub struct PreWriter<'a, W: Write> {
+    output: &'a mut Output<W>
+}
+
+impl<'a, W: Write> PreWriter<'a, W> {
+    pub fn write_str(&mut self, text: &str) {
+        self.output.write_str(text)
+    }
+}
+
 impl<W: Write> Output<W> {
     pub fn new(to: W) -> Self {
         Self {
@@ -24,11 +34,27 @@ impl<W: Write> Output<W> {
     }
 
     pub fn with_block<F>(&mut self, block: Block, action: F)
-    where
-        F: FnOnce(&mut Self),
+        where
+            F: FnOnce(&mut Self),
     {
         self.push_block(block);
         action(self);
+        self.pop_block();
+    }
+
+    /// Creates a new block within which newlines are honored literally, and no wrapping happens.
+    /// When newlines are entered, you'll still get any quotes from previous blocks.
+    ///
+    /// Because you have to call this on `&mut self`, you can't access that `self` within the
+    /// block. This is by design, since it doesn't make sense to add blocks within a `pre`. Instead,
+    /// use the provided writer's `write_str` to write the literal text for this block.
+    pub fn with_pre_block<F>(&mut self, action: F)
+        where F: for <'a> FnOnce(&mut PreWriter<W>),
+    {
+        self.push_block(Block::Plain);
+        self.pre_mode = true;
+        action(& mut PreWriter{output: self});
+        self.pre_mode = false;
         self.pop_block();
     }
 
@@ -39,11 +65,6 @@ impl<W: Write> Output<W> {
             Block::Quote => {
                 self.pending_indents.push(">".to_string());
                 BlockClose::EndQuote
-            }
-            Block::Pre => {
-                // TODO
-                self.pre_mode = true; // TODO this won't stack well. Probably I need not a push_block but a pre_mode, which takes not a &mut Self but a Fn(&str) for individual writes
-                BlockClose::EndBPre
             }
         };
         self.blocks.push(block_close);
@@ -60,17 +81,13 @@ impl<W: Write> Output<W> {
                 BlockClose::EndQuote => {
                     self.indents.pop();
                 }
-                BlockClose::EndBPre => {
-                    self.pre_mode = false;
-                    self.ensure_newlines(1);
-                }
             },
         }
         self.ensure_newlines(2);
     }
 
     pub fn write_str(&mut self, text: &str) {
-        let newlines_re = if self.pre_mode { "\n" } else {"\n+"};
+        let newlines_re = if self.pre_mode { "\n" } else { "\n+" };
         let lines = regex::Regex::new(newlines_re).unwrap();
         let mut lines = lines.split(text).peekable();
         while let Some(line) = lines.next() {
@@ -161,8 +178,6 @@ pub enum Block {
     Plain,
     /// A quoted block (`> `)
     Quote,
-    /// A block within which newlines are rendered literally (but quotes are still applied).
-    Pre
 }
 
 enum WritingState {
@@ -173,8 +188,7 @@ enum WritingState {
 
 enum BlockClose {
     NoAction,
-    EndQuote, // TODO should be EndQuote
-    EndBPre,
+    EndQuote,
 }
 
 #[cfg(test)]
@@ -208,7 +222,7 @@ mod tests {
         write_test_block(&mut out, Block::Plain);
 
         assert_eq!(
-            ["before", "", "hello", "world", "", "after",].join("\n"),
+            ["before", "", "hello", "world", "", "after", ].join("\n"),
             out.to_string()
         );
     }
@@ -220,7 +234,7 @@ mod tests {
         write_test_block(&mut out, Block::Quote);
 
         assert_eq!(
-            ["before", "", "> hello", "> world", "", "after",].join("\n"),
+            ["before", "", "> hello", "> world", "", "after", ].join("\n"),
             out.to_string()
         );
     }
@@ -230,13 +244,14 @@ mod tests {
         // TODO fix these tests
         let mut out = Output::new(vec![]);
 
-        write_test_block(
-            &mut out,
-            Block::Pre
-        );
+        out.write_str("before");
+        out.with_pre_block(|out| {
+            out.write_str("hello\n\nworld");
+        });
+        out.write_str("after");
 
         assert_eq!(
-            ["before", "", "hello", "", "world", "", "after",].join("\n"),
+            ["before", "", "hello", "", "world", "", "after", ].join("\n"),
             out.to_string()
         );
     }
@@ -252,9 +267,9 @@ mod tests {
             out.with_block(Block::Quote, |out| {
                 out.write_str("second level");
                 // no ensuring newline
-                out.with_block(Block::Pre, |out| {
-                    out.write_str("```\nsome code\nwith\n\nline breaks\n```");
-                })
+                out.with_pre_block(|out| {
+                    out.write_str("```rust\nsome code\nwith\n\nline breaks\n```");
+                });
             })
         });
         out.write_str("after");
@@ -265,7 +280,7 @@ mod tests {
                 ">",
                 ">> second level",
                 ">>",
-                ">> ```",
+                ">> ```rust",
                 ">> some code",
                 ">> with",
                 ">>",
@@ -274,7 +289,7 @@ mod tests {
                 "",
                 "after",
             ]
-            .join("\n"),
+                .join("\n"),
             out.to_string()
         );
     }
@@ -292,7 +307,7 @@ mod tests {
         out.write_str("after");
 
         assert_eq!(
-            ["before", "", ">>> hello", "", "after",].join("\n"),
+            ["before", "", ">>> hello", "", "after", ].join("\n"),
             out.to_string()
         );
     }
@@ -304,17 +319,17 @@ mod tests {
         out.push_block(Block::Quote);
         out.pop_block();
 
-        assert_eq!([">",].join("\n"), out.to_string());
+        assert_eq!([">", ].join("\n"), out.to_string());
     }
 
     #[test]
     fn surrounds_without_inner_writes() {
         let mut out = Output::new(vec![]);
 
-        out.push_block(Block::Pre);
-        out.write_str("vvv\n");
-        out.write_str("^^^\n");
-        out.pop_block();
+        out.with_pre_block(|out| {
+            out.write_str("vvv\n");
+            out.write_str("^^^\n");
+        });
 
         assert_eq!(["vvv", "^^^", ""].join("\n"), out.to_string());
     }

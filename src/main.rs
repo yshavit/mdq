@@ -10,7 +10,6 @@ use crate::output::Block;
 use markdown::mdast::Node;
 
 use crate::Resolver::{Current, Next, Until};
-use crate::Selector::CodeBlock;
 
 fn main() {
     let mut contents = String::new();
@@ -50,7 +49,7 @@ where
                 out.write_str("\n");
             }
             Node::Code(node) => {
-                out.with_block(Block::Pre, |out| {
+                out.with_pre_block(|out| {
                     out.write_str("```");
                     if let Some(lang) = &node.lang {
                         out.write_str(&lang);
@@ -60,6 +59,7 @@ where
                             out.write_str(&meta);
                         }
                     }
+                    out.write_str("\n");
                     out.write_str(&node.value);
                     out.write_str("\n```");
                 })

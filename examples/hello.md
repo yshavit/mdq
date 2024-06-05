@@ -7,6 +7,8 @@ How are you!
 ## Details
 
 In fact, I'm doing very well!
+This line isn't a new paragraph, just some
+wrapping that mdq should unwrap.
 
 > I say:
 > ```types
