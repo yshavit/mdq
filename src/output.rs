@@ -14,10 +14,11 @@ pub struct PreWriter<'a, W: Write> {
     output: &'a mut Output<W>
 }
 
-impl<'a, W: Write> PreWriter<'a, W> {
-    pub fn write_str(&mut self, text: &str) {
-        self.output.write_str(text)
-    }
+pub enum Block {
+    /// A plain block; just paragraph text.
+    Plain,
+    /// A quoted block (`> `)
+    Quote,
 }
 
 impl<W: Write> Output<W> {
@@ -173,11 +174,10 @@ impl<W: Write> Output<W> {
     }
 }
 
-pub enum Block {
-    /// A plain block; just paragraph text.
-    Plain,
-    /// A quoted block (`> `)
-    Quote,
+impl<'a, W: Write> PreWriter<'a, W> {
+    pub fn write_str(&mut self, text: &str) {
+        self.output.write_str(text)
+    }
 }
 
 enum WritingState {
