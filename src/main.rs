@@ -42,7 +42,7 @@ where
 {
     for node in nodes {
         match node.borrow() {
-            Node::BlockQuote(node) => out.with_block(Block::Indent(">".to_string()), |out| {
+            Node::BlockQuote(node) => out.with_block(Block::Quote, |out| {
                 write_md(&node.children, out);
             }),
             Node::Break(_) => {
@@ -80,11 +80,11 @@ where
             }
             Node::FootnoteDefinition(_) => {}
             Node::FootnoteReference(_) => {}
-            Node::Heading(node) => {
-                out.with_block(Block::Indent("#".repeat(node.depth as usize)), |out| {
-                    write_md(&node.children, out);
-                })
-            }
+            Node::Heading(node) => out.with_block(Block::Plain, |out| {
+                out.write_str(&"#".repeat(node.depth as usize));
+                out.write_str(" ");
+                write_md(&node.children, out);
+            }),
             Node::Html(node) => {
                 out.write_str(&node.value);
             }
