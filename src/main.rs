@@ -10,6 +10,7 @@ use crate::output::Block;
 use markdown::mdast::Node;
 
 use crate::Resolver::{Current, Next, Until};
+use crate::Selector::CodeBlock;
 
 fn main() {
     let mut contents = String::new();
@@ -49,20 +50,18 @@ where
                 out.write_str("\n");
             }
             Node::Code(node) => {
-                let starting_ticks = match &node.lang {
-                    None => "```".to_string(),
-                    Some(lang) => {
-                        let mut ticks = format!("```{}", lang);
-                        if let Some(metadata) = &node.meta {
-                            // as far as I can tell, this is only ever Some if we also have a language
-                            ticks.push(' ');
-                            ticks.push_str(metadata);
+                out.with_block(Block::Pre, |out| {
+                    out.write_str("```");
+                    if let Some(lang) = &node.lang {
+                        out.write_str(&lang);
+                        if let Some(meta) = &node.meta {
+                            // as far as I can tell, meta is only ever Some if lang is Some
+                            out.write_str(" ");
+                            out.write_str(&meta);
                         }
-                        ticks
                     }
-                };
-                out.with_block(Block::Surround(starting_ticks, "```".to_string()), |out| {
                     out.write_str(&node.value);
+                    out.write_str("\n```");
                 })
             }
             Node::Definition(_) => {

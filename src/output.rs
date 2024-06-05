@@ -2,6 +2,7 @@ use std::io::Write;
 
 pub struct Output<W: Write> {
     stream: W,
+    pre_mode: bool,
     blocks: Vec<BlockClose>,
     indents: Vec<String>, // TODO these are all ">", so just make it a counter
     pending_indents: Vec<String>, // TODO these are all ">", so just make it a counter
@@ -13,6 +14,7 @@ impl<W: Write> Output<W> {
     pub fn new(to: W) -> Self {
         Self {
             stream: to,
+            pre_mode: false,
             blocks: Vec::default(),
             indents: Vec::default(),
             pending_indents: Vec::default(),
@@ -36,13 +38,12 @@ impl<W: Write> Output<W> {
             Block::Plain => BlockClose::NoAction,
             Block::Quote => {
                 self.pending_indents.push(">".to_string());
-                BlockClose::RemoveIndent
+                BlockClose::EndQuote
             }
-            Block::Surround(start, end) => {
-                self.ensure_newlines(1);
-                self.write_str(&start);
-                self.ensure_newlines(1);
-                BlockClose::EndSurround(end)
+            Block::Pre => {
+                // TODO
+                self.pre_mode = true; // TODO this won't stack well. Probably I need not a push_block but a pre_mode, which takes not a &mut Self but a Fn(&str) for individual writes
+                BlockClose::EndBPre
             }
         };
         self.blocks.push(block_close);
@@ -56,12 +57,12 @@ impl<W: Write> Output<W> {
             None => {}
             Some(block_close) => match block_close {
                 BlockClose::NoAction => {}
-                BlockClose::RemoveIndent => {
+                BlockClose::EndQuote => {
                     self.indents.pop();
                 }
-                BlockClose::EndSurround(end_text) => {
+                BlockClose::EndBPre => {
+                    self.pre_mode = false;
                     self.ensure_newlines(1);
-                    self.write_str(&end_text);
                 }
             },
         }
@@ -69,7 +70,8 @@ impl<W: Write> Output<W> {
     }
 
     pub fn write_str(&mut self, text: &str) {
-        let lines = regex::Regex::new("\n+").unwrap();
+        let newlines_re = if self.pre_mode { "\n" } else {"\n+"};
+        let lines = regex::Regex::new(newlines_re).unwrap();
         let mut lines = lines.split(text).peekable();
         while let Some(line) = lines.next() {
             self.write_line(line);
@@ -159,8 +161,8 @@ pub enum Block {
     Plain,
     /// A quoted block (`> `)
     Quote,
-    /// A block that's surrounded by some fence; typically this is for a code block.
-    Surround(String, String),
+    /// A block within which newlines are rendered literally (but quotes are still applied).
+    Pre
 }
 
 enum WritingState {
@@ -171,8 +173,8 @@ enum WritingState {
 
 enum BlockClose {
     NoAction,
-    RemoveIndent,
-    EndSurround(String),
+    EndQuote, // TODO should be EndQuote
+    EndBPre,
 }
 
 #[cfg(test)]
@@ -206,7 +208,7 @@ mod tests {
         write_test_block(&mut out, Block::Plain);
 
         assert_eq!(
-            ["before", "", "hello world", "", "after",].join("\n"),
+            ["before", "", "hello", "world", "", "after",].join("\n"),
             out.to_string()
         );
     }
@@ -218,22 +220,23 @@ mod tests {
         write_test_block(&mut out, Block::Quote);
 
         assert_eq!(
-            ["before", "", "> hello world", "", "after",].join("\n"),
+            ["before", "", "> hello", "> world", "", "after",].join("\n"),
             out.to_string()
         );
     }
 
     #[test]
-    fn surround_block() {
+    fn pre_block() {
+        // TODO fix these tests
         let mut out = Output::new(vec![]);
 
         write_test_block(
             &mut out,
-            Block::Surround("vvv".to_string(), "^^^".to_string()),
+            Block::Pre
         );
 
         assert_eq!(
-            ["before", "", "vvv", "hello world", "^^^", "", "after",].join("\n"),
+            ["before", "", "hello", "", "world", "", "after",].join("\n"),
             out.to_string()
         );
     }
@@ -249,10 +252,9 @@ mod tests {
             out.with_block(Block::Quote, |out| {
                 out.write_str("second level");
                 // no ensuring newline
-                out.with_block(
-                    Block::Surround("```".to_string(), "```".to_string()),
-                    |out| out.write_str("some code"),
-                )
+                out.with_block(Block::Pre, |out| {
+                    out.write_str("```\nsome code\nwith\n\nline breaks\n```");
+                })
             })
         });
         out.write_str("after");
@@ -265,6 +267,9 @@ mod tests {
                 ">>",
                 ">> ```",
                 ">> some code",
+                ">> with",
+                ">>",
+                ">> line breaks",
                 ">> ```",
                 "",
                 "after",
@@ -306,15 +311,17 @@ mod tests {
     fn surrounds_without_inner_writes() {
         let mut out = Output::new(vec![]);
 
-        out.push_block(Block::Surround("vvv".to_string(), "^^^".to_string()));
+        out.push_block(Block::Pre);
+        out.write_str("vvv\n");
+        out.write_str("^^^\n");
         out.pop_block();
 
-        assert_eq!(["vvv", "^^^",].join("\n"), out.to_string());
+        assert_eq!(["vvv", "^^^", ""].join("\n"), out.to_string());
     }
 
     fn write_test_block(out: &mut Output<Vec<u8>>, block: Block) {
         out.write_str("before");
-        out.with_block(block, |out| out.write_str("hello world"));
+        out.with_block(block, |out| out.write_str("hello\n\nworld"));
         out.write_str("after");
     }
 
