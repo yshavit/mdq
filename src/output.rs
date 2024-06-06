@@ -1,3 +1,4 @@
+use std::cmp::PartialEq;
 use std::io::Write;
 
 pub struct Output<W: Write> {
@@ -24,7 +25,7 @@ pub enum Block {
 impl<W: Write> Output<W> {
     pub fn new(to: W) -> Self {
         Self {
-            stream: to,
+            stream: to, // TODO use io::BufWriter?
             pre_mode: false,
             blocks: Vec::default(),
             indents: Vec::default(),
@@ -174,12 +175,24 @@ impl<W: Write> Output<W> {
     }
 }
 
+impl<W: Write> Drop for Output<W> {
+    fn drop(&mut self) {
+        if let Err(e) = self.stream.flush() {
+            if WritingState::Error != self.writing_state {
+                eprintln!("error while writing output: {}", e);
+                self.writing_state = WritingState::Error;
+            }
+        }
+    }
+}
+
 impl<'a, W: Write> PreWriter<'a, W> {
     pub fn write_str(&mut self, text: &str) {
         self.output.write_str(text)
     }
 }
 
+#[derive(PartialEq)]
 enum WritingState {
     HaveNotWrittenAnything,
     WroteSome,
@@ -241,7 +254,6 @@ mod tests {
 
     #[test]
     fn pre_block() {
-        // TODO fix these tests
         let mut out = Output::new(vec![]);
 
         out.write_str("before");
@@ -252,6 +264,28 @@ mod tests {
 
         assert_eq!(
             ["before", "", "hello", "", "world", "", "after", ].join("\n"),
+            out.to_string()
+        );
+    }
+
+    #[test]
+    fn pre_block_with_small_writes() {
+        let mut out = Output::new(vec![]);
+
+        out.write_str("before");
+        out.with_block(Block::Quote, |out| {
+            out.with_pre_block(|out| {
+                out.write_str("```");
+                out.write_str("\n");
+                out.write_str("my code");
+                out.write_str("\n");
+                out.write_str("```");
+            });
+        });
+        out.write_str("after");
+
+        assert_eq!(
+            ["before", "", "> ```", "> my code", "> ```", "", "after", ].join("\n"),
             out.to_string()
         );
     }
