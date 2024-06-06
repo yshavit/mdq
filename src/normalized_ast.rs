@@ -6,7 +6,11 @@ pub enum MdqNode {
         children: Vec<MdqNode>
     },
 
-    // paragraphs
+    // paragraphs with child nodes
+    Heading {
+        depth: u8,
+        title: Vec<Inline>,
+    },
     Paragraph {
         children: Vec<MdqNode>,
     },
@@ -17,14 +21,13 @@ pub enum MdqNode {
         starting_index: Option<u32>,
         children: Vec<ListItem>,
     },
-    Heading {
-        depth: u8,
-        title: Vec<Inline>,
-    },
     Table {
         align: Vec<AlignKind>,
         rows: Vec<Vec<Inline>>,
     },
+    ThematicBreak,
+
+    // paragraphs with fixed text
     CodeBlock {
         value: String,
         opts: Option<CodeOpts>,
@@ -33,7 +36,6 @@ pub enum MdqNode {
         value: String,
         metadata: Option<String>,
     },
-    ThematicBreak,
 
     // inline spans
     Inline(Inline),
