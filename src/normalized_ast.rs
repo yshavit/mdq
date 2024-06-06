@@ -27,18 +27,21 @@ pub enum MdqNode {
     },
     ThematicBreak,
 
-    // paragraphs with fixed text
+    // blocks that contain strings (as opposed to nodes)
     CodeBlock {
+        variant: CodeVariant,
         value: String,
-        opts: Option<CodeOpts>,
-    },
-    MathBlock {
-        value: String,
-        metadata: Option<String>,
     },
 
     // inline spans
     Inline(Inline),
+}
+
+pub enum CodeVariant {
+    Code(Option<CodeOpts>),
+    Math { metadata: Option<String> },
+    Toml,
+    Yaml,
 }
 
 pub enum Inline {
@@ -168,22 +171,24 @@ impl MdqNode {
                 let Code { value, lang, meta, .. } = node;
                 MdqNode::CodeBlock {
                     value,
-                    opts: match lang {
-                        None => None,
-                        Some(lang) => {
-                            Some(CodeOpts {
-                                language: lang,
-                                metadata: meta,
-                            })
+                    variant: CodeVariant::Code(
+                        match lang {
+                            None => None,
+                            Some(lang) => {
+                                Some(CodeOpts {
+                                    language: lang,
+                                    metadata: meta,
+                                })
+                            }
                         }
-                    },
+                    ),
                 }
             }
             Node::Math(node) => {
                 let Math { value, meta, .. } = node;
-                MdqNode::MathBlock {
+                MdqNode::CodeBlock {
                     value,
-                    metadata: meta,
+                    variant: CodeVariant::Math { metadata: meta },
                 }
             }
             Node::Heading(node) => {
@@ -228,14 +233,16 @@ impl MdqNode {
                     children: Self::all(node.children, lookups)?,
                 }
             }
+            Node::Toml(node) =>
+                MdqNode::CodeBlock { variant: CodeVariant::Toml, value: node.value },
+            Node::Yaml(node) =>
+                MdqNode::CodeBlock { variant: CodeVariant::Yaml, value: node.value },
 
             Node::MdxJsxFlowElement(_)
             | Node::MdxjsEsm(_)
             | Node::MdxTextExpression(_)
             | Node::MdxJsxTextElement(_)
             | Node::MdxFlowExpression(_)
-            | Node::Toml(_)
-            | Node::Yaml(_)
             | Node::FootnoteReference(_)
             | Node::Html(_)
             => return Err(NoNode::Invalid(InvalidMd::Unsupported(node)))
