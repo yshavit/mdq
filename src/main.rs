@@ -1,5 +1,6 @@
 mod md_to_yaml_debug;
 mod output;
+mod normalized_ast;
 
 use std::borrow::Borrow;
 use std::io;
@@ -145,20 +146,35 @@ where
             Node::ListItem(_) => {
                 panic!("internal error") // should already have been handled
             }
-            // Node::Math(_) => {}
-            // Node::MdxFlowExpression(_) => {}
-            // Node::MdxJsxFlowElement(_) => {}
-            // Node::MdxJsxTextElement(_) => {}
-            // Node::MdxTextExpression(_) => {}
-            // Node::MdxjsEsm(_) => {}
+            Node::Math(node) => {
+                out.with_pre_block(|out| {
+                    out.write_str("$$\n");
+                    out.write_str(&node.value);
+                    out.write_str("\n$$");
+                })
+            }
+            Node::MdxFlowExpression(node) => {
+                out.write_str("{");
+                out.write_str(&node.value);
+                out.write_str("}");
+            }
+            Node::MdxJsxFlowElement(_) => {}
+            Node::MdxJsxTextElement(_) => {}
+            Node::MdxTextExpression(_) => {}
+            Node::MdxjsEsm(_) => {}
             Node::Paragraph(node) => out.with_block(Block::Plain, |out| {
                 write_md(&node.children, out);
             }),
             Node::Root(node) => {
                 write_md(&node.children, out);
             }
-            // Node::Strong(_) => {}
-            // Node::Table(_) => {}
+            Node::Strong(node) => {
+                out.write_str("**");
+                write_md(&node.children, out);
+                out.write_str("**");
+
+            }
+            Node::Table(_) => {}
             // Node::TableCell(_) => {}
             // Node::TableRow(_) => {}
             Node::Text(node) => {
