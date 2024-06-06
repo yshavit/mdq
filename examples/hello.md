@@ -10,6 +10,10 @@ In fact, I'm doing very well!
 This line isn't a new paragraph, just some
 wrapping that mdq should unwrap.
 
+| Column Left | Column Middle | Column Right |
+|:------------|:-------------:|-------------:|
+| (           | v             | )            |
+
 > I say:
 > ```types
 > here is some code
