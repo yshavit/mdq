@@ -8,7 +8,7 @@ pub enum MdqNode {
     },
 
     // paragraphs with child nodes
-    Heading {
+    Header {
         depth: u8,
         title: Vec<Inline>,
         children: Vec<MdqNode>,
@@ -200,7 +200,7 @@ impl MdqNode {
                 }
             }
             Node::Heading(node) => {
-                MdqNode::Heading {
+                MdqNode::Header {
                     depth: node.depth,
                     title: Self::inline(node.children, lookups)?,
                     children: Vec::new(),
@@ -266,6 +266,9 @@ impl MdqNode {
     fn all_from_iter<I>(iter: I) -> Result<Vec<Self>, InvalidMd>
     where I: Iterator<Item=Result<MdqNode, InvalidMd>>
     {
+        // This is just a struct that reflects the struct-variant of MdqNode::Header. If that
+        // enum variant used the tuple-style with an explicitly defined struct, we wouldn't need
+        // this.
         struct HContainer {
             depth: u8,
             title: Vec<Inline>,
@@ -276,7 +279,7 @@ impl MdqNode {
         let mut headers: Vec<HContainer> = Vec::with_capacity(result.capacity());
         for child_mdq in iter {
             let child_mdq = child_mdq?;
-            if let MdqNode::Heading { depth, title, children } = child_mdq {
+            if let MdqNode::Header { depth, title, children } = child_mdq {
                 // The new child is a heading. Pop the headers stack until we see a header that's
                 // of lower depth, or until there are no more left.
                 loop {
@@ -295,7 +298,7 @@ impl MdqNode {
                         // to the new previous, or else to the top-level results if there is no new
                         // previous. Then, we'll just loop back around.
                         let HContainer { depth, title, children } = headers.pop().unwrap(); // "let Some(prev)" above guarantees that this works
-                        let prev = MdqNode::Heading { depth, title, children };
+                        let prev = MdqNode::Header { depth, title, children };
                         if let Some(grandparent) = headers.last_mut() {
                             grandparent.children.push(prev);
                         } else {
@@ -317,7 +320,7 @@ impl MdqNode {
 
         // At this point, we still have our last tree branch of headers. Fold it up into the results.
         while let Some(HContainer{depth, title, children}) = headers.pop() {
-            let mdq_header = MdqNode::Heading {depth, title, children};
+            let mdq_header = MdqNode::Header {depth, title, children};
             let add_to = if let Some(HContainer { children, .. }) = headers.last_mut() {
                 children
             } else {
@@ -326,7 +329,7 @@ impl MdqNode {
             add_to.push(mdq_header);
         }
         headers.drain(..)
-            .map(|HContainer{depth, title, children}| MdqNode::Heading {depth, title, children})
+            .map(|HContainer{depth, title, children}| MdqNode::Header {depth, title, children})
             .for_each(|mdq_node| result.push(mdq_node));
 
         result.shrink_to_fit();
@@ -399,7 +402,7 @@ mod tests {
     #[test]
     fn h1_with_two_paragraphs() -> Result<(), InvalidMd> {
         let linear = vec!(
-            MdqNode::Heading { depth: 1, title: vec!(inline_text("first")), children: Vec::new() },
+            MdqNode::Header { depth: 1, title: vec!(inline_text("first")), children: Vec::new() },
             MdqNode::Paragraph {children: vec!(
                 MdqNode::Inline(inline_text("aaa"))
             )},
@@ -408,7 +411,7 @@ mod tests {
             )},
         );
         let expect = vec!(
-            MdqNode::Heading {
+            MdqNode::Header {
                 depth: 1,
                 title: vec!(inline_text("first")),
                 children: vec!(
@@ -429,18 +432,18 @@ mod tests {
     #[test]
     fn simple_nesting() -> Result<(), InvalidMd> {
         let linear = vec!(
-            MdqNode::Heading { depth: 1, title: vec!(inline_text("first")), children: Vec::new() },
-            MdqNode::Heading { depth: 2, title: vec!(inline_text("aaa")), children: Vec::new() },
+            MdqNode::Header { depth: 1, title: vec!(inline_text("first")), children: Vec::new() },
+            MdqNode::Header { depth: 2, title: vec!(inline_text("aaa")), children: Vec::new() },
             MdqNode::Paragraph {children: vec!(
                 MdqNode::Inline(inline_text("bbb"))
             )},
         );
         let expect = vec!(
-            MdqNode::Heading {
+            MdqNode::Header {
                 depth: 1,
                 title: vec!(inline_text("first")),
                 children: vec!(
-                    MdqNode::Heading {
+                    MdqNode::Header {
                         depth: 2,
                         title: vec!(inline_text("aaa")),
                         children: vec!(
