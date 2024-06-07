@@ -1,5 +1,6 @@
 use markdown::mdast::{AlignKind, Code, Math, Node, Table, TableRow};
 
+#[derive(Debug,PartialEq)]
 pub enum MdqNode {
     // root
     Root {
@@ -10,6 +11,7 @@ pub enum MdqNode {
     Heading {
         depth: u8,
         title: Vec<Inline>,
+        children: Vec<MdqNode>,
     },
     Paragraph {
         children: Vec<MdqNode>,
@@ -37,6 +39,7 @@ pub enum MdqNode {
     Inline(Inline),
 }
 
+#[derive(Debug,PartialEq)]
 pub enum CodeVariant {
     Code(Option<CodeOpts>),
     Math { metadata: Option<String> },
@@ -44,6 +47,7 @@ pub enum CodeVariant {
     Yaml,
 }
 
+#[derive(Debug,PartialEq)]
 pub enum Inline {
     Span {
         variant: SpanVariant,
@@ -56,23 +60,27 @@ pub enum Inline {
 
 }
 
+#[derive(Debug,PartialEq)]
 pub struct ListItem {
     checked: Option<bool>,
     children: Vec<MdqNode>,
 }
 
+#[derive(Debug,PartialEq)]
 pub enum SpanVariant {
     Delete,
     Emphasis,
     Strong,
 }
 
+#[derive(Debug,PartialEq)]
 pub enum InlineVariant {
     Text,
     Code,
     Math,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum InvalidMd {
     Unsupported(Node),
     NonListItemDirectlyUnderList(Node),
@@ -81,6 +89,7 @@ pub enum InvalidMd {
     InternalError,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct CodeOpts {
     pub language: String,
     pub metadata: Option<String>,
@@ -102,7 +111,6 @@ impl TryFrom<Node> for MdqNode {
 
     fn try_from(node: Node) -> Result<Self, InvalidMd> {
         let lookups = Lookups::new(&node)?;
-        todo!("need to reorganize into headers");
         match Self::from_mdast_0(node, &lookups) {
             Ok(result) => Ok(result),
             Err(NoNode::Skipped) => Ok(MdqNode::Root { children: Vec::new() }),
@@ -195,6 +203,7 @@ impl MdqNode {
                 MdqNode::Heading {
                     depth: node.depth,
                     title: Self::inline(node.children, lookups)?,
+                    children: Vec::new(),
                 }
             }
             Node::Table(node) => {
@@ -251,19 +260,80 @@ impl MdqNode {
     }
 
     fn all(children: Vec<Node>, lookups: &Lookups) -> Result<Vec<Self>, InvalidMd> {
-        let mut result = Vec::with_capacity(children.len());
-        for child_node in children {
-            let child_mdq = match Self::from_mdast_0(child_node, lookups) {
-                Ok(n) => n,
-                Err(NoNode::Skipped) => continue,
-                Err(NoNode::Invalid(err)) => return Err(err),
-            };
-            result.push(child_mdq);
+        Self::all_from_iter(NodeToMdqIter{children: children.into_iter(), lookups})
+    }
+
+    fn all_from_iter<I>(iter: I) -> Result<Vec<Self>, InvalidMd>
+    where I: Iterator<Item=Result<MdqNode, InvalidMd>>
+    {
+        struct HContainer {
+            depth: u8,
+            title: Vec<Inline>,
+            children: Vec<MdqNode>,
         }
+
+        let mut result = Vec::with_capacity(16); // arbitrary capacity guess
+        let mut headers: Vec<HContainer> = Vec::with_capacity(result.capacity());
+        for child_mdq in iter {
+            let child_mdq = child_mdq?;
+            if let MdqNode::Heading { depth, title, children } = child_mdq {
+                // The new child is a heading. Pop the headers stack until we see a header that's
+                // of lower depth, or until there are no more left.
+                loop {
+                    let Some(prev) = headers.last() else {
+                        // There's no previous header, so push this header to the results.
+                        headers.push(HContainer { depth, title, children });
+                        break;
+                    };
+                    // There is a header. See if it's lower than ours; if so, we'll just add
+                    // ourselves to it, and push our info to the stack
+                    if prev.depth < depth {
+                        headers.push(HContainer { depth, title, children });
+                        break;
+                    } else {
+                        // We need to pop the previous header. When we do, either add it as a child
+                        // to the new previous, or else to the top-level results if there is no new
+                        // previous. Then, we'll just loop back around.
+                        let HContainer { depth, title, children } = headers.pop().unwrap(); // "let Some(prev)" above guarantees that this works
+                        let prev = MdqNode::Heading { depth, title, children };
+                        if let Some(grandparent) = headers.last_mut() {
+                            grandparent.children.push(prev);
+                        } else {
+                            result.push(prev);
+                        }
+                    }
+                }
+            } else {
+                // The new child isn't a heading, so just add it to the last heading, or the top
+                // level
+                let add_to = if let Some(HContainer { children, .. }) = headers.last_mut() {
+                    children
+                } else {
+                    &mut result
+                };
+                add_to.push(child_mdq);
+            };
+        }
+
+        // At this point, we still have our last tree branch of headers. Fold it up into the results.
+        while let Some(HContainer{depth, title, children}) = headers.pop() {
+            let mdq_header = MdqNode::Heading {depth, title, children};
+            let add_to = if let Some(HContainer { children, .. }) = headers.last_mut() {
+                children
+            } else {
+                &mut result
+            };
+            add_to.push(mdq_header);
+        }
+        headers.drain(..)
+            .map(|HContainer{depth, title, children}| MdqNode::Heading {depth, title, children})
+            .for_each(|mdq_node| result.push(mdq_node));
+
+        result.shrink_to_fit();
         Ok(result)
     }
 
-    fn inline(children: Vec<Node>, lookups: &crate::normalized_ast::Lookups) -> Result<Vec<Inline>, InvalidMd> {
+    fn inline(children: Vec<Node>, lookups: &Lookups) -> Result<Vec<Inline>, InvalidMd> {
         let mdq_children = Self::all(children, lookups)?;
         let mut result = Vec::with_capacity(mdq_children.len());
         for child in mdq_children {
@@ -273,6 +343,36 @@ impl MdqNode {
             result.push(inline);
         }
         Ok(result)
+    }
+}
+
+struct NodeToMdqIter<'a, I>
+where I: Iterator<Item=Node>
+{
+    children: I,
+    lookups: &'a Lookups,
+}
+
+impl<'a, I> Iterator for NodeToMdqIter<'a, I>
+where I: Iterator<Item=Node>
+{
+    type Item = Result<MdqNode,InvalidMd>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let Some(next_node) = self.children.next() else {
+                return None;
+            };
+            match MdqNode::from_mdast_0(next_node, self.lookups) {
+                Ok(mdq_node) => {
+                    break Some(Ok(mdq_node));
+                },
+                Err(NoNode::Skipped) => continue,
+                Err(NoNode::Invalid(err)) => {
+                    break Some(Err(err));
+                }
+            };
+        }
     }
 }
 
@@ -287,5 +387,80 @@ impl Lookups {
         // - all required references are present
         // - no dupes
         todo!()
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::normalized_ast::Inline::Text;
+    use super::*;
+
+    #[test]
+    fn h1_with_two_paragraphs() -> Result<(), InvalidMd> {
+        let linear = vec!(
+            MdqNode::Heading { depth: 1, title: vec!(inline_text("first")), children: Vec::new() },
+            MdqNode::Paragraph {children: vec!(
+                MdqNode::Inline(inline_text("aaa"))
+            )},
+            MdqNode::Paragraph {children: vec!(
+                MdqNode::Inline(inline_text("bbb"))
+            )},
+        );
+        let expect = vec!(
+            MdqNode::Heading {
+                depth: 1,
+                title: vec!(inline_text("first")),
+                children: vec!(
+                    MdqNode::Paragraph {children: vec!(
+                        MdqNode::Inline(inline_text("aaa"))
+                    )},
+                    MdqNode::Paragraph {children: vec!(
+                        MdqNode::Inline(inline_text("bbb"))
+                    )},
+                )
+            },
+        );
+        let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+        assert_eq!(expect, actual);
+        Ok(())
+    }
+
+    #[test]
+    fn simple_nesting() -> Result<(), InvalidMd> {
+        let linear = vec!(
+            MdqNode::Heading { depth: 1, title: vec!(inline_text("first")), children: Vec::new() },
+            MdqNode::Heading { depth: 2, title: vec!(inline_text("aaa")), children: Vec::new() },
+            MdqNode::Paragraph {children: vec!(
+                MdqNode::Inline(inline_text("bbb"))
+            )},
+        );
+        let expect = vec!(
+            MdqNode::Heading {
+                depth: 1,
+                title: vec!(inline_text("first")),
+                children: vec!(
+                    MdqNode::Heading {
+                        depth: 2,
+                        title: vec!(inline_text("aaa")),
+                        children: vec!(
+                            MdqNode::Paragraph {children: vec!(
+                                MdqNode::Inline(inline_text("bbb"))
+                            )},
+
+                        )
+                    },
+                )
+            },
+        );
+        let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+        assert_eq!(expect, actual);
+        Ok(())
+    }
+
+    // TODO need more tests!
+
+    fn inline_text(text: &str) -> Inline {
+        Text { value: text.to_string(), variant: InlineVariant::Text }
     }
 }
