@@ -402,7 +402,7 @@ mod tests {
     #[test]
     fn h1_with_two_paragraphs() -> Result<(), InvalidMd> {
         let linear = vec!(
-            MdqNode::Header { depth: 1, title: vec!(inline_text("first")), children: Vec::new() },
+            MdqNode::Header { depth: 1, title: vec!(inline_text("first")), children: vec!() },
             MdqNode::Paragraph {children: vec!(
                 MdqNode::Inline(inline_text("aaa"))
             )},
@@ -432,8 +432,8 @@ mod tests {
     #[test]
     fn simple_nesting() -> Result<(), InvalidMd> {
         let linear = vec!(
-            MdqNode::Header { depth: 1, title: vec!(inline_text("first")), children: Vec::new() },
-            MdqNode::Header { depth: 2, title: vec!(inline_text("aaa")), children: Vec::new() },
+            MdqNode::Header { depth: 1, title: vec!(inline_text("first")), children: vec!() },
+            MdqNode::Header { depth: 2, title: vec!(inline_text("aaa")), children: vec!() },
             MdqNode::Paragraph {children: vec!(
                 MdqNode::Inline(inline_text("bbb"))
             )},
@@ -461,7 +461,135 @@ mod tests {
         Ok(())
     }
 
-    // TODO need more tests!
+    #[test]
+    fn only_headers() -> Result<(), InvalidMd> {
+        let linear = vec!(
+            MdqNode::Header { depth: 1, title: vec!(inline_text("first")), children: vec!() },
+            MdqNode::Header { depth: 2, title: vec!(inline_text("second")), children: vec!() },
+            MdqNode::Header { depth: 3, title: vec!(inline_text("third")), children: vec!() },
+            MdqNode::Header { depth: 3, title: vec!(inline_text("fourth")), children: vec!() },
+            MdqNode::Header { depth: 2, title: vec!(inline_text("fifth")), children: vec!() },
+        );
+        let expect = vec!(
+            MdqNode::Header {
+                depth: 1,
+                title: vec!(inline_text("first")),
+                children: vec!(
+                    MdqNode::Header {
+                        depth: 2,
+                        title: vec!(inline_text("second")),
+                        children: vec!(
+                            MdqNode::Header {
+                                depth: 3,
+                                title: vec!(inline_text("third")),
+                                children: vec!()
+                            },
+                            MdqNode::Header {
+                                depth: 3,
+                                title: vec!(inline_text("fourth")),
+                                children: vec!()
+                            },
+                        )
+                    },
+                    MdqNode::Header {
+                        depth: 2,
+                        title: vec!(inline_text("fifth")),
+                        children: vec!()
+                    },
+                )
+            },
+        );
+        let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+        assert_eq!(expect, actual);
+        Ok(())
+    }
+
+    #[test]
+    fn no_headers() -> Result<(), InvalidMd> {
+        let linear = vec!(
+            MdqNode::Paragraph { children: vec!(MdqNode::Inline(inline_text("one"))) },
+            MdqNode::Paragraph { children: vec!(MdqNode::Inline(inline_text("two"))) },
+        );
+        let expect = vec!(
+            MdqNode::Paragraph { children: vec!(MdqNode::Inline(inline_text("one"))) },
+            MdqNode::Paragraph { children: vec!(MdqNode::Inline(inline_text("two"))) },
+        );
+        let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+        assert_eq!(expect, actual);
+        Ok(())
+    }
+
+    #[test]
+    fn header_skips() -> Result<(), InvalidMd> {
+        let linear = vec!(
+            MdqNode::Header { depth: 1, title: vec!(inline_text("one")), children: vec!() },
+            MdqNode::Header { depth: 5, title: vec!(inline_text("five")), children: vec!() },
+            MdqNode::Header { depth: 2, title: vec!(inline_text("two")), children: vec!() },
+            MdqNode::Header { depth: 3, title: vec!(inline_text("three")), children: vec!() },
+        );
+        let expect = vec!(
+            MdqNode::Header {
+                depth: 1,
+                title: vec!(inline_text("one")),
+                children: vec!(
+                    MdqNode::Header {
+                        depth: 5,
+                        title: vec!(inline_text("five")),
+                        children: vec!()
+                    },
+                    MdqNode::Header {
+                        depth: 2,
+                        title: vec!(inline_text("two")),
+                        children: vec!(
+                            MdqNode::Header {
+                                depth: 3,
+                                title: vec!(inline_text("three")),
+                                children: vec!()
+                            },
+                        )
+                    },
+                )
+            },
+        );
+        let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+        assert_eq!(expect, actual);
+        Ok(())
+    }
+
+    #[test]
+    fn backwards_order() -> Result<(), InvalidMd> {
+        let linear = vec!(
+            MdqNode::Header { depth: 3, title: vec!(inline_text("three")), children: vec!() },
+            MdqNode::Header { depth: 2, title: vec!(inline_text("two")), children: vec!() },
+            MdqNode::Header { depth: 1, title: vec!(inline_text("one")), children: vec!() },
+        );
+        let expect = vec!(
+            MdqNode::Header { depth: 3, title: vec!(inline_text("three")), children: vec!() },
+            MdqNode::Header { depth: 2, title: vec!(inline_text("two")), children: vec!() },
+            MdqNode::Header { depth: 1, title: vec!(inline_text("one")), children: vec!() },
+        );
+        let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+        assert_eq!(expect, actual);
+        Ok(())
+    }
+
+    #[test]
+    fn paragraph_before_and_after_header() -> Result<(), InvalidMd> {
+        let linear = vec!(
+            MdqNode::Paragraph { children: vec!(MdqNode::Inline(inline_text("before"))) },
+            MdqNode::Header { depth: 3, title: vec!(inline_text("the header")), children: vec!() },
+            MdqNode::Paragraph { children: vec!(MdqNode::Inline(inline_text("after"))) },
+        );
+        let expect = vec!(
+            MdqNode::Paragraph { children: vec!(MdqNode::Inline(inline_text("before"))) },
+            MdqNode::Header { depth: 3, title: vec!(inline_text("the header")), children: vec!(
+                MdqNode::Paragraph { children: vec!(MdqNode::Inline(inline_text("after"))) },
+            ) },
+        );
+        let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+        assert_eq!(expect, actual);
+        Ok(())
+    }
 
     fn inline_text(text: &str) -> Inline {
         Text { value: text.to_string(), variant: InlineVariant::Text }
