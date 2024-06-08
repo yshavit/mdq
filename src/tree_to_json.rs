@@ -6,7 +6,16 @@ use serde_json::{json, Map, Value};
 
 const BODY_KEY: &str = "body";
 
-pub fn to_json<R: InlineResolver>(node: &MdqNode) -> Value {
+
+pub fn nodes_to_json<N,R>(nodes: &[N]) -> Value
+    where N: Borrow<MdqNode>,
+        R: InlineResolver
+{
+    Value::Array(nodes.iter().map(|n| node_to_json::<R>(n.borrow())).collect())
+
+}
+
+pub fn node_to_json<R: InlineResolver>(node: &MdqNode) -> Value {
     match node {
         MdqNode::Root { body } => to_jsons::<R>(body),
         MdqNode::Header { depth, title, body: contents } => json!({
@@ -102,10 +111,20 @@ pub fn to_json<R: InlineResolver>(node: &MdqNode) -> Value {
 }
 
 pub struct TextOnly {
-    _private: bool
+    _private: bool,
 }
 
 impl TextOnly {
+    pub fn line_to_string<I>(line: &[I]) -> String
+        where I: Borrow<Inline>
+    {
+        let mut str = String::new();
+        for i in line {
+            Self::build_string(&mut str, i.borrow())
+        }
+        str
+    }
+
     fn build_string(out: &mut String, elem: &Inline) {
         match elem {
             Inline::Span { children, .. } => {
@@ -113,18 +132,14 @@ impl TextOnly {
                     Self::build_string(out, child);
                 }
             }
-            Inline::Text { value, .. } => out.push_str(value)
+            Inline::Text { value, .. } => out.push_str(&value.replace("\n", " "))
         }
     }
 }
 
 impl InlineResolver for TextOnly {
     fn inlines_to_value<I: Borrow<Inline>>(inlines: &[I]) -> Value {
-        let mut str = String::new();
-        for i in inlines {
-            Self::build_string(&mut str, i.borrow())
-        }
-        Value::String(str)
+        Value::String(Self::line_to_string(inlines))
     }
 }
 
@@ -133,5 +148,5 @@ pub trait InlineResolver {
 }
 
 fn to_jsons<R: InlineResolver>(nodes: &[MdqNode]) -> Value {
-    Value::Array(nodes.iter().map(|n| to_json::<R>(n)).collect())
+    Value::Array(nodes.iter().map(|n| node_to_json::<R>(n)).collect())
 }
