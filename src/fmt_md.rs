@@ -10,6 +10,7 @@ use std::io::Write;
 pub fn write_md<N, W>(out: &mut Output<W>, nodes: &[N])
 where
     N: Borrow<MdqNode>,
+    W: Write,
 {
     let mut iter = nodes.iter().peekable();
     while let Some(node) = iter.next() {
