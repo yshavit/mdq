@@ -10,6 +10,14 @@ In fact, I'm doing very well!
 This line isn't a new paragraph, just some
 wrapping that mdq should unwrap.
 
+### Here's a *cool* table
+
+| Column Left | Column Middle | Column Right |
+|:------------|:-------------:|-------------:|
+| (           | v             | )            |
+
+## Some lists
+
 1. List two
 2. List two
 
@@ -21,10 +29,6 @@ wrapping that mdq should unwrap.
 > This is so great
 
 ## Foo
-
-| Column Left | Column Middle | Column Right |
-|:------------|:-------------:|-------------:|
-| (           | v             | )            |
 
 > I say:
 > ```types
