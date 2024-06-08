@@ -1,0 +1,9 @@
+#!/bin/bash
+set -euo pipefail
+
+if ! cargo fmt --check &>/dev/null ; then
+  echo >&2 "WARNING: Need to run cargo fmt"
+fi
+if ( 2>&1 cargo check --color never || ( echo error | true ) ) | grep -q -e warning -e error ; then
+  echo >&2 "WARNING: Need to run cargo fix"
+fi
