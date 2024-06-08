@@ -18,6 +18,7 @@ pub enum ListType {
     Unordered,
 }
 
+#[allow(dead_code)]
 pub type Selected = Option<bool>;
 
 #[allow(dead_code)]
@@ -66,10 +67,8 @@ impl Matcher {
 impl Selector {
     pub fn find<'a>(&'a self, node: &'a MdqNode) -> Vec<&MdqNode> {
         match node {
-            MdqNode::Root { body } => {
-                self.find_in_children(body)
-            }
-            MdqNode::Header { depth, title, body } => {
+            MdqNode::Root { body } => self.find_in_children(body),
+            MdqNode::Header { title, body, .. } => {
                 if let Selector::Heading(matcher) = self {
                     if matcher.matches(&Self::line_to_string(title)) {
                         body.iter().map(|elem| elem).collect()
@@ -83,17 +82,21 @@ impl Selector {
             MdqNode::Paragraph { .. } => {
                 Vec::new() // see TODO on Selector
             }
-            MdqNode::BlockQuote { body } => {
-                self.find_in_children(body)
-            }
-            MdqNode::List { starting_index, items } => {
+            MdqNode::BlockQuote { body } => self.find_in_children(body),
+            MdqNode::List {
+                starting_index,
+                items,
+            } => {
                 let _is_ordered = starting_index.is_some(); // TODO use in selected
-                items.iter().flat_map(|li| {
-                    // TODO check selected
-                    self.find_in_children(&li.children)
-                }).collect()
+                items
+                    .iter()
+                    .flat_map(|li| {
+                        // TODO check selected
+                        self.find_in_children(&li.children)
+                    })
+                    .collect()
             }
-            MdqNode::Table { align, rows } => {
+            MdqNode::Table { .. } => {
                 Vec::new() // todo()
             }
             MdqNode::ThematicBreak => {
@@ -104,21 +107,28 @@ impl Selector {
                     (Selector::CodeBlock(matcher), CodeVariant::Code(_)) => matcher.matches(value),
                     (_, _) => false,
                 };
-                if matched { vec!(node) } else { Vec::new() }
+                if matched {
+                    vec![node]
+                } else {
+                    Vec::new()
+                }
             }
             MdqNode::Inline(inline) => {
                 let matched = match inline {
-                    Inline::Span { variant, children } => {
+                    Inline::Span { variant, .. } => {
                         match (self, variant) {
                             (_, _) => false, // TODO links, etc
                         }
                     }
                     Inline::Text { .. } => false,
                 };
-                if matched { vec!(node) } else { Vec::new() }
+                if matched {
+                    vec![node]
+                } else {
+                    Vec::new()
+                }
             }
         }
-
     }
 
     fn find_in_children<'a>(&'a self, children: &'a Vec<MdqNode>) -> Vec<&MdqNode> {

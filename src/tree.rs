@@ -14,17 +14,18 @@ pub enum MdqNode {
         body: Vec<MdqNode>,
     },
     Paragraph {
-        body: Vec<Inline>
+        body: Vec<Inline>,
     },
     BlockQuote {
         body: Vec<MdqNode>,
     },
     List {
+        // this really should be an Either<Ol, Ul> with different list item types
         starting_index: Option<u32>,
         items: Vec<ListItem>,
     },
     Table {
-        align: Vec<AlignKind>,
+        alignments: Vec<AlignKind>,
         rows: Vec<Tr>,
     },
     ThematicBreak,
@@ -39,8 +40,8 @@ pub enum MdqNode {
     Inline(Inline),
 }
 
-type Tr = Vec<Line>;
-type Line = Vec<Inline>;
+pub type Tr = Vec<Line>; // TODO rename to TableRow
+pub type Line = Vec<Inline>;
 
 #[derive(Debug, PartialEq)]
 pub enum CodeVariant {
@@ -122,7 +123,6 @@ impl TryFrom<Node> for MdqNode {
 }
 
 impl MdqNode {
-
     fn from_mdast_0(node: Node, lookups: &Lookups) -> Result<Self, NoNode> {
         let result = match node {
             Node::Root(node) => MdqNode::Root {
@@ -243,7 +243,10 @@ impl MdqNode {
                     }
                     rows.push(column);
                 }
-                MdqNode::Table { align, rows }
+                MdqNode::Table {
+                    alignments: align,
+                    rows,
+                }
             }
             Node::ThematicBreak(_) => MdqNode::ThematicBreak,
             Node::TableRow(_) | Node::TableCell(_) | Node::ListItem(_) => {
@@ -451,9 +454,7 @@ impl Lookups {
         // - all required references are present
         // - no dupes
         // todo!()
-        Ok(Lookups{
-
-        })
+        Ok(Lookups {})
     }
 }
 

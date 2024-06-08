@@ -1,36 +1,43 @@
-use std::borrow::Borrow;
-use std::fmt::Debug;
-use markdown::mdast::AlignKind;
 use crate::tree::{CodeOpts, CodeVariant, Inline, MdqNode};
+use markdown::mdast::AlignKind;
 use serde_json::{json, Map, Value};
+use std::borrow::Borrow;
 
 const BODY_KEY: &str = "body";
 
-
-pub fn nodes_to_json<N,R>(nodes: &[N]) -> Value
-    where N: Borrow<MdqNode>,
-        R: InlineResolver
+pub fn nodes_to_json<N, R>(nodes: &[N]) -> Value
+where
+    N: Borrow<MdqNode>,
+    R: InlineResolver,
 {
-    Value::Array(nodes.iter().map(|n| node_to_json::<R>(n.borrow())).collect())
-
+    Value::Array(
+        nodes
+            .iter()
+            .map(|n| node_to_json::<R>(n.borrow()))
+            .collect(),
+    )
 }
 
 pub fn node_to_json<R: InlineResolver>(node: &MdqNode) -> Value {
     match node {
         MdqNode::Root { body } => to_jsons::<R>(body),
-        MdqNode::Header { depth, title, body: contents } => json!({
+        MdqNode::Header {
+            depth,
+            title,
+            body: contents,
+        } => json!({
             "header": json!({
                     "title": R::inlines_to_value(title),
                     "depth": json!(depth),
                     BODY_KEY: to_jsons::<R>(contents),
             })
         }),
-        MdqNode::Paragraph { body } => (
-            json!({"paragraph": R::inlines_to_value(body)})
-        ),
-        MdqNode::BlockQuote { body } =>
-            json!({"block_quote": to_jsons::<R>(body)}),
-        MdqNode::List { starting_index, items } => {
+        MdqNode::Paragraph { body } => json!({"paragraph": R::inlines_to_value(body)}),
+        MdqNode::BlockQuote { body } => json!({"block_quote": to_jsons::<R>(body)}),
+        MdqNode::List {
+            starting_index,
+            items,
+        } => {
             let mut as_map = Map::new();
             let is_ordered = match starting_index {
                 Some(start_idx) => {
@@ -43,27 +50,38 @@ pub fn node_to_json<R: InlineResolver>(node: &MdqNode) -> Value {
                     false
                 }
             };
-            let items = items.iter().map(|li| if is_ordered {
-                json!({
-                    "item": to_jsons::<R>(&li.children),
+            let items = items
+                .iter()
+                .map(|li| {
+                    if is_ordered {
+                        json!({
+                            "item": to_jsons::<R>(&li.children),
+                        })
+                    } else {
+                        json!({
+                            "checked": li.checked.clone(),
+                            "item": to_jsons::<R>(&li.children),
+                        })
+                    }
                 })
-            } else {
-                json!({
-                    "checked": li.checked.clone(),
-                    "item": to_jsons::<R>(&li.children),
-                })
-            }).collect();
+                .collect();
             as_map.insert("items".to_string(), Value::Array(items));
 
             json!({"list": Value::Object(as_map)})
         }
-        MdqNode::Table { align, rows } => {
-            let aligns: Vec<Option<&str>> = align.iter().map(|a| match a {
-                AlignKind::Left => Some("left"),
-                AlignKind::Right => Some("right"),
-                AlignKind::Center => Some("center"),
-                AlignKind::None => None,
-            }).collect();
+        MdqNode::Table {
+            alignments: align,
+            rows,
+        } => {
+            let aligns: Vec<Option<&str>> = align
+                .iter()
+                .map(|a| match a {
+                    AlignKind::Left => Some("left"),
+                    AlignKind::Right => Some("right"),
+                    AlignKind::Center => Some("center"),
+                    AlignKind::None => None,
+                })
+                .collect();
             json!({
                 "table": {
                     "column_alignments": json!(aligns),
@@ -78,34 +96,31 @@ pub fn node_to_json<R: InlineResolver>(node: &MdqNode) -> Value {
         MdqNode::ThematicBreak => {
             json!({"thematic_break": Value::Null})
         }
-        MdqNode::CodeBlock { variant, value } => {
-            match variant {
-                CodeVariant::Code(opts) => {
-                    let (lang, meta) = match opts {
-                        None => (None, None),
-                        Some(CodeOpts { language, metadata }) => (
-                            Some(language.to_string()),
-                            metadata.to_owned(),
-                        ),
-                    };
-                    json!({
-                        "code":json!({
-                            "language": lang,
-                            "metadata": meta,
-                            BODY_KEY: json!(value),
-                        })
-                    })
-                }
-                CodeVariant::Math { metadata } => json!({
-                    "math": json!({
-                        "metadata": metadata,
+        MdqNode::CodeBlock { variant, value } => match variant {
+            CodeVariant::Code(opts) => {
+                let (lang, meta) = match opts {
+                    None => (None, None),
+                    Some(CodeOpts { language, metadata }) => {
+                        (Some(language.to_string()), metadata.to_owned())
+                    }
+                };
+                json!({
+                    "code":json!({
+                        "language": lang,
+                        "metadata": meta,
                         BODY_KEY: json!(value),
                     })
-                }),
-                CodeVariant::Toml => json!({"toml": json!(value)}),
-                CodeVariant::Yaml => json!({"yaml": json!(value)}),
+                })
             }
-        }
+            CodeVariant::Math { metadata } => json!({
+                "math": json!({
+                    "metadata": metadata,
+                    BODY_KEY: json!(value),
+                })
+            }),
+            CodeVariant::Toml => json!({"toml": json!(value)}),
+            CodeVariant::Yaml => json!({"yaml": json!(value)}),
+        },
         MdqNode::Inline(inline) => R::inlines_to_value(&[inline]),
     }
 }
@@ -116,7 +131,8 @@ pub struct TextOnly {
 
 impl TextOnly {
     pub fn line_to_string<I>(line: &[I]) -> String
-        where I: Borrow<Inline>
+    where
+        I: Borrow<Inline>,
     {
         let mut str = String::new();
         for i in line {
@@ -132,7 +148,7 @@ impl TextOnly {
                     Self::build_string(out, child);
                 }
             }
-            Inline::Text { value, .. } => out.push_str(&value.replace("\n", " "))
+            Inline::Text { value, .. } => out.push_str(&value.replace("\n", " ")),
         }
     }
 }

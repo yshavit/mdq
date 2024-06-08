@@ -101,6 +101,11 @@ impl<W: Write> Output<W> {
         }
     }
 
+    pub fn write_char(&mut self, ch: char) {
+        // TODO make this better if I need to; for now, I'm just establishing the API
+        self.write_str(&String::from(ch))
+    }
+
     fn write_line(&mut self, text: &str) {
         if let WritingState::HaveNotWrittenAnything = self.writing_state {
             if self.pending_indents.is_empty() && text.is_empty() {
@@ -176,6 +181,16 @@ impl<W: Write> Output<W> {
     }
 }
 
+impl<W: Write> Output<W>
+where
+    W: Default,
+{
+    pub fn take_underlying(&mut self) -> std::io::Result<W> {
+        self.stream.flush()?;
+        Ok(std::mem::take(&mut self.stream))
+    }
+}
+
 impl<W: Write> Drop for Output<W> {
     fn drop(&mut self) {
         if let Err(e) = self.stream.flush() {
@@ -190,6 +205,10 @@ impl<W: Write> Drop for Output<W> {
 impl<'a, W: Write> PreWriter<'a, W> {
     pub fn write_str(&mut self, text: &str) {
         self.output.write_str(text)
+    }
+
+    pub fn write_char(&mut self, ch: char) {
+        self.output.write_char(ch);
     }
 }
 
