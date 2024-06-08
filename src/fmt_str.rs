@@ -1,7 +1,9 @@
-use crate::output::Output;
-use markdown::mdast::AlignKind;
 use std::borrow::Borrow;
 use std::fmt::Alignment;
+
+use markdown::mdast::AlignKind;
+
+use crate::output::Output;
 
 pub fn pad_to<A, W>(output: &mut W, input: &str, min_width: usize, alignment: A)
 where
@@ -85,10 +87,7 @@ impl<W: std::io::Write> Paddable for Output<W> {
 mod test {
     use super::*;
 
-    #[test]
-    fn todo() {
-        todo!("write a test!")
-    }
+// TODO
 
     impl Paddable for String {
         fn write_ch(&mut self, ch: char) {
