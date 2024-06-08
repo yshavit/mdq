@@ -1,0 +1,33 @@
+# Heading // - Multi-language <*>
+# Heading // 1. Multi-language // -[~]
+
+selector  pattern  modifier
+
+selectors
+---------
+(none)    : text
+#         : heading
+-         : unordered list (pattern is against items)
+1.        : ordered list
+-[~]      : checkboxes (any state)
+-[x]      : checkboxes (checked)
+-[o]      : checkboxes (unchecked)
+```       : code block
+[~](~)    : link; each ~ is a pattern match
+![~](~)   : img; each ~ is a pattern match
+
+pattern
+-------
+(plain text)      : substring match
+*                 : any (note: this is redundant with empty plain text)
+"quoted"          : substring match
+^anchor, anchor$  : anchor (works with both plan and quoted)
+/regex/           : partial regex match (add anchors if you want them)
+
+modifier
+--------
+<1               : require exactly one
+<*               : always match multiple
+<^               : first
+<v               : last
+<[n]             : nth, where n is a 0-indexed int
