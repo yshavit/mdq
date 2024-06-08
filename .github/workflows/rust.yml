@@ -20,3 +20,15 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+
+  check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Check
+      run: |
+            cargo check --message-format json | jq -r '
+              select(.message.level and (.message.spans | length > 0)) 
+              | {level: (.message.level | sub("note"; "notice")), message: .message.message} as $ctx
+              | .message.spans[] 
+              | "::\($ctx.level),line=\(.line_start),col=\(.column_start),endLine=\(.line_end),columnEnd=\(.column_end),title=rust check::\($ctx.message)"'
