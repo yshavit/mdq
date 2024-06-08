@@ -19,7 +19,7 @@ jobs:
 
   check:
     runs-on: ubuntu-latest
-    depends-on: build
+    needs: build
     steps:
     - uses: actions/checkout@v4
     - name: cargo check
@@ -27,14 +27,14 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    depends-on: build
+    needs: build
     steps:
     - uses: actions/checkout@v4
     - name: cargo test
       run: cargo test --verbose
 
   fmt:
-    depends-on: build
+    needs: build
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
