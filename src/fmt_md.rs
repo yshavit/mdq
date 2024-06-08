@@ -1,4 +1,4 @@
-use crate::fmt_str::{pad_to, standard_align, Paddable};
+use crate::fmt_str::{pad_to, standard_align};
 use crate::output::Block::Inlined;
 use crate::output::{Block, Output};
 use crate::tree::{CodeVariant, Inline, InlineVariant, MdqNode, SpanVariant};
