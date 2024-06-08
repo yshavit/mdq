@@ -90,7 +90,7 @@ impl Selector {
                     .iter()
                     .flat_map(|li| {
                         // TODO check selected
-                        self.find_in_children(&li.children)
+                        self.find_in_children(&li.item)
                     })
                     .collect())
             }
