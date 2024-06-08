@@ -1,10 +1,11 @@
-use crate::fmt_str::{pad_to, standard_align};
+use crate::fmt_str::{pad_to, Paddable, standard_align};
 use crate::output::{Block, Output};
 use crate::tree::{CodeVariant, Inline, InlineVariant, MdqNode, SpanVariant};
 use std::borrow::Borrow;
 use std::cmp::max;
 use std::fmt::{Alignment};
 use std::io::Write;
+use crate::output::Block::Inlined;
 
 pub fn write_md<N, W>(out: &mut Output<W>, nodes: &[N])
     where
@@ -50,24 +51,29 @@ pub fn write_one_md<W>(out: &mut Output<W>, node: &MdqNode)
             starting_index,
             items,
         } => {
-            let mut index = starting_index.clone();
-            for item in items {
-                // todo suppress next block's newlines
-                match &mut index {
-                    None => out.write_str("- "),
-                    Some(i) => {
-                        out.write_str(&format!("{}. ", &i));
-                        *i += 1;
+            out.with_block(Block::Plain, |out| {
+                let mut index = starting_index.clone();
+                let mut prefix = String::with_capacity(8); // enough for "12. [ ] "
+                for item in items {
+                    prefix.clear();
+                    match &mut index {
+                        None => prefix.push_str("- "),
+                        Some(i) => {
+                            std::fmt::Write::write_fmt(&mut prefix, format_args!("{}. ", &i)).unwrap();
+                            *i += 1;
+                        }
+                    };
+                    if let Some(checked) = &item.checked {
+                        prefix.push('[');
+                        prefix.push(if *checked { 'x' } else { ' ' });
+                        prefix.push_str("] ");
                     }
-                };
-                if let Some(checked) = &item.checked {
-                    out.write_char('[');
-                    out.write_char(if *checked { 'x' } else { ' ' });
-                    out.write_str("] ");
+                    out.with_block(Inlined(prefix.len()), |out| {
+                        out.write_str(&prefix);
+                        write_md(out, &item.item);
+                    });
                 }
-                write_md(out, &item.item);
-                out.write_str("\n");
-            }
+            });
         }
         MdqNode::Table { alignments, rows } => {
             let mut row_strs = Vec::with_capacity(rows.len());

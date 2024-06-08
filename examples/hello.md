@@ -65,3 +65,17 @@ Block B
   ```
 
 - again
+
+## List details
+
+1. One
+1. 2. Two
+1. s
+  1. Four
+1. ```
+   foo
+   ```
+1.
+   ```
+   foo
+   ```
