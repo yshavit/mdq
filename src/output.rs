@@ -15,7 +15,7 @@ pub struct PreWriter<'a, W: Write> {
     output: &'a mut Output<W>,
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Block {
     /// A plain block; just paragraph text.
     Plain,
@@ -31,7 +31,7 @@ pub enum Block {
     ///        indentation continues.§
     ///
     /// (where `§` signifies the start and end of an inlined paragraph)
-    Inlined(usize)
+    Inlined(usize),
 }
 
 impl<W: Write> Output<W> {
@@ -74,7 +74,11 @@ impl<W: Write> Output<W> {
     }
 
     pub fn push_block(&mut self, block: Block) {
-        let prev_is_inline = self.indents.last().map(|b| matches!(b, Block::Inlined(_))).unwrap_or(false);
+        let prev_is_inline = self
+            .indents
+            .last()
+            .map(|b| matches!(b, Block::Inlined(_)))
+            .unwrap_or(false);
         let (block_close, add_newlines) = match block {
             Block::Plain => (BlockClose::NoAction, true),
             b @ Block::Quote => {
@@ -135,9 +139,9 @@ impl<W: Write> Output<W> {
     fn write_indent(&mut self) {
         for idx in 0..self.indents.len() {
             match &self.indents[idx] {
-                Block::Plain => {},
-                Block::Quote => { self.write_raw(">")},
-                Block::Inlined(size) => {(0..*size).for_each(|_| self.write_raw(" "))},
+                Block::Plain => {}
+                Block::Quote => self.write_raw(">"),
+                Block::Inlined(size) => (0..*size).for_each(|_| self.write_raw(" ")),
             }
         }
     }

@@ -66,8 +66,7 @@ impl Selector {
         }
 
         let result = match node {
-            MdqNode::Root { body } =>
-                SelectResult::Recurse(body),
+            MdqNode::Root { body } => SelectResult::Recurse(body),
             MdqNode::Header { title, body, .. } => {
                 if let Selector::Heading(matcher) = self {
                     if matcher.matches(&Self::line_to_string(title)) {
@@ -82,17 +81,21 @@ impl Selector {
             MdqNode::Paragraph { .. } => {
                 SelectResult::None // see TODO on Selector
             }
-            MdqNode::BlockQuote { body } =>
-                SelectResult::Recurse(body),
-            MdqNode::List { starting_index, items } => {
+            MdqNode::BlockQuote { body } => SelectResult::Recurse(body),
+            MdqNode::List {
+                starting_index,
+                items,
+            } => {
                 let _is_ordered = starting_index.is_some(); // TODO use in selected
-                SelectResult::RecurseOwned(items
-                    .iter()
-                    .flat_map(|li| {
-                        // TODO check selected
-                        self.find_in_children(&li.item)
-                    })
-                    .collect())
+                SelectResult::RecurseOwned(
+                    items
+                        .iter()
+                        .flat_map(|li| {
+                            // TODO check selected
+                            self.find_in_children(&li.item)
+                        })
+                        .collect(),
+                )
             }
             MdqNode::Table { .. } => {
                 SelectResult::None // TODO need to recurse
@@ -106,7 +109,7 @@ impl Selector {
                     (_, _) => false,
                 };
                 if matched {
-                    SelectResult::Found(vec!(node))
+                    SelectResult::Found(vec![node])
                 } else {
                     SelectResult::None
                 }
@@ -121,7 +124,7 @@ impl Selector {
                     Inline::Text { .. } => false,
                 };
                 if matched {
-                    SelectResult::Found(vec!(node))
+                    SelectResult::Found(vec![node])
                 } else {
                     SelectResult::None
                 }
@@ -132,7 +135,7 @@ impl Selector {
             SelectResult::Recurse(children) => self.find_in_children(children),
             SelectResult::RecurseOwned(children) => {
                 children.iter().flat_map(|elem| self.find(elem)).collect()
-            },
+            }
             SelectResult::None => Vec::new(),
         }
     }

@@ -1,16 +1,16 @@
-use crate::fmt_str::{pad_to, Paddable, standard_align};
+use crate::fmt_str::{pad_to, standard_align};
+use crate::output::Block::Inlined;
 use crate::output::{Block, Output};
 use crate::tree::{CodeVariant, Inline, InlineVariant, MdqNode, SpanVariant};
 use std::borrow::Borrow;
 use std::cmp::max;
-use std::fmt::{Alignment};
+use std::fmt::Alignment;
 use std::io::Write;
-use crate::output::Block::Inlined;
 
 pub fn write_md<N, W>(out: &mut Output<W>, nodes: &[N])
-    where
-        N: Borrow<MdqNode>,
-        W: Write,
+where
+    N: Borrow<MdqNode>,
+    W: Write,
 {
     let mut iter = nodes.iter().peekable();
     while let Some(node) = iter.next() {
@@ -22,8 +22,8 @@ pub fn write_md<N, W>(out: &mut Output<W>, nodes: &[N])
 }
 
 pub fn write_one_md<W>(out: &mut Output<W>, node: &MdqNode)
-    where
-        W: Write,
+where
+    W: Write,
 {
     match node {
         MdqNode::Root { body } => write_md(out, body),
@@ -59,7 +59,8 @@ pub fn write_one_md<W>(out: &mut Output<W>, node: &MdqNode)
                     match &mut index {
                         None => prefix.push_str("- "),
                         Some(i) => {
-                            std::fmt::Write::write_fmt(&mut prefix, format_args!("{}. ", &i)).unwrap();
+                            std::fmt::Write::write_fmt(&mut prefix, format_args!("{}. ", &i))
+                                .unwrap();
                             *i += 1;
                         }
                     };
@@ -218,9 +219,9 @@ pub fn write_one_md<W>(out: &mut Output<W>, node: &MdqNode)
 }
 
 pub fn write_line<E, W>(out: &mut Output<W>, elems: &[E])
-    where
-        E: Borrow<Inline>,
-        W: Write,
+where
+    E: Borrow<Inline>,
+    W: Write,
 {
     for elem in elems {
         write_inline_element(out, elem.borrow());
@@ -228,8 +229,8 @@ pub fn write_line<E, W>(out: &mut Output<W>, elems: &[E])
 }
 
 pub fn write_inline_element<W>(out: &mut Output<W>, elem: &Inline)
-    where
-        W: Write,
+where
+    W: Write,
 {
     match elem {
         Inline::Span { variant, children } => {
@@ -256,8 +257,8 @@ pub fn write_inline_element<W>(out: &mut Output<W>, elem: &Inline)
 }
 
 fn line_to_string<E>(line: &[E]) -> String
-    where
-        E: Borrow<Inline>,
+where
+    E: Borrow<Inline>,
 {
     let bytes: Vec<u8> = Vec::with_capacity(line.len() * 10); // rough guess
     let mut out = Output::new(bytes);
