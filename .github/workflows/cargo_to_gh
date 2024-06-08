@@ -1,11 +1,18 @@
 #!/bin/bash
 
+json_opts=()
+if ! echo "$*" | grep -q -- '--message-format json' ; then
+  echo "NO: $*"
+  json_opts=(--message-format json)
+fi
+
 exit_code=0
 while IFS= read -r line; do
   echo "$line"
   exit_code=1
 done < <(
-  cargo "$@" --message-format json |
+set -x
+  cargo "$@" ${json_opts[@]} |
   jq -r '
     select(.message.level and (.message.spans | length > 0)) 
     | {level: (.message.level | sub("note"; "notice")), message: .message.message} as $ctx

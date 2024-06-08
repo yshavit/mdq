@@ -1,4 +1,4 @@
-name: Rust
+name: rust
 
 on:
   push:
@@ -10,18 +10,33 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Build
-      run:  .github/workflows/cargo_to_gh check
-    - name: Run tests
+    - name: cargo build
+      run:  .github/workflows/cargo_to_gh rustc --message-format json -- -Awarnings
+
+  check:
+    runs-on: ubuntu-latest
+    depends-on: build
+    steps:
+    - uses: actions/checkout@v4
+    - name: cargo check
+      run: .github/workflows/cargo_to_gh check
+
+  test:
+    runs-on: ubuntu-latest
+    depends-on: build
+    steps:
+    - uses: actions/checkout@v4
+    - name: cargo test
       run: cargo test --verbose
 
   fmt:
+    depends-on: build
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Check
+    - name: cargo fmt
       run: cargo fmt --check

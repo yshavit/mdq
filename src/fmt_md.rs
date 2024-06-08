@@ -1,4 +1,4 @@
-use crate::fmt_str::{pad_to, standard_align};
+use crate::fmt_str::{pad_to, standard_align, Paddable};
 use crate::output::Block::Inlined;
 use crate::output::{Block, Output};
 use crate::tree::{CodeVariant, Inline, InlineVariant, MdqNode, SpanVariant};
@@ -10,7 +10,6 @@ use std::io::Write;
 pub fn write_md<N, W>(out: &mut Output<W>, nodes: &[N])
 where
     N: Borrow<MdqNode>,
-    W: Write,
 {
     let mut iter = nodes.iter().peekable();
     while let Some(node) = iter.next() {
