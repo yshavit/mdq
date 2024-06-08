@@ -148,7 +148,7 @@ impl TextOnly {
                     Self::build_string(out, child);
                 }
             }
-            Inline::Text { value, .. } => out.push_str(&value.replace("\n", " ")),
+            Inline::Text { value, .. } => out.push_str(&value),
         }
     }
 }
