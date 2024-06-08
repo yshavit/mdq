@@ -14,7 +14,7 @@ pub enum MdqNode {
         body: Vec<MdqNode>,
     },
     Paragraph {
-        body: Vec<MdqNode>, // TODO is this actually Inline?
+        body: Vec<Inline>
     },
     BlockQuote {
         body: Vec<MdqNode>,
@@ -251,7 +251,7 @@ impl MdqNode {
             }
             Node::Definition(_) => return Err(NoNode::Skipped),
             Node::Paragraph(node) => MdqNode::Paragraph {
-                body: Self::all(node.children, lookups)?,
+                body: Self::inlines(node.children, lookups)?,
             },
             Node::Toml(node) => MdqNode::CodeBlock {
                 variant: CodeVariant::Toml,
@@ -471,10 +471,10 @@ mod tests {
                 body: vec![],
             },
             MdqNode::Paragraph {
-                body: vec![MdqNode::Inline(inline_text("aaa"))],
+                body: vec![inline_text("aaa")],
             },
             MdqNode::Paragraph {
-                body: vec![MdqNode::Inline(inline_text("bbb"))],
+                body: vec![inline_text("bbb")],
             },
         ];
         let expect = vec![MdqNode::Header {
@@ -482,10 +482,10 @@ mod tests {
             title: vec![inline_text("first")],
             body: vec![
                 MdqNode::Paragraph {
-                    body: vec![MdqNode::Inline(inline_text("aaa"))],
+                    body: vec![inline_text("aaa")],
                 },
                 MdqNode::Paragraph {
-                    body: vec![MdqNode::Inline(inline_text("bbb"))],
+                    body: vec![inline_text("bbb")],
                 },
             ],
         }];
@@ -508,7 +508,7 @@ mod tests {
                 body: vec![],
             },
             MdqNode::Paragraph {
-                body: vec![MdqNode::Inline(inline_text("bbb"))],
+                body: vec![inline_text("bbb")],
             },
         ];
         let expect = vec![MdqNode::Header {
@@ -518,7 +518,7 @@ mod tests {
                 depth: 2,
                 title: vec![inline_text("aaa")],
                 body: vec![MdqNode::Paragraph {
-                    body: vec![MdqNode::Inline(inline_text("bbb"))],
+                    body: vec![inline_text("bbb")],
                 }],
             }],
         }];
@@ -592,18 +592,18 @@ mod tests {
     fn no_headers() -> Result<(), InvalidMd> {
         let linear = vec![
             MdqNode::Paragraph {
-                body: vec![MdqNode::Inline(inline_text("one"))],
+                body: vec![inline_text("one")],
             },
             MdqNode::Paragraph {
-                body: vec![MdqNode::Inline(inline_text("two"))],
+                body: vec![inline_text("two")],
             },
         ];
         let expect = vec![
             MdqNode::Paragraph {
-                body: vec![MdqNode::Inline(inline_text("one"))],
+                body: vec![inline_text("one")],
             },
             MdqNode::Paragraph {
-                body: vec![MdqNode::Inline(inline_text("two"))],
+                body: vec![inline_text("two")],
             },
         ];
         let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
@@ -705,7 +705,7 @@ mod tests {
     fn paragraph_before_and_after_header() -> Result<(), InvalidMd> {
         let linear = vec![
             MdqNode::Paragraph {
-                body: vec![MdqNode::Inline(inline_text("before"))],
+                body: vec![inline_text("before")],
             },
             MdqNode::Header {
                 depth: 3,
@@ -713,18 +713,18 @@ mod tests {
                 body: vec![],
             },
             MdqNode::Paragraph {
-                body: vec![MdqNode::Inline(inline_text("after"))],
+                body: vec![inline_text("after")],
             },
         ];
         let expect = vec![
             MdqNode::Paragraph {
-                body: vec![MdqNode::Inline(inline_text("before"))],
+                body: vec![inline_text("before")],
             },
             MdqNode::Header {
                 depth: 3,
                 title: vec![inline_text("the header")],
                 body: vec![MdqNode::Paragraph {
-                    body: vec![MdqNode::Inline(inline_text("after"))],
+                    body: vec![inline_text("after")],
                 }],
             },
         ];

@@ -34,6 +34,7 @@ fn main() {
         None => out.write_str("(no match)"),
         Some(found) => {
             let mdqs = found.into_iter().map(|n| {
+                // TODO I shouldn't need this to_owned()
                 let mdq: MdqNode = n.to_owned().try_into().unwrap();
                 tree_to_json::to_json::<tree_to_json::TextOnly>(&mdq)
             }).collect();

@@ -17,7 +17,7 @@ pub fn to_json<R: InlineResolver>(node: &MdqNode) -> Value {
             })
         }),
         MdqNode::Paragraph { body } => (
-            json!({"paragraph": to_jsons::<R>(body)})
+            json!({"paragraph": R::inlines_to_value(body)})
         ),
         MdqNode::BlockQuote { body } =>
             json!({"block_quote": to_jsons::<R>(body)}),
@@ -63,10 +63,6 @@ pub fn to_json<R: InlineResolver>(node: &MdqNode) -> Value {
                             R::inlines_to_value(col)
                         ).collect::<Vec<_>>()
                     }).collect::<Vec<_>>()
-                    // "rows": rows.iter().map(|tr| {
-                    //     tr
-                    // }.iter().map(|td| R:inlines_to_value(td))
-                    //     ).collect::<Vec<_>>(),
                 }
             })
         }
