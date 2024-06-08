@@ -32,14 +32,6 @@ pub enum Matcher {
     Regex(regex::Regex),
 }
 
-#[allow(dead_code)]
-enum Resolver {
-    // TODO need better name
-    Current,
-    Next,
-    Until(fn(&MdqNode, &MdqNode) -> bool),
-}
-
 impl Matcher {
     fn matches(&self, text: &str) -> bool {
         match self {
@@ -66,41 +58,47 @@ impl Matcher {
 
 impl Selector {
     pub fn find<'a>(&'a self, node: &'a MdqNode) -> Vec<&MdqNode> {
-        match node {
-            MdqNode::Root { body } => self.find_in_children(body),
+        enum SelectResult<'a> {
+            Found(Vec<&'a MdqNode>),
+            Recurse(&'a Vec<MdqNode>),
+            RecurseOwned(Vec<&'a MdqNode>),
+            None,
+        }
+
+        let result = match node {
+            MdqNode::Root { body } =>
+                SelectResult::Recurse(body),
             MdqNode::Header { title, body, .. } => {
                 if let Selector::Heading(matcher) = self {
                     if matcher.matches(&Self::line_to_string(title)) {
-                        body.iter().map(|elem| elem).collect()
+                        SelectResult::Found(body.iter().map(|elem| elem).collect())
                     } else {
-                        Vec::new()
+                        SelectResult::Recurse(body)
                     }
                 } else {
-                    self.find_in_children(body)
+                    SelectResult::Recurse(body)
                 }
             }
             MdqNode::Paragraph { .. } => {
-                Vec::new() // see TODO on Selector
+                SelectResult::None // see TODO on Selector
             }
-            MdqNode::BlockQuote { body } => self.find_in_children(body),
-            MdqNode::List {
-                starting_index,
-                items,
-            } => {
+            MdqNode::BlockQuote { body } =>
+                SelectResult::Recurse(body),
+            MdqNode::List { starting_index, items } => {
                 let _is_ordered = starting_index.is_some(); // TODO use in selected
-                items
+                SelectResult::RecurseOwned(items
                     .iter()
                     .flat_map(|li| {
                         // TODO check selected
                         self.find_in_children(&li.children)
                     })
-                    .collect()
+                    .collect())
             }
             MdqNode::Table { .. } => {
-                Vec::new() // todo()
+                SelectResult::None // TODO need to recurse
             }
             MdqNode::ThematicBreak => {
-                Vec::new() // can't be selected, doesn't have children
+                SelectResult::None // can't be selected, doesn't have children
             }
             MdqNode::CodeBlock { variant, value } => {
                 let matched = match (self, variant) {
@@ -108,9 +106,9 @@ impl Selector {
                     (_, _) => false,
                 };
                 if matched {
-                    vec![node]
+                    SelectResult::Found(vec!(node))
                 } else {
-                    Vec::new()
+                    SelectResult::None
                 }
             }
             MdqNode::Inline(inline) => {
@@ -123,11 +121,19 @@ impl Selector {
                     Inline::Text { .. } => false,
                 };
                 if matched {
-                    vec![node]
+                    SelectResult::Found(vec!(node))
                 } else {
-                    Vec::new()
+                    SelectResult::None
                 }
             }
+        };
+        match result {
+            SelectResult::Found(results) => results,
+            SelectResult::Recurse(children) => self.find_in_children(children),
+            SelectResult::RecurseOwned(children) => {
+                children.iter().flat_map(|elem| self.find(elem)).collect()
+            },
+            SelectResult::None => Vec::new(),
         }
     }
 

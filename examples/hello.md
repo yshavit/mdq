@@ -1,10 +1,10 @@
-# Hello there
+# Greetings
 
 How are you!
 
 *I'm* doing well.
 
-## Details
+## Hello there
 
 In fact, I'm doing very well!
 This line isn't a new paragraph, just some
