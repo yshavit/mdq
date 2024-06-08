@@ -15,7 +15,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Build
-      run:  github/workflows/cargo_to_gh check
+      run:  .github/workflows/cargo_to_gh check
     - name: Run tests
       run: cargo test --verbose
 
