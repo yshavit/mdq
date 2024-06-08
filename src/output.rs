@@ -12,7 +12,7 @@ pub struct Output<W: Write> {
 }
 
 pub struct PreWriter<'a, W: Write> {
-    output: &'a mut Output<W>
+    output: &'a mut Output<W>,
 }
 
 pub enum Block {
@@ -36,8 +36,8 @@ impl<W: Write> Output<W> {
     }
 
     pub fn with_block<F>(&mut self, block: Block, action: F)
-        where
-            F: FnOnce(&mut Self),
+    where
+        F: FnOnce(&mut Self),
     {
         self.push_block(block);
         action(self);
@@ -51,11 +51,12 @@ impl<W: Write> Output<W> {
     /// block. This is by design, since it doesn't make sense to add blocks within a `pre`. Instead,
     /// use the provided writer's `write_str` to write the literal text for this block.
     pub fn with_pre_block<F>(&mut self, action: F)
-        where F: for <'a> FnOnce(&mut PreWriter<W>),
+    where
+        F: for<'a> FnOnce(&mut PreWriter<W>),
     {
         self.push_block(Block::Plain);
         self.pre_mode = true;
-        action(& mut PreWriter{output: self});
+        action(&mut PreWriter { output: self });
         self.pre_mode = false;
         self.pop_block();
     }
@@ -235,7 +236,7 @@ mod tests {
         write_test_block(&mut out, Block::Plain);
 
         assert_eq!(
-            ["before", "", "hello", "world", "", "after", ].join("\n"),
+            ["before", "", "hello", "world", "", "after",].join("\n"),
             out.to_string()
         );
     }
@@ -247,7 +248,7 @@ mod tests {
         write_test_block(&mut out, Block::Quote);
 
         assert_eq!(
-            ["before", "", "> hello", "> world", "", "after", ].join("\n"),
+            ["before", "", "> hello", "> world", "", "after",].join("\n"),
             out.to_string()
         );
     }
@@ -263,7 +264,7 @@ mod tests {
         out.write_str("after");
 
         assert_eq!(
-            ["before", "", "hello", "", "world", "", "after", ].join("\n"),
+            ["before", "", "hello", "", "world", "", "after",].join("\n"),
             out.to_string()
         );
     }
@@ -285,7 +286,7 @@ mod tests {
         out.write_str("after");
 
         assert_eq!(
-            ["before", "", "> ```", "> my code", "> ```", "", "after", ].join("\n"),
+            ["before", "", "> ```", "> my code", "> ```", "", "after",].join("\n"),
             out.to_string()
         );
     }
@@ -323,7 +324,7 @@ mod tests {
                 "",
                 "after",
             ]
-                .join("\n"),
+            .join("\n"),
             out.to_string()
         );
     }
@@ -341,7 +342,7 @@ mod tests {
         out.write_str("after");
 
         assert_eq!(
-            ["before", "", ">>> hello", "", "after", ].join("\n"),
+            ["before", "", ">>> hello", "", "after",].join("\n"),
             out.to_string()
         );
     }
@@ -353,7 +354,7 @@ mod tests {
         out.push_block(Block::Quote);
         out.pop_block();
 
-        assert_eq!([">", ].join("\n"), out.to_string());
+        assert_eq!([">",].join("\n"), out.to_string());
     }
 
     #[test]

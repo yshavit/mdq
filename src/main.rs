@@ -1,6 +1,7 @@
 mod md_to_yaml_debug;
 mod output;
-mod normalized_ast;
+mod tree;
+mod tree_to_json;
 
 use std::borrow::Borrow;
 use std::io;
@@ -9,8 +10,10 @@ use std::string::ToString;
 
 use crate::output::Block;
 use markdown::mdast::Node;
+use serde_json::Value;
 
 use crate::Resolver::{Current, Next, Until};
+use crate::tree::MdqNode;
 
 fn main() {
     let mut contents = String::new();
@@ -30,7 +33,12 @@ fn main() {
     match selector.find(&ast) {
         None => out.write_str("(no match)"),
         Some(found) => {
-            write_md(&found, &mut out);
+            let mdqs = found.into_iter().map(|n| {
+                let mdq: MdqNode = n.to_owned().try_into().unwrap();
+                tree_to_json::to_json::<tree_to_json::TextOnly>(&mdq)
+            }).collect();
+            let arr = Value::Array(mdqs);
+            println!("{}", arr);
         }
     }
     out.write_str("\n");
@@ -146,13 +154,11 @@ where
             Node::ListItem(_) => {
                 panic!("internal error") // should already have been handled
             }
-            Node::Math(node) => {
-                out.with_pre_block(|out| {
-                    out.write_str("$$\n");
-                    out.write_str(&node.value);
-                    out.write_str("\n$$");
-                })
-            }
+            Node::Math(node) => out.with_pre_block(|out| {
+                out.write_str("$$\n");
+                out.write_str(&node.value);
+                out.write_str("\n$$");
+            }),
             Node::MdxFlowExpression(node) => {
                 out.write_str("{");
                 out.write_str(&node.value);
@@ -172,7 +178,6 @@ where
                 out.write_str("**");
                 write_md(&node.children, out);
                 out.write_str("**");
-
             }
             Node::Table(_) => {}
             // Node::TableCell(_) => {}
