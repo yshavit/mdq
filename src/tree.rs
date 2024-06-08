@@ -20,7 +20,6 @@ pub enum MdqNode {
         body: Vec<MdqNode>,
     },
     List {
-        // this really should be an Either<Ol, Ul> with different list item types
         starting_index: Option<u32>,
         items: Vec<ListItem>,
     },
@@ -66,7 +65,7 @@ pub enum Inline {
 #[derive(Debug, PartialEq)]
 pub struct ListItem {
     pub checked: Option<bool>,
-    pub children: Vec<MdqNode>,
+    pub item: Vec<MdqNode>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -142,7 +141,7 @@ impl MdqNode {
                     };
                     let li_mdq = ListItem {
                         checked: li_node.checked,
-                        children: MdqNode::all(li_node.children, lookups)?,
+                        item: MdqNode::all(li_node.children, lookups)?,
                     };
                     li_nodes.push(li_mdq);
                 }

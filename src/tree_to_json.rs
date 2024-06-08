@@ -39,7 +39,7 @@ pub fn node_to_json<R: InlineResolver>(node: &MdqNode) -> Value {
             items,
         } => {
             let mut as_map = Map::new();
-            let is_ordered = match starting_index {
+            match starting_index {
                 Some(start_idx) => {
                     as_map.insert("type".to_string(), json!("ordered"));
                     as_map.insert("start_at".to_string(), json!(start_idx));
@@ -53,16 +53,10 @@ pub fn node_to_json<R: InlineResolver>(node: &MdqNode) -> Value {
             let items = items
                 .iter()
                 .map(|li| {
-                    if is_ordered {
-                        json!({
-                            "item": to_jsons::<R>(&li.children),
-                        })
-                    } else {
-                        json!({
-                            "checked": li.checked.clone(),
-                            "item": to_jsons::<R>(&li.children),
-                        })
-                    }
+                    json!({
+                        "checked": li.checked.clone(),
+                        "item": to_jsons::<R>(&li.item),
+                    })
                 })
                 .collect();
             as_map.insert("items".to_string(), Value::Array(items));

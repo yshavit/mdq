@@ -1,15 +1,16 @@
-use crate::fmt_str::{pad_to, standard_align};
+use crate::fmt_str::{pad_to, Paddable, standard_align};
 use crate::output::{Block, Output};
 use crate::tree::{CodeVariant, Inline, InlineVariant, MdqNode, SpanVariant};
 use std::borrow::Borrow;
 use std::cmp::max;
-use std::fmt::Alignment;
+use std::fmt::{Alignment};
 use std::io::Write;
+use crate::output::Block::Inlined;
 
 pub fn write_md<N, W>(out: &mut Output<W>, nodes: &[N])
-where
-    N: Borrow<MdqNode>,
-    W: Write,
+    where
+        N: Borrow<MdqNode>,
+        W: Write,
 {
     let mut iter = nodes.iter().peekable();
     while let Some(node) = iter.next() {
@@ -21,8 +22,8 @@ where
 }
 
 pub fn write_one_md<W>(out: &mut Output<W>, node: &MdqNode)
-where
-    W: Write,
+    where
+        W: Write,
 {
     match node {
         MdqNode::Root { body } => write_md(out, body),
@@ -50,25 +51,29 @@ where
             starting_index,
             items,
         } => {
-            // todo suppress next block's newlines
-            if let &Some(mut idx) = starting_index {
+            out.with_block(Block::Plain, |out| {
+                let mut index = starting_index.clone();
+                let mut prefix = String::with_capacity(8); // enough for "12. [ ] "
                 for item in items {
-                    out.write_str(&format!("{}. ", idx));
-                    write_md(out, &item.children);
-                    idx += 1;
-                    out.write_str("\n");
-                }
-            } else {
-                for item in items {
-                    match item.checked {
-                        None => out.write_str("- "),
-                        Some(true) => out.write_str("- [x] "),
-                        Some(false) => out.write_str("- [ ] "),
+                    prefix.clear();
+                    match &mut index {
+                        None => prefix.push_str("- "),
+                        Some(i) => {
+                            std::fmt::Write::write_fmt(&mut prefix, format_args!("{}. ", &i)).unwrap();
+                            *i += 1;
+                        }
+                    };
+                    if let Some(checked) = &item.checked {
+                        prefix.push('[');
+                        prefix.push(if *checked { 'x' } else { ' ' });
+                        prefix.push_str("] ");
                     }
-                    write_md(out, &item.children);
-                    out.write_str("\n");
+                    out.with_block(Inlined(prefix.len()), |out| {
+                        out.write_str(&prefix);
+                        write_md(out, &item.item);
+                    });
                 }
-            }
+            });
         }
         MdqNode::Table { alignments, rows } => {
             let mut row_strs = Vec::with_capacity(rows.len());
@@ -213,9 +218,9 @@ where
 }
 
 pub fn write_line<E, W>(out: &mut Output<W>, elems: &[E])
-where
-    E: Borrow<Inline>,
-    W: Write,
+    where
+        E: Borrow<Inline>,
+        W: Write,
 {
     for elem in elems {
         write_inline_element(out, elem.borrow());
@@ -223,8 +228,8 @@ where
 }
 
 pub fn write_inline_element<W>(out: &mut Output<W>, elem: &Inline)
-where
-    W: Write,
+    where
+        W: Write,
 {
     match elem {
         Inline::Span { variant, children } => {
@@ -251,8 +256,8 @@ where
 }
 
 fn line_to_string<E>(line: &[E]) -> String
-where
-    E: Borrow<Inline>,
+    where
+        E: Borrow<Inline>,
 {
     let bytes: Vec<u8> = Vec::with_capacity(line.len() * 10); // rough guess
     let mut out = Output::new(bytes);

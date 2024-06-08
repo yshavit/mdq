@@ -4,9 +4,9 @@ use std::io::Write;
 pub struct Output<W: Write> {
     stream: W,
     pre_mode: bool,
-    blocks: Vec<BlockClose>,
-    indents: Vec<String>, // TODO these are all ">", so just make it a counter
-    pending_indents: Vec<String>, // TODO these are all ">", so just make it a counter
+    blocks: Vec<BlockClose>, // TODO do we need this? why not just always add the block, and always pop it?
+    indents: Vec<Block>,
+    pending_indents: Vec<Block>,
     pending_newlines: usize,
     writing_state: WritingState,
 }
@@ -15,11 +15,23 @@ pub struct PreWriter<'a, W: Write> {
     output: &'a mut Output<W>,
 }
 
+#[derive(Debug,PartialEq)]
 pub enum Block {
     /// A plain block; just paragraph text.
     Plain,
     /// A quoted block (`> `)
     Quote,
+    /// A block that does *not* start with newlines, but does add indentation. It ends in a single newline.
+    /// **This block affects its first child block**, in that it suppresses that block's newlines.
+    ///
+    /// This is useful for lists:
+    ///
+    ///     1. §Paragraph starts here.§
+    ///     2. §Paragraph starts here, and
+    ///        indentation continues.§
+    ///
+    /// (where `§` signifies the start and end of an inlined paragraph)
+    Inlined(usize)
 }
 
 impl<W: Write> Output<W> {
@@ -62,14 +74,21 @@ impl<W: Write> Output<W> {
     }
 
     pub fn push_block(&mut self, block: Block) {
-        self.ensure_newlines(2);
-        let block_close = match block {
-            Block::Plain => BlockClose::NoAction,
-            Block::Quote => {
-                self.pending_indents.push(">".to_string());
-                BlockClose::EndQuote
+        let prev_is_inline = self.indents.last().map(|b| matches!(b, Block::Inlined(_))).unwrap_or(false);
+        let (block_close, add_newlines) = match block {
+            Block::Plain => (BlockClose::NoAction, true),
+            b @ Block::Quote => {
+                self.pending_indents.push(b);
+                (BlockClose::EndQuote, true)
+            }
+            b @ Block::Inlined(_) => {
+                self.pending_indents.push(b);
+                (BlockClose::EndInlined, false)
             }
         };
+        if add_newlines && prev_is_inline {
+            self.ensure_newlines(2);
+        }
         self.blocks.push(block_close);
     }
 
@@ -77,16 +96,21 @@ impl<W: Write> Output<W> {
         if !self.pending_indents.is_empty() {
             self.write_str(""); // flush the indents
         }
-        match self.blocks.pop() {
-            None => {}
+        let newlines = match self.blocks.pop() {
+            None => 2,
             Some(block_close) => match block_close {
-                BlockClose::NoAction => {}
+                BlockClose::NoAction => 2,
                 BlockClose::EndQuote => {
                     self.indents.pop();
+                    2
+                }
+                BlockClose::EndInlined => {
+                    self.indents.pop();
+                    1
                 }
             },
-        }
-        self.ensure_newlines(2);
+        };
+        self.ensure_newlines(newlines);
     }
 
     pub fn write_str(&mut self, text: &str) {
@@ -102,8 +126,20 @@ impl<W: Write> Output<W> {
     }
 
     pub fn write_char(&mut self, ch: char) {
-        // TODO make this better if I need to; for now, I'm just establishing the API
+        // TODO make this better if I need to; for now, I'm just establishing the API.
+        // On the other hand, it results in extra allocations, and it's always for literals; so maybe I should rm it?
+        // (It's a micro-optimization either way!)
         self.write_str(&String::from(ch))
+    }
+
+    fn write_indent(&mut self) {
+        for idx in 0..self.indents.len() {
+            match &self.indents[idx] {
+                Block::Plain => {},
+                Block::Quote => { self.write_raw(">")},
+                Block::Inlined(size) => {(0..*size).for_each(|_| self.write_raw(" "))},
+            }
+        }
     }
 
     fn write_line(&mut self, text: &str) {
@@ -113,9 +149,6 @@ impl<W: Write> Output<W> {
                 return;
             }
         }
-        // Get our (previous) indent, not counting any pending indents
-        let mut indent = self.indents.join("");
-
         // If we have any newlines that we need, do those first. But also record whether we need
         // to print the indent once we add any pending indents.
         let should_print_indent = match self.writing_state {
@@ -129,7 +162,7 @@ impl<W: Write> Output<W> {
                     self.write_raw("\n");
                     for _ in 1..self.pending_newlines {
                         // from 1 because we already wrote the first
-                        self.write_raw(&indent);
+                        self.write_indent();
                         self.write_raw("\n");
                     }
                     true // we wrote a newline, so we need to print the new indent
@@ -143,13 +176,9 @@ impl<W: Write> Output<W> {
         };
         self.pending_newlines = 0;
 
-        for new_indent in self.pending_indents.drain(..) {
-            indent.push_str(&new_indent);
-            self.indents.push(new_indent);
-        }
+        self.indents.append(&mut self.pending_indents);
 
-        if should_print_indent && !indent.is_empty() {
-            self.write_raw(&indent);
+        if should_print_indent && !self.indents.is_empty() {
             if !text.is_empty() {
                 self.write_raw(" ");
             }
@@ -222,6 +251,7 @@ enum WritingState {
 enum BlockClose {
     NoAction,
     EndQuote,
+    EndInlined,
 }
 
 #[cfg(test)]

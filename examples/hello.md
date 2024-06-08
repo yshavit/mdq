@@ -16,7 +16,7 @@ wrapping that mdq should unwrap.
 |:------------|:-------------:|-------------:|
 | (           | v             | )            |
 
-## Some lists
+## Hello lists
 
 1. List two
 2. List two
@@ -65,3 +65,17 @@ Block B
   ```
 
 - again
+
+## List details
+
+1. One
+1. 2. Two
+1. s
+  1. Four
+1. ```
+   foo
+   ```
+1.
+   ```
+   foo
+   ```
