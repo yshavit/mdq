@@ -248,10 +248,14 @@ enum WritingState {
     /// We haven't written any text; that is, there hasn't been any invocation of [Output::write_str] or
     /// [Output::write_char]. We may have queued up some blocks.
     HaveNotWrittenAnything,
-    /// We just wrote the indent
+
+    /// We just wrote a `>`. Need to add a space after it (we don't add it when writing the indent, because if the line
+    /// is otherwise empty, we don't want that trailing space).
     DirectlyAfterBlockQuote,
+
     /// No special state. Just write the chars!
     Normal,
+
     /// There's been an error in writing. From here on in, everything will be a noop.
     Error,
 }
@@ -318,6 +322,32 @@ mod tests {
 
                 after"#}
         );
+    }
+
+    #[test]
+    fn indent_block() {
+        assert_eq!(
+            out_to_str(|out| {
+                out.write_str("before");
+                out.with_block(Block::Plain, |out| {
+                    out.with_block(Block::Inlined(3), |out| {
+                        out.write_str("directly in\nthe inlined block");
+                    });
+                    out.with_block(Block::Inlined(3), |out| {
+                        out.with_block(Block::Plain, |out| out.write_str("paragraph 1"));
+                        out.with_block(Block::Plain, |out| out.write_str("paragraph 2"));
+                    });
+                });
+            }),
+            indoc! {r#"
+                before
+
+                directly in
+                   the inlined block
+                paragraph 1
+                
+                   paragraph 2"#}
+        )
     }
 
     #[test]
