@@ -13,12 +13,8 @@ where
     N: Borrow<MdqNode>,
     W: Write,
 {
-    let mut iter = nodes.iter().peekable();
-    while let Some(node) = iter.next() {
+    for node in nodes {
         write_one_md(out, node.borrow());
-        if iter.peek().is_some() {
-            write_one_md(out, &MdqNode::ThematicBreak)
-        }
     }
 }
 
@@ -70,8 +66,8 @@ where
                         prefix.push(if *checked { 'x' } else { ' ' });
                         prefix.push_str("] ");
                     }
+                    out.write_str(&prefix);
                     out.with_block(Inlined(prefix.len()), |out| {
-                        out.write_str(&prefix);
                         write_md(out, &item.item);
                     });
                 }
