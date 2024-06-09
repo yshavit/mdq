@@ -1,5 +1,5 @@
+use crate::fmt_json;
 use crate::tree::{CodeVariant, Inline, MdqNode};
-use crate::tree_to_json;
 
 #[allow(dead_code)]
 pub enum Selector {
@@ -145,6 +145,6 @@ impl Selector {
     }
 
     fn line_to_string(line: &[Inline]) -> String {
-        tree_to_json::TextOnly::line_to_string(line)
+        fmt_json::TextOnly::line_to_string(line)
     }
 }
