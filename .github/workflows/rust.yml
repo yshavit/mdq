@@ -15,7 +15,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: cargo build
-      run:  .github/workflows/cargo_to_gh rustc --message-format json -- -Awarnings
+      run: scripts/cargo_to_gh rustc --message-format json -- -Awarnings
 
   check:
     runs-on: ubuntu-latest
@@ -23,7 +23,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: cargo check
-      run: .github/workflows/cargo_to_gh check
+      run: scripts/cargo_to_gh check
 
   test:
     runs-on: ubuntu-latest

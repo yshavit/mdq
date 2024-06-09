@@ -1,8 +1,9 @@
 #!/bin/bash
 
+source scripts/common.sh || exit 1
+
 json_opts=()
 if ! echo "$*" | grep -q -- '--message-format json' ; then
-  echo "NO: $*"
   json_opts=(--message-format json)
 fi
 

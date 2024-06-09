@@ -1,0 +1,26 @@
+name: Coverage
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    environment: Code Coverage Badge
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Generate code coverage
+        run: |
+          percent_coverage="$(cargo llvm-cov --json | jq '.data[].totals.lines.percent')"
+          printf '::notice title=Coverage (lines %%)::%s' "$percent_coverage"
+          echo "LINES_PERCENT=$percent_coverage" >> "$GITHUB_ENV"
+      - name: Upload to gist
+        run: ./scripts/percent_to_shields_gist coverage "$LINES_PERCENT"
+        env:
+          GIST_URL: ${{ vars.GIST_URL }}
+          GH_TOKEN: ${{ secrets.API_TOKEN }}

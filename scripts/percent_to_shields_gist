@@ -1,0 +1,22 @@
+#!/bin/bash
+
+source scripts/common.sh || exit 1
+
+if [ -z "${GIST_URL:-}" ]; then
+  err "no GIST_URL env set"
+fi
+if [ $# -ne 2 ]; then
+  err 'requires exactly two arguments'
+fi
+label="$1"
+percent="$2"
+
+color="$(scripts/percent_to_color "$percent")"
+
+json_text="$(echo '{}' | 
+  jq -c '{schemaVersion: 1, label: $badge_label, color: $color, message: $percent}' \
+  --arg badge_label "$label" --arg color "$color" --arg percent "$(printf '%.1f%%' "$percent")" )"
+
+gh gist edit "$GIST_URL" <(echo "$json_text")
+
+
