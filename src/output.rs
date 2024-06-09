@@ -323,7 +323,7 @@ mod tests {
     }
 
     #[test]
-    fn indent_block() {
+    fn inlined_block() {
         assert_eq!(
             out_to_str(|out| {
                 out.write_str("before");
@@ -346,6 +346,36 @@ mod tests {
                 
                    paragraph 2"#}
         )
+    }
+
+    // This example is what we actually expect in practice, from a list item.
+    #[test]
+    fn inlined_block_with_text_before_inner_block() {
+        assert_eq!(
+            out_to_str(|out| {
+                out.with_block(Block::Inlined(3), |out| {
+                    out.write_str("1. ");
+                    out.with_block(Block::Plain, |out| {
+                        out.write_str("First item");
+                    });
+                    out.with_block(Block::Plain, |out| {
+                        out.write_str("It has two paragraphs.");
+                    });
+                });
+                out.with_block(Block::Inlined(3), |out| {
+                    out.write_str("2. ");
+                    out.with_block(Block::Plain, |out| {
+                        out.write_str("Second item.");
+                    });
+                });
+            }),
+            indoc! {r#"
+                1. First item
+                   
+                   It has two paragraphs.
+                2. Second item.
+            "#}
+        );
     }
 
     #[test]
