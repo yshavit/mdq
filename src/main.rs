@@ -1,16 +1,16 @@
+use std::io;
+use std::io::{stdin, Read};
+use std::string::ToString;
+
+use crate::fmt_json::TextOnly;
+use crate::tree::MdqNode;
+
+mod fmt_json;
 mod fmt_md;
 mod fmt_str;
 mod output;
 mod select;
 mod tree;
-mod tree_to_json;
-
-use std::io;
-use std::io::{stdin, Read};
-use std::string::ToString;
-
-use crate::tree::MdqNode;
-use crate::tree_to_json::TextOnly;
 
 fn main() {
     let mut contents = String::new();
@@ -30,7 +30,7 @@ fn main() {
 
     let found = selector.find(&mdq);
 
-    let jsons = tree_to_json::nodes_to_json::<_, TextOnly>(&found);
+    let jsons = fmt_json::nodes_to_json::<_, TextOnly>(&found);
     println!("{}", jsons);
     out.write_str("\n\n=======================================\n\n");
     fmt_md::write_md(&mut out, &found);
