@@ -1,5 +1,6 @@
 use std::cmp::PartialEq;
 use std::io::Write;
+use std::ops::Range;
 
 pub struct Output<W: Write> {
     stream: W,
@@ -7,6 +8,7 @@ pub struct Output<W: Write> {
     blocks: Vec<Block>, // TODO do we need this? why not just always add the block, and always pop it?
     pending_blocks: Vec<Block>,
     pending_newlines: usize,
+    pending_padding_after_indent: usize,
     writing_state: WritingState,
 }
 
@@ -41,6 +43,7 @@ impl<W: Write> Output<W> {
             blocks: Vec::default(),
             pending_blocks: Vec::default(),
             pending_newlines: 0,
+            pending_padding_after_indent: 0,
             writing_state: WritingState::HaveNotWrittenAnything,
         }
     }
@@ -124,65 +127,64 @@ impl<W: Write> Output<W> {
         let need_indent = if self.pending_newlines > 0 {
             for _ in 0..(self.pending_newlines - 1) {
                 self.write_raw("\n");
-                self.write_indent();
+                self.write_indent(None);
             }
             self.write_raw("\n"); // we'll do this indent after we add the pending blocks
             self.pending_newlines = 0;
             true
+        } else if matches!(self.writing_state, WritingState::HaveNotWrittenAnything) {
+            self.set_writing_state(WritingState::Normal);
+            true
         } else {
-            matches!(self.writing_state, WritingState::HaveNotWrittenAnything)
+            false
         };
 
         // Append the new blocks, and then write the indent if we need it
+        // When we write that indent, though, only write it until the first new Inlined (exclusive).
+        let indent_end_idx = self.blocks.len()
+            + self
+                .pending_blocks
+                .iter()
+                .position(|b| matches!(b, Block::Inlined(_)))
+                .unwrap_or_else(|| self.pending_blocks.len());
         self.blocks.append(&mut self.pending_blocks);
         if need_indent {
-            self.write_indent();
-        }
-
-        match self.writing_state {
-            WritingState::DirectlyAfterBlockQuote => {
-                if !text.is_empty() {
-                    // Otherwise, save the DirectlyAfterBlockQuote state for the next invocation
-                    self.set_writing_state(WritingState::Normal);
-                    self.write_raw(" ");
-                }
-            }
-            WritingState::HaveNotWrittenAnything => self.set_writing_state(WritingState::Normal),
-            WritingState::Normal | WritingState::Error => {}
+            self.write_indent(Some(0..indent_end_idx));
         }
 
         // Finally, write the text
+        if !text.is_empty() {
+            self.write_padding_after_indent();
+        }
         self.write_raw(text);
     }
 
-    fn write_indent(&mut self) {
-        let mut directly_after_block_quote = false;
-        for idx in 0..self.blocks.len() {
+    fn write_indent(&mut self, range: Option<Range<usize>>) {
+        self.pending_padding_after_indent = 0;
+        for idx in range.unwrap_or_else(|| 0..self.blocks.len()) {
             match &self.blocks[idx] {
                 Block::Plain => {}
                 Block::Quote => {
-                    if directly_after_block_quote {
-                        self.write_raw(" ");
-                    }
+                    self.write_padding_after_indent();
                     self.write_raw(">");
-                    directly_after_block_quote = true;
+                    self.pending_padding_after_indent += 1;
                 }
                 Block::Inlined(size) => {
-                    (0..*size).for_each(|_| self.write_raw(" "));
-                    directly_after_block_quote = false;
+                    self.pending_padding_after_indent += size;
                 }
             }
         }
-        self.set_writing_state(if directly_after_block_quote {
-            WritingState::DirectlyAfterBlockQuote
-        } else {
-            WritingState::Normal
-        });
+        self.set_writing_state(WritingState::Normal);
+    }
+
+    fn write_padding_after_indent(&mut self) {
+        (0..self.pending_padding_after_indent).for_each(|_| self.write_raw(" "));
+        self.pending_padding_after_indent = 0;
     }
 
     fn ensure_newlines(&mut self, count: usize) {
         match self.writing_state {
-            WritingState::DirectlyAfterBlockQuote | WritingState::Normal => {
+            WritingState::Normal => {
                 if self.pending_newlines < count {
                     self.pending_newlines = count;
                 }
@@ -248,10 +250,6 @@ enum WritingState {
     /// We haven't written any text; that is, there hasn't been any invocation of [Output::write_str] or
     /// [Output::write_char]. We may have queued up some blocks.
     HaveNotWrittenAnything,
-
-    /// We just wrote a `>`. Need to add a space after it (we don't add it when writing the indent, because if the line
-    /// is otherwise empty, we don't want that trailing space).
-    DirectlyAfterBlockQuote,
 
     /// No special state. Just write the chars!
     Normal,
@@ -460,7 +458,7 @@ mod tests {
                 out.push_block(Block::Quote);
                 out.pop_block();
             }),
-            indoc! {r#">"#} // TODO the extra space actually shouldn't be there. I think I need a new state, "Right after indent".
+            indoc! {r#">"#}
         );
     }
 
