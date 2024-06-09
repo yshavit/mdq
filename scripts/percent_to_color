@@ -1,0 +1,31 @@
+#!/bin/bash
+
+source scripts/common.sh || exit 1
+
+if [ $# -ne 1 ]; then
+  err 'require exactly one argument'
+fi
+percent="$1"
+
+percent_0_to_5="$(printf 'scale=0; %s / 20\n' "$percent" | bc)"
+
+case "$percent_0_to_5" in
+  0) # 0 - 19%
+    echo darkred
+    ;;
+  1) # 20 - 39%
+    echo crimson
+    ;;
+  2) # 40 - 59%
+    echo orangered
+    ;;
+  3) # 60 - 79%
+    echo yellowgreen
+    ;;
+  4 | 5)
+    echo forestgreen 
+    ;;
+  *)
+    err 'invalid percent'
+    ;;
+esac
