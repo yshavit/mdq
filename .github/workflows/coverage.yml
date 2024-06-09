@@ -26,5 +26,5 @@ jobs:
       - name: Upload to gist
         run: ./scripts/percent_to_shields_gist coverage "$LINES_PERCENT"
         env:
-          GIST_URL: ${{ env.GIST_URL }}
+          GIST_URL: ${{ vars.GIST_URL }}
           GH_TOKEN: ${{ secrets.API_TOKEN }}
