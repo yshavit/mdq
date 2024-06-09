@@ -15,7 +15,7 @@ color="$(scripts/percent_to_color "$percent")"
 
 json_text="$(echo '{}' | 
   jq -c '{schemaVersion: 1, label: $badge_label, color: $color, message: $percent}' \
-  --arg badge_label "$label" --arg color "$color" --arg percent "$(printf '%.1f' "$percent")" )"
+  --arg badge_label "$label" --arg color "$color" --arg percent "$(printf '%.1f%%' "$percent")" )"
 
 gh gist edit "$GIST_URL" <(echo "$json_text")
 
