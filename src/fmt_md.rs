@@ -66,8 +66,8 @@ where
                         prefix.push(if *checked { 'x' } else { ' ' });
                         prefix.push_str("] ");
                     }
+                    out.write_str(&prefix);
                     out.with_block(Inlined(prefix.len()), |out| {
-                        out.write_str(&prefix);
                         write_md(out, &item.item);
                     });
                 }

@@ -2,6 +2,8 @@ use std::cmp::PartialEq;
 use std::io::Write;
 use std::ops::Range;
 
+use crate::output::NewlinesRequest::{AtLeast, Exactly};
+
 pub struct Output<W: Write> {
     stream: W,
     pre_mode: bool,
@@ -90,7 +92,7 @@ impl<W: Write> Output<W> {
                 Block::Inlined(_) => 1,
             },
         };
-        self.ensure_newlines(newlines);
+        self.ensure_newlines(Exactly(newlines));
     }
 
     pub fn write_str(&mut self, text: &str) {
@@ -99,8 +101,11 @@ impl<W: Write> Output<W> {
         let mut lines = lines.split(text).peekable();
         while let Some(line) = lines.next() {
             self.write_line(line);
-            if let Some(_) = lines.peek() {
-                self.ensure_newlines(1);
+            if !line.is_empty() {
+                self.set_writing_state(WritingState::Normal);
+            }
+            if lines.peek().is_some() {
+                self.ensure_newlines(AtLeast(1));
             }
         }
     }
@@ -112,15 +117,14 @@ impl<W: Write> Output<W> {
         self.write_str(&String::from(ch))
     }
 
-    // Writes text which is assumed to not have any newlines
+    // Writes text which is assumed to not have any nwlines
     fn write_line(&mut self, text: &str) {
         // If we have any pending blocks, handle those first. We need to add a paragraph break, unless the first block
         // is an Inlined.
         match self.pending_blocks.first() {
-            None | Some(Block::Inlined(_)) => {}
-            Some(_) => {
-                self.ensure_newlines(2);
-            }
+            None => {}
+            Some(Block::Inlined(_)) => self.set_writing_state(WritingState::IgnoringNewlines),
+            Some(_) => self.ensure_newlines(AtLeast(2)),
         }
 
         // print the newlines before we append the new blocks
@@ -132,11 +136,8 @@ impl<W: Write> Output<W> {
             self.write_raw("\n"); // we'll do this indent after we add the pending blocks
             self.pending_newlines = 0;
             true
-        } else if matches!(self.writing_state, WritingState::HaveNotWrittenAnything) {
-            self.set_writing_state(WritingState::Normal);
-            true
         } else {
-            false
+            matches!(self.writing_state, WritingState::HaveNotWrittenAnything)
         };
 
         // Append the new blocks, and then write the indent if we need it
@@ -174,7 +175,6 @@ impl<W: Write> Output<W> {
                 }
             }
         }
-        self.set_writing_state(WritingState::Normal);
     }
 
     fn write_padding_after_indent(&mut self) {
@@ -182,14 +182,19 @@ impl<W: Write> Output<W> {
         self.pending_padding_after_indent = 0;
     }
 
-    fn ensure_newlines(&mut self, count: usize) {
+    fn ensure_newlines(&mut self, request: NewlinesRequest) {
         match self.writing_state {
-            WritingState::Normal => {
-                if self.pending_newlines < count {
-                    self.pending_newlines = count;
+            WritingState::Normal => match request {
+                NewlinesRequest::Exactly(n) => self.pending_newlines = n,
+                NewlinesRequest::AtLeast(n) => {
+                    if self.pending_newlines < n {
+                        self.pending_newlines = n;
+                    }
                 }
-            }
-            WritingState::HaveNotWrittenAnything | WritingState::Error => {}
+            },
+            WritingState::HaveNotWrittenAnything
+            | WritingState::IgnoringNewlines
+            | WritingState::Error => {}
         }
     }
 
@@ -245,11 +250,20 @@ impl<'a, W: Write> PreWriter<'a, W> {
     }
 }
 
+enum NewlinesRequest {
+    Exactly(usize),
+    AtLeast(usize),
+}
+
 #[derive(PartialEq, Copy, Clone)]
 enum WritingState {
     /// We haven't written any text; that is, there hasn't been any invocation of [Output::write_str] or
     /// [Output::write_char]. We may have queued up some blocks.
     HaveNotWrittenAnything,
+
+    /// Any newline requests (via [Output::ensure_newlines] will be ignored. This happens for the first line following a
+    /// new [Block::Inlined].
+    IgnoringNewlines,
 
     /// No special state. Just write the chars!
     Normal,
@@ -350,11 +364,11 @@ mod tests {
 
     // This example is what we actually expect in practice, from a list item.
     #[test]
-    fn inlined_block_with_text_before_inner_block() {
+    fn inlined_block_used_like_list_item() {
         assert_eq!(
             out_to_str(|out| {
+                out.write_str("1. ");
                 out.with_block(Block::Inlined(3), |out| {
-                    out.write_str("1. ");
                     out.with_block(Block::Plain, |out| {
                         out.write_str("First item");
                     });
@@ -362,19 +376,25 @@ mod tests {
                         out.write_str("It has two paragraphs.");
                     });
                 });
+                out.write_str("2. ");
                 out.with_block(Block::Inlined(3), |out| {
-                    out.write_str("2. ");
                     out.with_block(Block::Plain, |out| {
                         out.write_str("Second item.");
+                    });
+                });
+                out.write_str("3. ");
+                out.with_block(Block::Inlined(3), |out| {
+                    out.with_block(Block::Plain, |out| {
+                        out.write_str("Third item");
                     });
                 });
             }),
             indoc! {r#"
                 1. First item
-                   
+
                    It has two paragraphs.
                 2. Second item.
-            "#}
+                3. Third item"#}
         );
     }
 
