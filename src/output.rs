@@ -192,9 +192,7 @@ impl<W: Write> Output<W> {
                     }
                 }
             },
-            WritingState::HaveNotWrittenAnything
-            | WritingState::IgnoringNewlines
-            | WritingState::Error => {}
+            WritingState::HaveNotWrittenAnything | WritingState::IgnoringNewlines | WritingState::Error => {}
         }
     }
 
