@@ -4,8 +4,8 @@ use std::fmt::Alignment;
 use std::io::Write;
 
 use crate::fmt_str::{pad_to, standard_align};
-use crate::output::{Block, Output};
 use crate::output::Block::Inlined;
+use crate::output::{Block, Output};
 use crate::tree::{CodeVariant, Inline, InlineVariant, MdqNode, SpanVariant};
 
 pub fn write_md<N, W>(out: &mut Output<W>, nodes: &[N])
