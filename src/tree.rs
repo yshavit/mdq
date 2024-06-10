@@ -33,6 +33,7 @@ pub enum MdqNode {
         alignments: Vec<AlignKind>,
         rows: Vec<Tr>,
     },
+
     ThematicBreak,
 
     // blocks that contain strings (as opposed to nodes)
@@ -42,7 +43,7 @@ pub enum MdqNode {
     },
 
     // inline spans
-    Inline(Inline),
+    Inline(Inline), // TODO rename to "span"?
 }
 
 /// See https://github.github.com/gfm/#link-reference-definitions
@@ -100,6 +101,7 @@ pub enum CodeVariant {
 #[derive(Debug, PartialEq)]
 pub enum Inline {
     Span {
+        // TODO rename to Composite or something? Or Formatting?
         variant: SpanVariant,
         children: Vec<Inline>,
     },
@@ -108,20 +110,20 @@ pub enum Inline {
         value: String,
     },
     Link {
-        url: String,
+        url: String, // TODO should I combine {url, title, reference} from here and Image into one struct? Or even have a single Inline variant, with a sub-enum for Link vs Image?
         text: Vec<Inline>,
 
         /// If you have `[1]: https://example.com "my title"`, this is the "my title".
         ///
         /// See: https://github.github.com/gfm/#link-reference-definitions
         title: Option<String>,
-
         reference: LinkReference,
     },
     Image {
         url: String,
         alt: String,
         title: Option<String>,
+        reference: LinkReference,
     },
 }
 
@@ -243,6 +245,7 @@ impl MdqNode {
                 url: node.url,
                 alt: node.alt,
                 title: node.title,
+                reference: LinkReference::Inline,
             }),
             Node::ImageReference(_) => {
                 return Err(NoNode::Skipped);
@@ -626,21 +629,6 @@ mod tests {
         use markdown::ParseOptions;
 
         use super::*;
-
-        #[test]
-        fn playground() {
-            let md = indoc! {r#"
-                Hello [world]
-
-                [world]: https://example.com "MY TITLE"
-                "#};
-
-            let ast = markdown::to_mdast(md, &ParseOptions::gfm()).unwrap();
-            eprintln!("AST: {:?}", ast);
-            let mdq = MdqNode::read(ast, &ReadOptions::default()).unwrap();
-            eprintln!("MDQ: {:?}", mdq);
-            todo!("END OF PLAYGROUND");
-        }
 
         #[test]
         fn good_link_ref() {
