@@ -1,7 +1,9 @@
-use crate::tree::{CodeOpts, CodeVariant, Inline, MdqNode};
+use std::borrow::Borrow;
+
 use markdown::mdast::AlignKind;
 use serde_json::{json, Map, Value};
-use std::borrow::Borrow;
+
+use crate::tree::{CodeOpts, CodeVariant, Inline, MdqNode};
 
 const BODY_KEY: &str = "body";
 
@@ -143,6 +145,19 @@ impl TextOnly {
                 }
             }
             Inline::Text { value, .. } => out.push_str(&value),
+            Inline::Link { text, .. } => {
+                for child in text {
+                    Self::build_string(out, child);
+                }
+            }
+            Inline::Image { title, .. } => {
+                out.push_str("<image");
+                if let Some(title) = title {
+                    out.push_str(": ");
+                    out.push_str(title);
+                }
+                out.push('>');
+            }
         }
     }
 }

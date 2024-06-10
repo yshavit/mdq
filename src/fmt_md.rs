@@ -250,7 +250,45 @@ where
             out.write_str(value);
             out.write_str(surround);
         }
+        Inline::Link {
+            url, text, title, ..
+        } => {
+            out.write_char('[');
+            write_line(out, text);
+            out.write_str("](");
+            out.write_str(url);
+            if let Some(title) = title {
+                out.write_str(" \"");
+                escape_title_to(out, title);
+                out.write_char('"');
+            }
+            out.write_char(')');
+            // TODO reference-style (non-inline) images
+        }
+        Inline::Image {
+            url, alt, title, ..
+        } => {
+            out.write_str("![");
+            out.write_str(alt);
+            out.write_str("](");
+            out.write_str(url);
+            if let Some(title) = title {
+                out.write_str(" \"");
+                escape_title_to(out, title);
+                out.write_char('"');
+            }
+            out.write_char(')');
+            // TODO reference-style (non-inline) images
+        }
     }
+}
+
+fn escape_title_to<W>(out: &mut Output<W>, title: &String)
+where
+    W: Write,
+{
+    // TODO escaping
+    out.write_str(title);
 }
 
 fn line_to_string<E>(line: &[E]) -> String

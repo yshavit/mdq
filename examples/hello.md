@@ -14,7 +14,19 @@ wrapping that mdq should unwrap.
 
 | Column Left | Column Middle | Column Right |
 |:------------|:-------------:|-------------:|
-| (           | v             | )            |
+| (           |       v       |            ) |
+
+This is [my inline link](https://example.com/inline).
+
+This is [my inline link with title](https://example.com/inline "its title").
+
+This is [my referenced link][a1].
+
+This is [my referenced link with title][a2].
+
+[a1]: https://example.com/reference
+
+[a2]: https://example.com/reference "its reference title"
 
 ## Hello lists
 
@@ -44,7 +56,7 @@ There's also a
 Block A
 ```
 
-and 
+and
 
 ``` title="Code block with only metadata"
 Block B
@@ -56,6 +68,7 @@ Block B
 
 1. countit
 2. [ ] fizz
+
 - maybe
 - [x] yes _but_ maybe not
 - [ ] no
@@ -69,13 +82,15 @@ Block B
 ## List details
 
 1. One
-1. 2. Two
+1.
+    2. Two
 1. s
-  1. Four
+1. Four
 1. ```
    foo
    ```
 1.
-   ```
-   foo
-   ```
+
+```
+foo
+```
