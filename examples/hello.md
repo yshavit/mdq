@@ -14,7 +14,7 @@ wrapping that mdq should unwrap.
 
 | Column Left | Column Middle | Column Right |
 |:------------|:-------------:|-------------:|
-| (           | v             | )            |
+| (           |       v       |            ) |
 
 ## Hello lists
 
@@ -44,7 +44,7 @@ There's also a
 Block A
 ```
 
-and 
+and
 
 ``` title="Code block with only metadata"
 Block B
@@ -56,6 +56,7 @@ Block B
 
 1. countit
 2. [ ] fizz
+
 - maybe
 - [x] yes _but_ maybe not
 - [ ] no
@@ -69,13 +70,14 @@ Block B
 ## List details
 
 1. One
-1. 2. Two
+1.
+    2. Two
 1. s
-  1. Four
+1. Four
 1. ```
    foo
    ```
 1.
-   ```
-   foo
-   ```
+```
+foo
+```

@@ -1,3 +1,6 @@
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+
 use markdown::mdast::{AlignKind, Code, Math, Node, Table, TableRow};
 
 #[derive(Debug, PartialEq)]
@@ -37,6 +40,38 @@ pub enum MdqNode {
 
     // inline spans
     Inline(Inline),
+}
+
+pub struct ReadOptions {
+    /// For links and images, enforce that reference-style links have at most one definition. If this value is
+    /// `false` and a link has multiple definitions, the first one will be picked.
+    ///
+    /// For example:
+    ///
+    /// ```
+    /// [ambiguous link][1]
+    ///
+    /// [1]: https://example.com/one
+    /// [1]: https://example.com/conflicting_url
+    /// ```
+    ///
+    /// If this value is `true` and there are multiple _identical_ links, the validation will still pass:
+    ///
+    /// ```
+    /// [non-ambiguous link][1]
+    ///
+    /// [1]: https://example.com/one
+    /// [1]: https://example.com/one
+    /// ```
+    pub validate_no_conflicting_links: bool,
+}
+
+impl Default for ReadOptions {
+    fn default() -> Self {
+        Self {
+            validate_no_conflicting_links: true,
+        }
+    }
 }
 
 pub type Tr = Vec<Line>; // TODO rename to TableRow
@@ -88,6 +123,7 @@ pub enum InvalidMd {
     NonListItemDirectlyUnderList(Node),
     NonRowDirectlyUnderTable(Node),
     NonInlineWhereInlineExpected,
+    ConflictingReferenceDefinition(String),
     InternalError,
 }
 
@@ -111,17 +147,21 @@ impl From<InvalidMd> for NoNode {
 impl TryFrom<Node> for MdqNode {
     type Error = InvalidMd;
 
-    fn try_from(node: Node) -> Result<Self, InvalidMd> {
-        let lookups = Lookups::new(&node)?;
+    fn try_from(value: Node) -> Result<Self, Self::Error> {
+        Self::read(value, &ReadOptions::default())
+    }
+}
+
+impl MdqNode {
+    fn read(node: Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
+        let lookups = Lookups::new(&node, opts)?;
         match Self::from_mdast_0(node, &lookups) {
             Ok(result) => Ok(result),
             Err(NoNode::Skipped) => Ok(MdqNode::Root { body: Vec::new() }),
             Err(NoNode::Invalid(err)) => Err(err),
         }
     }
-}
 
-impl MdqNode {
     fn from_mdast_0(node: Node, lookups: &Lookups) -> Result<Self, NoNode> {
         let result = match node {
             Node::Root(node) => MdqNode::Root {
@@ -442,203 +482,439 @@ where
     }
 }
 
+#[derive(Debug, PartialEq)]
 struct Lookups {
-    // todo
+    link_refs: HashMap<String, String>,
+    footnotes: HashMap<String, Vec<Node>>,
 }
 
 impl Lookups {
-    fn new(_node: &Node) -> Result<Self, InvalidMd> {
-        // validations:
-        // - all references are used (maybe? maybe we just ignore this)
-        // - all required references are present
-        // - no dupes
-        // todo!()
-        Ok(Lookups {})
+    fn new(node: &Node, read_opts: &ReadOptions) -> Result<Self, InvalidMd> {
+        const DEFAULT_CAPACITY: usize = 8; // random guess
+
+        let mut result = Self {
+            link_refs: HashMap::with_capacity(DEFAULT_CAPACITY),
+            footnotes: HashMap::with_capacity(DEFAULT_CAPACITY),
+        };
+
+        result.build_lookups(node, &read_opts)?;
+
+        Ok(result)
+    }
+
+    fn build_lookups<'a, 'b: 'a>(
+        &mut self,
+        node: &'a Node,
+        read_opts: &'a ReadOptions,
+    ) -> Result<(), InvalidMd> {
+        let x = format!("{:?}", node);
+        let _ = x;
+        match node {
+            Node::FootnoteDefinition(def) => {
+                // TODO what to do with def.label?
+                Self::add_ref(
+                    &mut self.footnotes,
+                    &def.identifier,
+                    def.children.to_owned(),
+                    read_opts,
+                )
+            }
+            Node::Definition(def) => {
+                // TODO what to do with def.label and def.title?
+                Self::add_ref(
+                    &mut self.link_refs,
+                    &def.identifier,
+                    def.url.to_owned(),
+                    read_opts,
+                )
+            }
+            _ => Ok(()),
+        }?;
+        if let Some(children) = node.children() {
+            for child in children {
+                self.build_lookups(child, read_opts)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn add_ref<V>(
+        to: &mut HashMap<String, V>,
+        identifier: &String,
+        value: V,
+        read_opts: &ReadOptions,
+    ) -> Result<(), InvalidMd>
+    where
+        V: PartialEq,
+    {
+        match to.entry(identifier.to_owned()) {
+            Entry::Occupied(other) => {
+                if read_opts.validate_no_conflicting_links && other.get() != &value {
+                    return Err(InvalidMd::ConflictingReferenceDefinition(
+                        other.key().to_owned(),
+                    ));
+                }
+                Ok(())
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(value);
+                Ok(())
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tree::Inline::Text;
 
-    #[test]
-    fn h1_with_two_paragraphs() -> Result<(), InvalidMd> {
-        let linear = vec![
-            MdqNode::Header {
-                depth: 1,
-                title: vec![inline_text("first")],
-                body: vec![],
-            },
-            MdqNode::Paragraph {
-                body: vec![inline_text("aaa")],
-            },
-            MdqNode::Paragraph {
-                body: vec![inline_text("bbb")],
-            },
-        ];
-        let expect = vec![MdqNode::Header {
-            depth: 1,
-            title: vec![inline_text("first")],
-            body: vec![
+    mod lookups {
+        use indoc::indoc;
+        use markdown::ParseOptions;
+
+        use super::*;
+
+        #[test]
+        fn playground() {
+            let result = lookups_for(
+                &ParseOptions::gfm(),
+                ReadOptions {
+                    validate_no_conflicting_links: true,
+                },
+                indoc! {r#"
+                Hello [world][1]
+
+                [1]: https://example.com "my title"
+                "#},
+            );
+            expect_present(&result, |lookups| {
+                assert_eq!(
+                    lookups.link_refs.get("1"),
+                    Some(&"https://example.com".to_string())
+                )
+            });
+            todo!()
+        }
+
+        #[test]
+        fn good_link_ref() {
+            let result = lookups_for(
+                &ParseOptions::gfm(),
+                ReadOptions {
+                    validate_no_conflicting_links: true,
+                },
+                indoc! {r#"
+                Hello [world][1]
+
+                [1]: https://example.com
+                "#},
+            );
+            expect_present(&result, |lookups| {
+                assert_eq!(
+                    lookups.link_refs.get("1"),
+                    Some(&"https://example.com".to_string())
+                )
+            })
+        }
+
+        /// This also covers the "good footnote" case.
+        #[test]
+        fn link_ref_looks_like_footnote() {
+            let result = lookups_for(
+                &ParseOptions::gfm(),
+                ReadOptions {
+                    validate_no_conflicting_links: true,
+                },
+                indoc! {r#"
+                This [looks like a link][^1], but mdast parses it as a footnote.
+
+                [^1]: https://example.com _What?!_
+                "#},
+            );
+
+            expect_present(&result, |lookups| {
+                assert_eq!(
+                    nodes_to_string_simple(lookups.footnotes.get("1")),
+                    "https://example.com What?!"
+                );
+            });
+        }
+
+        /// mdast doesn't even register this as a link.
+        #[test]
+        fn link_missing_link_definition() {
+            let md = "This [link is broken].";
+
+            let result = lookups_for(
+                &ParseOptions::gfm(),
+                ReadOptions {
+                    validate_no_conflicting_links: true,
+                },
+                md,
+            );
+            expect_present(&result, |lookups| {
+                assert_eq!(lookups.link_refs.len(), 0);
+            });
+        }
+
+        /// mdast doesn't even register this as a footnote.
+        #[test]
+        fn footnote_missing_definition() {
+            let md = "This [^a].";
+
+            let result = lookups_for(
+                &ParseOptions::gfm(),
+                ReadOptions {
+                    validate_no_conflicting_links: true,
+                },
+                md,
+            );
+            expect_present(&result, |lookups| {
+                assert_eq!(lookups.link_refs.len(), 0);
+                assert_eq!(lookups.footnotes.len(), 0);
+            });
+        }
+
+        #[test]
+        fn link_has_same_definition_twice() {
+            let result = lookups_for(
+                &ParseOptions::gfm(),
+                ReadOptions {
+                    validate_no_conflicting_links: true,
+                },
+                indoc! {r#"
+                This [link is duplicated][1].
+
+                [1]: https://example.com/one
+                [1]: https://example.com/one
+                "#},
+            );
+
+            expect_present(&result, |lookups| {
+                assert_eq!(
+                    lookups.link_refs.get("1"),
+                    Some(&"https://example.com/one".to_string())
+                );
+            });
+        }
+
+        #[test]
+        fn link_has_conflicting_definition() {
+            fn get(validate_no_conflicting_links: bool) -> Result<Lookups, InvalidMd> {
+                lookups_for(
+                    &ParseOptions::gfm(),
+                    ReadOptions {
+                        validate_no_conflicting_links,
+                    },
+                    indoc! {r#"
+                        This [link is duplicated][1].
+
+                        [1]: https://example.com/one
+                        [1]: https://example.com/different
+                    "#},
+                )
+            }
+
+            expect_absent(
+                &get(true),
+                InvalidMd::ConflictingReferenceDefinition("1".to_string()),
+            );
+
+            expect_present(&get(false), |lookups| {
+                assert_eq!(
+                    lookups.link_refs.get("1"),
+                    Some(&"https://example.com/one".to_string())
+                );
+            });
+        }
+
+        fn lookups_for(
+            parse_opts: &ParseOptions,
+            read_opts: ReadOptions,
+            md: &str,
+        ) -> Result<Lookups, InvalidMd> {
+            let ast = markdown::to_mdast(md, parse_opts).unwrap();
+            Lookups::new(&ast, &read_opts)
+        }
+
+        fn expect_present<F>(result: &Result<Lookups, InvalidMd>, check: F)
+        where
+            F: FnOnce(&Lookups),
+        {
+            match result {
+                Ok(lookups) => check(&lookups),
+                Err(err) => panic!("expected good Lookups, but got: {:?}", err),
+            }
+        }
+
+        fn expect_absent(result: &Result<Lookups, InvalidMd>, expect: InvalidMd) {
+            match result {
+                Ok(_) => panic!("expected {:?}, but got good Lookups", expect),
+                Err(err) => assert_eq!(err, &expect),
+            }
+        }
+    }
+
+    mod nesting {
+        use super::*;
+
+        #[test]
+        fn h1_with_two_paragraphs() -> Result<(), InvalidMd> {
+            let linear = vec![
+                MdqNode::Header {
+                    depth: 1,
+                    title: vec![inline_text("first")],
+                    body: vec![],
+                },
                 MdqNode::Paragraph {
                     body: vec![inline_text("aaa")],
                 },
                 MdqNode::Paragraph {
                     body: vec![inline_text("bbb")],
                 },
-            ],
-        }];
-        let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
-        assert_eq!(expect, actual);
-        Ok(())
-    }
-
-    #[test]
-    fn simple_nesting() -> Result<(), InvalidMd> {
-        let linear = vec![
-            MdqNode::Header {
+            ];
+            let expect = vec![MdqNode::Header {
                 depth: 1,
                 title: vec![inline_text("first")],
-                body: vec![],
-            },
-            MdqNode::Header {
-                depth: 2,
-                title: vec![inline_text("aaa")],
-                body: vec![],
-            },
-            MdqNode::Paragraph {
-                body: vec![inline_text("bbb")],
-            },
-        ];
-        let expect = vec![MdqNode::Header {
-            depth: 1,
-            title: vec![inline_text("first")],
-            body: vec![MdqNode::Header {
-                depth: 2,
-                title: vec![inline_text("aaa")],
-                body: vec![MdqNode::Paragraph {
+                body: vec![
+                    MdqNode::Paragraph {
+                        body: vec![inline_text("aaa")],
+                    },
+                    MdqNode::Paragraph {
+                        body: vec![inline_text("bbb")],
+                    },
+                ],
+            }];
+            let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            assert_eq!(expect, actual);
+            Ok(())
+        }
+
+        #[test]
+        fn simple_nesting() -> Result<(), InvalidMd> {
+            let linear = vec![
+                MdqNode::Header {
+                    depth: 1,
+                    title: vec![inline_text("first")],
+                    body: vec![],
+                },
+                MdqNode::Header {
+                    depth: 2,
+                    title: vec![inline_text("aaa")],
+                    body: vec![],
+                },
+                MdqNode::Paragraph {
                     body: vec![inline_text("bbb")],
-                }],
-            }],
-        }];
-        let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
-        assert_eq!(expect, actual);
-        Ok(())
-    }
-
-    #[test]
-    fn only_headers() -> Result<(), InvalidMd> {
-        let linear = vec![
-            MdqNode::Header {
+                },
+            ];
+            let expect = vec![MdqNode::Header {
                 depth: 1,
                 title: vec![inline_text("first")],
-                body: vec![],
-            },
-            MdqNode::Header {
-                depth: 2,
-                title: vec![inline_text("second")],
-                body: vec![],
-            },
-            MdqNode::Header {
-                depth: 3,
-                title: vec![inline_text("third")],
-                body: vec![],
-            },
-            MdqNode::Header {
-                depth: 3,
-                title: vec![inline_text("fourth")],
-                body: vec![],
-            },
-            MdqNode::Header {
-                depth: 2,
-                title: vec![inline_text("fifth")],
-                body: vec![],
-            },
-        ];
-        let expect = vec![MdqNode::Header {
-            depth: 1,
-            title: vec![inline_text("first")],
-            body: vec![
+                body: vec![MdqNode::Header {
+                    depth: 2,
+                    title: vec![inline_text("aaa")],
+                    body: vec![MdqNode::Paragraph {
+                        body: vec![inline_text("bbb")],
+                    }],
+                }],
+            }];
+            let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            assert_eq!(expect, actual);
+            Ok(())
+        }
+
+        #[test]
+        fn only_headers() -> Result<(), InvalidMd> {
+            let linear = vec![
+                MdqNode::Header {
+                    depth: 1,
+                    title: vec![inline_text("first")],
+                    body: vec![],
+                },
                 MdqNode::Header {
                     depth: 2,
                     title: vec![inline_text("second")],
-                    body: vec![
-                        MdqNode::Header {
-                            depth: 3,
-                            title: vec![inline_text("third")],
-                            body: vec![],
-                        },
-                        MdqNode::Header {
-                            depth: 3,
-                            title: vec![inline_text("fourth")],
-                            body: vec![],
-                        },
-                    ],
+                    body: vec![],
+                },
+                MdqNode::Header {
+                    depth: 3,
+                    title: vec![inline_text("third")],
+                    body: vec![],
+                },
+                MdqNode::Header {
+                    depth: 3,
+                    title: vec![inline_text("fourth")],
+                    body: vec![],
                 },
                 MdqNode::Header {
                     depth: 2,
                     title: vec![inline_text("fifth")],
                     body: vec![],
                 },
-            ],
-        }];
-        let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
-        assert_eq!(expect, actual);
-        Ok(())
-    }
-
-    #[test]
-    fn no_headers() -> Result<(), InvalidMd> {
-        let linear = vec![
-            MdqNode::Paragraph {
-                body: vec![inline_text("one")],
-            },
-            MdqNode::Paragraph {
-                body: vec![inline_text("two")],
-            },
-        ];
-        let expect = vec![
-            MdqNode::Paragraph {
-                body: vec![inline_text("one")],
-            },
-            MdqNode::Paragraph {
-                body: vec![inline_text("two")],
-            },
-        ];
-        let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
-        assert_eq!(expect, actual);
-        Ok(())
-    }
-
-    #[test]
-    fn header_skips() -> Result<(), InvalidMd> {
-        let linear = vec![
-            MdqNode::Header {
+            ];
+            let expect = vec![MdqNode::Header {
                 depth: 1,
-                title: vec![inline_text("one")],
-                body: vec![],
-            },
-            MdqNode::Header {
-                depth: 5,
-                title: vec![inline_text("five")],
-                body: vec![],
-            },
-            MdqNode::Header {
-                depth: 2,
-                title: vec![inline_text("two")],
-                body: vec![],
-            },
-            MdqNode::Header {
-                depth: 3,
-                title: vec![inline_text("three")],
-                body: vec![],
-            },
-        ];
-        let expect = vec![MdqNode::Header {
-            depth: 1,
-            title: vec![inline_text("one")],
-            body: vec![
+                title: vec![inline_text("first")],
+                body: vec![
+                    MdqNode::Header {
+                        depth: 2,
+                        title: vec![inline_text("second")],
+                        body: vec![
+                            MdqNode::Header {
+                                depth: 3,
+                                title: vec![inline_text("third")],
+                                body: vec![],
+                            },
+                            MdqNode::Header {
+                                depth: 3,
+                                title: vec![inline_text("fourth")],
+                                body: vec![],
+                            },
+                        ],
+                    },
+                    MdqNode::Header {
+                        depth: 2,
+                        title: vec![inline_text("fifth")],
+                        body: vec![],
+                    },
+                ],
+            }];
+            let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            assert_eq!(expect, actual);
+            Ok(())
+        }
+
+        #[test]
+        fn no_headers() -> Result<(), InvalidMd> {
+            let linear = vec![
+                MdqNode::Paragraph {
+                    body: vec![inline_text("one")],
+                },
+                MdqNode::Paragraph {
+                    body: vec![inline_text("two")],
+                },
+            ];
+            let expect = vec![
+                MdqNode::Paragraph {
+                    body: vec![inline_text("one")],
+                },
+                MdqNode::Paragraph {
+                    body: vec![inline_text("two")],
+                },
+            ];
+            let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            assert_eq!(expect, actual);
+            Ok(())
+        }
+
+        #[test]
+        fn header_skips() -> Result<(), InvalidMd> {
+            let linear = vec![
+                MdqNode::Header {
+                    depth: 1,
+                    title: vec![inline_text("one")],
+                    body: vec![],
+                },
                 MdqNode::Header {
                     depth: 5,
                     title: vec![inline_text("five")],
@@ -647,96 +923,137 @@ mod tests {
                 MdqNode::Header {
                     depth: 2,
                     title: vec![inline_text("two")],
-                    body: vec![MdqNode::Header {
-                        depth: 3,
-                        title: vec![inline_text("three")],
+                    body: vec![],
+                },
+                MdqNode::Header {
+                    depth: 3,
+                    title: vec![inline_text("three")],
+                    body: vec![],
+                },
+            ];
+            let expect = vec![MdqNode::Header {
+                depth: 1,
+                title: vec![inline_text("one")],
+                body: vec![
+                    MdqNode::Header {
+                        depth: 5,
+                        title: vec![inline_text("five")],
                         body: vec![],
+                    },
+                    MdqNode::Header {
+                        depth: 2,
+                        title: vec![inline_text("two")],
+                        body: vec![MdqNode::Header {
+                            depth: 3,
+                            title: vec![inline_text("three")],
+                            body: vec![],
+                        }],
+                    },
+                ],
+            }];
+            let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            assert_eq!(expect, actual);
+            Ok(())
+        }
+
+        #[test]
+        fn backwards_order() -> Result<(), InvalidMd> {
+            let linear = vec![
+                MdqNode::Header {
+                    depth: 3,
+                    title: vec![inline_text("three")],
+                    body: vec![],
+                },
+                MdqNode::Header {
+                    depth: 2,
+                    title: vec![inline_text("two")],
+                    body: vec![],
+                },
+                MdqNode::Header {
+                    depth: 1,
+                    title: vec![inline_text("one")],
+                    body: vec![],
+                },
+            ];
+            let expect = vec![
+                MdqNode::Header {
+                    depth: 3,
+                    title: vec![inline_text("three")],
+                    body: vec![],
+                },
+                MdqNode::Header {
+                    depth: 2,
+                    title: vec![inline_text("two")],
+                    body: vec![],
+                },
+                MdqNode::Header {
+                    depth: 1,
+                    title: vec![inline_text("one")],
+                    body: vec![],
+                },
+            ];
+            let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            assert_eq!(expect, actual);
+            Ok(())
+        }
+
+        #[test]
+        fn paragraph_before_and_after_header() -> Result<(), InvalidMd> {
+            let linear = vec![
+                MdqNode::Paragraph {
+                    body: vec![inline_text("before")],
+                },
+                MdqNode::Header {
+                    depth: 3,
+                    title: vec![inline_text("the header")],
+                    body: vec![],
+                },
+                MdqNode::Paragraph {
+                    body: vec![inline_text("after")],
+                },
+            ];
+            let expect = vec![
+                MdqNode::Paragraph {
+                    body: vec![inline_text("before")],
+                },
+                MdqNode::Header {
+                    depth: 3,
+                    title: vec![inline_text("the header")],
+                    body: vec![MdqNode::Paragraph {
+                        body: vec![inline_text("after")],
                     }],
                 },
-            ],
-        }];
-        let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
-        assert_eq!(expect, actual);
-        Ok(())
-    }
-
-    #[test]
-    fn backwards_order() -> Result<(), InvalidMd> {
-        let linear = vec![
-            MdqNode::Header {
-                depth: 3,
-                title: vec![inline_text("three")],
-                body: vec![],
-            },
-            MdqNode::Header {
-                depth: 2,
-                title: vec![inline_text("two")],
-                body: vec![],
-            },
-            MdqNode::Header {
-                depth: 1,
-                title: vec![inline_text("one")],
-                body: vec![],
-            },
-        ];
-        let expect = vec![
-            MdqNode::Header {
-                depth: 3,
-                title: vec![inline_text("three")],
-                body: vec![],
-            },
-            MdqNode::Header {
-                depth: 2,
-                title: vec![inline_text("two")],
-                body: vec![],
-            },
-            MdqNode::Header {
-                depth: 1,
-                title: vec![inline_text("one")],
-                body: vec![],
-            },
-        ];
-        let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
-        assert_eq!(expect, actual);
-        Ok(())
-    }
-
-    #[test]
-    fn paragraph_before_and_after_header() -> Result<(), InvalidMd> {
-        let linear = vec![
-            MdqNode::Paragraph {
-                body: vec![inline_text("before")],
-            },
-            MdqNode::Header {
-                depth: 3,
-                title: vec![inline_text("the header")],
-                body: vec![],
-            },
-            MdqNode::Paragraph {
-                body: vec![inline_text("after")],
-            },
-        ];
-        let expect = vec![
-            MdqNode::Paragraph {
-                body: vec![inline_text("before")],
-            },
-            MdqNode::Header {
-                depth: 3,
-                title: vec![inline_text("the header")],
-                body: vec![MdqNode::Paragraph {
-                    body: vec![inline_text("after")],
-                }],
-            },
-        ];
-        let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
-        assert_eq!(expect, actual);
-        Ok(())
+            ];
+            let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            assert_eq!(expect, actual);
+            Ok(())
+        }
     }
 
     fn inline_text(text: &str) -> Inline {
-        Text {
+        Inline::Text {
             value: text.to_string(),
             variant: InlineVariant::Text,
         }
+    }
+
+    /// A simple representation of some nodes. Very non-exhaustive, just for testing.
+    fn nodes_to_string_simple(nodes: Option<&Vec<Node>>) -> String {
+        let Some(nodes) = nodes else {
+            return "".to_string();
+        };
+        fn build(out: &mut String, node: &Node) {
+            match node {
+                Node::Text(text_node) => out.push_str(&text_node.value),
+                _ => {
+                    if let Some(children) = node.children() {
+                        children.iter().for_each(|c| build(out, c))
+                    }
+                }
+            }
+        }
+        let mut s = String::with_capacity(32);
+        nodes.iter().for_each(|n| build(&mut s, n));
+        s
     }
 }
