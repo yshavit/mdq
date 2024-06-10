@@ -16,6 +16,18 @@ wrapping that mdq should unwrap.
 |:------------|:-------------:|-------------:|
 | (           |       v       |            ) |
 
+This is [my inline link](https://example.com/inline).
+
+This is [my inline link with title](https://example.com/inline "its title").
+
+This is [my referenced link][a1].
+
+This is [my referenced link with title][a2].
+
+[a1]: https://example.com/reference
+
+[a2]: https://example.com/reference "its reference title"
+
 ## Hello lists
 
 1. List two
@@ -78,6 +90,7 @@ Block B
    foo
    ```
 1.
+
 ```
 foo
 ```
