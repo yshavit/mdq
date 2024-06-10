@@ -122,6 +122,12 @@ impl Selector {
                         }
                     }
                     Inline::Text { .. } => false,
+                    Inline::Link { .. } => {
+                        false // TODO
+                    }
+                    Inline::Image { .. } => {
+                        false // TODO
+                    }
                 };
                 if matched {
                     SelectResult::Found(vec![node])

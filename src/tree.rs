@@ -1,7 +1,10 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::fmt::Debug;
 
-use markdown::mdast::{AlignKind, Code, Math, Node, Table, TableRow};
+use markdown::mdast::{
+    AlignKind, Code, Definition, FootnoteDefinition, Math, Node, ReferenceKind, Table, TableRow,
+};
 
 #[derive(Debug, PartialEq)]
 pub enum MdqNode {
@@ -42,6 +45,15 @@ pub enum MdqNode {
     Inline(Inline),
 }
 
+/// See https://github.github.com/gfm/#link-reference-definitions
+#[derive(Debug, PartialEq)]
+pub enum LinkReference {
+    Inline,
+    Full(String),
+    Collapsed,
+    Shortcut,
+}
+
 pub struct ReadOptions {
     /// For links and images, enforce that reference-style links have at most one definition. If this value is
     /// `false` and a link has multiple definitions, the first one will be picked.
@@ -69,7 +81,7 @@ pub struct ReadOptions {
 impl Default for ReadOptions {
     fn default() -> Self {
         Self {
-            validate_no_conflicting_links: true,
+            validate_no_conflicting_links: false,
         }
     }
 }
@@ -94,6 +106,22 @@ pub enum Inline {
     Text {
         variant: InlineVariant,
         value: String,
+    },
+    Link {
+        url: String,
+        text: Vec<Inline>,
+
+        /// If you have `[1]: https://example.com "my title"`, this is the "my title".
+        ///
+        /// See: https://github.github.com/gfm/#link-reference-definitions
+        title: Option<String>,
+
+        reference: LinkReference,
+    },
+    Image {
+        url: String,
+        alt: String,
+        title: Option<String>,
     },
 }
 
@@ -123,6 +151,7 @@ pub enum InvalidMd {
     NonListItemDirectlyUnderList(Node),
     NonRowDirectlyUnderTable(Node),
     NonInlineWhereInlineExpected,
+    MissingReferenceDefinition(String),
     ConflictingReferenceDefinition(String),
     InternalError,
 }
@@ -210,16 +239,50 @@ impl MdqNode {
                 variant: SpanVariant::Emphasis,
                 children: MdqNode::inlines(node.children, lookups)?,
             }),
-            Node::Image(_) => {
-                todo!()
-            }
+            Node::Image(node) => MdqNode::Inline(Inline::Image {
+                url: node.url,
+                alt: node.alt,
+                title: node.title,
+            }),
             Node::ImageReference(_) => {
-                todo!()
+                return Err(NoNode::Skipped);
             }
-            Node::Link(_) => {
-                todo!()
+            Node::Link(node) => MdqNode::Inline(Inline::Link {
+                url: node.url,
+                text: MdqNode::inlines(node.children, lookups)?,
+                title: node.title,
+                reference: LinkReference::Inline,
+            }),
+            Node::LinkReference(node) => {
+                if let Some(node_label) = node.label {
+                    if node_label != node.identifier {
+                        todo!("What is this case?");
+                    }
+                }
+
+                let Some(definition) = lookups.link_definitions.get(&node.identifier) else {
+                    return Err(NoNode::Invalid(InvalidMd::MissingReferenceDefinition(
+                        node.identifier,
+                    )));
+                };
+                if let Some(definition_label) = &definition.label {
+                    if definition_label != &node.identifier {
+                        todo!("What is this case?");
+                    }
+                }
+                let link_ref = match node.reference_kind {
+                    ReferenceKind::Shortcut => LinkReference::Shortcut,
+                    ReferenceKind::Collapsed => LinkReference::Collapsed,
+                    ReferenceKind::Full => LinkReference::Full(node.identifier),
+                };
+                MdqNode::Inline(Inline::Link {
+                    url: definition.url.to_owned(),
+                    text: MdqNode::inlines(node.children, lookups)?,
+                    title: definition.title.to_owned(),
+                    reference: link_ref,
+                })
             }
-            Node::LinkReference(_) => {
+            Node::FootnoteReference(_) => {
                 todo!()
             }
             Node::Strong(node) => MdqNode::Inline(Inline::Span {
@@ -309,7 +372,6 @@ impl MdqNode {
             | Node::MdxTextExpression(_)
             | Node::MdxJsxTextElement(_)
             | Node::MdxFlowExpression(_)
-            | Node::FootnoteReference(_)
             | Node::Html(_) => return Err(NoNode::Invalid(InvalidMd::Unsupported(node))),
         };
         Ok(result)
@@ -484,8 +546,8 @@ where
 
 #[derive(Debug, PartialEq)]
 struct Lookups {
-    link_refs: HashMap<String, String>,
-    footnotes: HashMap<String, Vec<Node>>,
+    link_definitions: HashMap<String, Definition>,
+    footnote_definitions: HashMap<String, FootnoteDefinition>,
 }
 
 impl Lookups {
@@ -493,8 +555,8 @@ impl Lookups {
         const DEFAULT_CAPACITY: usize = 8; // random guess
 
         let mut result = Self {
-            link_refs: HashMap::with_capacity(DEFAULT_CAPACITY),
-            footnotes: HashMap::with_capacity(DEFAULT_CAPACITY),
+            link_definitions: HashMap::with_capacity(DEFAULT_CAPACITY),
+            footnote_definitions: HashMap::with_capacity(DEFAULT_CAPACITY),
         };
 
         result.build_lookups(node, &read_opts)?;
@@ -502,32 +564,22 @@ impl Lookups {
         Ok(result)
     }
 
-    fn build_lookups<'a, 'b: 'a>(
-        &mut self,
-        node: &'a Node,
-        read_opts: &'a ReadOptions,
-    ) -> Result<(), InvalidMd> {
+    fn build_lookups(&mut self, node: &Node, read_opts: &ReadOptions) -> Result<(), InvalidMd> {
         let x = format!("{:?}", node);
         let _ = x;
         match node {
-            Node::FootnoteDefinition(def) => {
-                // TODO what to do with def.label?
-                Self::add_ref(
-                    &mut self.footnotes,
-                    &def.identifier,
-                    def.children.to_owned(),
-                    read_opts,
-                )
-            }
-            Node::Definition(def) => {
-                // TODO what to do with def.label and def.title?
-                Self::add_ref(
-                    &mut self.link_refs,
-                    &def.identifier,
-                    def.url.to_owned(),
-                    read_opts,
-                )
-            }
+            Node::FootnoteDefinition(def) => Self::add_ref(
+                &mut self.footnote_definitions,
+                &def.identifier,
+                def.clone(),
+                read_opts,
+            ),
+            Node::Definition(def) => Self::add_ref(
+                &mut self.link_definitions,
+                &def.identifier,
+                def.clone(),
+                read_opts,
+            ),
             _ => Ok(()),
         }?;
         if let Some(children) = node.children() {
@@ -542,19 +594,20 @@ impl Lookups {
         to: &mut HashMap<String, V>,
         identifier: &String,
         value: V,
-        read_opts: &ReadOptions,
+        read_options: &ReadOptions,
     ) -> Result<(), InvalidMd>
     where
-        V: PartialEq,
+        V: PartialEq + Debug,
     {
         match to.entry(identifier.to_owned()) {
             Entry::Occupied(other) => {
-                if read_opts.validate_no_conflicting_links && other.get() != &value {
-                    return Err(InvalidMd::ConflictingReferenceDefinition(
+                if read_options.validate_no_conflicting_links {
+                    Err(InvalidMd::ConflictingReferenceDefinition(
                         other.key().to_owned(),
-                    ));
+                    ))
+                } else {
+                    Ok(())
                 }
-                Ok(())
             }
             Entry::Vacant(entry) => {
                 entry.insert(value);
@@ -576,24 +629,17 @@ mod tests {
 
         #[test]
         fn playground() {
-            let result = lookups_for(
-                &ParseOptions::gfm(),
-                ReadOptions {
-                    validate_no_conflicting_links: true,
-                },
-                indoc! {r#"
-                Hello [world][1]
+            let md = indoc! {r#"
+                Hello [world]
 
-                [1]: https://example.com "my title"
-                "#},
-            );
-            expect_present(&result, |lookups| {
-                assert_eq!(
-                    lookups.link_refs.get("1"),
-                    Some(&"https://example.com".to_string())
-                )
-            });
-            todo!()
+                [world]: https://example.com "MY TITLE"
+                "#};
+
+            let ast = markdown::to_mdast(md, &ParseOptions::gfm()).unwrap();
+            eprintln!("AST: {:?}", ast);
+            let mdq = MdqNode::read(ast, &ReadOptions::default()).unwrap();
+            eprintln!("MDQ: {:?}", mdq);
+            todo!("END OF PLAYGROUND");
         }
 
         #[test]
@@ -609,12 +655,14 @@ mod tests {
                 [1]: https://example.com
                 "#},
             );
-            expect_present(&result, |lookups| {
+            expect_present(result, |lookups| {
+                assert_eq!(1, lookups.link_definitions.len());
+                assert_eq!(0, lookups.footnote_definitions.len());
                 assert_eq!(
-                    lookups.link_refs.get("1"),
+                    lookups.link_definitions.get("1").map(|d| &d.url),
                     Some(&"https://example.com".to_string())
                 )
-            })
+            });
         }
 
         /// This also covers the "good footnote" case.
@@ -632,11 +680,16 @@ mod tests {
                 "#},
             );
 
-            expect_present(&result, |lookups| {
+            expect_present(result, |lookups| {
+                assert_eq!(0, lookups.link_definitions.len());
+                assert_eq!(1, lookups.footnote_definitions.len());
                 assert_eq!(
-                    nodes_to_string_simple(lookups.footnotes.get("1")),
-                    "https://example.com What?!"
-                );
+                    lookups
+                        .footnote_definitions
+                        .get("1")
+                        .map(|d| simple_to_string(&d.children)),
+                    Some("https://example.com What?!".to_string())
+                )
             });
         }
 
@@ -652,8 +705,9 @@ mod tests {
                 },
                 md,
             );
-            expect_present(&result, |lookups| {
-                assert_eq!(lookups.link_refs.len(), 0);
+            expect_present(result, |lookups| {
+                assert_eq!(0, lookups.link_definitions.len());
+                assert_eq!(0, lookups.footnote_definitions.len());
             });
         }
 
@@ -669,12 +723,14 @@ mod tests {
                 },
                 md,
             );
-            expect_present(&result, |lookups| {
-                assert_eq!(lookups.link_refs.len(), 0);
-                assert_eq!(lookups.footnotes.len(), 0);
+            expect_present(result, |lookups| {
+                assert_eq!(0, lookups.link_definitions.len());
+                assert_eq!(0, lookups.footnote_definitions.len());
             });
         }
 
+        /// The validation causes this to fail, because the nodes are different: they have different Positions.
+        /// I could come up with a more clever comparison algorithm later, but this is good enough for now.
         #[test]
         fn link_has_same_definition_twice() {
             let result = lookups_for(
@@ -690,17 +746,16 @@ mod tests {
                 "#},
             );
 
-            expect_present(&result, |lookups| {
-                assert_eq!(
-                    lookups.link_refs.get("1"),
-                    Some(&"https://example.com/one".to_string())
-                );
-            });
+            expect_absent(
+                result,
+                InvalidMd::ConflictingReferenceDefinition("1".to_string()),
+            );
         }
 
+        // See [
         #[test]
         fn link_has_conflicting_definition() {
-            fn get(validate_no_conflicting_links: bool) -> Result<Lookups, InvalidMd> {
+            fn get<'a>(validate_no_conflicting_links: bool) -> Result<Lookups, InvalidMd> {
                 lookups_for(
                     &ParseOptions::gfm(),
                     ReadOptions {
@@ -716,13 +771,15 @@ mod tests {
             }
 
             expect_absent(
-                &get(true),
+                get(true),
                 InvalidMd::ConflictingReferenceDefinition("1".to_string()),
             );
 
-            expect_present(&get(false), |lookups| {
+            expect_present(get(false), |lookups| {
+                assert_eq!(1, lookups.link_definitions.len());
+                assert_eq!(0, lookups.footnote_definitions.len());
                 assert_eq!(
-                    lookups.link_refs.get("1"),
+                    lookups.link_definitions.get("1").map(|d| &d.url),
                     Some(&"https://example.com/one".to_string())
                 );
             });
@@ -737,20 +794,20 @@ mod tests {
             Lookups::new(&ast, &read_opts)
         }
 
-        fn expect_present<F>(result: &Result<Lookups, InvalidMd>, check: F)
+        fn expect_present<F>(result: Result<Lookups, InvalidMd>, check: F)
         where
-            F: FnOnce(&Lookups),
+            F: FnOnce(Lookups),
         {
             match result {
-                Ok(lookups) => check(&lookups),
+                Ok(lookups) => check(lookups),
                 Err(err) => panic!("expected good Lookups, but got: {:?}", err),
             }
         }
 
-        fn expect_absent(result: &Result<Lookups, InvalidMd>, expect: InvalidMd) {
+        fn expect_absent(result: Result<Lookups, InvalidMd>, expect: InvalidMd) {
             match result {
                 Ok(_) => panic!("expected {:?}, but got good Lookups", expect),
-                Err(err) => assert_eq!(err, &expect),
+                Err(err) => assert_eq!(err, expect),
             }
         }
     }
@@ -1038,10 +1095,7 @@ mod tests {
     }
 
     /// A simple representation of some nodes. Very non-exhaustive, just for testing.
-    fn nodes_to_string_simple(nodes: Option<&Vec<Node>>) -> String {
-        let Some(nodes) = nodes else {
-            return "".to_string();
-        };
+    fn simple_to_string(nodes: &Vec<Node>) -> String {
         fn build(out: &mut String, node: &Node) {
             match node {
                 Node::Text(text_node) => out.push_str(&text_node.value),

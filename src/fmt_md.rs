@@ -4,8 +4,8 @@ use std::fmt::Alignment;
 use std::io::Write;
 
 use crate::fmt_str::{pad_to, standard_align};
-use crate::output::Block::Inlined;
 use crate::output::{Block, Output};
+use crate::output::Block::Inlined;
 use crate::tree::{CodeVariant, Inline, InlineVariant, MdqNode, SpanVariant};
 
 pub fn write_md<N, W>(out: &mut Output<W>, nodes: &[N])
@@ -249,6 +249,22 @@ where
             out.write_str(surround);
             out.write_str(value);
             out.write_str(surround);
+        }
+        Inline::Link { url, text, .. } => {
+            out.write_char('[');
+            write_line(out, text);
+            out.write_str("](");
+            out.write_str(url);
+            out.write_char(')');
+            // TODO: title, and handling reference-style (non-inline) images
+        }
+        Inline::Image { url, alt, .. } => {
+            out.write_str("![");
+            out.write_str(alt);
+            out.write_str("](");
+            out.write_str(url);
+            out.write_char(')');
+            // TODO: title, and handling reference-style (non-inline) images
         }
     }
 }
