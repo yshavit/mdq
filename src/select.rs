@@ -82,10 +82,7 @@ impl Selector {
                 SelectResult::None // see TODO on Selector
             }
             MdqNode::BlockQuote { body } => SelectResult::Recurse(body),
-            MdqNode::List {
-                starting_index,
-                items,
-            } => {
+            MdqNode::List { starting_index, items } => {
                 let _is_ordered = starting_index.is_some(); // TODO use in selected
                 SelectResult::RecurseOwned(
                     items
@@ -139,9 +136,7 @@ impl Selector {
         match result {
             SelectResult::Found(results) => results,
             SelectResult::Recurse(children) => self.find_in_children(children),
-            SelectResult::RecurseOwned(children) => {
-                children.iter().flat_map(|elem| self.find(elem)).collect()
-            }
+            SelectResult::RecurseOwned(children) => children.iter().flat_map(|elem| self.find(elem)).collect(),
             SelectResult::None => Vec::new(),
         }
     }

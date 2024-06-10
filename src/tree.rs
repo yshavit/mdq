@@ -2,9 +2,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use markdown::mdast::{
-    AlignKind, Code, Definition, FootnoteDefinition, Math, Node, ReferenceKind, Table, TableRow,
-};
+use markdown::mdast::{AlignKind, Code, Definition, FootnoteDefinition, Math, Node, ReferenceKind, Table, TableRow};
 
 #[derive(Debug, PartialEq)]
 pub enum MdqNode {
@@ -206,9 +204,7 @@ impl MdqNode {
                 let mut li_nodes = Vec::with_capacity(node.children.len());
                 for node in node.children {
                     let Node::ListItem(li_node) = node else {
-                        return Err(NoNode::Invalid(InvalidMd::NonListItemDirectlyUnderList(
-                            node,
-                        )));
+                        return Err(NoNode::Invalid(InvalidMd::NonListItemDirectlyUnderList(node)));
                     };
                     let li_mdq = ListItem {
                         checked: li_node.checked,
@@ -264,9 +260,7 @@ impl MdqNode {
                 }
 
                 let Some(definition) = lookups.link_definitions.get(&node.identifier) else {
-                    return Err(NoNode::Invalid(InvalidMd::MissingReferenceDefinition(
-                        node.identifier,
-                    )));
+                    return Err(NoNode::Invalid(InvalidMd::MissingReferenceDefinition(node.identifier)));
                 };
                 if let Some(definition_label) = &definition.label {
                     if definition_label != &node.identifier {
@@ -297,9 +291,7 @@ impl MdqNode {
                 value: node.value,
             }),
             Node::Code(node) => {
-                let Code {
-                    value, lang, meta, ..
-                } = node;
+                let Code { value, lang, meta, .. } = node;
                 MdqNode::CodeBlock {
                     value,
                     variant: CodeVariant::Code(match lang {
@@ -324,19 +316,14 @@ impl MdqNode {
                 body: Vec::new(),
             },
             Node::Table(node) => {
-                let Table {
-                    children, align, ..
-                } = node;
+                let Table { children, align, .. } = node;
                 let mut rows = Vec::with_capacity(children.len());
                 for row_node in children {
                     let Node::TableRow(TableRow {
-                        children: cell_nodes,
-                        ..
+                        children: cell_nodes, ..
                     }) = row_node
                     else {
-                        return Err(NoNode::Invalid(InvalidMd::NonRowDirectlyUnderTable(
-                            row_node,
-                        )));
+                        return Err(NoNode::Invalid(InvalidMd::NonRowDirectlyUnderTable(row_node)));
                     };
                     let mut column = Vec::with_capacity(cell_nodes.len());
                     for cell_node in cell_nodes {
@@ -415,31 +402,19 @@ impl MdqNode {
                 loop {
                     let Some(prev) = headers.last() else {
                         // There's no previous header, so push this header to the results.
-                        headers.push(HContainer {
-                            depth,
-                            title,
-                            children,
-                        });
+                        headers.push(HContainer { depth, title, children });
                         break;
                     };
                     // There is a header. See if it's lower than ours; if so, we'll just add
                     // ourselves to it, and push our info to the stack
                     if prev.depth < depth {
-                        headers.push(HContainer {
-                            depth,
-                            title,
-                            children,
-                        });
+                        headers.push(HContainer { depth, title, children });
                         break;
                     } else {
                         // We need to pop the previous header. When we do, either add it as a child
                         // to the new previous, or else to the top-level results if there is no new
                         // previous. Then, we'll just loop back around.
-                        let HContainer {
-                            depth,
-                            title,
-                            children,
-                        } = headers.pop().unwrap(); // "let Some(prev)" above guarantees that this works
+                        let HContainer { depth, title, children } = headers.pop().unwrap(); // "let Some(prev)" above guarantees that this works
                         let prev = MdqNode::Header {
                             depth,
                             title,
@@ -465,12 +440,7 @@ impl MdqNode {
         }
 
         // At this point, we still have our last tree branch of headers. Fold it up into the results.
-        while let Some(HContainer {
-            depth,
-            title,
-            children,
-        }) = headers.pop()
-        {
+        while let Some(HContainer { depth, title, children }) = headers.pop() {
             let mdq_header = MdqNode::Header {
                 depth,
                 title,
@@ -485,17 +455,11 @@ impl MdqNode {
         }
         headers
             .drain(..)
-            .map(
-                |HContainer {
-                     depth,
-                     title,
-                     children,
-                 }| MdqNode::Header {
-                    depth,
-                    title,
-                    body: children,
-                },
-            )
+            .map(|HContainer { depth, title, children }| MdqNode::Header {
+                depth,
+                title,
+                body: children,
+            })
             .for_each(|mdq_node| result.push(mdq_node));
 
         result.shrink_to_fit();
@@ -571,18 +535,10 @@ impl Lookups {
         let x = format!("{:?}", node);
         let _ = x;
         match node {
-            Node::FootnoteDefinition(def) => Self::add_ref(
-                &mut self.footnote_definitions,
-                &def.identifier,
-                def.clone(),
-                read_opts,
-            ),
-            Node::Definition(def) => Self::add_ref(
-                &mut self.link_definitions,
-                &def.identifier,
-                def.clone(),
-                read_opts,
-            ),
+            Node::FootnoteDefinition(def) => {
+                Self::add_ref(&mut self.footnote_definitions, &def.identifier, def.clone(), read_opts)
+            }
+            Node::Definition(def) => Self::add_ref(&mut self.link_definitions, &def.identifier, def.clone(), read_opts),
             _ => Ok(()),
         }?;
         if let Some(children) = node.children() {
@@ -605,9 +561,7 @@ impl Lookups {
         match to.entry(identifier.to_owned()) {
             Entry::Occupied(other) => {
                 if read_options.validate_no_conflicting_links {
-                    Err(InvalidMd::ConflictingReferenceDefinition(
-                        other.key().to_owned(),
-                    ))
+                    Err(InvalidMd::ConflictingReferenceDefinition(other.key().to_owned()))
                 } else {
                     Ok(())
                 }
@@ -734,10 +688,7 @@ mod tests {
                 "#},
             );
 
-            expect_absent(
-                result,
-                InvalidMd::ConflictingReferenceDefinition("1".to_string()),
-            );
+            expect_absent(result, InvalidMd::ConflictingReferenceDefinition("1".to_string()));
         }
 
         // See [
@@ -758,10 +709,7 @@ mod tests {
                 )
             }
 
-            expect_absent(
-                get(true),
-                InvalidMd::ConflictingReferenceDefinition("1".to_string()),
-            );
+            expect_absent(get(true), InvalidMd::ConflictingReferenceDefinition("1".to_string()));
 
             expect_present(get(false), |lookups| {
                 assert_eq!(1, lookups.link_definitions.len());
@@ -773,11 +721,7 @@ mod tests {
             });
         }
 
-        fn lookups_for(
-            parse_opts: &ParseOptions,
-            read_opts: ReadOptions,
-            md: &str,
-        ) -> Result<Lookups, InvalidMd> {
+        fn lookups_for(parse_opts: &ParseOptions, read_opts: ReadOptions, md: &str) -> Result<Lookups, InvalidMd> {
             let ast = markdown::to_mdast(md, parse_opts).unwrap();
             Lookups::new(&ast, &read_opts)
         }

@@ -14,9 +14,7 @@ mod tree;
 
 fn main() {
     let mut contents = String::new();
-    stdin()
-        .read_to_string(&mut contents)
-        .expect("invalid input (not utf8)");
+    stdin().read_to_string(&mut contents).expect("invalid input (not utf8)");
     let ast = markdown::to_mdast(&mut contents, &markdown::ParseOptions::gfm()).unwrap();
     let mdq: MdqNode = ast.try_into().unwrap();
 

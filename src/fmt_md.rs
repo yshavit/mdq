@@ -44,10 +44,7 @@ where
                 write_md(out, body);
             });
         }
-        MdqNode::List {
-            starting_index,
-            items,
-        } => {
+        MdqNode::List { starting_index, items } => {
             out.with_block(Block::Plain, |out| {
                 let mut index = starting_index.clone();
                 let mut prefix = String::with_capacity(8); // enough for "12. [ ] "
@@ -56,8 +53,7 @@ where
                     match &mut index {
                         None => prefix.push_str("- "),
                         Some(i) => {
-                            std::fmt::Write::write_fmt(&mut prefix, format_args!("{}. ", &i))
-                                .unwrap();
+                            std::fmt::Write::write_fmt(&mut prefix, format_args!("{}. ", &i)).unwrap();
                             *i += 1;
                         }
                     };
@@ -112,12 +108,7 @@ where
                 out.write_char('|');
                 for (idx, col) in row.iter().enumerate() {
                     out.write_char(' ');
-                    pad_to(
-                        out,
-                        &col,
-                        *column_widths.get(idx).unwrap_or(&0),
-                        alignments.get(idx),
-                    );
+                    pad_to(out, &col, *column_widths.get(idx).unwrap_or(&0), alignments.get(idx));
                     out.write_str(" |");
                 }
                 out.write_char('\n');
@@ -250,9 +241,7 @@ where
             out.write_str(value);
             out.write_str(surround);
         }
-        Inline::Link {
-            url, text, title, ..
-        } => {
+        Inline::Link { url, text, title, .. } => {
             out.write_char('[');
             write_line(out, text);
             out.write_str("](");
@@ -265,9 +254,7 @@ where
             out.write_char(')');
             // TODO reference-style (non-inline) images
         }
-        Inline::Image {
-            url, alt, title, ..
-        } => {
+        Inline::Image { url, alt, title, .. } => {
             out.write_str("![");
             out.write_str(alt);
             out.write_str("](");

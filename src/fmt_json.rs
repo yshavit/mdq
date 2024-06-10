@@ -12,12 +12,7 @@ where
     N: Borrow<MdqNode>,
     R: InlineResolver,
 {
-    Value::Array(
-        nodes
-            .iter()
-            .map(|n| node_to_json::<R>(n.borrow()))
-            .collect(),
-    )
+    Value::Array(nodes.iter().map(|n| node_to_json::<R>(n.borrow())).collect())
 }
 
 pub fn node_to_json<R: InlineResolver>(node: &MdqNode) -> Value {
@@ -36,10 +31,7 @@ pub fn node_to_json<R: InlineResolver>(node: &MdqNode) -> Value {
         }),
         MdqNode::Paragraph { body } => json!({"paragraph": R::inlines_to_value(body)}),
         MdqNode::BlockQuote { body } => json!({"block_quote": to_jsons::<R>(body)}),
-        MdqNode::List {
-            starting_index,
-            items,
-        } => {
+        MdqNode::List { starting_index, items } => {
             let mut as_map = Map::new();
             match starting_index {
                 Some(start_idx) => {
@@ -96,9 +88,7 @@ pub fn node_to_json<R: InlineResolver>(node: &MdqNode) -> Value {
             CodeVariant::Code(opts) => {
                 let (lang, meta) = match opts {
                     None => (None, None),
-                    Some(CodeOpts { language, metadata }) => {
-                        (Some(language.to_string()), metadata.to_owned())
-                    }
+                    Some(CodeOpts { language, metadata }) => (Some(language.to_string()), metadata.to_owned()),
                 };
                 json!({
                     "code":json!({

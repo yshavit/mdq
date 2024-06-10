@@ -81,55 +81,37 @@ mod test {
 
     #[test]
     fn left_pad() {
-        assert_eq!(
-            "a    ",
-            output_and_get(|out| pad_to(out, "a", 5, Alignment::Left))
-        );
+        assert_eq!("a    ", output_and_get(|out| pad_to(out, "a", 5, Alignment::Left)));
     }
 
     #[test]
     fn right_pad() {
-        assert_eq!(
-            "    a",
-            output_and_get(|out| pad_to(out, "a", 5, Alignment::Right))
-        );
+        assert_eq!("    a", output_and_get(|out| pad_to(out, "a", 5, Alignment::Right)));
     }
 
     /// center pad, with the same amount of padding on each side
     #[test]
     fn center_pad_even() {
-        assert_eq!(
-            "  a  ",
-            output_and_get(|out| pad_to(out, "a", 5, Alignment::Center))
-        );
+        assert_eq!("  a  ", output_and_get(|out| pad_to(out, "a", 5, Alignment::Center)));
     }
 
     /// center pad, with different amount of padding on each side
     #[test]
     fn center_pad_uneven() {
-        assert_eq!(
-            " ab  ",
-            output_and_get(|out| pad_to(out, "ab", 5, Alignment::Center))
-        );
+        assert_eq!(" ab  ", output_and_get(|out| pad_to(out, "ab", 5, Alignment::Center)));
     }
 
     #[test]
     fn string_already_right_size() {
         for align in [Alignment::Left, Alignment::Center, Alignment::Right] {
-            assert_eq!(
-                "abcde",
-                output_and_get(|out| pad_to(out, "abcde", 5, align))
-            );
+            assert_eq!("abcde", output_and_get(|out| pad_to(out, "abcde", 5, align)));
         }
     }
 
     #[test]
     fn string_already_too_big() {
         for align in [Alignment::Left, Alignment::Center, Alignment::Right] {
-            assert_eq!(
-                "abcdef",
-                output_and_get(|out| pad_to(out, "abcdef", 3, align))
-            );
+            assert_eq!("abcdef", output_and_get(|out| pad_to(out, "abcdef", 3, align)));
         }
     }
 
