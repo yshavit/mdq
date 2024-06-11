@@ -579,16 +579,20 @@ mod tests {
     use super::*;
 
     ///  tests of each mdast node type
+    ///
+    /// The purpose of these is not to test the parser (I trust mdast), but to test my understanding of how it works.
+    ///
+    /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
+        use std::{thread, time};
         use std::collections::HashSet;
         use std::mem::{discriminant, Discriminant};
         use std::sync::{Arc, Mutex};
-        use std::{thread, time};
 
         use indoc::indoc;
         use lazy_static::lazy_static;
-        use markdown::mdast::Node;
         use markdown::{mdast, ParseOptions};
+        use markdown::mdast::Node;
 
         use super::*;
 
