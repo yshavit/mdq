@@ -757,12 +757,60 @@ mod tests {
 
         #[test]
         fn inline_delete() {
-            let mut opts = ParseOptions::gfm();
-            opts.constructs.math_text = true;
-            let root = parse_with(&opts, r"~~86 me~~");
+            let root = parse(r"~~86 me~~");
             unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
             unwrap!(&p.children[0], Node::Delete(inline_delete));
             assert_eq!(simple_to_string(&inline_delete.children), r"86 me");
+        }
+
+        #[test]
+        fn inline_em() {
+            let root = parse(r"_hello_");
+            unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+            unwrap!(&p.children[0], Node::Emphasis(inline_em));
+            assert_eq!(simple_to_string(&inline_em.children), r"hello");
+        }
+
+        #[test]
+        fn image() {
+            {
+                let root = parse("![]()");
+                unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+                unwrap!(&p.children[0], Node::Image(img));
+                assert_eq!(img.title, None);
+                assert_eq!(img.url, "");
+                assert_eq!(img.alt, "");
+            }
+            {
+                let root = parse("![](https://example.com/foo.png)");
+                unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+                unwrap!(&p.children[0], Node::Image(img));
+                assert_eq!(img.title, None);
+                assert_eq!(img.url, "https://example.com/foo.png");
+                assert_eq!(img.alt, "");
+            }
+            {
+                let root = parse("![alt text](https://example.com/foo.png)");
+                unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+                unwrap!(&p.children[0], Node::Image(img));
+                assert_eq!(img.title, None);
+                assert_eq!(img.url, "https://example.com/foo.png");
+                assert_eq!(img.alt, "alt text");
+            }
+            {
+                let root = parse("![](https://example.com/foo.png \"my tooltip\")");
+                unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+                unwrap!(&p.children[0], Node::Image(img));
+                assert_eq!(img.title, Some("my tooltip".to_string()));
+                assert_eq!(img.url, "https://example.com/foo.png");
+                assert_eq!(img.alt, "");
+            }
+            {
+                let root = parse("![](\"only a tooltip\")");
+                unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+                unwrap!(&p.children[0], Node::Text(not_img));
+                assert_eq!(not_img.value, "![](\"only a tooltip\")");
+            }
         }
 
         #[test]
