@@ -584,14 +584,14 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
+        use std::{thread, time};
         use std::collections::HashSet;
         use std::sync::{Arc, Mutex};
-        use std::{thread, time};
 
         use indoc::indoc;
         use lazy_static::lazy_static;
-        use markdown::mdast::Node;
         use markdown::{mdast, ParseOptions};
+        use markdown::mdast::Node;
         use regex::Regex;
 
         use super::*;
@@ -727,14 +727,42 @@ mod tests {
                 "#},
             );
             assert_eq!(1, root.children.len());
-            unwrap!(unchecked: &root.children[0], Node::Paragraph(paragraph));
+            unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
 
-            assert_eq!(3, paragraph.children.len());
-            unwrap!(&paragraph.children[0], Node::Text(first_line));
+            assert_eq!(3, p.children.len());
+            unwrap!(&p.children[0], Node::Text(first_line));
             assert_eq!(first_line.value, "hello ");
-            unwrap!(&paragraph.children[1], Node::Break(_));
-            unwrap!(&paragraph.children[2], Node::Text(second_line));
+            unwrap!(&p.children[1], Node::Break(_));
+            unwrap!(&p.children[2], Node::Text(second_line));
             assert_eq!(second_line.value, "world");
+        }
+
+        #[test]
+        fn inline_code() {
+            let root = parse("`foo`");
+            unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+            unwrap!(&p.children[0], Node::InlineCode(inline_code));
+            assert_eq!("foo", &inline_code.value);
+        }
+
+        #[test]
+        fn inline_math() {
+            let mut opts = ParseOptions::gfm();
+            opts.constructs.math_text = true;
+            let root = parse_with(&opts, r"$1 \ne 2$");
+            unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+            unwrap!(&p.children[0], Node::InlineMath(inline_code));
+            assert_eq!(&inline_code.value, r"1 \ne 2");
+        }
+
+        #[test]
+        fn inline_delete() {
+            let mut opts = ParseOptions::gfm();
+            opts.constructs.math_text = true;
+            let root = parse_with(&opts, r"~~86 me~~");
+            unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+            unwrap!(&p.children[0], Node::Delete(inline_delete));
+            assert_eq!(simple_to_string(&inline_delete.children), r"86 me");
         }
 
         #[test]
