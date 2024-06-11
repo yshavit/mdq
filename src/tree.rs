@@ -585,9 +585,10 @@ mod tests {
         use std::mem::{discriminant, Discriminant};
         use std::sync::{Arc, Mutex};
 
+        use indoc::indoc;
         use lazy_static::lazy_static;
+        use markdown::{mdast, ParseOptions};
         use markdown::mdast::Node;
-        use markdown::ParseOptions;
 
         use super::*;
 
@@ -616,18 +617,157 @@ mod tests {
 
         #[test]
         fn root() {
-            let doc = parse("hello");
-            mark_checked!(doc, Node::Root(root));
+            let root = parse("hello");
             assert_eq!(root.children.len(), 1);
         }
 
         #[test]
         fn block_quote() {
-            let doc = parse("> hello");
-            unwrap!(doc, Node::Root(mut root));
+            let mut root = parse("> hello");
             let child = root.children.pop().unwrap();
             mark_checked!(child, Node::BlockQuote(quote));
             assert_eq!(simple_to_string(&quote.children), "hello");
+        }
+
+        #[test]
+        fn footnote_definition() {
+            let mut root = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                foo [^a]
+
+                [^a]: My _footnote_."#},
+            );
+            let footnote = root.children.remove(1);
+            mark_checked!(footnote, Node::FootnoteDefinition(footnote));
+            assert_eq!(footnote.identifier, "a".to_string());
+            assert_eq!(footnote.label, Some("a".to_string()));
+            assert_eq!(simple_to_string(&footnote.children), "My footnote.");
+        }
+
+        #[test]
+        fn list_ordered() {
+            let mut root = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                1. First
+                2. Second
+                    3. Third
+                foo [^a]"#},
+            );
+            let list_top = root.children.pop().unwrap();
+            mark_checked!(list_top, Node::List(list));
+            assert_eq!(list.start, Some(1));
+            assert_eq!(list.ordered, true);
+            assert_eq!(list.children.len(), 2);
+        }
+
+        #[test]
+        fn list_ordered_starting_not_at_1() {
+            let mut root = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                3. First
+                4. Second
+                    5. Third
+                foo [^a]"#},
+            );
+            let list_top = root.children.pop().unwrap();
+            mark_checked!(list_top, Node::List(list));
+            assert_eq!(list.start, Some(3));
+            assert_eq!(list.ordered, true);
+            assert_eq!(list.children.len(), 2);
+        }
+
+        #[test]
+        fn list_unordered() {
+            let mut root = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                - First
+                - Second
+                    1. Third
+                foo [^a]"#},
+            );
+            let list_top = root.children.pop().unwrap();
+            mark_checked!(list_top, Node::List(list));
+            assert_eq!(list.start, None);
+            assert_eq!(list.ordered, false);
+            assert_eq!(list.children.len(), 2);
+        }
+
+        #[test]
+        fn list_ordered_then_unordered() {
+            let mut root = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                1. First
+                - Second
+                    1. Third
+                foo [^a]"#},
+            );
+
+            let first_list = root.children.remove(0);
+            mark_checked!(first_list, Node::List(first_list));
+            assert_eq!(first_list.start, Some(1));
+            assert_eq!(first_list.ordered, true);
+            assert_eq!(first_list.children.len(), 1);
+
+            let second_list = root.children.remove(0);
+            mark_checked!(second_list, Node::List(second_list));
+            assert_eq!(second_list.start, None);
+            assert_eq!(second_list.ordered, false);
+            assert_eq!(second_list.children.len(), 1);
+        }
+
+        #[test]
+        fn list_unordered_then_ordered() {
+            let mut root = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                - First
+                1. Second
+                    1. Third
+                foo [^a]"#},
+            );
+            let first_list = root.children.remove(0);
+            mark_checked!(first_list, Node::List(first_list));
+            assert_eq!(first_list.start, None);
+            assert_eq!(first_list.ordered, false);
+            assert_eq!(first_list.children.len(), 1);
+
+            let second_list = root.children.remove(0);
+            mark_checked!(second_list, Node::List(second_list));
+            assert_eq!(second_list.start, Some(1));
+            assert_eq!(second_list.ordered, true);
+            assert_eq!(second_list.children.len(), 1);
+        }
+
+        #[test]
+        fn list_item_ordered_no_checkbox() {
+            let mut root = parse("1. First");
+            unwrap!(root.children.remove(0), Node::List(mut list));
+            mark_checked!(list.children.remove(0), Node::ListItem(li));
+            assert_eq!(li.checked, None);
+            assert_eq!(simple_to_string(&li.children), "First");
+        }
+
+        #[test]
+        fn list_item_ordered_unchecked() {
+            let mut root = parse_with(&ParseOptions::gfm(), "1. [ ] First");
+            unwrap!(root.children.remove(0), Node::List(mut list));
+            mark_checked!(list.children.remove(0), Node::ListItem(li));
+            assert_eq!(li.checked, Some(false));
+            assert_eq!(simple_to_string(&li.children), "First");
+        }
+
+        #[test]
+        fn list_item_ordered_checked() {
+            let mut root = parse_with(&ParseOptions::gfm(), "1. [x] First");
+            unwrap!(root.children.remove(0), Node::List(mut list));
+            mark_checked!(list.children.remove(0), Node::ListItem(li));
+            assert_eq!(li.checked, Some(true));
+            assert_eq!(simple_to_string(&li.children), "First");
         }
 
         #[test]
@@ -655,12 +795,14 @@ mod tests {
             require: u32,
         }
 
-        fn parse(md: &str) -> Node {
+        fn parse(md: &str) -> mdast::Root {
             parse_with(&ParseOptions::default(), md)
         }
 
-        fn parse_with(opts: &ParseOptions, md: &str) -> Node {
-            markdown::to_mdast(md, opts).unwrap()
+        fn parse_with(opts: &ParseOptions, md: &str) -> mdast::Root {
+            let doc = markdown::to_mdast(md, opts).unwrap();
+            mark_checked!(doc, Node::Root(root));
+            root
         }
 
         lazy_static! {
