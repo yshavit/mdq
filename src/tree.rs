@@ -636,13 +636,17 @@ mod tests {
                 indoc! {r#"
                 foo [^a]
 
-                [^a]: My _footnote_."#},
+                [^a]: My _footnote_
+                  with two lines."#},
             );
             let footnote = &root.children[1];
             mark_checked!(footnote, Node::FootnoteDefinition(footnote));
             assert_eq!(footnote.identifier, "a".to_string());
             assert_eq!(footnote.label, Some("a".to_string()));
-            assert_eq!(simple_to_string(&footnote.children), "<p>My footnote.</p>");
+            assert_eq!(
+                simple_to_string(&footnote.children),
+                "<p>My <em>footnote</em>\nwith two lines.</p>"
+            );
         }
 
         #[test]
@@ -693,7 +697,7 @@ mod tests {
         }
 
         #[test]
-        fn all_variants_checked() {
+        fn all_variants_tested() {
             let timeout = time::Duration::from_millis(500);
             let retry_delay = time::Duration::from_millis(50);
             let start = time::Instant::now();
@@ -854,7 +858,7 @@ mod tests {
                         .footnote_definitions
                         .get("1")
                         .map(|d| simple_to_string(&d.children)),
-                    Some("<p>https://example.com What?!</p>".to_string())
+                    Some("<p>https://example.com <em>What?!</em></p>".to_string())
                 )
             });
         }
@@ -1253,16 +1257,22 @@ mod tests {
     /// A simple representation of some nodes. Very non-exhaustive, just for testing.
     fn simple_to_string(nodes: &Vec<Node>) -> String {
         fn build(out: &mut String, node: &Node) {
-            let (before, after) = match node {
-                Node::Text(text_node) => (text_node.value.as_str(), ""),
-                Node::Paragraph(_) => ("<p>", "</p>"),
+            let (tag, text) = match node {
+                Node::Text(text_node) => ("", text_node.value.as_str()),
+                Node::Emphasis(_) => ("em", ""),
+                Node::Paragraph(_) => ("p", ""),
                 _ => ("", ""),
             };
-            out.push_str(before);
+            if !tag.is_empty() {
+                out.push_str(&format!("<{}>", tag))
+            }
+            out.push_str(text);
             if let Some(children) = node.children() {
                 children.iter().for_each(|c| build(out, c));
             }
-            out.push_str(after);
+            if !tag.is_empty() {
+                out.push_str(&format!("</{}>", tag))
+            }
         }
         let mut s = String::with_capacity(32);
         nodes.iter().for_each(|n| build(&mut s, n));
