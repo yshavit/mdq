@@ -623,151 +623,73 @@ mod tests {
 
         #[test]
         fn block_quote() {
-            let mut root = parse("> hello");
-            let child = root.children.pop().unwrap();
+            let root = parse("> hello");
+            let child = &root.children[0];
             mark_checked!(child, Node::BlockQuote(quote));
-            assert_eq!(simple_to_string(&quote.children), "hello");
+            assert_eq!(simple_to_string(&quote.children), "<p>hello</p>");
         }
 
         #[test]
         fn footnote_definition() {
-            let mut root = parse_with(
+            let root = parse_with(
                 &ParseOptions::gfm(),
                 indoc! {r#"
                 foo [^a]
 
                 [^a]: My _footnote_."#},
             );
-            let footnote = root.children.remove(1);
+            let footnote = &root.children[1];
             mark_checked!(footnote, Node::FootnoteDefinition(footnote));
             assert_eq!(footnote.identifier, "a".to_string());
             assert_eq!(footnote.label, Some("a".to_string()));
-            assert_eq!(simple_to_string(&footnote.children), "My footnote.");
+            assert_eq!(simple_to_string(&footnote.children), "<p>My footnote.</p>");
         }
 
         #[test]
-        fn list_ordered() {
-            let mut root = parse_with(
-                &ParseOptions::gfm(),
-                indoc! {r#"
-                1. First
-                2. Second
-                    3. Third
-                foo [^a]"#},
-            );
-            let list_top = root.children.pop().unwrap();
-            mark_checked!(list_top, Node::List(list));
-            assert_eq!(list.start, Some(1));
-            assert_eq!(list.ordered, true);
-            assert_eq!(list.children.len(), 2);
-        }
-
-        #[test]
-        fn list_ordered_starting_not_at_1() {
-            let mut root = parse_with(
-                &ParseOptions::gfm(),
-                indoc! {r#"
-                3. First
-                4. Second
-                    5. Third
-                foo [^a]"#},
-            );
-            let list_top = root.children.pop().unwrap();
-            mark_checked!(list_top, Node::List(list));
-            assert_eq!(list.start, Some(3));
-            assert_eq!(list.ordered, true);
-            assert_eq!(list.children.len(), 2);
-        }
-
-        #[test]
-        fn list_unordered() {
-            let mut root = parse_with(
+        fn lists_and_items() {
+            let root = parse_with(
                 &ParseOptions::gfm(),
                 indoc! {r#"
                 - First
-                - Second
-                    1. Third
-                foo [^a]"#},
+                - [ ] Second
+                - [x] Third
+                      With a line break
+                4. Fourth
+                5. [ ] Fifth
+                6. [x] Sixth
+
+                   With a paragraph
+                "#},
             );
-            let list_top = root.children.pop().unwrap();
-            mark_checked!(list_top, Node::List(list));
-            assert_eq!(list.start, None);
-            assert_eq!(list.ordered, false);
-            assert_eq!(list.children.len(), 2);
-        }
+            assert_eq!(root.children.len(), 2); // unordered list, then ordered
 
-        #[test]
-        fn list_ordered_then_unordered() {
-            let mut root = parse_with(
-                &ParseOptions::gfm(),
-                indoc! {r#"
-                1. First
-                - Second
-                    1. Third
-                foo [^a]"#},
+            fn check_li(node: &Node, checked: Option<bool>, contents: &str) {
+                mark_checked!(node, Node::ListItem(li));
+                assert_eq!(li.checked, checked);
+                assert_eq!(simple_to_string(&li.children), contents);
+            }
+
+            mark_checked!(&root.children[0], Node::List(unordered_list));
+            assert_eq!(unordered_list.start, None);
+            assert_eq!(unordered_list.ordered, false);
+            check_li(&unordered_list.children[0], None, "<p>First</p>");
+            check_li(&unordered_list.children[1], Some(false), "<p>Second</p>");
+            check_li(
+                &unordered_list.children[2],
+                Some(true),
+                "<p>Third\nWith a line break</p>",
             );
 
-            let first_list = root.children.remove(0);
-            mark_checked!(first_list, Node::List(first_list));
-            assert_eq!(first_list.start, Some(1));
-            assert_eq!(first_list.ordered, true);
-            assert_eq!(first_list.children.len(), 1);
-
-            let second_list = root.children.remove(0);
-            mark_checked!(second_list, Node::List(second_list));
-            assert_eq!(second_list.start, None);
-            assert_eq!(second_list.ordered, false);
-            assert_eq!(second_list.children.len(), 1);
-        }
-
-        #[test]
-        fn list_unordered_then_ordered() {
-            let mut root = parse_with(
-                &ParseOptions::gfm(),
-                indoc! {r#"
-                - First
-                1. Second
-                    1. Third
-                foo [^a]"#},
+            mark_checked!(&root.children[1], Node::List(ordered_list));
+            assert_eq!(ordered_list.start, Some(4));
+            assert_eq!(ordered_list.ordered, true);
+            check_li(&ordered_list.children[0], None, "<p>Fourth</p>");
+            check_li(&ordered_list.children[1], Some(false), "<p>Fifth</p>");
+            check_li(
+                &ordered_list.children[2],
+                Some(true),
+                "<p>Sixth</p><p>With a paragraph</p>",
             );
-            let first_list = root.children.remove(0);
-            mark_checked!(first_list, Node::List(first_list));
-            assert_eq!(first_list.start, None);
-            assert_eq!(first_list.ordered, false);
-            assert_eq!(first_list.children.len(), 1);
-
-            let second_list = root.children.remove(0);
-            mark_checked!(second_list, Node::List(second_list));
-            assert_eq!(second_list.start, Some(1));
-            assert_eq!(second_list.ordered, true);
-            assert_eq!(second_list.children.len(), 1);
-        }
-
-        #[test]
-        fn list_item_ordered_no_checkbox() {
-            let mut root = parse("1. First");
-            unwrap!(root.children.remove(0), Node::List(mut list));
-            mark_checked!(list.children.remove(0), Node::ListItem(li));
-            assert_eq!(li.checked, None);
-            assert_eq!(simple_to_string(&li.children), "First");
-        }
-
-        #[test]
-        fn list_item_ordered_unchecked() {
-            let mut root = parse_with(&ParseOptions::gfm(), "1. [ ] First");
-            unwrap!(root.children.remove(0), Node::List(mut list));
-            mark_checked!(list.children.remove(0), Node::ListItem(li));
-            assert_eq!(li.checked, Some(false));
-            assert_eq!(simple_to_string(&li.children), "First");
-        }
-
-        #[test]
-        fn list_item_ordered_checked() {
-            let mut root = parse_with(&ParseOptions::gfm(), "1. [x] First");
-            unwrap!(root.children.remove(0), Node::List(mut list));
-            mark_checked!(list.children.remove(0), Node::ListItem(li));
-            assert_eq!(li.checked, Some(true));
-            assert_eq!(simple_to_string(&li.children), "First");
         }
 
         #[test]
@@ -932,7 +854,7 @@ mod tests {
                         .footnote_definitions
                         .get("1")
                         .map(|d| simple_to_string(&d.children)),
-                    Some("https://example.com What?!".to_string())
+                    Some("<p>https://example.com What?!</p>".to_string())
                 )
             });
         }
@@ -1331,14 +1253,16 @@ mod tests {
     /// A simple representation of some nodes. Very non-exhaustive, just for testing.
     fn simple_to_string(nodes: &Vec<Node>) -> String {
         fn build(out: &mut String, node: &Node) {
-            match node {
-                Node::Text(text_node) => out.push_str(&text_node.value),
-                _ => {
-                    if let Some(children) = node.children() {
-                        children.iter().for_each(|c| build(out, c))
-                    }
-                }
+            let (before, after) = match node {
+                Node::Text(text_node) => (text_node.value.as_str(), ""),
+                Node::Paragraph(_) => ("<p>", "</p>"),
+                _ => ("", ""),
+            };
+            out.push_str(before);
+            if let Some(children) = node.children() {
+                children.iter().for_each(|c| build(out, c));
             }
+            out.push_str(after);
         }
         let mut s = String::with_capacity(32);
         nodes.iter().for_each(|n| build(&mut s, n));
