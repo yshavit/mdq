@@ -3,7 +3,7 @@ use std::borrow::Borrow;
 use markdown::mdast::AlignKind;
 use serde_json::{json, Map, Value};
 
-use crate::tree::{CodeOpts, CodeVariant, Inline, MdqNode};
+use crate::tree::{CodeOpts, CodeVariant, Inline, Link, MdqNode};
 
 const BODY_KEY: &str = "body";
 
@@ -140,7 +140,10 @@ impl TextOnly {
                     Self::build_string(out, child);
                 }
             }
-            Inline::Image { title, .. } => {
+            Inline::Image {
+                link: Link { title, .. },
+                ..
+            } => {
                 out.push_str("<image");
                 if let Some(title) = title {
                     out.push_str(": ");

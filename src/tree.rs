@@ -108,21 +108,23 @@ pub enum Inline {
         value: String,
     },
     Link {
-        url: String, // TODO should I combine {url, title, reference} from here and Image into one struct? Or even have a single Inline variant, with a sub-enum for Link vs Image?
         text: Vec<Inline>,
-
-        /// If you have `[1]: https://example.com "my title"`, this is the "my title".
-        ///
-        /// See: https://github.github.com/gfm/#link-reference-definitions
-        title: Option<String>,
-        reference: LinkReference,
+        link: Link,
     },
     Image {
-        url: String,
         alt: String,
-        title: Option<String>,
-        reference: LinkReference,
+        link: Link,
     },
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Link {
+    pub url: String,
+    /// If you have `[1]: https://example.com "my title"`, this is the "my title".
+    ///
+    /// See: https://github.github.com/gfm/#link-reference-definitions
+    pub title: Option<String>,
+    pub reference: LinkReference,
 }
 
 #[derive(Debug, PartialEq)]
@@ -239,47 +241,29 @@ impl MdqNode {
                 children: MdqNode::inlines(node.children, lookups)?,
             }),
             Node::Image(node) => MdqNode::Inline(Inline::Image {
-                url: node.url,
                 alt: node.alt,
-                title: node.title,
-                reference: LinkReference::Inline,
+                link: Link {
+                    url: node.url,
+                    title: node.title,
+                    reference: LinkReference::Inline,
+                },
             }),
-            Node::ImageReference(_) => {
-                return Err(NoNode::Skipped);
-            }
+            Node::ImageReference(node) => MdqNode::Inline(Inline::Image {
+                alt: node.alt,
+                link: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
+            }),
             Node::Link(node) => MdqNode::Inline(Inline::Link {
-                url: node.url,
                 text: MdqNode::inlines(node.children, lookups)?,
-                title: node.title,
-                reference: LinkReference::Inline,
+                link: Link {
+                    url: node.url,
+                    title: node.title,
+                    reference: LinkReference::Inline,
+                },
             }),
-            Node::LinkReference(node) => {
-                if let Some(node_label) = node.label {
-                    if node_label != node.identifier {
-                        todo!("What is this case?");
-                    }
-                }
-
-                let Some(definition) = lookups.link_definitions.get(&node.identifier) else {
-                    return Err(NoNode::Invalid(InvalidMd::MissingReferenceDefinition(node.identifier)));
-                };
-                if let Some(definition_label) = &definition.label {
-                    if definition_label != &node.identifier {
-                        todo!("What is this case?");
-                    }
-                }
-                let link_ref = match node.reference_kind {
-                    ReferenceKind::Shortcut => LinkReference::Shortcut,
-                    ReferenceKind::Collapsed => LinkReference::Collapsed,
-                    ReferenceKind::Full => LinkReference::Full(node.identifier),
-                };
-                MdqNode::Inline(Inline::Link {
-                    url: definition.url.to_owned(),
-                    text: MdqNode::inlines(node.children, lookups)?,
-                    title: definition.title.to_owned(),
-                    reference: link_ref,
-                })
-            }
+            Node::LinkReference(node) => MdqNode::Inline(Inline::Link {
+                text: MdqNode::inlines(node.children, lookups)?,
+                link: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
+            }),
             Node::FootnoteReference(_) => {
                 todo!()
             }
@@ -546,6 +530,34 @@ impl Lookups {
         result.build_lookups(node, &read_opts)?;
 
         Ok(result)
+    }
+
+    fn resolve_link(
+        &self,
+        identifier: String,
+        label: Option<String>,
+        reference_kind: ReferenceKind,
+    ) -> Result<Link, NoNode> {
+        if let None = label {
+            todo!("What is this case???");
+        }
+        let Some(definition) = self.link_definitions.get(&identifier) else {
+            let human_visible_identifier = label.unwrap_or(identifier);
+            return Err(NoNode::Invalid(InvalidMd::MissingReferenceDefinition(
+                human_visible_identifier,
+            )));
+        };
+        let human_visible_identifier = label.unwrap_or(identifier);
+        let link_ref = match reference_kind {
+            ReferenceKind::Shortcut => LinkReference::Shortcut,
+            ReferenceKind::Collapsed => LinkReference::Collapsed,
+            ReferenceKind::Full => LinkReference::Full(human_visible_identifier),
+        };
+        Ok(Link {
+            url: definition.url.to_owned(),
+            title: definition.title.to_owned(),
+            reference: link_ref,
+        })
     }
 
     fn build_lookups(&mut self, node: &Node, read_opts: &ReadOptions) -> Result<(), InvalidMd> {
@@ -837,10 +849,12 @@ mod tests {
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
                     assert_eq!(img, Inline::Image {
-                        url: "".to_string(),
                         alt: "".to_string(),
-                        title: None,
-                        reference: LinkReference::Inline,
+                        link: Link{
+                            url: "".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
                     })
                 });
             }
@@ -849,10 +863,12 @@ mod tests {
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
                     assert_eq!(img, Inline::Image {
-                        url: "https://example.com/foo.png".to_string(),
                         alt: "".to_string(),
-                        title: None,
-                        reference: LinkReference::Inline,
+                        link: Link{
+                            url: "https://example.com/foo.png".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
                     })
                 });
             }
@@ -861,10 +877,12 @@ mod tests {
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
                     assert_eq!(img, Inline::Image {
-                        url: "".to_string(),
                         alt: "alt text".to_string(),
-                        title: None,
-                        reference: LinkReference::Inline,
+                        link: Link{
+                            url: "".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
                     })
                 });
             }
@@ -873,10 +891,12 @@ mod tests {
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
                     assert_eq!(img, Inline::Image {
-                        url: "https://example.com/foo.png".to_string(),
                         alt: "".to_string(),
-                        title: Some("my tooltip".to_string()),
-                        reference: LinkReference::Inline,
+                        link: Link{
+                            url: "https://example.com/foo.png".to_string(),
+                            title: Some("my tooltip".to_string()),
+                            reference: LinkReference::Inline,
+                        },
                     })
                 });
             }
@@ -886,6 +906,88 @@ mod tests {
                 check!(&root.children[0], Node::Paragraph(_), lookups => p @ MdqNode::Paragraph{ .. } = {
                     assert_eq!(p, text_paragraph(r#"![]("only a tooltip")"#));
                 });
+            }
+        }
+
+        #[test]
+        fn image_ref() {
+            {
+                let (root, lookups) = parse(indoc! {r#"
+                    ![][1]
+
+                    [1]: https://example.com/image.png"#});
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::ImageReference(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        alt: "".to_string(),
+                        link: Link {
+                            url: "https://example.com/image.png".to_string(),
+                            title: None,
+                            reference: LinkReference::Full("1".to_string()),
+                        }
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+            {
+                let (root, lookups) = parse(indoc! {r#"
+                    ![][1]
+
+                    [1]: https://example.com/image.png "my title""#});
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::ImageReference(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        alt: "".to_string(),
+                        link: Link {
+                            url: "https://example.com/image.png".to_string(),
+                            title: Some("my title".to_string()),
+                            reference: LinkReference::Full("1".to_string()),
+                        }
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+            {
+                let (root, lookups) = parse_with(
+                    &ParseOptions::gfm(),
+                    indoc! {r#"
+                    ![my alt][]
+
+                    [my alt]: https://example.com/image.png "my title""#},
+                );
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::ImageReference(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        alt: "my alt".to_string(),
+                        link: Link {
+                            url: "https://example.com/image.png".to_string(),
+                            title: Some("my title".to_string()),
+                            reference: LinkReference::Collapsed,
+                        }
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+            {
+                let (root, lookups) = parse_with(
+                    &ParseOptions::gfm(),
+                    indoc! {r#"
+                    ![my alt]
+
+                    [my alt]: https://example.com/image.png"#},
+                );
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::ImageReference(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        alt: "my alt".to_string(),
+                        link: Link {
+                            url: "https://example.com/image.png".to_string(),
+                            title: None,
+                            reference: LinkReference::Shortcut,
+                        }
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
             }
         }
 
