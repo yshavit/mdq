@@ -580,8 +580,6 @@ mod tests {
 
     ///  tests of each mdast node type
     mod all_nodes {
-        // static mut foo: Result<_, _> = "123".to_string().parse();
-
         use std::{thread, time};
         use std::collections::HashSet;
         use std::mem::{discriminant, Discriminant};
@@ -591,24 +589,45 @@ mod tests {
         use markdown::mdast::Node;
         use markdown::ParseOptions;
 
-        macro_rules! expect_variant {
-            ( $enum_value:expr, $enum_variant:pat, $body:expr) => {
-                match $enum_value {
-                    n @ $enum_variant => {
-                        NODES_CHECKER.see(&n);
-                        $body
-                    }
-                    _ => panic!("Expected {} but saw {:?}", stringify!($enum_variant), $enum_value),
-                }
+        use super::*;
+
+        /// Turn a pattern match into an `if let ... { else panic! }`.
+        macro_rules! unwrap {
+            ( $enum_value:expr, $enum_variant:pat) => {
+                let node = $enum_value;
+                let node_debug = format!("{:?}", node);
+                let $enum_variant = node else {
+                    panic!("Expected {} but saw {}", stringify!($enum_variant), node_debug);
+                };
+            };
+        }
+
+        /// Turn a pattern match into an `if let ... { else panic! }`, and mark the enum as checked..
+        macro_rules! mark_checked {
+            ( $enum_value:expr, $enum_variant:pat) => {
+                let node = $enum_value;
+                NODES_CHECKER.see(&node);
+                let node_debug = format!("{:?}", node);
+                let $enum_variant = node else {
+                    panic!("Expected {} but saw {}", stringify!($enum_variant), node_debug);
+                };
             };
         }
 
         #[test]
         fn root() {
-            let root = parse("hello");
-            expect_variant!(&root, Node::Root(n), {
-                assert_eq!(n.children.len(), 1);
-            });
+            let doc = parse("hello");
+            mark_checked!(doc, Node::Root(root));
+            assert_eq!(root.children.len(), 1);
+        }
+
+        #[test]
+        fn block_quote() {
+            let doc = parse("> hello");
+            unwrap!(doc, Node::Root(mut root));
+            let child = root.children.pop().unwrap();
+            mark_checked!(child, Node::BlockQuote(quote));
+            assert_eq!(simple_to_string(&quote.children), "hello");
         }
 
         #[test]
