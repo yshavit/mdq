@@ -614,7 +614,7 @@ mod tests {
         use super::*;
 
         /// Turn a pattern match into an `if let ... { else panic! }`.
-        macro_rules! unwrap_todo {
+        macro_rules! unwrap {
             // TODO intellij errors if these are in the other order. file a ticket.
             ($enum_value:expr, $enum_variant:pat) => {
                 let node = $enum_value;
@@ -629,7 +629,7 @@ mod tests {
             (no_node: $enum_value:expr, $enum_variant:pat, $lookups:expr => $no_node:expr ) => {
                 let node = $enum_value;
                 NODES_CHECKER.see(&node);
-                unwrap_todo!(node, $enum_variant);
+                unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
                 let mdq_err = MdqNode::from_mdast_0(node_clone, &$lookups).err().expect("expected no MdqNode");
                 assert_eq!(mdq_err, $no_node);
@@ -638,12 +638,10 @@ mod tests {
             ( $enum_value:expr, $enum_variant:pat, $lookups:expr => $mdq_pat:pat = $mdq_body:block ) => {
                 let node = $enum_value;
                 NODES_CHECKER.see(&node);
-                unwrap_todo!(node, $enum_variant);
+                unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
                 let mdq = MdqNode::from_mdast_0(node_clone, &$lookups).unwrap();
-                if let $mdq_pat = mdq
-                    $mdq_body
-                 else {
+                if let $mdq_pat = mdq $mdq_body else {
                     panic!("TODO need better error message")
                 }
             };
@@ -718,7 +716,9 @@ mod tests {
             assert_eq!(root.children.len(), 2); // unordered list, then ordered
 
             check!(&root.children[0], Node::List(ul), lookups => MdqNode::List{starting_index, items} = {
-                NODES_CHECKER.see_all(&ul.children);
+                for child in &ul.children {
+                    check!(no_node: child, Node::ListItem(_), lookups => NoNode::Invalid(InvalidMd::InternalError));
+                }
                 assert_eq!(starting_index, None);
                 assert_eq!(items, vec![
                     ListItem {
@@ -736,7 +736,9 @@ mod tests {
                 ]);
             });
             check!(&root.children[1], Node::List(ol), lookups => MdqNode::List{starting_index, items} = {
-                NODES_CHECKER.see_all(&ol.children);
+                for child in &ol.children {
+                    check!(no_node: child, Node::ListItem(_), lookups => NoNode::Invalid(InvalidMd::InternalError));
+                }
                 assert_eq!(starting_index, Some(4));
                 assert_eq!(items, vec![
                     ListItem {
@@ -775,82 +777,117 @@ mod tests {
                 ])
             });
         }
-        //
-        // #[test]
-        // fn inline_code() {
-        //     let root = parse("`foo`");
-        //     unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-        //     unwrap!(&p.children[0], Node::InlineCode(inline_code));
-        //     assert_eq!("foo", &inline_code.value);
-        // }
-        //
-        // #[test]
-        // fn inline_math() {
-        //     let mut opts = ParseOptions::gfm();
-        //     opts.constructs.math_text = true;
-        //     let root = parse_with(&opts, r"$1 \ne 2$");
-        //     unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-        //     unwrap!(&p.children[0], Node::InlineMath(inline_code));
-        //     assert_eq!(&inline_code.value, r"1 \ne 2");
-        // }
-        //
-        // #[test]
-        // fn inline_delete() {
-        //     let root = parse(r"~~86 me~~");
-        //     unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-        //     unwrap!(&p.children[0], Node::Delete(inline_delete));
-        //     assert_eq!(simple_to_string(&inline_delete.children), r"86 me");
-        // }
-        //
-        // #[test]
-        // fn inline_em() {
-        //     let root = parse(r"_hello_");
-        //     unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-        //     unwrap!(&p.children[0], Node::Emphasis(inline_em));
-        //     assert_eq!(simple_to_string(&inline_em.children), r"hello");
-        // }
-        //
-        // #[test]
-        // fn image() {
-        //     {
-        //         let root = parse("![]()");
-        //         unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-        //         unwrap!(&p.children[0], Node::Image(img));
-        //         assert_eq!(img.title, None);
-        //         assert_eq!(img.url, "");
-        //         assert_eq!(img.alt, "");
-        //     }
-        //     {
-        //         let root = parse("![](https://example.com/foo.png)");
-        //         unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-        //         unwrap!(&p.children[0], Node::Image(img));
-        //         assert_eq!(img.title, None);
-        //         assert_eq!(img.url, "https://example.com/foo.png");
-        //         assert_eq!(img.alt, "");
-        //     }
-        //     {
-        //         let root = parse("![alt text](https://example.com/foo.png)");
-        //         unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-        //         unwrap!(&p.children[0], Node::Image(img));
-        //         assert_eq!(img.title, None);
-        //         assert_eq!(img.url, "https://example.com/foo.png");
-        //         assert_eq!(img.alt, "alt text");
-        //     }
-        //     {
-        //         let root = parse("![](https://example.com/foo.png \"my tooltip\")");
-        //         unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-        //         unwrap!(&p.children[0], Node::Image(img));
-        //         assert_eq!(img.title, Some("my tooltip".to_string()));
-        //         assert_eq!(img.url, "https://example.com/foo.png");
-        //         assert_eq!(img.alt, "");
-        //     }
-        //     {
-        //         let root = parse("![](\"only a tooltip\")");
-        //         unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-        //         unwrap!(&p.children[0], Node::Text(not_img));
-        //         assert_eq!(not_img.value, "![](\"only a tooltip\")");
-        //     }
-        // }
+
+        #[test]
+        fn inline_code() {
+            let (root, lookups) = parse("`foo`");
+
+            unwrap!(&root.children[0], Node::Paragraph(p));
+            check!(&p.children[0], Node::InlineCode(_), lookups => MdqNode::Inline(inline) = {
+                assert_eq!(inline, Inline::Text { variant: InlineVariant::Code, value: "foo".to_string() });
+            });
+        }
+
+        #[test]
+        fn inline_math() {
+            let mut opts = ParseOptions::gfm();
+            opts.constructs.math_text = true;
+            let (root, lookups) = parse_with(&opts, r#"$ 0 \ne 1 $"#);
+
+            unwrap!(&root.children[0], Node::Paragraph(p));
+            check!(&p.children[0], Node::InlineMath(_), lookups => MdqNode::Inline(inline) = {
+                assert_eq!(inline, Inline::Text { variant: InlineVariant::Math, value: r#" 0 \ne 1 "#.to_string() });
+            });
+        }
+
+        #[test]
+        fn inline_delete() {
+            let (root, lookups) = parse_with(&ParseOptions::gfm(), "~~86 me~~");
+
+            unwrap!(&root.children[0], Node::Paragraph(p));
+            check!(&p.children[0], Node::Delete(_), lookups => MdqNode::Inline(inline) = {
+                assert_eq!(inline, Inline::Span {
+                    variant: SpanVariant::Delete,
+                    children: vec![
+                        Inline::Text { variant: InlineVariant::Text, value: "86 me".to_string()},
+                    ]
+                });
+            });
+        }
+
+        #[test]
+        fn inline_emphasis() {
+            let (root, lookups) = parse("_86 me_");
+
+            unwrap!(&root.children[0], Node::Paragraph(p));
+            check!(&p.children[0], Node::Emphasis(_), lookups => MdqNode::Inline(inline) = {
+                assert_eq!(inline, Inline::Span {
+                    variant: SpanVariant::Emphasis,
+                    children: vec![
+                        Inline::Text { variant: InlineVariant::Text, value: "86 me".to_string()},
+                    ]
+                });
+            });
+        }
+
+        #[test]
+        fn image() {
+            {
+                let (root, lookups) = parse("![]()");
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        url: "".to_string(),
+                        alt: "".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline,
+                    })
+                });
+            }
+            {
+                let (root, lookups) = parse("![](https://example.com/foo.png)");
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        url: "https://example.com/foo.png".to_string(),
+                        alt: "".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline,
+                    })
+                });
+            }
+            {
+                let (root, lookups) = parse("![alt text]()");
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        url: "".to_string(),
+                        alt: "alt text".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline,
+                    })
+                });
+            }
+            {
+                let (root, lookups) = parse(r#"![](https://example.com/foo.png "my tooltip")"#);
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        url: "https://example.com/foo.png".to_string(),
+                        alt: "".to_string(),
+                        title: Some("my tooltip".to_string()),
+                        reference: LinkReference::Inline,
+                    })
+                });
+            }
+            {
+                // This isn't an image, though it almost looks like one
+                let (root, lookups) = parse(r#"![]("only a tooltip")"#);
+                check!(&root.children[0], Node::Paragraph(_), lookups => p @ MdqNode::Paragraph{ .. } = {
+                    assert_eq!(p, text_paragraph(r#"![]("only a tooltip")"#));
+                });
+            }
+        }
 
         #[test]
         fn all_variants_tested() {
@@ -880,7 +917,7 @@ mod tests {
         fn parse_with(opts: &ParseOptions, md: &str) -> (mdast::Root, Lookups) {
             let doc = markdown::to_mdast(md, opts).unwrap();
             let lookups = Lookups::new(&doc, &ReadOptions::default()).unwrap();
-            unwrap_todo!(doc, Node::Root(root));
+            unwrap!(doc, Node::Root(root));
             (root, lookups)
         }
 
@@ -904,10 +941,6 @@ mod tests {
                 let re = Regex::new(r"^\w+").unwrap();
                 let node_name = re.find(&node_debug).unwrap().as_str();
                 self.require.lock().map(|mut set| set.remove(node_name)).unwrap();
-            }
-
-            fn see_all(&self, nodes: &Vec<Node>) {
-                nodes.iter().for_each(|node| self.see(node));
             }
 
             fn all_were_seen(&self) -> bool {
