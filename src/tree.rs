@@ -578,6 +578,147 @@ impl Lookups {
 mod tests {
     use super::*;
 
+    ///  tests of each mdast node type
+    mod all_nodes {
+        // static mut foo: Result<_, _> = "123".to_string().parse();
+
+        use std::{thread, time};
+        use std::collections::HashSet;
+        use std::mem::{discriminant, Discriminant};
+        use std::sync::{Arc, Mutex};
+
+        use lazy_static::lazy_static;
+        use markdown::mdast::Node;
+        use markdown::ParseOptions;
+
+        macro_rules! expect_variant {
+            ( $enum_value:expr, $enum_variant:pat, $body:expr) => {
+                match $enum_value {
+                    n @ $enum_variant => {
+                        NODES_CHECKER.see(&n);
+                        $body
+                    }
+                    _ => panic!("Expected {} but saw {:?}", stringify!($enum_variant), $enum_value),
+                }
+            };
+        }
+
+        #[test]
+        fn root() {
+            let root = parse("hello");
+            expect_variant!(&root, Node::Root(n), {
+                assert_eq!(n.children.len(), 1);
+            });
+        }
+
+        #[test]
+        fn all_variants_checked() {
+            let timeout = time::Duration::from_millis(500);
+            let retry_delay = time::Duration::from_millis(50);
+            let start = time::Instant::now();
+            loop {
+                let current_count = NODES_CHECKER.count();
+                if (current_count as u32) == NODES_CHECKER.require {
+                    break;
+                }
+                if start.elapsed() >= timeout {
+                    panic!(
+                        "Timed out, and only saw {} variants (expected {})",
+                        current_count, NODES_CHECKER.require
+                    )
+                }
+                thread::sleep(retry_delay);
+            }
+        }
+
+        struct NodesChecker {
+            seen: Arc<Mutex<HashSet<Discriminant<Node>>>>,
+            require: u32,
+        }
+
+        fn parse(md: &str) -> Node {
+            parse_with(&ParseOptions::default(), md)
+        }
+
+        fn parse_with(opts: &ParseOptions, md: &str) -> Node {
+            markdown::to_mdast(md, opts).unwrap()
+        }
+
+        lazy_static! {
+            static ref NODES_CHECKER: NodesChecker = NodesChecker::new();
+        }
+
+        impl NodesChecker {
+            fn new() -> Self {
+                Self {
+                    seen: Arc::new(Mutex::new(Default::default())),
+                    require: Self::count_node_enums(),
+                }
+            }
+
+            fn see(&self, node: &Node) {
+                let d = discriminant(node);
+                self.seen.lock().map(|mut set| set.insert(d)).unwrap();
+            }
+
+            fn count(&self) -> usize {
+                self.seen.lock().map(|set| set.len()).unwrap()
+            }
+
+            /// Returns how many variants of [Node] there are.
+            ///
+            /// We can't use strum to do this, because we don't own the Node code. Instead, we rely on a bit of
+            /// trickery. First, we create a `match` over all the variants, making sure each one is on its own line.
+            /// Then, we use [line!] to get the line counts right before and after that `match`, and do some basic
+            /// arithmetic to figure out how many variants there are.
+            ///
+            /// This isn't 100% fool-proof (it requires manually ensuring that each variant is on its own line, though
+            /// `cargo fmt` helps with that), but it should be good enough in practice.
+            fn count_node_enums() -> u32 {
+                let start = line!();
+                (None).map(|n: Node| match n {
+                    Node::Root(_) => {}
+                    Node::BlockQuote(_) => {}
+                    Node::FootnoteDefinition(_) => {}
+                    Node::MdxJsxFlowElement(_) => {}
+                    Node::List(_) => {}
+                    Node::MdxjsEsm(_) => {}
+                    Node::Toml(_) => {}
+                    Node::Yaml(_) => {}
+                    Node::Break(_) => {}
+                    Node::InlineCode(_) => {}
+                    Node::InlineMath(_) => {}
+                    Node::Delete(_) => {}
+                    Node::Emphasis(_) => {}
+                    Node::MdxTextExpression(_) => {}
+                    Node::FootnoteReference(_) => {}
+                    Node::Html(_) => {}
+                    Node::Image(_) => {}
+                    Node::ImageReference(_) => {}
+                    Node::MdxJsxTextElement(_) => {}
+                    Node::Link(_) => {}
+                    Node::LinkReference(_) => {}
+                    Node::Strong(_) => {}
+                    Node::Text(_) => {}
+                    Node::Code(_) => {}
+                    Node::Math(_) => {}
+                    Node::MdxFlowExpression(_) => {}
+                    Node::Heading(_) => {}
+                    Node::Table(_) => {}
+                    Node::ThematicBreak(_) => {}
+                    Node::TableRow(_) => {}
+                    Node::TableCell(_) => {}
+                    Node::ListItem(_) => {}
+                    Node::Definition(_) => {}
+                    Node::Paragraph(_) => {}
+                });
+                let end = line!();
+                // 1 for the ".map" line, 1 for the ending braces, 1 because both line!()s give an inclusive range
+                end - start - 3
+            }
+        }
+    }
+
     mod lookups {
         use indoc::indoc;
         use markdown::ParseOptions;
