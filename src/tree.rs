@@ -584,31 +584,29 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
-        use std::{thread, time};
         use std::collections::HashSet;
-        use std::mem::{discriminant, Discriminant};
         use std::sync::{Arc, Mutex};
+        use std::{thread, time};
 
         use indoc::indoc;
         use lazy_static::lazy_static;
-        use markdown::{mdast, ParseOptions};
         use markdown::mdast::Node;
+        use markdown::{mdast, ParseOptions};
+        use regex::Regex;
 
         use super::*;
 
-        /// Turn a pattern match into an `if let ... { else panic! }`.
+        /// Turn a pattern match into an `if let ... { else panic! }`, and mark the enum as checked unless the
+        /// args list starts with `unchecked:`
         macro_rules! unwrap {
-            ( $enum_value:expr, $enum_variant:pat) => {
+            // TODO intellij errors if these are in the other order. file a ticket.
+            ( unchecked: $enum_value:expr, $enum_variant:pat) => {
                 let node = $enum_value;
                 let node_debug = format!("{:?}", node);
                 let $enum_variant = node else {
                     panic!("Expected {} but saw {}", stringify!($enum_variant), node_debug);
                 };
             };
-        }
-
-        /// Turn a pattern match into an `if let ... { else panic! }`, and mark the enum as checked..
-        macro_rules! mark_checked {
             ( $enum_value:expr, $enum_variant:pat) => {
                 let node = $enum_value;
                 NODES_CHECKER.see(&node);
@@ -616,6 +614,25 @@ mod tests {
                 let $enum_variant = node else {
                     panic!("Expected {} but saw {}", stringify!($enum_variant), node_debug);
                 };
+            };
+        }
+
+        /// Creates a matcher against [Node] with the given variants, and returns the variant names as a collection.
+        ///
+        /// If you see a compilation failure here, it means the call site is missing variants (or has an unknown
+        /// variant).
+        ///
+        /// This macro assumes that each variant can match a pattern `Node::TheVariant(_)`.
+        macro_rules! nodes_matcher {
+            [$($variant:ident),* $(,)?] => {
+                {
+                    None.map(|n: Node| match n {
+                        $(
+                        Node::$variant(_) => {}
+                        )*
+                    });
+                    vec![$(stringify!($variant).to_string(),)*].into_iter().collect()
+                }
             };
         }
 
@@ -629,7 +646,7 @@ mod tests {
         fn block_quote() {
             let root = parse("> hello");
             let child = &root.children[0];
-            mark_checked!(child, Node::BlockQuote(quote));
+            unwrap!(child, Node::BlockQuote(quote));
             assert_eq!(simple_to_string(&quote.children), "<p>hello</p>");
         }
 
@@ -644,7 +661,7 @@ mod tests {
                   with two lines."#},
             );
             let footnote = &root.children[1];
-            mark_checked!(footnote, Node::FootnoteDefinition(footnote));
+            unwrap!(footnote, Node::FootnoteDefinition(footnote));
             assert_eq!(footnote.identifier, "a".to_string());
             assert_eq!(footnote.label, Some("a".to_string()));
             assert_eq!(
@@ -672,12 +689,12 @@ mod tests {
             assert_eq!(root.children.len(), 2); // unordered list, then ordered
 
             fn check_li(node: &Node, checked: Option<bool>, contents: &str) {
-                mark_checked!(node, Node::ListItem(li));
+                unwrap!(node, Node::ListItem(li));
                 assert_eq!(li.checked, checked);
                 assert_eq!(simple_to_string(&li.children), contents);
             }
 
-            mark_checked!(&root.children[0], Node::List(unordered_list));
+            unwrap!(&root.children[0], Node::List(unordered_list));
             assert_eq!(unordered_list.start, None);
             assert_eq!(unordered_list.ordered, false);
             check_li(&unordered_list.children[0], None, "<p>First</p>");
@@ -688,7 +705,7 @@ mod tests {
                 "<p>Third\nWith a line break</p>",
             );
 
-            mark_checked!(&root.children[1], Node::List(ordered_list));
+            unwrap!(&root.children[1], Node::List(ordered_list));
             assert_eq!(ordered_list.start, Some(4));
             assert_eq!(ordered_list.ordered, true);
             check_li(&ordered_list.children[0], None, "<p>Fourth</p>");
@@ -710,13 +727,13 @@ mod tests {
                 "#},
             );
             assert_eq!(1, root.children.len());
-            unwrap!(&root.children[0], Node::Paragraph(paragraph));
+            unwrap!(unchecked: &root.children[0], Node::Paragraph(paragraph));
 
             assert_eq!(3, paragraph.children.len());
-            mark_checked!(&paragraph.children[0], Node::Text(first_line));
+            unwrap!(&paragraph.children[0], Node::Text(first_line));
             assert_eq!(first_line.value, "hello ");
-            mark_checked!(&paragraph.children[1], Node::Break(_));
-            mark_checked!(&paragraph.children[2], Node::Text(second_line));
+            unwrap!(&paragraph.children[1], Node::Break(_));
+            unwrap!(&paragraph.children[2], Node::Text(second_line));
             assert_eq!(second_line.value, "world");
         }
 
@@ -726,23 +743,19 @@ mod tests {
             let retry_delay = time::Duration::from_millis(50);
             let start = time::Instant::now();
             loop {
-                let current_count = NODES_CHECKER.count();
-                if (current_count as u32) == NODES_CHECKER.require {
+                if NODES_CHECKER.all_were_seen() {
                     break;
                 }
                 if start.elapsed() >= timeout {
+                    let remaining = NODES_CHECKER.remaining_as_copy();
                     panic!(
-                        "Timed out, and only saw {} variants (expected {})",
-                        current_count, NODES_CHECKER.require
+                        "Timed out, and missing {} variants:\n- {}",
+                        remaining.len(),
+                        remaining.join("\n- ")
                     )
                 }
                 thread::sleep(retry_delay);
             }
-        }
-
-        struct NodesChecker {
-            seen: Arc<Mutex<HashSet<Discriminant<Node>>>>,
-            require: u32,
         }
 
         fn parse(md: &str) -> mdast::Root {
@@ -751,8 +764,12 @@ mod tests {
 
         fn parse_with(opts: &ParseOptions, md: &str) -> mdast::Root {
             let doc = markdown::to_mdast(md, opts).unwrap();
-            mark_checked!(doc, Node::Root(root));
+            unwrap!(doc, Node::Root(root));
             root
+        }
+
+        struct NodesChecker {
+            require: Arc<Mutex<HashSet<String>>>,
         }
 
         lazy_static! {
@@ -762,18 +779,29 @@ mod tests {
         impl NodesChecker {
             fn new() -> Self {
                 Self {
-                    seen: Arc::new(Mutex::new(Default::default())),
                     require: Self::count_node_enums(),
                 }
             }
 
             fn see(&self, node: &Node) {
-                let d = discriminant(node);
-                self.seen.lock().map(|mut set| set.insert(d)).unwrap();
+                let node_debug = format!("{:?}", node);
+                let re = Regex::new(r"^\w+").unwrap();
+                let node_name = re.find(&node_debug).unwrap().as_str();
+                self.require.lock().map(|mut set| set.remove(node_name)).unwrap();
             }
 
-            fn count(&self) -> usize {
-                self.seen.lock().map(|set| set.len()).unwrap()
+            fn all_were_seen(&self) -> bool {
+                self.require.lock().map(|set| set.is_empty()).unwrap()
+            }
+
+            fn remaining_as_copy(&self) -> Vec<String> {
+                let mut result: Vec<String> = self
+                    .require
+                    .lock()
+                    .map(|set| set.iter().map(|s| s.to_owned()).collect())
+                    .unwrap();
+                result.sort();
+                result
             }
 
             /// Returns how many variants of [Node] there are.
@@ -785,47 +813,44 @@ mod tests {
             ///
             /// This isn't 100% fool-proof (it requires manually ensuring that each variant is on its own line, though
             /// `cargo fmt` helps with that), but it should be good enough in practice.
-            fn count_node_enums() -> u32 {
-                let start = line!();
-                (None).map(|n: Node| match n {
-                    Node::Root(_) => {}
-                    Node::BlockQuote(_) => {}
-                    Node::FootnoteDefinition(_) => {}
-                    Node::MdxJsxFlowElement(_) => {}
-                    Node::List(_) => {}
-                    Node::MdxjsEsm(_) => {}
-                    Node::Toml(_) => {}
-                    Node::Yaml(_) => {}
-                    Node::Break(_) => {}
-                    Node::InlineCode(_) => {}
-                    Node::InlineMath(_) => {}
-                    Node::Delete(_) => {}
-                    Node::Emphasis(_) => {}
-                    Node::MdxTextExpression(_) => {}
-                    Node::FootnoteReference(_) => {}
-                    Node::Html(_) => {}
-                    Node::Image(_) => {}
-                    Node::ImageReference(_) => {}
-                    Node::MdxJsxTextElement(_) => {}
-                    Node::Link(_) => {}
-                    Node::LinkReference(_) => {}
-                    Node::Strong(_) => {}
-                    Node::Text(_) => {}
-                    Node::Code(_) => {}
-                    Node::Math(_) => {}
-                    Node::MdxFlowExpression(_) => {}
-                    Node::Heading(_) => {}
-                    Node::Table(_) => {}
-                    Node::ThematicBreak(_) => {}
-                    Node::TableRow(_) => {}
-                    Node::TableCell(_) => {}
-                    Node::ListItem(_) => {}
-                    Node::Definition(_) => {}
-                    Node::Paragraph(_) => {}
-                });
-                let end = line!();
-                // 1 for the ".map" line, 1 for the ending braces, 1 because both line!()s give an inclusive range
-                end - start - 3
+            fn count_node_enums() -> Arc<Mutex<HashSet<String>>> {
+                let all_node_names = nodes_matcher![
+                    Root,
+                    BlockQuote,
+                    FootnoteDefinition,
+                    MdxJsxFlowElement,
+                    List,
+                    MdxjsEsm,
+                    Toml,
+                    Yaml,
+                    Break,
+                    InlineCode,
+                    InlineMath,
+                    Delete,
+                    Emphasis,
+                    MdxTextExpression,
+                    FootnoteReference,
+                    Html,
+                    Image,
+                    ImageReference,
+                    MdxJsxTextElement,
+                    Link,
+                    LinkReference,
+                    Strong,
+                    Text,
+                    Code,
+                    Math,
+                    MdxFlowExpression,
+                    Heading,
+                    Table,
+                    ThematicBreak,
+                    TableRow,
+                    TableCell,
+                    ListItem,
+                    Definition,
+                    Paragraph,
+                ];
+                Arc::new(Mutex::new(all_node_names))
             }
         }
     }
