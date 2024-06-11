@@ -601,14 +601,14 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
+        use std::{thread, time};
         use std::collections::HashSet;
         use std::sync::{Arc, Mutex};
-        use std::{thread, time};
 
         use indoc::indoc;
         use lazy_static::lazy_static;
-        use markdown::mdast::Node;
         use markdown::{mdast, ParseOptions};
+        use markdown::mdast::Node;
         use regex::Regex;
 
         use super::*;
@@ -626,16 +626,16 @@ mod tests {
         }
 
         macro_rules! check {
-            (no_node: $enum_value:expr, $enum_variant:pat, $lookups:expr => $no_node:expr ) => {
+            (no_node: $enum_value:expr, $enum_variant:pat, $lookups:expr => $no_node:expr ) => {{
                 let node = $enum_value;
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
                 let mdq_err = MdqNode::from_mdast_0(node_clone, &$lookups).err().expect("expected no MdqNode");
                 assert_eq!(mdq_err, $no_node);
-            };
+            }};
 
-            ( $enum_value:expr, $enum_variant:pat, $lookups:expr => $mdq_pat:pat = $mdq_body:block ) => {
+            ( $enum_value:expr, $enum_variant:pat, $lookups:expr => $mdq_pat:pat = $mdq_body:block ) => {{
                 let node = $enum_value;
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
@@ -644,7 +644,7 @@ mod tests {
                 if let $mdq_pat = mdq $mdq_body else {
                     panic!("TODO need better error message")
                 }
-            };
+            }};
         }
 
         /// Creates a matcher against [Node] with the given variants, and returns the variant names as a collection.
