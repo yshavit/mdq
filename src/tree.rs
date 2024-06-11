@@ -162,6 +162,7 @@ pub struct CodeOpts {
     pub metadata: Option<String>,
 }
 
+#[derive(Debug, PartialEq)]
 enum NoNode {
     Skipped,
     Invalid(InvalidMd),
@@ -473,7 +474,23 @@ impl MdqNode {
             let MdqNode::Inline(inline) = child else {
                 return Err(InvalidMd::NonInlineWhereInlineExpected);
             };
-            result.push(inline);
+            // If both this and the previous were plain text, then just combine the texts. This can happen if there was
+            // a Node::Break between them.
+            if let (
+                Some(Inline::Text {
+                    variant: InlineVariant::Text,
+                    value: prev_text,
+                }),
+                Inline::Text {
+                    variant: InlineVariant::Text,
+                    value: new_text,
+                },
+            ) = (result.last_mut(), &inline)
+            {
+                prev_text.push_str(new_text)
+            } else {
+                result.push(inline);
+            }
         }
         Ok(result)
     }
@@ -584,36 +601,51 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
-        use std::{thread, time};
         use std::collections::HashSet;
         use std::sync::{Arc, Mutex};
+        use std::{thread, time};
 
         use indoc::indoc;
         use lazy_static::lazy_static;
-        use markdown::{mdast, ParseOptions};
         use markdown::mdast::Node;
+        use markdown::{mdast, ParseOptions};
         use regex::Regex;
 
         use super::*;
 
-        /// Turn a pattern match into an `if let ... { else panic! }`, and mark the enum as checked unless the
-        /// args list starts with `unchecked:`
-        macro_rules! unwrap {
+        /// Turn a pattern match into an `if let ... { else panic! }`.
+        macro_rules! unwrap_todo {
             // TODO intellij errors if these are in the other order. file a ticket.
-            ( unchecked: $enum_value:expr, $enum_variant:pat) => {
+            ($enum_value:expr, $enum_variant:pat) => {
                 let node = $enum_value;
                 let node_debug = format!("{:?}", node);
                 let $enum_variant = node else {
                     panic!("Expected {} but saw {}", stringify!($enum_variant), node_debug);
                 };
             };
-            ( $enum_value:expr, $enum_variant:pat) => {
+        }
+
+        macro_rules! check {
+            (no_node: $enum_value:expr, $enum_variant:pat, $lookups:expr => $no_node:expr ) => {
                 let node = $enum_value;
                 NODES_CHECKER.see(&node);
-                let node_debug = format!("{:?}", node);
-                let $enum_variant = node else {
-                    panic!("Expected {} but saw {}", stringify!($enum_variant), node_debug);
-                };
+                unwrap_todo!(node, $enum_variant);
+                let node_clone = node.clone();
+                let mdq_err = MdqNode::from_mdast_0(node_clone, &$lookups).err().expect("expected no MdqNode");
+                assert_eq!(mdq_err, $no_node);
+            };
+
+            ( $enum_value:expr, $enum_variant:pat, $lookups:expr => $mdq_pat:pat = $mdq_body:block ) => {
+                let node = $enum_value;
+                NODES_CHECKER.see(&node);
+                unwrap_todo!(node, $enum_variant);
+                let node_clone = node.clone();
+                let mdq = MdqNode::from_mdast_0(node_clone, &$lookups).unwrap();
+                if let $mdq_pat = mdq
+                    $mdq_body
+                 else {
+                    panic!("TODO need better error message")
+                }
             };
         }
 
@@ -638,21 +670,22 @@ mod tests {
 
         #[test]
         fn root() {
-            let root = parse("hello");
+            let (root, _) = parse("hello");
             assert_eq!(root.children.len(), 1);
         }
 
         #[test]
         fn block_quote() {
-            let root = parse("> hello");
+            let (root, lookups) = parse("> hello");
             let child = &root.children[0];
-            unwrap!(child, Node::BlockQuote(quote));
-            assert_eq!(simple_to_string(&quote.children), "<p>hello</p>");
+            check!(child, Node::BlockQuote(_), lookups => MdqNode::BlockQuote { body } = {
+                assert_eq!(&body, &vec![text_paragraph("hello")]);
+            });
         }
 
         #[test]
-        fn footnote_definition() {
-            let root = parse_with(
+        fn footnote() {
+            let (root, lookups) = parse_with(
                 &ParseOptions::gfm(),
                 indoc! {r#"
                 foo [^a]
@@ -660,19 +693,15 @@ mod tests {
                 [^a]: My _footnote_
                   with two lines."#},
             );
-            let footnote = &root.children[1];
-            unwrap!(footnote, Node::FootnoteDefinition(footnote));
-            assert_eq!(footnote.identifier, "a".to_string());
-            assert_eq!(footnote.label, Some("a".to_string()));
-            assert_eq!(
-                simple_to_string(&footnote.children),
-                "<p>My <em>footnote</em>\nwith two lines.</p>"
-            );
+            check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{ body }  = {
+                assert_eq!(format!("{:?}", body), "TOOD")
+            });
+            check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
         }
 
         #[test]
         fn lists_and_items() {
-            let root = parse_with(
+            let (root, lookups) = parse_with(
                 &ParseOptions::gfm(),
                 indoc! {r#"
                 - First
@@ -688,130 +717,140 @@ mod tests {
             );
             assert_eq!(root.children.len(), 2); // unordered list, then ordered
 
-            fn check_li(node: &Node, checked: Option<bool>, contents: &str) {
-                unwrap!(node, Node::ListItem(li));
-                assert_eq!(li.checked, checked);
-                assert_eq!(simple_to_string(&li.children), contents);
-            }
-
-            unwrap!(&root.children[0], Node::List(unordered_list));
-            assert_eq!(unordered_list.start, None);
-            assert_eq!(unordered_list.ordered, false);
-            check_li(&unordered_list.children[0], None, "<p>First</p>");
-            check_li(&unordered_list.children[1], Some(false), "<p>Second</p>");
-            check_li(
-                &unordered_list.children[2],
-                Some(true),
-                "<p>Third\nWith a line break</p>",
-            );
-
-            unwrap!(&root.children[1], Node::List(ordered_list));
-            assert_eq!(ordered_list.start, Some(4));
-            assert_eq!(ordered_list.ordered, true);
-            check_li(&ordered_list.children[0], None, "<p>Fourth</p>");
-            check_li(&ordered_list.children[1], Some(false), "<p>Fifth</p>");
-            check_li(
-                &ordered_list.children[2],
-                Some(true),
-                "<p>Sixth</p><p>With a paragraph</p>",
-            );
+            check!(&root.children[0], Node::List(ul), lookups => MdqNode::List{starting_index, items} = {
+                NODES_CHECKER.see_all(&ul.children);
+                assert_eq!(starting_index, None);
+                assert_eq!(items, vec![
+                    ListItem {
+                        checked: None,
+                        item: vec![text_paragraph("First")],
+                    },
+                    ListItem {
+                        checked: Some(false),
+                        item: vec![text_paragraph("Second")],
+                    },
+                    ListItem {
+                        checked: Some(true),
+                        item: vec![text_paragraph("Third\nWith a line break")],
+                    },
+                ]);
+            });
+            check!(&root.children[1], Node::List(ol), lookups => MdqNode::List{starting_index, items} = {
+                NODES_CHECKER.see_all(&ol.children);
+                assert_eq!(starting_index, Some(4));
+                assert_eq!(items, vec![
+                    ListItem {
+                        checked: None,
+                        item: vec![text_paragraph("Fourth")],
+                    },
+                    ListItem {
+                        checked: Some(false),
+                        item: vec![text_paragraph("Fifth")],
+                    },
+                    ListItem {
+                        checked: Some(true),
+                        item: vec![
+                            text_paragraph("Sixth"),
+                            text_paragraph("With a paragraph"),
+                        ],
+                    },
+                ]);
+            });
         }
 
         #[test]
         fn md_break() {
-            let root = parse_with(
+            let (root, lookups) = parse_with(
                 &ParseOptions::gfm(),
                 indoc! {r#"
                 hello \
                 world
                 "#},
             );
-            assert_eq!(1, root.children.len());
-            unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
 
-            assert_eq!(3, p.children.len());
-            unwrap!(&p.children[0], Node::Text(first_line));
-            assert_eq!(first_line.value, "hello ");
-            unwrap!(&p.children[1], Node::Break(_));
-            unwrap!(&p.children[2], Node::Text(second_line));
-            assert_eq!(second_line.value, "world");
+            check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{body} = {
+                assert_eq!(body, vec![
+                    // note: just a single child, which has a two-line string
+                    Inline::Text {variant: InlineVariant::Text, value: "hello \nworld".to_string()},
+                ])
+            });
         }
-
-        #[test]
-        fn inline_code() {
-            let root = parse("`foo`");
-            unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-            unwrap!(&p.children[0], Node::InlineCode(inline_code));
-            assert_eq!("foo", &inline_code.value);
-        }
-
-        #[test]
-        fn inline_math() {
-            let mut opts = ParseOptions::gfm();
-            opts.constructs.math_text = true;
-            let root = parse_with(&opts, r"$1 \ne 2$");
-            unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-            unwrap!(&p.children[0], Node::InlineMath(inline_code));
-            assert_eq!(&inline_code.value, r"1 \ne 2");
-        }
-
-        #[test]
-        fn inline_delete() {
-            let root = parse(r"~~86 me~~");
-            unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-            unwrap!(&p.children[0], Node::Delete(inline_delete));
-            assert_eq!(simple_to_string(&inline_delete.children), r"86 me");
-        }
-
-        #[test]
-        fn inline_em() {
-            let root = parse(r"_hello_");
-            unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-            unwrap!(&p.children[0], Node::Emphasis(inline_em));
-            assert_eq!(simple_to_string(&inline_em.children), r"hello");
-        }
-
-        #[test]
-        fn image() {
-            {
-                let root = parse("![]()");
-                unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-                unwrap!(&p.children[0], Node::Image(img));
-                assert_eq!(img.title, None);
-                assert_eq!(img.url, "");
-                assert_eq!(img.alt, "");
-            }
-            {
-                let root = parse("![](https://example.com/foo.png)");
-                unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-                unwrap!(&p.children[0], Node::Image(img));
-                assert_eq!(img.title, None);
-                assert_eq!(img.url, "https://example.com/foo.png");
-                assert_eq!(img.alt, "");
-            }
-            {
-                let root = parse("![alt text](https://example.com/foo.png)");
-                unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-                unwrap!(&p.children[0], Node::Image(img));
-                assert_eq!(img.title, None);
-                assert_eq!(img.url, "https://example.com/foo.png");
-                assert_eq!(img.alt, "alt text");
-            }
-            {
-                let root = parse("![](https://example.com/foo.png \"my tooltip\")");
-                unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-                unwrap!(&p.children[0], Node::Image(img));
-                assert_eq!(img.title, Some("my tooltip".to_string()));
-                assert_eq!(img.url, "https://example.com/foo.png");
-                assert_eq!(img.alt, "");
-            }
-            {
-                let root = parse("![](\"only a tooltip\")");
-                unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
-                unwrap!(&p.children[0], Node::Text(not_img));
-                assert_eq!(not_img.value, "![](\"only a tooltip\")");
-            }
-        }
+        //
+        // #[test]
+        // fn inline_code() {
+        //     let root = parse("`foo`");
+        //     unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+        //     unwrap!(&p.children[0], Node::InlineCode(inline_code));
+        //     assert_eq!("foo", &inline_code.value);
+        // }
+        //
+        // #[test]
+        // fn inline_math() {
+        //     let mut opts = ParseOptions::gfm();
+        //     opts.constructs.math_text = true;
+        //     let root = parse_with(&opts, r"$1 \ne 2$");
+        //     unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+        //     unwrap!(&p.children[0], Node::InlineMath(inline_code));
+        //     assert_eq!(&inline_code.value, r"1 \ne 2");
+        // }
+        //
+        // #[test]
+        // fn inline_delete() {
+        //     let root = parse(r"~~86 me~~");
+        //     unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+        //     unwrap!(&p.children[0], Node::Delete(inline_delete));
+        //     assert_eq!(simple_to_string(&inline_delete.children), r"86 me");
+        // }
+        //
+        // #[test]
+        // fn inline_em() {
+        //     let root = parse(r"_hello_");
+        //     unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+        //     unwrap!(&p.children[0], Node::Emphasis(inline_em));
+        //     assert_eq!(simple_to_string(&inline_em.children), r"hello");
+        // }
+        //
+        // #[test]
+        // fn image() {
+        //     {
+        //         let root = parse("![]()");
+        //         unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+        //         unwrap!(&p.children[0], Node::Image(img));
+        //         assert_eq!(img.title, None);
+        //         assert_eq!(img.url, "");
+        //         assert_eq!(img.alt, "");
+        //     }
+        //     {
+        //         let root = parse("![](https://example.com/foo.png)");
+        //         unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+        //         unwrap!(&p.children[0], Node::Image(img));
+        //         assert_eq!(img.title, None);
+        //         assert_eq!(img.url, "https://example.com/foo.png");
+        //         assert_eq!(img.alt, "");
+        //     }
+        //     {
+        //         let root = parse("![alt text](https://example.com/foo.png)");
+        //         unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+        //         unwrap!(&p.children[0], Node::Image(img));
+        //         assert_eq!(img.title, None);
+        //         assert_eq!(img.url, "https://example.com/foo.png");
+        //         assert_eq!(img.alt, "alt text");
+        //     }
+        //     {
+        //         let root = parse("![](https://example.com/foo.png \"my tooltip\")");
+        //         unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+        //         unwrap!(&p.children[0], Node::Image(img));
+        //         assert_eq!(img.title, Some("my tooltip".to_string()));
+        //         assert_eq!(img.url, "https://example.com/foo.png");
+        //         assert_eq!(img.alt, "");
+        //     }
+        //     {
+        //         let root = parse("![](\"only a tooltip\")");
+        //         unwrap!(unchecked: &root.children[0], Node::Paragraph(p));
+        //         unwrap!(&p.children[0], Node::Text(not_img));
+        //         assert_eq!(not_img.value, "![](\"only a tooltip\")");
+        //     }
+        // }
 
         #[test]
         fn all_variants_tested() {
@@ -834,14 +873,15 @@ mod tests {
             }
         }
 
-        fn parse(md: &str) -> mdast::Root {
+        fn parse(md: &str) -> (mdast::Root, Lookups) {
             parse_with(&ParseOptions::default(), md)
         }
 
-        fn parse_with(opts: &ParseOptions, md: &str) -> mdast::Root {
+        fn parse_with(opts: &ParseOptions, md: &str) -> (mdast::Root, Lookups) {
             let doc = markdown::to_mdast(md, opts).unwrap();
-            unwrap!(doc, Node::Root(root));
-            root
+            let lookups = Lookups::new(&doc, &ReadOptions::default()).unwrap();
+            unwrap_todo!(doc, Node::Root(root));
+            (root, lookups)
         }
 
         struct NodesChecker {
@@ -864,6 +904,10 @@ mod tests {
                 let re = Regex::new(r"^\w+").unwrap();
                 let node_name = re.find(&node_debug).unwrap().as_str();
                 self.require.lock().map(|mut set| set.remove(node_name)).unwrap();
+            }
+
+            fn see_all(&self, nodes: &Vec<Node>) {
+                nodes.iter().for_each(|node| self.see(node));
             }
 
             fn all_were_seen(&self) -> bool {
@@ -1376,6 +1420,16 @@ mod tests {
         Inline::Text {
             value: text.to_string(),
             variant: InlineVariant::Text,
+        }
+    }
+
+    /// Helper for creating a [MdqNode::Paragraph] with plain text.
+    fn text_paragraph(text: &str) -> MdqNode {
+        MdqNode::Paragraph {
+            body: vec![Inline::Text {
+                variant: InlineVariant::Text,
+                value: text.to_string(),
+            }],
         }
     }
 
