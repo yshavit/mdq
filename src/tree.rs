@@ -697,6 +697,26 @@ mod tests {
         }
 
         #[test]
+        fn md_break() {
+            let root = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                hello \
+                world
+                "#},
+            );
+            assert_eq!(1, root.children.len());
+            unwrap!(&root.children[0], Node::Paragraph(paragraph));
+
+            assert_eq!(3, paragraph.children.len());
+            mark_checked!(&paragraph.children[0], Node::Text(first_line));
+            assert_eq!(first_line.value, "hello ");
+            mark_checked!(&paragraph.children[1], Node::Break(_));
+            mark_checked!(&paragraph.children[2], Node::Text(second_line));
+            assert_eq!(second_line.value, "world");
+        }
+
+        #[test]
         fn all_variants_tested() {
             let timeout = time::Duration::from_millis(500);
             let retry_delay = time::Duration::from_millis(50);
