@@ -844,6 +844,21 @@ mod tests {
         }
 
         #[test]
+        fn inline_strong() {
+            let (root, lookups) = parse("**strongman**");
+
+            unwrap!(&root.children[0], Node::Paragraph(p));
+            check!(&p.children[0], Node::Strong(_), lookups => MdqNode::Inline(inline) = {
+                assert_eq!(inline, Inline::Span {
+                    variant: SpanVariant::Strong,
+                    children: vec![
+                        Inline::Text { variant: InlineVariant::Text, value: "strongman".to_string()},
+                    ]
+                });
+            });
+        }
+
+        #[test]
         fn image() {
             {
                 let (root, lookups) = parse("![]()");
