@@ -145,6 +145,7 @@ pub enum InlineVariant {
     Text,
     Code,
     Math,
+    Html,
 }
 
 #[derive(Debug, PartialEq)]
@@ -341,13 +342,16 @@ impl MdqNode {
                 variant: CodeVariant::Yaml,
                 value: node.value,
             },
+            Node::Html(node) => MdqNode::Inline(Inline::Text {
+                variant: InlineVariant::Html,
+                value: node.value,
+            }),
 
             Node::MdxJsxFlowElement(_)
             | Node::MdxjsEsm(_)
             | Node::MdxTextExpression(_)
             | Node::MdxJsxTextElement(_)
-            | Node::MdxFlowExpression(_)
-            | Node::Html(_) => return Err(NoNode::Invalid(InvalidMd::Unsupported(node))),
+            | Node::MdxFlowExpression(_) => return Err(NoNode::Invalid(InvalidMd::Unsupported(node))),
         };
         Ok(result)
     }
@@ -867,6 +871,59 @@ mod tests {
                     ]
                 });
             });
+        }
+
+        #[test]
+        fn inline_html() {
+            {
+                let (root, lookups) = parse("<a href>");
+
+                check!(&root.children[0], Node::Html(_), lookups => MdqNode::Inline(inline) = {
+                    assert_eq!(inline, Inline::Text {
+                        variant: InlineVariant::Html,
+                        value: "<a href>".to_string(),
+                    });
+                });
+            }
+            {
+                // Being in a paragraph shows that it can be inline
+                let (root, lookups) = parse(indoc! {r#"
+                In <em>a paragraph.</em>
+                "#});
+                check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{body} = {
+                    assert_eq!(body.len(), 4);
+                    assert_eq!(body, vec![
+                        inline_text("In "),
+                        Inline::Text {
+                            variant: InlineVariant::Html,
+                            value: "<em>".to_string()},
+                        inline_text("a paragraph."),
+                        Inline::Text {
+                            variant: InlineVariant::Html,
+                            value: "</em>".to_string()},
+                    ])
+                });
+            }
+            {
+                // Being in a paragraph shows that it can be inline
+                let (root, lookups) = parse(indoc! {r#"
+                In <em
+                newline  >a paragraph.</em>
+                "#});
+                check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{body} = {
+                    assert_eq!(body.len(), 4);
+                    assert_eq!(body, vec![
+                        inline_text("In "),
+                        Inline::Text {
+                            variant: InlineVariant::Html,
+                            value: "<em\nnewline  >".to_string()},
+                        inline_text("a paragraph."),
+                        Inline::Text {
+                            variant: InlineVariant::Html,
+                            value: "</em>".to_string()},
+                    ])
+                });
+            }
         }
 
         #[test]
