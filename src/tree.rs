@@ -1193,6 +1193,38 @@ mod tests {
         }
 
         #[test]
+        fn math_block() {
+            let mut opts = ParseOptions::gfm();
+            opts.constructs.math_flow = true;
+            {
+                let (root, lookups) = parse_with(
+                    &opts,
+                    indoc! {r#"
+                $$
+                x = {-b \pm \sqrt{b^2-4ac} \over 2a}
+                $$"#},
+                );
+                check!(&root.children[0], Node::Math(_), lookups => MdqNode::CodeBlock{variant, value} = {
+                    assert_eq!(variant, CodeVariant::Math{metadata: None});
+                    assert_eq!(value, r#"x = {-b \pm \sqrt{b^2-4ac} \over 2a}"#);
+                })
+            }
+            {
+                let (root, lookups) = parse_with(
+                    &opts,
+                    indoc! {r#"
+                $$ my metadata
+                x = {-b \pm \sqrt{b^2-4ac} \over 2a}
+                $$"#},
+                );
+                check!(&root.children[0], Node::Math(_), lookups => MdqNode::CodeBlock{variant, value} = {
+                    assert_eq!(variant, CodeVariant::Math{metadata: Some("my metadata".to_string())});
+                    assert_eq!(value, r#"x = {-b \pm \sqrt{b^2-4ac} \over 2a}"#);
+                })
+            }
+        }
+
+        #[test]
         fn header_and_root() {
             let (root, lookups) = parse_with(
                 &ParseOptions::gfm(),
