@@ -929,6 +929,29 @@ mod tests {
             }
         }
 
+        #[test]
+        fn link() {
+            // just a smoke test, since this is basically the same logic as image
+            let (root, lookups) = parse("[hello _world_](https://example.com)");
+            unwrap!(&root.children[0], Node::Paragraph(p));
+            check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(link) = {
+                assert_eq!(link, Inline::Link {
+                    text: vec![
+                        inline_text("hello "),
+                        Inline::Span {
+                            variant: SpanVariant::Emphasis,
+                            children: vec![inline_text("world")],
+                        }
+                    ],
+                    link: Link{
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline,
+                    },
+                })
+            });
+        }
+
         /// Basically the same as [link_ref], but with an exclamation point
         #[test]
         fn image_ref() {
