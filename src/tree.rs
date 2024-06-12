@@ -783,7 +783,10 @@ mod tests {
                 "#},
             );
 
-            check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{body} = {
+            check!(&root.children[0], Node::Paragraph(p), lookups => MdqNode::Paragraph{body} = {
+                check!(&p.children[1], Node::Break(_), lookups => MdqNode::Inline(text) = {
+                    assert_eq!(text, Inline::Text {variant: InlineVariant::Text,value: "\n".to_string()});
+                });
                 assert_eq!(body, vec![
                     // note: just a single child, which has a two-line string
                     Inline::Text {variant: InlineVariant::Text, value: "hello \nworld".to_string()},
