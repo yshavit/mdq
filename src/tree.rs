@@ -613,14 +613,14 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
+        use std::{thread, time};
         use std::collections::HashSet;
         use std::sync::{Arc, Mutex};
-        use std::{thread, time};
 
         use indoc::indoc;
         use lazy_static::lazy_static;
-        use markdown::mdast::Node;
         use markdown::{mdast, ParseOptions};
+        use markdown::mdast::Node;
         use regex::Regex;
 
         use super::*;
@@ -910,6 +910,7 @@ mod tests {
             }
         }
 
+        /// Basically the same as [link_ref], but with an exclamation point
         #[test]
         fn image_ref() {
             {
@@ -992,7 +993,100 @@ mod tests {
             }
         }
 
-        #[ignore] // TODO un-ignore
+        /// Basically the same as [image_ref] but without the exclamation point.
+        #[test]
+        fn link_ref() {
+            {
+                let (root, lookups) = parse(indoc! {r#"
+                    [][1]
+
+                    [1]: https://example.com/image.png"#});
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
+                    assert_eq!(link, Inline::Link {
+                        text: vec![],
+                        link: Link {
+                            url: "https://example.com/image.png".to_string(),
+                            title: None,
+                            reference: LinkReference::Full("1".to_string()),
+                        }
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+            {
+                let (root, lookups) = parse(indoc! {r#"
+                    [][1]
+
+                    [1]: https://example.com/image.png "my title""#});
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
+                    assert_eq!(link, Inline::Link {
+                        text: vec![],
+                        link: Link {
+                            url: "https://example.com/image.png".to_string(),
+                            title: Some("my title".to_string()),
+                            reference: LinkReference::Full("1".to_string()),
+                        }
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+            {
+                let (root, lookups) = parse_with(
+                    &ParseOptions::gfm(),
+                    indoc! {r#"
+                    [_my_ text][]
+
+                    [_my_ text]: https://example.com/image.png "my title""#},
+                );
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
+                    assert_eq!(link, Inline::Link {
+                        text: vec![
+                            Inline::Span{
+                                variant: SpanVariant::Emphasis,
+                                children: vec![
+                                    Inline::Text {variant: InlineVariant::Text,value: "my".to_string()}
+                                ],
+                            },
+                            Inline::Text {variant: InlineVariant::Text,value: " text".to_string()}
+
+                        ],
+                        link: Link {
+                            url: "https://example.com/image.png".to_string(),
+                            title: Some("my title".to_string()),
+                            reference: LinkReference::Collapsed,
+                        }
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+            {
+                let (root, lookups) = parse_with(
+                    &ParseOptions::gfm(),
+                    indoc! {r#"
+                    [my text]
+
+                    [my text]: https://example.com/image.png"#},
+                );
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
+                    assert_eq!(link, Inline::Link {
+                        text: vec![
+                            Inline::Text {variant: InlineVariant::Text,value: "my text".to_string()},
+                        ],
+                        link: Link {
+                            url: "https://example.com/image.png".to_string(),
+                            title: None,
+                            reference: LinkReference::Shortcut,
+                        }
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+        }
+
         #[test]
         fn all_variants_tested() {
             let timeout = time::Duration::from_millis(500);
