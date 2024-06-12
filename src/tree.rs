@@ -1129,6 +1129,7 @@ mod tests {
 
         fn parse_with(opts: &ParseOptions, md: &str) -> (mdast::Root, Lookups) {
             let doc = markdown::to_mdast(md, opts).unwrap();
+            NODES_CHECKER.see(&doc);
             let lookups = Lookups::new(&doc, &ReadOptions::default()).unwrap();
             unwrap!(doc, Node::Root(root));
             (root, lookups)
