@@ -236,6 +236,7 @@ where
                 InlineVariant::Text => "",
                 InlineVariant::Code => "`",
                 InlineVariant::Math => "$",
+                InlineVariant::Html => "",
             };
             out.write_str(surround);
             out.write_str(value);
