@@ -1200,9 +1200,9 @@ mod tests {
                 let (root, lookups) = parse_with(
                     &opts,
                     indoc! {r#"
-                $$
-                x = {-b \pm \sqrt{b^2-4ac} \over 2a}
-                $$"#},
+                    $$
+                    x = {-b \pm \sqrt{b^2-4ac} \over 2a}
+                    $$"#},
                 );
                 check!(&root.children[0], Node::Math(_), lookups => MdqNode::CodeBlock{variant, value} = {
                     assert_eq!(variant, CodeVariant::Math{metadata: None});
@@ -1213,15 +1213,49 @@ mod tests {
                 let (root, lookups) = parse_with(
                     &opts,
                     indoc! {r#"
-                $$ my metadata
-                x = {-b \pm \sqrt{b^2-4ac} \over 2a}
-                $$"#},
+                    $$ my metadata
+                    x = {-b \pm \sqrt{b^2-4ac} \over 2a}
+                    $$"#},
                 );
                 check!(&root.children[0], Node::Math(_), lookups => MdqNode::CodeBlock{variant, value} = {
                     assert_eq!(variant, CodeVariant::Math{metadata: Some("my metadata".to_string())});
                     assert_eq!(value, r#"x = {-b \pm \sqrt{b^2-4ac} \over 2a}"#);
                 })
             }
+        }
+
+        #[test]
+        fn toml_block() {
+            let mut opts = ParseOptions::default();
+            opts.constructs.frontmatter = true;
+            let (root, lookups) = parse_with(
+                &opts,
+                indoc! {r#"
+                +++
+                my: toml
+                +++"#},
+            );
+            check!(&root.children[0], Node::Toml(_), lookups => MdqNode::CodeBlock{variant, value} = {
+                assert_eq!(variant, CodeVariant::Toml);
+                assert_eq!(value, r#"my: toml"#);
+            })
+        }
+
+        #[test]
+        fn yaml_block() {
+            let mut opts = ParseOptions::default();
+            opts.constructs.frontmatter = true;
+            let (root, lookups) = parse_with(
+                &opts,
+                indoc! {r#"
+                ---
+                my: toml
+                ---"#},
+            );
+            check!(&root.children[0], Node::Yaml(_), lookups => MdqNode::CodeBlock{variant, value} = {
+                assert_eq!(variant, CodeVariant::Yaml);
+                assert_eq!(value, r#"my: toml"#);
+            })
         }
 
         #[test]
