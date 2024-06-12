@@ -6,7 +6,7 @@ use std::io::Write;
 use crate::fmt_str::{pad_to, standard_align};
 use crate::output::Block::Inlined;
 use crate::output::{Block, Output};
-use crate::tree::{CodeVariant, Inline, InlineVariant, MdqNode, SpanVariant};
+use crate::tree::{CodeVariant, Inline, InlineVariant, Link, LinkReference, MdqNode, SpanVariant};
 
 pub fn write_md<N, W>(out: &mut Output<W>, nodes: &[N])
 where
@@ -241,31 +241,56 @@ where
             out.write_str(value);
             out.write_str(surround);
         }
-        Inline::Link { url, text, title, .. } => {
-            out.write_char('[');
-            write_line(out, text);
-            out.write_str("](");
-            out.write_str(url);
-            if let Some(title) = title {
-                out.write_str(" \"");
-                escape_title_to(out, title);
-                out.write_char('"');
-            }
-            out.write_char(')');
-            // TODO reference-style (non-inline) images
+        Inline::Link { text, link } => {
+            write_link_inline(out, link, |out| write_line(out, text));
         }
-        Inline::Image { url, alt, title, .. } => {
-            out.write_str("![");
-            out.write_str(alt);
-            out.write_str("](");
-            out.write_str(url);
-            if let Some(title) = title {
+        Inline::Image { alt, link } => {
+            out.write_char('!');
+            write_link_inline(out, link, |out| out.write_str(alt));
+        }
+    }
+}
+
+/// Writes the inline portion of the link, which may be the full link if it was originally inlined.
+///
+/// Examples:
+///
+/// ```
+/// [an inline link](https://example.com)
+/// [a referenced link][1]
+/// ```
+///
+/// The `contents` function is what writes e.g. `an inline link` above. It's a function because it may be a recursive
+/// call into [write_line] (for links) or just simple text (for image alts).
+fn write_link_inline<W, F>(out: &mut Output<W>, link: &Link, contents: F)
+where
+    W: Write,
+    F: FnOnce(&mut Output<W>),
+{
+    out.write_str("![");
+    contents(out);
+    out.write_char(']');
+    match &link.reference {
+        LinkReference::Inline => {
+            out.write_char('(');
+            out.write_str(&link.url);
+            if let Some(title) = &link.title {
                 out.write_str(" \"");
                 escape_title_to(out, title);
                 out.write_char('"');
             }
             out.write_char(')');
-            // TODO reference-style (non-inline) images
+        }
+        LinkReference::Full(identifier) => {
+            out.write_char('[');
+            out.write_str(identifier);
+            out.write_char(']');
+        }
+        LinkReference::Collapsed => {
+            out.write_str("[]");
+        }
+        LinkReference::Shortcut => {
+            // nothing
         }
     }
 }

@@ -108,21 +108,23 @@ pub enum Inline {
         value: String,
     },
     Link {
-        url: String, // TODO should I combine {url, title, reference} from here and Image into one struct? Or even have a single Inline variant, with a sub-enum for Link vs Image?
         text: Vec<Inline>,
-
-        /// If you have `[1]: https://example.com "my title"`, this is the "my title".
-        ///
-        /// See: https://github.github.com/gfm/#link-reference-definitions
-        title: Option<String>,
-        reference: LinkReference,
+        link: Link,
     },
     Image {
-        url: String,
         alt: String,
-        title: Option<String>,
-        reference: LinkReference,
+        link: Link,
     },
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Link {
+    pub url: String,
+    /// If you have `[1]: https://example.com "my title"`, this is the "my title".
+    ///
+    /// See: https://github.github.com/gfm/#link-reference-definitions
+    pub title: Option<String>,
+    pub reference: LinkReference,
 }
 
 #[derive(Debug, PartialEq)]
@@ -162,6 +164,7 @@ pub struct CodeOpts {
     pub metadata: Option<String>,
 }
 
+#[derive(Debug, PartialEq)]
 enum NoNode {
     Skipped,
     Invalid(InvalidMd),
@@ -238,47 +241,29 @@ impl MdqNode {
                 children: MdqNode::inlines(node.children, lookups)?,
             }),
             Node::Image(node) => MdqNode::Inline(Inline::Image {
-                url: node.url,
                 alt: node.alt,
-                title: node.title,
-                reference: LinkReference::Inline,
+                link: Link {
+                    url: node.url,
+                    title: node.title,
+                    reference: LinkReference::Inline,
+                },
             }),
-            Node::ImageReference(_) => {
-                return Err(NoNode::Skipped);
-            }
+            Node::ImageReference(node) => MdqNode::Inline(Inline::Image {
+                alt: node.alt,
+                link: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
+            }),
             Node::Link(node) => MdqNode::Inline(Inline::Link {
-                url: node.url,
                 text: MdqNode::inlines(node.children, lookups)?,
-                title: node.title,
-                reference: LinkReference::Inline,
+                link: Link {
+                    url: node.url,
+                    title: node.title,
+                    reference: LinkReference::Inline,
+                },
             }),
-            Node::LinkReference(node) => {
-                if let Some(node_label) = node.label {
-                    if node_label != node.identifier {
-                        todo!("What is this case?");
-                    }
-                }
-
-                let Some(definition) = lookups.link_definitions.get(&node.identifier) else {
-                    return Err(NoNode::Invalid(InvalidMd::MissingReferenceDefinition(node.identifier)));
-                };
-                if let Some(definition_label) = &definition.label {
-                    if definition_label != &node.identifier {
-                        todo!("What is this case?");
-                    }
-                }
-                let link_ref = match node.reference_kind {
-                    ReferenceKind::Shortcut => LinkReference::Shortcut,
-                    ReferenceKind::Collapsed => LinkReference::Collapsed,
-                    ReferenceKind::Full => LinkReference::Full(node.identifier),
-                };
-                MdqNode::Inline(Inline::Link {
-                    url: definition.url.to_owned(),
-                    text: MdqNode::inlines(node.children, lookups)?,
-                    title: definition.title.to_owned(),
-                    reference: link_ref,
-                })
-            }
+            Node::LinkReference(node) => MdqNode::Inline(Inline::Link {
+                text: MdqNode::inlines(node.children, lookups)?,
+                link: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
+            }),
             Node::FootnoteReference(_) => {
                 todo!()
             }
@@ -473,7 +458,23 @@ impl MdqNode {
             let MdqNode::Inline(inline) = child else {
                 return Err(InvalidMd::NonInlineWhereInlineExpected);
             };
-            result.push(inline);
+            // If both this and the previous were plain text, then just combine the texts. This can happen if there was
+            // a Node::Break between them.
+            if let (
+                Some(Inline::Text {
+                    variant: InlineVariant::Text,
+                    value: prev_text,
+                }),
+                Inline::Text {
+                    variant: InlineVariant::Text,
+                    value: new_text,
+                },
+            ) = (result.last_mut(), &inline)
+            {
+                prev_text.push_str(new_text)
+            } else {
+                result.push(inline);
+            }
         }
         Ok(result)
     }
@@ -531,6 +532,34 @@ impl Lookups {
         Ok(result)
     }
 
+    fn resolve_link(
+        &self,
+        identifier: String,
+        label: Option<String>,
+        reference_kind: ReferenceKind,
+    ) -> Result<Link, NoNode> {
+        if let None = label {
+            todo!("What is this case???");
+        }
+        let Some(definition) = self.link_definitions.get(&identifier) else {
+            let human_visible_identifier = label.unwrap_or(identifier);
+            return Err(NoNode::Invalid(InvalidMd::MissingReferenceDefinition(
+                human_visible_identifier,
+            )));
+        };
+        let human_visible_identifier = label.unwrap_or(identifier);
+        let link_ref = match reference_kind {
+            ReferenceKind::Shortcut => LinkReference::Shortcut,
+            ReferenceKind::Collapsed => LinkReference::Collapsed,
+            ReferenceKind::Full => LinkReference::Full(human_visible_identifier),
+        };
+        Ok(Link {
+            url: definition.url.to_owned(),
+            title: definition.title.to_owned(),
+            reference: link_ref,
+        })
+    }
+
     fn build_lookups(&mut self, node: &Node, read_opts: &ReadOptions) -> Result<(), InvalidMd> {
         let x = format!("{:?}", node);
         let _ = x;
@@ -577,6 +606,511 @@ impl Lookups {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    ///  tests of each mdast node type
+    ///
+    /// The purpose of these is not to test the parser (I trust mdast), but to test my understanding of how it works.
+    ///
+    /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
+    mod all_nodes {
+        use std::collections::HashSet;
+        use std::sync::{Arc, Mutex};
+        use std::{thread, time};
+
+        use indoc::indoc;
+        use lazy_static::lazy_static;
+        use markdown::mdast::Node;
+        use markdown::{mdast, ParseOptions};
+        use regex::Regex;
+
+        use super::*;
+
+        /// Turn a pattern match into an `if let ... { else panic! }`.
+        macro_rules! unwrap {
+            // TODO intellij errors if these are in the other order. file a ticket.
+            ($enum_value:expr, $enum_variant:pat) => {
+                let node = $enum_value;
+                let node_debug = format!("{:?}", node);
+                let $enum_variant = node else {
+                    panic!("Expected {} but saw {}", stringify!($enum_variant), node_debug);
+                };
+            };
+        }
+
+        macro_rules! check {
+            (no_node: $enum_value:expr, $enum_variant:pat, $lookups:expr => $no_node:expr ) => {{
+                let node = $enum_value;
+                NODES_CHECKER.see(&node);
+                unwrap!(node, $enum_variant);
+                let node_clone = node.clone();
+                let mdq_err = MdqNode::from_mdast_0(node_clone, &$lookups).err().expect("expected no MdqNode");
+                assert_eq!(mdq_err, $no_node);
+            }};
+
+            ( $enum_value:expr, $enum_variant:pat, $lookups:expr => $mdq_pat:pat = $mdq_body:block ) => {{
+                let node = $enum_value;
+                NODES_CHECKER.see(&node);
+                unwrap!(node, $enum_variant);
+                let node_clone = node.clone();
+                let mdq = MdqNode::from_mdast_0(node_clone, &$lookups).unwrap();
+                if let $mdq_pat = mdq $mdq_body else {
+                    panic!("TODO need better error message")
+                }
+            }};
+        }
+
+        /// Creates a matcher against [Node] with the given variants, and returns the variant names as a collection.
+        ///
+        /// If you see a compilation failure here, it means the call site is missing variants (or has an unknown
+        /// variant).
+        ///
+        /// This macro assumes that each variant can match a pattern `Node::TheVariant(_)`.
+        macro_rules! nodes_matcher {
+            [$($variant:ident),* $(,)?] => {
+                {
+                    None.map(|n: Node| match n {
+                        $(
+                        Node::$variant(_) => {}
+                        )*
+                    });
+                    vec![$(stringify!($variant).to_string(),)*].into_iter().collect()
+                }
+            };
+        }
+
+        #[test]
+        fn root() {
+            let (root, _) = parse("hello");
+            assert_eq!(root.children.len(), 1);
+        }
+
+        #[test]
+        fn block_quote() {
+            let (root, lookups) = parse("> hello");
+            let child = &root.children[0];
+            check!(child, Node::BlockQuote(_), lookups => MdqNode::BlockQuote { body } = {
+                assert_eq!(&body, &vec![text_paragraph("hello")]);
+            });
+        }
+
+        #[ignore] // TODO un-ignore
+        #[test]
+        fn footnote() {
+            let (root, lookups) = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                foo [^a]
+
+                [^a]: My _footnote_
+                  with two lines."#},
+            );
+            check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{ body }  = {
+                assert_eq!(format!("{:?}", body), "TOOD")
+            });
+            check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
+        }
+
+        #[test]
+        fn lists_and_items() {
+            let (root, lookups) = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                - First
+                - [ ] Second
+                - [x] Third
+                      With a line break
+                4. Fourth
+                5. [ ] Fifth
+                6. [x] Sixth
+
+                   With a paragraph
+                "#},
+            );
+            assert_eq!(root.children.len(), 2); // unordered list, then ordered
+
+            check!(&root.children[0], Node::List(ul), lookups => MdqNode::List{starting_index, items} = {
+                for child in &ul.children {
+                    check!(no_node: child, Node::ListItem(_), lookups => NoNode::Invalid(InvalidMd::InternalError));
+                }
+                assert_eq!(starting_index, None);
+                assert_eq!(items, vec![
+                    ListItem {
+                        checked: None,
+                        item: vec![text_paragraph("First")],
+                    },
+                    ListItem {
+                        checked: Some(false),
+                        item: vec![text_paragraph("Second")],
+                    },
+                    ListItem {
+                        checked: Some(true),
+                        item: vec![text_paragraph("Third\nWith a line break")],
+                    },
+                ]);
+            });
+            check!(&root.children[1], Node::List(ol), lookups => MdqNode::List{starting_index, items} = {
+                for child in &ol.children {
+                    check!(no_node: child, Node::ListItem(_), lookups => NoNode::Invalid(InvalidMd::InternalError));
+                }
+                assert_eq!(starting_index, Some(4));
+                assert_eq!(items, vec![
+                    ListItem {
+                        checked: None,
+                        item: vec![text_paragraph("Fourth")],
+                    },
+                    ListItem {
+                        checked: Some(false),
+                        item: vec![text_paragraph("Fifth")],
+                    },
+                    ListItem {
+                        checked: Some(true),
+                        item: vec![
+                            text_paragraph("Sixth"),
+                            text_paragraph("With a paragraph"),
+                        ],
+                    },
+                ]);
+            });
+        }
+
+        #[test]
+        fn md_break() {
+            let (root, lookups) = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                hello \
+                world
+                "#},
+            );
+
+            check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{body} = {
+                assert_eq!(body, vec![
+                    // note: just a single child, which has a two-line string
+                    Inline::Text {variant: InlineVariant::Text, value: "hello \nworld".to_string()},
+                ])
+            });
+        }
+
+        #[test]
+        fn inline_code() {
+            let (root, lookups) = parse("`foo`");
+
+            unwrap!(&root.children[0], Node::Paragraph(p));
+            check!(&p.children[0], Node::InlineCode(_), lookups => MdqNode::Inline(inline) = {
+                assert_eq!(inline, Inline::Text { variant: InlineVariant::Code, value: "foo".to_string() });
+            });
+        }
+
+        #[test]
+        fn inline_math() {
+            let mut opts = ParseOptions::gfm();
+            opts.constructs.math_text = true;
+            let (root, lookups) = parse_with(&opts, r#"$ 0 \ne 1 $"#);
+
+            unwrap!(&root.children[0], Node::Paragraph(p));
+            check!(&p.children[0], Node::InlineMath(_), lookups => MdqNode::Inline(inline) = {
+                assert_eq!(inline, Inline::Text { variant: InlineVariant::Math, value: r#" 0 \ne 1 "#.to_string() });
+            });
+        }
+
+        #[test]
+        fn inline_delete() {
+            let (root, lookups) = parse_with(&ParseOptions::gfm(), "~~86 me~~");
+
+            unwrap!(&root.children[0], Node::Paragraph(p));
+            check!(&p.children[0], Node::Delete(_), lookups => MdqNode::Inline(inline) = {
+                assert_eq!(inline, Inline::Span {
+                    variant: SpanVariant::Delete,
+                    children: vec![
+                        Inline::Text { variant: InlineVariant::Text, value: "86 me".to_string()},
+                    ]
+                });
+            });
+        }
+
+        #[test]
+        fn inline_emphasis() {
+            let (root, lookups) = parse("_86 me_");
+
+            unwrap!(&root.children[0], Node::Paragraph(p));
+            check!(&p.children[0], Node::Emphasis(_), lookups => MdqNode::Inline(inline) = {
+                assert_eq!(inline, Inline::Span {
+                    variant: SpanVariant::Emphasis,
+                    children: vec![
+                        Inline::Text { variant: InlineVariant::Text, value: "86 me".to_string()},
+                    ]
+                });
+            });
+        }
+
+        #[test]
+        fn image() {
+            {
+                let (root, lookups) = parse("![]()");
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        alt: "".to_string(),
+                        link: Link{
+                            url: "".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    })
+                });
+            }
+            {
+                let (root, lookups) = parse("![](https://example.com/foo.png)");
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        alt: "".to_string(),
+                        link: Link{
+                            url: "https://example.com/foo.png".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    })
+                });
+            }
+            {
+                let (root, lookups) = parse("![alt text]()");
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        alt: "alt text".to_string(),
+                        link: Link{
+                            url: "".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    })
+                });
+            }
+            {
+                let (root, lookups) = parse(r#"![](https://example.com/foo.png "my tooltip")"#);
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        alt: "".to_string(),
+                        link: Link{
+                            url: "https://example.com/foo.png".to_string(),
+                            title: Some("my tooltip".to_string()),
+                            reference: LinkReference::Inline,
+                        },
+                    })
+                });
+            }
+            {
+                // This isn't an image, though it almost looks like one
+                let (root, lookups) = parse(r#"![]("only a tooltip")"#);
+                check!(&root.children[0], Node::Paragraph(_), lookups => p @ MdqNode::Paragraph{ .. } = {
+                    assert_eq!(p, text_paragraph(r#"![]("only a tooltip")"#));
+                });
+            }
+        }
+
+        #[test]
+        fn image_ref() {
+            {
+                let (root, lookups) = parse(indoc! {r#"
+                    ![][1]
+
+                    [1]: https://example.com/image.png"#});
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::ImageReference(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        alt: "".to_string(),
+                        link: Link {
+                            url: "https://example.com/image.png".to_string(),
+                            title: None,
+                            reference: LinkReference::Full("1".to_string()),
+                        }
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+            {
+                let (root, lookups) = parse(indoc! {r#"
+                    ![][1]
+
+                    [1]: https://example.com/image.png "my title""#});
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::ImageReference(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        alt: "".to_string(),
+                        link: Link {
+                            url: "https://example.com/image.png".to_string(),
+                            title: Some("my title".to_string()),
+                            reference: LinkReference::Full("1".to_string()),
+                        }
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+            {
+                let (root, lookups) = parse_with(
+                    &ParseOptions::gfm(),
+                    indoc! {r#"
+                    ![my alt][]
+
+                    [my alt]: https://example.com/image.png "my title""#},
+                );
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::ImageReference(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        alt: "my alt".to_string(),
+                        link: Link {
+                            url: "https://example.com/image.png".to_string(),
+                            title: Some("my title".to_string()),
+                            reference: LinkReference::Collapsed,
+                        }
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+            {
+                let (root, lookups) = parse_with(
+                    &ParseOptions::gfm(),
+                    indoc! {r#"
+                    ![my alt]
+
+                    [my alt]: https://example.com/image.png"#},
+                );
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::ImageReference(_), lookups => MdqNode::Inline(img) = {
+                    assert_eq!(img, Inline::Image {
+                        alt: "my alt".to_string(),
+                        link: Link {
+                            url: "https://example.com/image.png".to_string(),
+                            title: None,
+                            reference: LinkReference::Shortcut,
+                        }
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+        }
+
+        #[ignore] // TODO un-ignore
+        #[test]
+        fn all_variants_tested() {
+            let timeout = time::Duration::from_millis(500);
+            let retry_delay = time::Duration::from_millis(50);
+            let start = time::Instant::now();
+            loop {
+                if NODES_CHECKER.all_were_seen() {
+                    break;
+                }
+                if start.elapsed() >= timeout {
+                    let remaining = NODES_CHECKER.remaining_as_copy();
+                    panic!(
+                        "Timed out, and missing {} variants:\n- {}",
+                        remaining.len(),
+                        remaining.join("\n- ")
+                    )
+                }
+                thread::sleep(retry_delay);
+            }
+        }
+
+        fn parse(md: &str) -> (mdast::Root, Lookups) {
+            parse_with(&ParseOptions::default(), md)
+        }
+
+        fn parse_with(opts: &ParseOptions, md: &str) -> (mdast::Root, Lookups) {
+            let doc = markdown::to_mdast(md, opts).unwrap();
+            let lookups = Lookups::new(&doc, &ReadOptions::default()).unwrap();
+            unwrap!(doc, Node::Root(root));
+            (root, lookups)
+        }
+
+        struct NodesChecker {
+            require: Arc<Mutex<HashSet<String>>>,
+        }
+
+        lazy_static! {
+            static ref NODES_CHECKER: NodesChecker = NodesChecker::new();
+        }
+
+        impl NodesChecker {
+            fn new() -> Self {
+                Self {
+                    require: Self::count_node_enums(),
+                }
+            }
+
+            fn see(&self, node: &Node) {
+                let node_debug = format!("{:?}", node);
+                let re = Regex::new(r"^\w+").unwrap();
+                let node_name = re.find(&node_debug).unwrap().as_str();
+                self.require.lock().map(|mut set| set.remove(node_name)).unwrap();
+            }
+
+            fn all_were_seen(&self) -> bool {
+                self.require.lock().map(|set| set.is_empty()).unwrap()
+            }
+
+            fn remaining_as_copy(&self) -> Vec<String> {
+                let mut result: Vec<String> = self
+                    .require
+                    .lock()
+                    .map(|set| set.iter().map(|s| s.to_owned()).collect())
+                    .unwrap();
+                result.sort();
+                result
+            }
+
+            /// Returns how many variants of [Node] there are.
+            ///
+            /// We can't use strum to do this, because we don't own the Node code. Instead, we rely on a bit of
+            /// trickery. First, we create a `match` over all the variants, making sure each one is on its own line.
+            /// Then, we use [line!] to get the line counts right before and after that `match`, and do some basic
+            /// arithmetic to figure out how many variants there are.
+            ///
+            /// This isn't 100% fool-proof (it requires manually ensuring that each variant is on its own line, though
+            /// `cargo fmt` helps with that), but it should be good enough in practice.
+            fn count_node_enums() -> Arc<Mutex<HashSet<String>>> {
+                let all_node_names = nodes_matcher![
+                    Root,
+                    BlockQuote,
+                    FootnoteDefinition,
+                    MdxJsxFlowElement,
+                    List,
+                    MdxjsEsm,
+                    Toml,
+                    Yaml,
+                    Break,
+                    InlineCode,
+                    InlineMath,
+                    Delete,
+                    Emphasis,
+                    MdxTextExpression,
+                    FootnoteReference,
+                    Html,
+                    Image,
+                    ImageReference,
+                    MdxJsxTextElement,
+                    Link,
+                    LinkReference,
+                    Strong,
+                    Text,
+                    Code,
+                    Math,
+                    MdxFlowExpression,
+                    Heading,
+                    Table,
+                    ThematicBreak,
+                    TableRow,
+                    TableCell,
+                    ListItem,
+                    Definition,
+                    Paragraph,
+                ];
+                Arc::new(Mutex::new(all_node_names))
+            }
+        }
+    }
 
     mod lookups {
         use indoc::indoc;
@@ -630,7 +1164,7 @@ mod tests {
                         .footnote_definitions
                         .get("1")
                         .map(|d| simple_to_string(&d.children)),
-                    Some("https://example.com What?!".to_string())
+                    Some("<p>https://example.com <em>What?!</em></p>".to_string())
                 )
             });
         }
@@ -1026,16 +1560,34 @@ mod tests {
         }
     }
 
+    /// Helper for creating a [MdqNode::Paragraph] with plain text.
+    fn text_paragraph(text: &str) -> MdqNode {
+        MdqNode::Paragraph {
+            body: vec![Inline::Text {
+                variant: InlineVariant::Text,
+                value: text.to_string(),
+            }],
+        }
+    }
+
     /// A simple representation of some nodes. Very non-exhaustive, just for testing.
     fn simple_to_string(nodes: &Vec<Node>) -> String {
         fn build(out: &mut String, node: &Node) {
-            match node {
-                Node::Text(text_node) => out.push_str(&text_node.value),
-                _ => {
-                    if let Some(children) = node.children() {
-                        children.iter().for_each(|c| build(out, c))
-                    }
-                }
+            let (tag, text) = match node {
+                Node::Text(text_node) => ("", text_node.value.as_str()),
+                Node::Emphasis(_) => ("em", ""),
+                Node::Paragraph(_) => ("p", ""),
+                _ => ("", ""),
+            };
+            if !tag.is_empty() {
+                out.push_str(&format!("<{}>", tag))
+            }
+            out.push_str(text);
+            if let Some(children) = node.children() {
+                children.iter().for_each(|c| build(out, c));
+            }
+            if !tag.is_empty() {
+                out.push_str(&format!("</{}>", tag))
             }
         }
         let mut s = String::with_capacity(32);
