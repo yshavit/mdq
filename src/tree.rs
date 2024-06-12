@@ -613,14 +613,14 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
-        use std::{thread, time};
         use std::collections::HashSet;
         use std::sync::{Arc, Mutex};
+        use std::{thread, time};
 
         use indoc::indoc;
         use lazy_static::lazy_static;
-        use markdown::{mdast, ParseOptions};
         use markdown::mdast::Node;
+        use markdown::{mdast, ParseOptions};
         use regex::Regex;
 
         use super::*;
@@ -654,7 +654,7 @@ mod tests {
                 let node_clone = node.clone();
                 let mdq = MdqNode::from_mdast_0(node_clone, &$lookups).unwrap();
                 if let $mdq_pat = mdq $mdq_body else {
-                    panic!("TODO need better error message")
+                    panic!("expected {} but saw {:?}", stringify!($mdq_pat), &mdq)
                 }
             }};
         }
@@ -1169,6 +1169,45 @@ mod tests {
         }
 
         #[test]
+        fn header_and_root() {
+            let (root, lookups) = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                    ## Header with _emphasis_
+                    And some text below it."#},
+            );
+
+            let (header_depth, header_title) = check!(&root.children[0], Node::Heading(_), lookups => MdqNode::Header{depth, title, body} = {
+                assert_eq!(depth, 2);
+                assert_eq!(title, vec![
+                    Inline::Text { variant: InlineVariant::Text, value: "Header with ".to_string()},
+                    Inline::Span {
+                        variant: SpanVariant::Emphasis,
+                        children: vec![
+                            Inline::Text { variant: InlineVariant::Text, value: "emphasis".to_string()},
+                        ]
+                    }
+                ]);
+                assert_eq!(body, vec![
+                    // This code path doesn't do recursion; that's done in all_from_iter, which happens at the root
+                ]);
+                (depth, title)
+            });
+
+            check!(&Node::Root(root), Node::Root(_), lookups => MdqNode::Root{body} = {
+                assert_eq!(body, vec![
+                    MdqNode::Header{
+                        depth: header_depth,
+                        title: header_title,
+                        body: vec![
+                            text_paragraph("And some text below it.")
+                        ]
+                    },
+                ])
+            });
+        }
+
+        #[test]
         fn all_variants_tested() {
             let timeout = time::Duration::from_millis(500);
             let retry_delay = time::Duration::from_millis(50);
@@ -1195,7 +1234,6 @@ mod tests {
 
         fn parse_with(opts: &ParseOptions, md: &str) -> (mdast::Root, Lookups) {
             let doc = markdown::to_mdast(md, opts).unwrap();
-            NODES_CHECKER.see(&doc);
             let lookups = Lookups::new(&doc, &ReadOptions::default()).unwrap();
             unwrap!(doc, Node::Root(root));
             (root, lookups)
