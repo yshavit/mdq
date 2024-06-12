@@ -1106,6 +1106,69 @@ mod tests {
         }
 
         #[test]
+        fn code_block() {
+            {
+                let (root, lookups) = parse_with(
+                    &ParseOptions::gfm(),
+                    indoc! {r#"
+                    ```
+                    plain code block
+                    ```"#},
+                );
+                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock{variant, value} = {
+                    assert_eq!(variant, CodeVariant::Code(None));
+                    assert_eq!(value, "plain code block");
+                })
+            }
+            {
+                let (root, lookups) = parse_with(
+                    &ParseOptions::gfm(),
+                    indoc! {r#"
+                    ```rust
+                    code block with language
+                    ```"#},
+                );
+                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock{variant, value} = {
+                    assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
+                        language: "rust".to_string(),
+                        metadata: None})));
+                    assert_eq!(value, "code block with language");
+                })
+            }
+            {
+                let (root, lookups) = parse_with(
+                    &ParseOptions::gfm(),
+                    indoc! {r#"
+                    ```rust title="example.rs"
+                    code block with language and title
+                    ```"#},
+                );
+                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock{variant, value} = {
+                    assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
+                        language: "rust".to_string(),
+                        metadata: Some(r#"title="example.rs""#.to_string())})));
+                    assert_eq!(value, "code block with language and title");
+                })
+            }
+            {
+                let (root, lookups) = parse_with(
+                    &ParseOptions::gfm(),
+                    indoc! {r#"
+                    ``` title="example.rs"
+                    code block with only title
+                    ```"#},
+                );
+                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock{variant, value} = {
+                    // It's actually just a bogus language!
+                    assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
+                        language: r#"title="example.rs""#.to_string(),
+                        metadata: None})));
+                    assert_eq!(value, "code block with only title");
+                })
+            }
+        }
+
+        #[test]
         fn all_variants_tested() {
             let timeout = time::Duration::from_millis(500);
             let retry_delay = time::Duration::from_millis(50);
