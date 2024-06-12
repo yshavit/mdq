@@ -1305,6 +1305,25 @@ mod tests {
         }
 
         #[test]
+        fn thematic_break() {
+            let (root, lookups) = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                    Before
+
+                    ---
+
+                    After
+                    "#},
+            );
+
+            assert_eq!(root.children.len(), 3);
+            check!(&root.children[1], Node::ThematicBreak(_), lookups => MdqNode::ThematicBreak = {
+                // nothing to check
+            });
+        }
+
+        #[test]
         fn table() {
             // Note that the text in the markdown is contrary to what the headings indicate. For example, the left
             // column is aligned right in the markdown, but the separator (`:---`) means it should be left.
