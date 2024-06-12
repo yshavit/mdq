@@ -34,7 +34,7 @@ jobs:
       run: cargo test --verbose
     - name: list ignored tests
       run: |
-        (find . -name '*.rs' -exec grep --fixed-strings -Hno '#[ignore]' {} \; || true) | sed -E 's/^([^:]+):([^:]+):.*/::warning file=\1,line=\2,title=Ignored test::/'
+        (find . -name '*.rs' -exec grep --fixed-strings -Hno '#[ignore]' {} \; || true) | sed -E 's/^([^:]+):([^:]+):.*/::warning file=\1,line=\2,title=Ignored test::Regex indicates this test is probably ignored/'
 
   fmt:
     needs: build
