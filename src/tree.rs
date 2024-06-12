@@ -327,7 +327,7 @@ impl MdqNode {
             }
             Node::ThematicBreak(_) => MdqNode::ThematicBreak,
             Node::TableRow(_) | Node::TableCell(_) | Node::ListItem(_) => {
-                return Err(NoNode::Invalid(InvalidMd::InternalError)); // should have been handled explicitly!
+                return Err(NoNode::Invalid(InvalidMd::InternalError)); // should have been handled by Node::Table
             }
             Node::Definition(_) => return Err(NoNode::Skipped),
             Node::Paragraph(node) => MdqNode::Paragraph {
@@ -613,14 +613,14 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
+        use std::{thread, time};
         use std::collections::HashSet;
         use std::sync::{Arc, Mutex};
-        use std::{thread, time};
 
         use indoc::indoc;
         use lazy_static::lazy_static;
-        use markdown::mdast::Node;
         use markdown::{mdast, ParseOptions};
+        use markdown::mdast::Node;
         use regex::Regex;
 
         use super::*;
@@ -638,13 +638,14 @@ mod tests {
         }
 
         macro_rules! check {
-            (no_node: $enum_value:expr, $enum_variant:pat, $lookups:expr => $no_node:expr ) => {{
+            (no_node: $enum_value:expr, $enum_variant:pat, $lookups:expr => $no_node:expr $(, $body:block)? ) => {{
                 let node = $enum_value;
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
                 let mdq_err = MdqNode::from_mdast_0(node_clone, &$lookups).err().expect("expected no MdqNode");
                 assert_eq!(mdq_err, $no_node);
+                $($body)?
             }};
 
             ( $enum_value:expr, $enum_variant:pat, $lookups:expr => $mdq_pat:pat = $mdq_body:block ) => {{
@@ -1204,6 +1205,47 @@ mod tests {
                         ]
                     },
                 ])
+            });
+        }
+
+        #[test]
+        fn table() {
+            // Note that the text in the markdown is contrary to what the headings indicate. For example, the left
+            // column is aligned right in the markdown, but the separator (`:---`) means it should be left.
+            // I intentionally set it up this way to make it more obvious that the alignment comes from the separator.
+            let (root, lookups) = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                    | Header A | Header B | Header C | Header D |
+                    |:---------|:--------:|---------:|----------|
+                    |        1 | 2        |3         |    4     |
+                    "#},
+            );
+            assert_eq!(root.children.len(), 1);
+            check!(&root.children[0], Node::Table(table_node), lookups => MdqNode::Table{alignments, rows} = {
+                assert_eq!(alignments, vec![AlignKind::Left, AlignKind::Center, AlignKind::Right, AlignKind::None]);
+                assert_eq!(rows,
+                    vec![ // rows
+                        vec![// Header row
+                            vec![inline_text("Header A")], // cells, each being a spans of inline
+                            vec![inline_text("Header B")],
+                            vec![inline_text("Header C")],
+                            vec![inline_text("Header D")],
+                        ],
+                        vec![// first (and only) data row
+                            vec![inline_text("1")], // cells, each being a spans of inline
+                            vec![inline_text("2")],
+                            vec![inline_text("3")],
+                            vec![inline_text("4")],
+                        ],
+                    ],
+                );
+                // Do a spot check for the rows and cells; mainly just so that we'll have called check! on them.
+                assert_eq!(table_node.children.len(), 2); // two rows
+                check!(no_node: &table_node.children[0], Node::TableRow(tr), lookups => NoNode::Invalid(InvalidMd::InternalError), {
+                    assert_eq!(tr.children.len(), 4); // four columns
+                    check!(no_node: &tr.children[0], Node::TableCell(_), lookups => NoNode::Invalid(InvalidMd::InternalError));
+                })
             });
         }
 
