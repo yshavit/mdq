@@ -98,12 +98,19 @@ where
     N: Borrow<MdqNode>,
     W: Write,
 {
+    let pending_refs_capacity = match options.link_reference_options {
+        LinkReferencePlacement::Inline => 0,
+        _ => 8, // just a guess
+    };
+
     let mut writer_state = MdWriterState {
         opts: options,
-        seen_links: HashSet::with_capacity(8), // just a guess at capacity
-        seen_footnotes: HashSet::with_capacity(8),
-        section_references: Default::default(),
-        eof_references: Default::default(),
+        seen_links: HashSet::with_capacity(pending_refs_capacity),
+        seen_footnotes: HashSet::with_capacity(pending_refs_capacity),
+        pending_references: PendingReferences {
+            links: Vec::with_capacity(pending_refs_capacity),
+            footnotes: Vec::with_capacity(8), // footnotes are never inline (as above, 8 is just a guess here)
+        },
     };
     writer_state.write_md(out, nodes);
 }
@@ -112,22 +119,12 @@ struct MdWriterState<'a> {
     opts: &'a MdOptions,
     seen_links: HashSet<&'a String>,
     seen_footnotes: HashSet<&'a String>,
-    section_references: PendingReferences<'a>,
-    eof_references: PendingReferences<'a>,
+    pending_references: PendingReferences<'a>,
 }
 
 struct PendingReferences<'a> {
     links: Vec<&'a Link>,
     footnotes: Vec<&'a Footnote>,
-}
-
-impl<'a> Default for PendingReferences<'a> {
-    fn default() -> Self {
-        Self {
-            links: Vec::with_capacity(8), // just a guess,
-            footnotes: Vec::with_capacity(8),
-        }
-    }
 }
 
 impl<'a> MdWriterState<'a> {
