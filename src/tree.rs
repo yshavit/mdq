@@ -725,22 +725,19 @@ mod tests {
                 let (root, lookups) = parse_with(
                     &ParseOptions::gfm(),
                     indoc! {r#"
-                Cool story [^a]!
+                    Cool story [^a]!
 
-                [^a]: My footnote
-                  with two lines."#},
+                    [^a]: My footnote
+                      with two lines."#},
                 );
-                check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{ body }  = {
-                    assert_eq!(body, vec![
-                        inline_text("Cool story "),
-                        Inline::Footnote{
-                            label: "a".to_string(),
-                            text: vec![
-                                text_paragraph("My footnote\nwith two lines.")
-                            ],
-                        },
-                        inline_text("!"),
-                    ]);
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[1], Node::FootnoteReference(_), lookups => MdqNode::Inline(footnote) = {
+                    assert_eq!(footnote, Inline::Footnote{
+                        label: "a".to_string(),
+                        text: vec![
+                            text_paragraph("My footnote\nwith two lines.")
+                        ],
+                    })
                 });
                 check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
             }
@@ -748,29 +745,27 @@ mod tests {
                 let (root, lookups) = parse_with(
                     &ParseOptions::gfm(),
                     indoc! {r#"
-                Cool story [^a]!
+                    Cool story [^a]!
 
-                [^a]: - footnote is a list"#},
+                    [^a]: - footnote is a list"#},
                 );
-                check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{ body }  = {
-                    assert_eq!(body, vec![
-                        inline_text("Cool story "),
-                        Inline::Footnote{
-                            label: "a".to_string(),
-                            text: vec![
-                                MdqNode::List {
-                                    starting_index: None,
-                                    items: vec![
-                                        ListItem{
-                                            checked: None,
-                                            item: vec![text_paragraph("footnote is a list")],
-                                        }
-                                    ],
-                                },
-                            ],
-                        },
-                        inline_text("!"),
-                    ]);
+                unwrap!(&root.children[0], Node::Paragraph(p));
+
+                check!(&p.children[1], Node::FootnoteReference(_), lookups => MdqNode::Inline(footnote) = {
+                    assert_eq!(footnote, Inline::Footnote{
+                        label: "a".to_string(),
+                        text: vec![
+                            MdqNode::List {
+                                starting_index: None,
+                                items: vec![
+                                    ListItem{
+                                        checked: None,
+                                        item: vec![text_paragraph("footnote is a list")],
+                                    }
+                                ],
+                            },
+                        ],
+                    })
                 });
                 check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
             }
