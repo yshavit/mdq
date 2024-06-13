@@ -1,6 +1,7 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::hash::{Hash, Hasher};
 
 use markdown::mdast::{AlignKind, Code, Definition, FootnoteDefinition, Math, Node, ReferenceKind, Table, TableRow};
 
@@ -45,7 +46,7 @@ pub enum MdqNode {
 }
 
 /// See https://github.github.com/gfm/#link-reference-definitions
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum LinkReference {
     Inline,
     Full(String),
@@ -88,7 +89,7 @@ impl Default for ReadOptions {
 pub type Tr = Vec<Line>; // TODO rename to TableRow
 pub type Line = Vec<Inline>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Hash)]
 pub enum CodeVariant {
     Code(Option<CodeOpts>),
     Math { metadata: Option<String> },
@@ -96,7 +97,7 @@ pub enum CodeVariant {
     Yaml,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Inline {
     Span {
         // TODO rename to Composite or something? Or Formatting?
@@ -118,13 +119,27 @@ pub enum Inline {
     Footnote(Footnote),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct Footnote {
     pub label: String,
     pub text: Vec<MdqNode>,
 }
 
-#[derive(Debug, PartialEq)]
+impl Hash for Footnote {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.label.hash(state);
+    }
+}
+
+impl PartialEq for Footnote {
+    fn eq(&self, other: &Self) -> bool {
+        self.label == other.label
+    }
+}
+
+impl Eq for Footnote {}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Link {
     pub url: String,
     /// If you have `[1]: https://example.com "my title"`, this is the "my title".
@@ -140,14 +155,14 @@ pub struct ListItem {
     pub item: Vec<MdqNode>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum SpanVariant {
     Delete,
     Emphasis,
     Strong,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum InlineVariant {
     Text,
     Code,
@@ -166,7 +181,7 @@ pub enum InvalidMd {
     InternalError,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Hash)]
 pub struct CodeOpts {
     pub language: String,
     pub metadata: Option<String>,
@@ -1071,25 +1086,27 @@ mod tests {
 
         #[test]
         fn link() {
-            // just a smoke test, since this is basically the same logic as image
-            let (root, lookups) = parse("[hello _world_](https://example.com)");
-            unwrap!(&root.children[0], Node::Paragraph(p));
-            check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(link) = {
-                assert_eq!(link, Inline::Link {
-                    text: vec![
-                        inline_text("hello "),
-                        Inline::Span {
-                            variant: SpanVariant::Emphasis,
-                            children: vec![inline_text("world")],
-                        }
-                    ],
-                    link: Link{
-                        url: "https://example.com".to_string(),
-                        title: None,
-                        reference: LinkReference::Inline,
-                    },
-                })
-            });
+            {
+                let (root, lookups) = parse("[hello _world_](https://example.com)");
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(link) = {
+                    assert_eq!(link, Inline::Link {
+                        text: vec![
+                            inline_text("hello "),
+                            Inline::Span {
+                                variant: SpanVariant::Emphasis,
+                                children: vec![inline_text("world")],
+                            }
+                        ],
+                        link: Link{
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    })
+                });
+            }
+            todo!("add tests of full ref, collapsed ref, shorthand ref")
         }
 
         /// Basically the same as [link_ref], but with an exclamation point

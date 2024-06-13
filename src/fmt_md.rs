@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 use std::cmp::max;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Alignment;
 use std::io::Write;
 
@@ -41,7 +41,7 @@ pub enum LinkReferencePlacement {
     ///
     /// Lorem ipsum in the second sub-section.
     /// ```
-    BottomOfSection(LinkReferenceStyle),
+    BottomOfSection,
 
     /// Show links as references defined at the bottom of the document.
     ///
@@ -60,7 +60,7 @@ pub enum LinkReferencePlacement {
     /// [1]: https://example.com
     /// ^^^^^^^^^^^^^^^^^^^^^^^^
     /// ```
-    BottomOfDoc(LinkReferenceStyle),
+    BottomOfDoc,
 }
 
 pub enum FootnoteReferencePlacement {
@@ -68,11 +68,6 @@ pub enum FootnoteReferencePlacement {
     BottomOfSection,
     /// See [LinkReferencePlacement::BottomOfDoc]
     BottomOfDoc,
-}
-
-enum LinkReferenceStyle {
-    KeepOriginal,
-    // TODO add "always use id" option
 }
 
 impl Default for FootnoteReferencePlacement {
@@ -83,13 +78,7 @@ impl Default for FootnoteReferencePlacement {
 
 impl Default for LinkReferencePlacement {
     fn default() -> Self {
-        Self::BottomOfDoc(Default::default())
-    }
-}
-
-impl Default for LinkReferenceStyle {
-    fn default() -> Self {
-        Self::KeepOriginal
+        Self::BottomOfSection
     }
 }
 
@@ -108,8 +97,8 @@ where
         seen_links: HashSet::with_capacity(pending_refs_capacity),
         seen_footnotes: HashSet::with_capacity(pending_refs_capacity),
         pending_references: PendingReferences {
-            links: Vec::with_capacity(pending_refs_capacity),
-            footnotes: Vec::with_capacity(8), // footnotes are never inline (as above, 8 is just a guess here)
+            links: HashMap::with_capacity(pending_refs_capacity),
+            footnotes: HashMap::with_capacity(8), // footnotes are never inline (as above, 8 is just a guess here)
         },
     };
     writer_state.write_md(out, nodes);
@@ -117,18 +106,30 @@ where
 
 struct MdWriterState<'a> {
     opts: &'a MdOptions,
-    seen_links: HashSet<&'a String>,
+    seen_links: HashSet<ReifiedLabel<'a>>,
     seen_footnotes: HashSet<&'a String>,
     pending_references: PendingReferences<'a>,
 }
 
 struct PendingReferences<'a> {
-    links: Vec<&'a Link>,
-    footnotes: Vec<&'a Footnote>,
+    links: HashMap<ReifiedLabel<'a>, ReifiedLink<'a>>,
+    footnotes: HashMap<&'a String, &'a Footnote>,
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
+struct ReifiedLink<'a> {
+    url: &'a String,
+    title: &'a Option<String>,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+enum ReifiedLabel<'a> {
+    Identifier(&'a String),
+    Inline(&'a Vec<Inline>),
 }
 
 impl<'a> MdWriterState<'a> {
-    fn write_md<N, W>(&mut self, out: &mut Output<W>, nodes: &[N])
+    fn write_md<N, W>(&mut self, out: &mut Output<W>, nodes: &'a [N])
     where
         N: Borrow<MdqNode>,
         W: Write,
@@ -138,7 +139,7 @@ impl<'a> MdWriterState<'a> {
         }
     }
 
-    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node: &MdqNode)
+    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node: &'a MdqNode)
     where
         W: Write,
     {
@@ -326,7 +327,7 @@ impl<'a> MdWriterState<'a> {
         }
     }
 
-    pub fn write_line<E, W>(&mut self, out: &mut Output<W>, elems: &[E])
+    pub fn write_line<E, W>(&mut self, out: &mut Output<W>, elems: &'a [E])
     where
         E: Borrow<Inline>,
         W: Write,
@@ -336,7 +337,7 @@ impl<'a> MdWriterState<'a> {
         }
     }
 
-    pub fn write_inline_element<W>(&mut self, out: &mut Output<W>, elem: &Inline)
+    pub fn write_inline_element<W>(&mut self, out: &mut Output<W>, elem: &'a Inline)
     where
         W: Write,
     {
@@ -363,11 +364,13 @@ impl<'a> MdWriterState<'a> {
                 out.write_str(surround);
             }
             Inline::Link { text, link } => {
-                self.write_link_inline(out, link, |me, out| me.write_line(out, text));
+                self.write_link_inline(out, ReifiedLabel::Inline(text), link, |me, out| {
+                    me.write_line(out, text)
+                });
             }
             Inline::Image { alt, link } => {
                 out.write_char('!');
-                self.write_link_inline(out, link, |_, out| out.write_str(alt));
+                self.write_link_inline(out, ReifiedLabel::Identifier(alt), link, |_, out| out.write_str(alt));
             }
             Inline::Footnote(Footnote { label, .. }) => {
                 out.write_str("[^");
@@ -388,7 +391,7 @@ impl<'a> MdWriterState<'a> {
     ///
     /// The `contents` function is what writes e.g. `an inline link` above. It's a function because it may be a recursive
     /// call into [write_line] (for links) or just simple text (for image alts).
-    fn write_link_inline<W, F>(&mut self, out: &mut Output<W>, link: &Link, contents: F)
+    fn write_link_inline<W, F>(&mut self, out: &mut Output<W>, label: ReifiedLabel<'a>, link: &'a Link, contents: F)
     where
         W: Write,
         F: FnOnce(&mut Self, &mut Output<W>),
@@ -396,40 +399,84 @@ impl<'a> MdWriterState<'a> {
         out.write_str("![");
         contents(self, out);
         out.write_char(']');
-        match &link.reference {
+        let reference_to_add = match &link.reference {
             LinkReference::Inline => {
                 out.write_char('(');
                 out.write_str(&link.url);
-                if let Some(title) = &link.title {
-                    out.write_str(" \"");
-                    self.escape_title_to(out, title);
-                    out.write_char('"');
-                }
+                self.write_url_title(out, &link.title);
                 out.write_char(')');
+                None
             }
             LinkReference::Full(identifier) => {
                 out.write_char('[');
                 out.write_str(identifier);
                 out.write_char(']');
+                Some(ReifiedLabel::Identifier(identifier))
             }
             LinkReference::Collapsed => {
                 out.write_str("[]");
+                Some(label)
             }
             LinkReference::Shortcut => {
-                // nothing
+                // no write
+                Some(label)
+            }
+        };
+
+        if let Some(reference_label) = reference_to_add {
+            if self.seen_links.insert(reference_label.clone()) {
+                self.pending_references.links.insert(
+                    reference_label,
+                    ReifiedLink {
+                        url: &link.url,
+                        title: &link.title,
+                    },
+                );
+                // else warn?
             }
         }
     }
 
-    fn escape_title_to<W>(&mut self, out: &mut Output<W>, title: &String)
+    fn write_link_references<W>(&mut self, out: &mut Output<W>)
     where
         W: Write,
     {
-        // TODO escaping
-        out.write_str(title);
+        if self.pending_references.links.is_empty() && self.seen_footnotes.is_empty() {
+            return;
+        }
+        out.with_block(Block::Plain, move |out| {
+            let res_to_write: Vec<_> = self.pending_references.links.drain().collect();
+            for (link_ref, link_def) in res_to_write {
+                out.write_char('[');
+                match link_ref {
+                    ReifiedLabel::Identifier(identifier) => out.write_str(identifier),
+                    ReifiedLabel::Inline(text) => self.write_line(out, text),
+                }
+                out.write_str("]: ");
+                out.write_str(&link_def.url);
+                self.write_url_title(out, &link_def.title);
+            }
+        });
     }
 
-    fn line_to_string<E>(&mut self, line: &[E]) -> String
+    fn write_url_title<W>(&mut self, out: &mut Output<W>, title: &Option<String>)
+    where
+        W: Write,
+    {
+        let Some(title) = title else { return };
+        out.write_char(' ');
+        // TODO pick which quoting char to use (single, double, or paren) depending on title
+        out.write_char('"');
+        for ch in title.chars() {
+            if ch == '"' {
+                out.write_char('\\');
+            }
+            out.write_char(ch);
+        }
+        out.write_char('"');
+    }
+
+    fn line_to_string<E>(&mut self, line: &'a [E]) -> String
     where
         E: Borrow<Inline>,
     {
