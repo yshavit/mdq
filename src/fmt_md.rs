@@ -98,17 +98,17 @@ where
     N: Borrow<MdqNode>,
     W: Write,
 {
-    let mut writer = MdWriterImpl {
+    let mut writer_state = MdWriterState {
         opts: options,
         seen_links: HashSet::with_capacity(8), // just a guess at capacity
         seen_footnotes: HashSet::with_capacity(8),
         section_references: Default::default(),
         eof_references: Default::default(),
     };
-    writer.write_md(out, nodes);
+    writer_state.write_md(out, nodes);
 }
 
-struct MdWriterImpl<'a> {
+struct MdWriterState<'a> {
     opts: &'a MdOptions,
     seen_links: HashSet<&'a String>,
     seen_footnotes: HashSet<&'a String>,
@@ -130,7 +130,7 @@ impl<'a> Default for PendingReferences<'a> {
     }
 }
 
-impl<'a> MdWriterImpl<'a> {
+impl<'a> MdWriterState<'a> {
     fn write_md<N, W>(&mut self, out: &mut Output<W>, nodes: &[N])
     where
         N: Borrow<MdqNode>,
