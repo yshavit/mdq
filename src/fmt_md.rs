@@ -348,11 +348,11 @@ impl<'a> MdWriterImpl<'a> {
                 out.write_str(surround);
             }
             Inline::Link { text, link } => {
-                self.write_link_inline(out, link, |out| self.write_line(out, text));
+                self.write_link_inline(out, link, |me, out| me.write_line(out, text));
             }
             Inline::Image { alt, link } => {
                 out.write_char('!');
-                self.write_link_inline(out, link, |out| out.write_str(alt));
+                self.write_link_inline(out, link, |_, out| out.write_str(alt));
             }
             Inline::Footnote { label, .. } => {
                 out.write_str("[^");
@@ -376,10 +376,10 @@ impl<'a> MdWriterImpl<'a> {
     fn write_link_inline<W, F>(&mut self, out: &mut Output<W>, link: &Link, contents: F)
     where
         W: Write,
-        F: FnOnce(&mut Output<W>),
+        F: FnOnce(&mut Self, &mut Output<W>),
     {
         out.write_str("![");
-        contents(out);
+        contents(self, out);
         out.write_char(']');
         match &link.reference {
             LinkReference::Inline => {
