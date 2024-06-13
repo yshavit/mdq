@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::cmp::max;
+use std::collections::HashSet;
 use std::fmt::Alignment;
 use std::io::Write;
 
@@ -97,47 +98,55 @@ where
     N: Borrow<MdqNode>,
     W: Write,
 {
-    // TODO use opts!
-    MdWriterImpl::write_md(out, nodes);
+    let mut writer = MdWriterImpl {
+        opts: options,
+        seen_links: HashSet::with_capacity(8), // just a guess at capacity
+        seen_footnotes: HashSet::with_capacity(8),
+    };
+    writer.write_md(out, nodes);
 }
 
-struct MdWriterImpl;
+struct MdWriterImpl<'a> {
+    opts: &'a MdOptions,
+    seen_links: HashSet<&'a String>,
+    seen_footnotes: HashSet<&'a String>,
+}
 
-impl MdWriterImpl {
-    fn write_md<N, W>(out: &mut Output<W>, nodes: &[N])
+impl<'a> MdWriterImpl<'a> {
+    fn write_md<N, W>(&mut self, out: &mut Output<W>, nodes: &[N])
     where
         N: Borrow<MdqNode>,
         W: Write,
     {
         for node in nodes {
-            Self::write_one_md(out, node.borrow());
+            self.write_one_md(out, node.borrow());
         }
     }
 
-    pub fn write_one_md<W>(out: &mut Output<W>, node: &MdqNode)
+    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node: &MdqNode)
     where
         W: Write,
     {
         match node {
-            MdqNode::Root { body } => Self::write_md(out, body),
+            MdqNode::Root { body } => self.write_md(out, body),
             MdqNode::Header { depth, title, body } => {
                 out.with_block(Block::Plain, |out| {
                     for _ in 0..*depth {
                         out.write_str("#");
                     }
                     out.write_str(" ");
-                    Self::write_line(out, title);
+                    self.write_line(out, title);
                 });
-                Self::write_md(out, body);
+                self.write_md(out, body);
             }
             MdqNode::Paragraph { body } => {
                 out.with_block(Block::Plain, |out| {
-                    Self::write_line(out, body);
+                    self.write_line(out, body);
                 });
             }
             MdqNode::BlockQuote { body } => {
                 out.with_block(Block::Quote, |out| {
-                    Self::write_md(out, body);
+                    self.write_md(out, body);
                 });
             }
             MdqNode::List { starting_index, items } => {
@@ -160,7 +169,7 @@ impl MdWriterImpl {
                         }
                         out.write_str(&prefix);
                         out.with_block(Inlined(prefix.len()), |out| {
-                            Self::write_md(out, &item.item);
+                            self.write_md(out, &item.item);
                         });
                     }
                 });
@@ -183,7 +192,7 @@ impl MdWriterImpl {
                 for row in rows {
                     let mut col_strs = Vec::with_capacity(row.len());
                     for (idx, col) in row.iter().enumerate() {
-                        let col_str = Self::line_to_string(col);
+                        let col_str = self.line_to_string(col);
                         // Extend the row_sizes if needed. This happens if we had fewer alignments than columns in any row.
                         // I'm not sure if that's possible, but it's easy to guard against
                         while column_widths.len() < idx {
@@ -297,22 +306,22 @@ impl MdWriterImpl {
                 });
             }
             MdqNode::Inline(inline) => {
-                Self::write_inline_element(out, inline);
+                self.write_inline_element(out, inline);
             }
         }
     }
 
-    pub fn write_line<E, W>(out: &mut Output<W>, elems: &[E])
+    pub fn write_line<E, W>(&mut self, out: &mut Output<W>, elems: &[E])
     where
         E: Borrow<Inline>,
         W: Write,
     {
         for elem in elems {
-            Self::write_inline_element(out, elem.borrow());
+            self.write_inline_element(out, elem.borrow());
         }
     }
 
-    pub fn write_inline_element<W>(out: &mut Output<W>, elem: &Inline)
+    pub fn write_inline_element<W>(&mut self, out: &mut Output<W>, elem: &Inline)
     where
         W: Write,
     {
@@ -324,7 +333,7 @@ impl MdWriterImpl {
                     SpanVariant::Strong => "**",
                 };
                 out.write_str(surround);
-                Self::write_line(out, children);
+                self.write_line(out, children);
                 out.write_str(surround);
             }
             Inline::Text { variant, value } => {
@@ -339,11 +348,11 @@ impl MdWriterImpl {
                 out.write_str(surround);
             }
             Inline::Link { text, link } => {
-                Self::write_link_inline(out, link, |out| Self::write_line(out, text));
+                self.write_link_inline(out, link, |out| self.write_line(out, text));
             }
             Inline::Image { alt, link } => {
                 out.write_char('!');
-                Self::write_link_inline(out, link, |out| out.write_str(alt));
+                self.write_link_inline(out, link, |out| out.write_str(alt));
             }
             Inline::Footnote { label, .. } => {
                 out.write_str("[^");
@@ -364,7 +373,7 @@ impl MdWriterImpl {
     ///
     /// The `contents` function is what writes e.g. `an inline link` above. It's a function because it may be a recursive
     /// call into [write_line] (for links) or just simple text (for image alts).
-    fn write_link_inline<W, F>(out: &mut Output<W>, link: &Link, contents: F)
+    fn write_link_inline<W, F>(&mut self, out: &mut Output<W>, link: &Link, contents: F)
     where
         W: Write,
         F: FnOnce(&mut Output<W>),
@@ -378,7 +387,7 @@ impl MdWriterImpl {
                 out.write_str(&link.url);
                 if let Some(title) = &link.title {
                     out.write_str(" \"");
-                    Self::escape_title_to(out, title);
+                    self.escape_title_to(out, title);
                     out.write_char('"');
                 }
                 out.write_char(')');
@@ -397,7 +406,7 @@ impl MdWriterImpl {
         }
     }
 
-    fn escape_title_to<W>(out: &mut Output<W>, title: &String)
+    fn escape_title_to<W>(&mut self, out: &mut Output<W>, title: &String)
     where
         W: Write,
     {
@@ -405,13 +414,13 @@ impl MdWriterImpl {
         out.write_str(title);
     }
 
-    fn line_to_string<E>(line: &[E]) -> String
+    fn line_to_string<E>(&mut self, line: &[E]) -> String
     where
         E: Borrow<Inline>,
     {
         let bytes: Vec<u8> = Vec::with_capacity(line.len() * 10); // rough guess
         let mut out = Output::new(bytes);
-        Self::write_line(&mut out, line);
+        self.write_line(&mut out, line);
         let bytes = out.take_underlying().unwrap();
         String::from_utf8(bytes).unwrap()
     }
