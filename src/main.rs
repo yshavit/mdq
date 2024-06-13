@@ -31,6 +31,6 @@ fn main() {
     let jsons = fmt_json::nodes_to_json::<_, TextOnly>(&found);
     println!("{}", jsons);
     out.write_str("\n\n=======================================\n\n");
-    fmt_md::write_md(&mut out, &found);
+    fmt_md::MdWriterImpl::write_md(&mut out, &found);
     out.write_str("\n");
 }
