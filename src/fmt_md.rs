@@ -4,14 +4,107 @@ use std::fmt::Alignment;
 use std::io::Write;
 
 use crate::fmt_str::{pad_to, standard_align};
-use crate::output::Block::Inlined;
 use crate::output::{Block, Output};
+use crate::output::Block::Inlined;
 use crate::tree::{CodeVariant, Inline, InlineVariant, Link, LinkReference, MdqNode, SpanVariant};
 
-pub struct MdWriterImpl;
+#[derive(Default)]
+pub struct MdOptions {
+    link_reference_options: LinkReferencePlacement,
+    footnote_reference_options: FootnoteReferencePlacement,
+}
+
+pub enum LinkReferencePlacement {
+    /// Show link URLs inline with their usages.
+    ///
+    /// ```
+    /// [foo](https://example.com)
+    ///      ^^^^^^^^^^^^^^^^^^^^^
+    /// ```
+    Inline,
+
+    /// Show links as references defined in the first section that uses the link.
+    ///
+    /// ```
+    /// # Top Header
+    ///
+    /// ## Second section
+    ///
+    /// Lorem [ipsum][1] in the first sub-section.
+    ///              ^^^
+    ///
+    /// [1]: https://example.com
+    /// ^^^^^^^^^^^^^^^^^^^^^^^^
+    ///
+    /// ## Third section
+    ///
+    /// Lorem ipsum in the second sub-section.
+    /// ```
+    BottomOfSection(LinkReferenceStyle),
+
+    /// Show links as references defined at the bottom of the document.
+    ///
+    /// ```
+    /// # Top Header
+    ///
+    /// ## Second section
+    ///
+    /// Lorem [ipsum][1] in the first sub-section.
+    ///              ^^^
+    ///
+    /// ## Third section
+    ///
+    /// Lorem ipsum in the second sub-section.
+    ///
+    /// [1]: https://example.com
+    /// ^^^^^^^^^^^^^^^^^^^^^^^^
+    /// ```
+    BottomOfDoc(LinkReferenceStyle),
+}
+
+pub enum FootnoteReferencePlacement {
+    /// See [LinkReferencePlacement::BottomOfSection]
+    BottomOfSection,
+    /// See [LinkReferencePlacement::BottomOfDoc]
+    BottomOfDoc,
+}
+
+enum LinkReferenceStyle {
+    KeepOriginal,
+    // TODO add "always use id" option
+}
+
+impl Default for FootnoteReferencePlacement {
+    fn default() -> Self {
+        Self::BottomOfDoc
+    }
+}
+
+impl Default for LinkReferencePlacement {
+    fn default() -> Self {
+        Self::BottomOfDoc(Default::default())
+    }
+}
+
+impl Default for LinkReferenceStyle {
+    fn default() -> Self {
+        Self::KeepOriginal
+    }
+}
+
+pub fn write_md<N, W>(options: &MdOptions, out: &mut Output<W>, nodes: &[N])
+where
+    N: Borrow<MdqNode>,
+    W: Write,
+{
+    // TODO use opts!
+    MdWriterImpl::write_md(out, nodes);
+}
+
+struct MdWriterImpl;
 
 impl MdWriterImpl {
-    pub fn write_md<N, W>(out: &mut Output<W>, nodes: &[N])
+    fn write_md<N, W>(out: &mut Output<W>, nodes: &[N])
     where
         N: Borrow<MdqNode>,
         W: Write,

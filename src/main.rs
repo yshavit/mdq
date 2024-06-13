@@ -1,8 +1,9 @@
 use std::io;
-use std::io::{stdin, Read};
+use std::io::{Read, stdin};
 use std::string::ToString;
 
 use crate::fmt_json::TextOnly;
+use crate::fmt_md::MdOptions;
 use crate::tree::MdqNode;
 
 mod fmt_json;
@@ -31,6 +32,6 @@ fn main() {
     let jsons = fmt_json::nodes_to_json::<_, TextOnly>(&found);
     println!("{}", jsons);
     out.write_str("\n\n=======================================\n\n");
-    fmt_md::MdWriterImpl::write_md(&mut out, &found);
+    fmt_md::write_md(&MdOptions::default(), &mut out, &found);
     out.write_str("\n");
 }
