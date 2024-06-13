@@ -45,7 +45,7 @@ pub enum MdqNode {
 }
 
 /// See https://github.github.com/gfm/#link-reference-definitions
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LinkReference {
     Inline,
     Full(String),
@@ -114,6 +114,10 @@ pub enum Inline {
     Image {
         alt: String,
         link: Link,
+    },
+    Footnote {
+        label: String,
+        text: Vec<MdqNode>,
     },
 }
 
@@ -265,8 +269,12 @@ impl MdqNode {
                 text: MdqNode::inlines(node.children, lookups)?,
                 link: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
             }),
-            Node::FootnoteReference(_) => {
-                todo!()
+            Node::FootnoteReference(node) => {
+                let definition = lookups.resolve_footnote(&node.identifier, &node.label)?;
+                MdqNode::Inline(Inline::Footnote {
+                    label: node.label.unwrap_or(node.identifier),
+                    text: MdqNode::all(definition.children.clone(), lookups)?,
+                })
             }
             Node::Strong(node) => MdqNode::Inline(Inline::Span {
                 variant: SpanVariant::Strong,
@@ -564,6 +572,19 @@ impl Lookups {
         })
     }
 
+    fn resolve_footnote(&self, identifier: &String, label: &Option<String>) -> Result<&FootnoteDefinition, NoNode> {
+        if label.is_none() {
+            todo!("What is this case???");
+        }
+        let Some(definition) = self.footnote_definitions.get(identifier) else {
+            let human_visible_identifier = label.to_owned().unwrap_or_else(|| identifier.to_string());
+            return Err(NoNode::Invalid(InvalidMd::MissingReferenceDefinition(
+                human_visible_identifier,
+            )));
+        };
+        Ok(definition)
+    }
+
     fn build_lookups(&mut self, node: &Node, read_opts: &ReadOptions) -> Result<(), InvalidMd> {
         let x = format!("{:?}", node);
         let _ = x;
@@ -617,14 +638,14 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
+        use std::{thread, time};
         use std::collections::HashSet;
         use std::sync::{Arc, Mutex};
-        use std::{thread, time};
 
         use indoc::indoc;
         use lazy_static::lazy_static;
-        use markdown::mdast::Node;
         use markdown::{mdast, ParseOptions};
+        use markdown::mdast::Node;
         use regex::Regex;
 
         use super::*;
@@ -698,21 +719,61 @@ mod tests {
             });
         }
 
-        #[ignore] // TODO un-ignore
         #[test]
         fn footnote() {
-            let (root, lookups) = parse_with(
-                &ParseOptions::gfm(),
-                indoc! {r#"
-                Cool story [^a]
+            {
+                let (root, lookups) = parse_with(
+                    &ParseOptions::gfm(),
+                    indoc! {r#"
+                Cool story [^a]!
 
-                [^a]: My _footnote_
+                [^a]: My footnote
                   with two lines."#},
-            );
-            check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{ body }  = {
-                assert_eq!(format!("{:?}", body), "TOOD")
-            });
-            check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
+                );
+                check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{ body }  = {
+                    assert_eq!(body, vec![
+                        inline_text("Cool story "),
+                        Inline::Footnote{
+                            label: "a".to_string(),
+                            text: vec![
+                                text_paragraph("My footnote\nwith two lines.")
+                            ],
+                        },
+                        inline_text("!"),
+                    ]);
+                });
+                check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
+            }
+            {
+                let (root, lookups) = parse_with(
+                    &ParseOptions::gfm(),
+                    indoc! {r#"
+                Cool story [^a]!
+
+                [^a]: - footnote is a list"#},
+                );
+                check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{ body }  = {
+                    assert_eq!(body, vec![
+                        inline_text("Cool story "),
+                        Inline::Footnote{
+                            label: "a".to_string(),
+                            text: vec![
+                                MdqNode::List {
+                                    starting_index: None,
+                                    items: vec![
+                                        ListItem{
+                                            checked: None,
+                                            item: vec![text_paragraph("footnote is a list")],
+                                        }
+                                    ],
+                                },
+                            ],
+                        },
+                        inline_text("!"),
+                    ]);
+                });
+                check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
+            }
         }
 
         #[test]
@@ -1421,7 +1482,6 @@ mod tests {
             });
         }
 
-        #[ignore] // TODO un-ignore
         #[test]
         fn all_variants_tested() {
             let timeout = time::Duration::from_millis(500);

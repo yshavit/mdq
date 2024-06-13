@@ -121,10 +121,17 @@ impl TextOnly {
         I: Borrow<Inline>,
     {
         let mut str = String::new();
-        for i in line {
-            Self::build_string(&mut str, i.borrow())
-        }
+        Self::build_strings(&mut str, line);
         str
+    }
+
+    fn build_strings<I>(out: &mut String, line: &[I])
+    where
+        I: Borrow<Inline>,
+    {
+        for i in line {
+            Self::build_string(out, i.borrow())
+        }
     }
 
     fn build_string(out: &mut String, elem: &Inline) {
@@ -150,6 +157,9 @@ impl TextOnly {
                     out.push_str(title);
                 }
                 out.push('>');
+            }
+            Inline::Footnote { .. } => {
+                // ignore
             }
         }
     }

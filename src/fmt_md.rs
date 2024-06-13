@@ -4,8 +4,8 @@ use std::fmt::Alignment;
 use std::io::Write;
 
 use crate::fmt_str::{pad_to, standard_align};
-use crate::output::Block::Inlined;
 use crate::output::{Block, Output};
+use crate::output::Block::Inlined;
 use crate::tree::{CodeVariant, Inline, InlineVariant, Link, LinkReference, MdqNode, SpanVariant};
 
 pub fn write_md<N, W>(out: &mut Output<W>, nodes: &[N])
@@ -248,6 +248,11 @@ where
         Inline::Image { alt, link } => {
             out.write_char('!');
             write_link_inline(out, link, |out| out.write_str(alt));
+        }
+        Inline::Footnote { label, .. } => {
+            out.write_str("[^");
+            out.write_str(label);
+            out.write_char(']');
         }
     }
 }

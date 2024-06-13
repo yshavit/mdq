@@ -125,6 +125,7 @@ impl Selector {
                     Inline::Image { .. } => {
                         false // TODO
                     }
+                    Inline::Footnote { .. } => false,
                 };
                 if matched {
                     SelectResult::Found(vec![node])
