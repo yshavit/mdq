@@ -249,6 +249,11 @@ where
             out.write_char('!');
             write_link_inline(out, link, |out| out.write_str(alt));
         }
+        Inline::Footnote { label, .. } => {
+            out.write_str("[^");
+            out.write_str(label);
+            out.write_char(']');
+        }
     }
 }
 

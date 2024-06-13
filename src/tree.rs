@@ -45,7 +45,7 @@ pub enum MdqNode {
 }
 
 /// See https://github.github.com/gfm/#link-reference-definitions
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LinkReference {
     Inline,
     Full(String),
@@ -115,6 +115,10 @@ pub enum Inline {
         alt: String,
         link: Link,
     },
+    Footnote {
+        label: String,
+        text: Vec<MdqNode>,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -183,6 +187,18 @@ impl TryFrom<Node> for MdqNode {
     fn try_from(value: Node) -> Result<Self, Self::Error> {
         Self::read(value, &ReadOptions::default())
     }
+}
+
+/// Defines all the mdx nodes as match arms. This let us easily mark them as TODOs, and in particular makes it so that
+/// the prod and test code both marks them as TODOs using the same source list (namely, this macro).
+macro_rules! mdx_nodes {
+    {} => {
+        Node::MdxJsxFlowElement(_)
+        | Node::MdxjsEsm(_)
+        | Node::MdxTextExpression(_)
+        | Node::MdxJsxTextElement(_)
+        | Node::MdxFlowExpression(_)
+    };
 }
 
 impl MdqNode {
@@ -265,8 +281,12 @@ impl MdqNode {
                 text: MdqNode::inlines(node.children, lookups)?,
                 link: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
             }),
-            Node::FootnoteReference(_) => {
-                todo!()
+            Node::FootnoteReference(node) => {
+                let definition = lookups.resolve_footnote(&node.identifier, &node.label)?;
+                MdqNode::Inline(Inline::Footnote {
+                    label: node.label.unwrap_or(node.identifier),
+                    text: MdqNode::all(definition.children.clone(), lookups)?,
+                })
             }
             Node::Strong(node) => MdqNode::Inline(Inline::Span {
                 variant: SpanVariant::Strong,
@@ -347,11 +367,11 @@ impl MdqNode {
                 value: node.value,
             }),
 
-            Node::MdxJsxFlowElement(_)
-            | Node::MdxjsEsm(_)
-            | Node::MdxTextExpression(_)
-            | Node::MdxJsxTextElement(_)
-            | Node::MdxFlowExpression(_) => return Err(NoNode::Invalid(InvalidMd::Unsupported(node))),
+            mdx_nodes! {} => {
+                // If you implement this, make sure to remove the mdx_nodes macro. That means you'll also need to
+                // adjust the test `nodes_matcher` macro.
+                return Err(NoNode::Invalid(InvalidMd::Unsupported(node)));
+            }
         };
         Ok(result)
     }
@@ -564,6 +584,19 @@ impl Lookups {
         })
     }
 
+    fn resolve_footnote(&self, identifier: &String, label: &Option<String>) -> Result<&FootnoteDefinition, NoNode> {
+        if label.is_none() {
+            todo!("What is this case???");
+        }
+        let Some(definition) = self.footnote_definitions.get(identifier) else {
+            let human_visible_identifier = label.to_owned().unwrap_or_else(|| identifier.to_string());
+            return Err(NoNode::Invalid(InvalidMd::MissingReferenceDefinition(
+                human_visible_identifier,
+            )));
+        };
+        Ok(definition)
+    }
+
     fn build_lookups(&mut self, node: &Node, read_opts: &ReadOptions) -> Result<(), InvalidMd> {
         let x = format!("{:?}", node);
         let _ = x;
@@ -677,6 +710,11 @@ mod tests {
                         $(
                         Node::$variant(_) => {}
                         )*
+                        mdx_nodes!{} => {
+                            // If you implement mdx nodes, you should also remove the mdx_nodes macro. That will
+                            // (correctly) break this macro. You should add those MDX arms to the get_mdast_node_names
+                            // function, to ensure that we have tests for them.
+                        }
                     });
                     vec![$(stringify!($variant).to_string(),)*].into_iter().collect()
                 }
@@ -698,21 +736,56 @@ mod tests {
             });
         }
 
-        #[ignore] // TODO un-ignore
         #[test]
         fn footnote() {
-            let (root, lookups) = parse_with(
-                &ParseOptions::gfm(),
-                indoc! {r#"
-                Cool story [^a]
+            {
+                let (root, lookups) = parse_with(
+                    &ParseOptions::gfm(),
+                    indoc! {r#"
+                    Cool story [^a]!
 
-                [^a]: My _footnote_
-                  with two lines."#},
-            );
-            check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{ body }  = {
-                assert_eq!(format!("{:?}", body), "TOOD")
-            });
-            check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
+                    [^a]: My footnote
+                      with two lines."#},
+                );
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[1], Node::FootnoteReference(_), lookups => MdqNode::Inline(footnote) = {
+                    assert_eq!(footnote, Inline::Footnote{
+                        label: "a".to_string(),
+                        text: vec![
+                            text_paragraph("My footnote\nwith two lines.")
+                        ],
+                    })
+                });
+                check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
+            }
+            {
+                let (root, lookups) = parse_with(
+                    &ParseOptions::gfm(),
+                    indoc! {r#"
+                    Cool story [^a]!
+
+                    [^a]: - footnote is a list"#},
+                );
+                unwrap!(&root.children[0], Node::Paragraph(p));
+
+                check!(&p.children[1], Node::FootnoteReference(_), lookups => MdqNode::Inline(footnote) = {
+                    assert_eq!(footnote, Inline::Footnote{
+                        label: "a".to_string(),
+                        text: vec![
+                            MdqNode::List {
+                                starting_index: None,
+                                items: vec![
+                                    ListItem{
+                                        checked: None,
+                                        item: vec![text_paragraph("footnote is a list")],
+                                    }
+                                ],
+                            },
+                        ],
+                    })
+                });
+                check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
+            }
         }
 
         #[test]
@@ -1421,7 +1494,6 @@ mod tests {
             });
         }
 
-        #[ignore] // TODO un-ignore
         #[test]
         fn all_variants_tested() {
             let timeout = time::Duration::from_millis(500);
@@ -1465,7 +1537,7 @@ mod tests {
         impl NodesChecker {
             fn new() -> Self {
                 Self {
-                    require: Self::count_node_enums(),
+                    require: Self::get_mdast_node_names(),
                 }
             }
 
@@ -1499,14 +1571,12 @@ mod tests {
             ///
             /// This isn't 100% fool-proof (it requires manually ensuring that each variant is on its own line, though
             /// `cargo fmt` helps with that), but it should be good enough in practice.
-            fn count_node_enums() -> Arc<Mutex<HashSet<String>>> {
+            fn get_mdast_node_names() -> Arc<Mutex<HashSet<String>>> {
                 let all_node_names = nodes_matcher![
                     Root,
                     BlockQuote,
                     FootnoteDefinition,
-                    MdxJsxFlowElement,
                     List,
-                    MdxjsEsm,
                     Toml,
                     Yaml,
                     Break,
@@ -1514,19 +1584,16 @@ mod tests {
                     InlineMath,
                     Delete,
                     Emphasis,
-                    MdxTextExpression,
                     FootnoteReference,
                     Html,
                     Image,
                     ImageReference,
-                    MdxJsxTextElement,
                     Link,
                     LinkReference,
                     Strong,
                     Text,
                     Code,
                     Math,
-                    MdxFlowExpression,
                     Heading,
                     Table,
                     ThematicBreak,
