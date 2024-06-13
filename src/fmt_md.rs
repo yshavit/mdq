@@ -7,7 +7,7 @@ use std::io::Write;
 use crate::fmt_str::{pad_to, standard_align};
 use crate::output::{Block, Output};
 use crate::output::Block::Inlined;
-use crate::tree::{CodeVariant, Inline, InlineVariant, Link, LinkReference, MdqNode, SpanVariant};
+use crate::tree::{CodeVariant, Footnote, Inline, InlineVariant, Link, LinkReference, MdqNode, SpanVariant};
 
 #[derive(Default)]
 pub struct MdOptions {
@@ -102,6 +102,8 @@ where
         opts: options,
         seen_links: HashSet::with_capacity(8), // just a guess at capacity
         seen_footnotes: HashSet::with_capacity(8),
+        section_references: Default::default(),
+        eof_references: Default::default(),
     };
     writer.write_md(out, nodes);
 }
@@ -110,6 +112,22 @@ struct MdWriterImpl<'a> {
     opts: &'a MdOptions,
     seen_links: HashSet<&'a String>,
     seen_footnotes: HashSet<&'a String>,
+    section_references: PendingReferences<'a>,
+    eof_references: PendingReferences<'a>,
+}
+
+struct PendingReferences<'a> {
+    links: Vec<&'a Link>,
+    footnotes: Vec<&'a Footnote>,
+}
+
+impl<'a> Default for PendingReferences<'a> {
+    fn default() -> Self {
+        Self {
+            links: Vec::with_capacity(8), // just a guess,
+            footnotes: Vec::with_capacity(8),
+        }
+    }
 }
 
 impl<'a> MdWriterImpl<'a> {
@@ -354,7 +372,7 @@ impl<'a> MdWriterImpl<'a> {
                 out.write_char('!');
                 self.write_link_inline(out, link, |_, out| out.write_str(alt));
             }
-            Inline::Footnote { label, .. } => {
+            Inline::Footnote(Footnote { label, .. }) => {
                 out.write_str("[^");
                 out.write_str(label);
                 out.write_char(']');

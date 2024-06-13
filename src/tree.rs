@@ -115,10 +115,13 @@ pub enum Inline {
         alt: String,
         link: Link,
     },
-    Footnote {
-        label: String,
-        text: Vec<MdqNode>,
-    },
+    Footnote(Footnote),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Footnote {
+    pub label: String,
+    pub text: Vec<MdqNode>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -283,10 +286,10 @@ impl MdqNode {
             }),
             Node::FootnoteReference(node) => {
                 let definition = lookups.resolve_footnote(&node.identifier, &node.label)?;
-                MdqNode::Inline(Inline::Footnote {
+                MdqNode::Inline(Inline::Footnote(Footnote {
                     label: node.label.unwrap_or(node.identifier),
                     text: MdqNode::all(definition.children.clone(), lookups)?,
-                })
+                }))
             }
             Node::Strong(node) => MdqNode::Inline(Inline::Span {
                 variant: SpanVariant::Strong,
@@ -650,14 +653,14 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
+        use std::{thread, time};
         use std::collections::HashSet;
         use std::sync::{Arc, Mutex};
-        use std::{thread, time};
 
         use indoc::indoc;
         use lazy_static::lazy_static;
-        use markdown::mdast::Node;
         use markdown::{mdast, ParseOptions};
+        use markdown::mdast::Node;
         use regex::Regex;
 
         use super::*;
@@ -749,12 +752,12 @@ mod tests {
                 );
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[1], Node::FootnoteReference(_), lookups => MdqNode::Inline(footnote) = {
-                    assert_eq!(footnote, Inline::Footnote{
+                    assert_eq!(footnote, Inline::Footnote(Footnote{
                         label: "a".to_string(),
                         text: vec![
                             text_paragraph("My footnote\nwith two lines.")
                         ],
-                    })
+                    }))
                 });
                 check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
             }
@@ -769,7 +772,7 @@ mod tests {
                 unwrap!(&root.children[0], Node::Paragraph(p));
 
                 check!(&p.children[1], Node::FootnoteReference(_), lookups => MdqNode::Inline(footnote) = {
-                    assert_eq!(footnote, Inline::Footnote{
+                    assert_eq!(footnote, Inline::Footnote(Footnote{
                         label: "a".to_string(),
                         text: vec![
                             MdqNode::List {
@@ -782,7 +785,7 @@ mod tests {
                                 ],
                             },
                         ],
-                    })
+                    }))
                 });
                 check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
             }
