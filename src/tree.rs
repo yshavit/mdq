@@ -189,6 +189,18 @@ impl TryFrom<Node> for MdqNode {
     }
 }
 
+/// Defines all the mdx nodes as match arms. This let us easily mark them as TODOs, and in particular makes it so that
+/// the prod and test code both marks them as TODOs using the same source list (namely, this macro).
+macro_rules! mdx_nodes {
+    {} => {
+        Node::MdxJsxFlowElement(_)
+        | Node::MdxjsEsm(_)
+        | Node::MdxTextExpression(_)
+        | Node::MdxJsxTextElement(_)
+        | Node::MdxFlowExpression(_)
+    };
+}
+
 impl MdqNode {
     fn read(node: Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
         let lookups = Lookups::new(&node, opts)?;
@@ -355,11 +367,11 @@ impl MdqNode {
                 value: node.value,
             }),
 
-            Node::MdxJsxFlowElement(_)
-            | Node::MdxjsEsm(_)
-            | Node::MdxTextExpression(_)
-            | Node::MdxJsxTextElement(_)
-            | Node::MdxFlowExpression(_) => return Err(NoNode::Invalid(InvalidMd::Unsupported(node))),
+            mdx_nodes! {} => {
+                // If you implement this, make sure to remove the mdx_nodes macro. That means you'll also need to
+                // adjust the test `nodes_matcher` macro.
+                return Err(NoNode::Invalid(InvalidMd::Unsupported(node)));
+            }
         };
         Ok(result)
     }
@@ -638,14 +650,14 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
-        use std::{thread, time};
         use std::collections::HashSet;
         use std::sync::{Arc, Mutex};
+        use std::{thread, time};
 
         use indoc::indoc;
         use lazy_static::lazy_static;
-        use markdown::{mdast, ParseOptions};
         use markdown::mdast::Node;
+        use markdown::{mdast, ParseOptions};
         use regex::Regex;
 
         use super::*;
@@ -698,6 +710,11 @@ mod tests {
                         $(
                         Node::$variant(_) => {}
                         )*
+                        mdx_nodes!{} => {
+                            // If you implement mdx nodes, you should also remove the mdx_nodes macro. That will
+                            // (correctly) break this macro. You should add those MDX arms to the get_mdast_node_names
+                            // function, to ensure that we have tests for them.
+                        }
                     });
                     vec![$(stringify!($variant).to_string(),)*].into_iter().collect()
                 }
@@ -1520,7 +1537,7 @@ mod tests {
         impl NodesChecker {
             fn new() -> Self {
                 Self {
-                    require: Self::count_node_enums(),
+                    require: Self::get_mdast_node_names(),
                 }
             }
 
@@ -1554,14 +1571,12 @@ mod tests {
             ///
             /// This isn't 100% fool-proof (it requires manually ensuring that each variant is on its own line, though
             /// `cargo fmt` helps with that), but it should be good enough in practice.
-            fn count_node_enums() -> Arc<Mutex<HashSet<String>>> {
+            fn get_mdast_node_names() -> Arc<Mutex<HashSet<String>>> {
                 let all_node_names = nodes_matcher![
                     Root,
                     BlockQuote,
                     FootnoteDefinition,
-                    MdxJsxFlowElement,
                     List,
-                    MdxjsEsm,
                     Toml,
                     Yaml,
                     Break,
@@ -1569,19 +1584,16 @@ mod tests {
                     InlineMath,
                     Delete,
                     Emphasis,
-                    MdxTextExpression,
                     FootnoteReference,
                     Html,
                     Image,
                     ImageReference,
-                    MdxJsxTextElement,
                     Link,
                     LinkReference,
                     Strong,
                     Text,
                     Code,
                     Math,
-                    MdxFlowExpression,
                     Heading,
                     Table,
                     ThematicBreak,
