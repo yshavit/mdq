@@ -33,12 +33,13 @@ This is [my referenced link with title][a2].
 1. List two
 2. List two
 
-- Item a
+- Item a[^1]
 
 - [x] checked
 - [ ] unchecked
 
 [a2]: https://example.com/reference "from the previous section"
+[^1]: interesting footnote
 
 > This is so great
 
