@@ -5,12 +5,10 @@ use std::fmt::Alignment;
 use std::io::Write;
 
 use crate::fmt_str::{pad_to, standard_align};
-use crate::output::Block::Inlined;
 use crate::output::{Block, Output};
 use crate::tree::{CodeVariant, Footnote, Inline, InlineVariant, Link, LinkReference, MdqNode, SpanVariant};
 
 #[derive(Default)]
-#[allow(dead_code)]
 pub struct MdOptions {
     link_reference_options: ReferencePlacement,
     footnote_reference_options: ReferencePlacement,
@@ -80,6 +78,12 @@ where
         },
     };
     writer_state.write_md(out, nodes);
+
+    // Always write the pending definitions at the end of the doc. If there were no sections, then BottomOfSection
+    // won't have been triggered, but we still want to write them
+    // TODO test this specific case
+    writer_state.write_link_definitions(out);
+    writer_state.write_footnote_definitions(out);
 }
 
 struct MdWriterState<'a> {
@@ -94,7 +98,7 @@ struct MdWriterState<'a> {
 struct PendingReferences<'a> {
     links: HashMap<ReifiedLabel<'a>, ReifiedLink<'a>>,
     #[allow(dead_code)]
-    footnotes: HashMap<&'a String, &'a Footnote>,
+    footnotes: HashMap<&'a String, &'a Vec<MdqNode>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
@@ -118,9 +122,6 @@ impl<'a> MdWriterState<'a> {
         for node in nodes {
             self.write_one_md(out, node.borrow());
         }
-        if matches!(self.opts.link_reference_options, ReferencePlacement::BottomOfDoc) {
-            self.write_link_references(out);
-        }
     }
 
     pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node: &'a MdqNode)
@@ -139,7 +140,13 @@ impl<'a> MdWriterState<'a> {
                 });
                 self.write_md(out, body);
                 if matches!(self.opts.link_reference_options, ReferencePlacement::BottomOfSection) {
-                    self.write_link_references(out);
+                    self.write_link_definitions(out);
+                }
+                if matches!(
+                    self.opts.footnote_reference_options,
+                    ReferencePlacement::BottomOfSection
+                ) {
+                    self.write_footnote_definitions(out);
                 }
             }
             MdqNode::Paragraph { body } => {
@@ -171,7 +178,7 @@ impl<'a> MdWriterState<'a> {
                             prefix.push_str("] ");
                         }
                         out.write_str(&prefix);
-                        out.with_block(Inlined(prefix.len()), |out| {
+                        out.with_block(Block::Inlined(prefix.len()), |out| {
                             self.write_md(out, &item.item);
                         });
                     }
@@ -359,10 +366,13 @@ impl<'a> MdWriterState<'a> {
                 out.write_char('!');
                 self.write_link_inline(out, ReifiedLabel::Identifier(alt), link, |_, out| out.write_str(alt));
             }
-            Inline::Footnote(Footnote { label, .. }) => {
+            Inline::Footnote(Footnote { label, text }) => {
                 out.write_str("[^");
                 out.write_str(label);
                 out.write_char(']');
+                if self.seen_footnotes.insert(label) {
+                    self.pending_references.footnotes.insert(label, text);
+                }
             }
         }
     }
@@ -424,7 +434,7 @@ impl<'a> MdWriterState<'a> {
         }
     }
 
-    fn write_link_references<W>(&mut self, out: &mut Output<W>)
+    fn write_link_definitions<W>(&mut self, out: &mut Output<W>)
     where
         W: Write,
     {
@@ -433,8 +443,8 @@ impl<'a> MdWriterState<'a> {
         }
         out.with_block(Block::Plain, move |out| {
             // TODO sort them
-            let res_to_write: Vec<_> = self.pending_references.links.drain().collect();
-            for (link_ref, link_def) in res_to_write {
+            let defs_to_write: Vec<_> = self.pending_references.links.drain().collect();
+            for (link_ref, link_def) in defs_to_write {
                 out.write_char('[');
                 match link_ref {
                     ReifiedLabel::Identifier(identifier) => out.write_str(identifier),
@@ -444,6 +454,28 @@ impl<'a> MdWriterState<'a> {
                 out.write_str(&link_def.url);
                 self.write_url_title(out, &link_def.title);
                 out.write_char('\n');
+            }
+        });
+    }
+
+    fn write_footnote_definitions<W>(&mut self, out: &mut Output<W>)
+    where
+        W: Write,
+    {
+        // TODO combine this block with the link definitions
+        out.with_block(Block::Plain, move |out| {
+            // TODO sort them
+            let mut defs_to_write: Vec<_> = self.pending_references.footnotes.drain().collect();
+            defs_to_write.sort_by_key(|&kv| kv.0);
+
+            for (link_ref, text) in defs_to_write {
+                out.write_str("[^");
+                out.write_str(link_ref);
+                out.write_str("]: ");
+                out.with_block(Block::Inlined(0), |out| {
+                    self.write_md(out, text);
+                    out.write_char('\n');
+                });
             }
         });
     }
