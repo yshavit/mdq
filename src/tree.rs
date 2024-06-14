@@ -668,14 +668,14 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
-        use std::{thread, time};
         use std::collections::HashSet;
         use std::sync::{Arc, Mutex};
+        use std::{thread, time};
 
         use indoc::indoc;
         use lazy_static::lazy_static;
-        use markdown::{mdast, ParseOptions};
         use markdown::mdast::Node;
+        use markdown::{mdast, ParseOptions};
         use regex::Regex;
 
         use super::*;
@@ -1087,7 +1087,9 @@ mod tests {
         #[test]
         fn link() {
             {
+                // inline, no title
                 let (root, lookups) = parse("[hello _world_](https://example.com)");
+                assert_eq!(root.children.len(), 1);
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(link) = {
                     assert_eq!(link, Inline::Link {
@@ -1106,7 +1108,118 @@ mod tests {
                     })
                 });
             }
-            todo!("add tests of full ref, collapsed ref, shorthand ref")
+            {
+                // inline, with title
+                let (root, lookups) = parse(r#"[hello _world_](https://example.com "the title")"#);
+                assert_eq!(root.children.len(), 1);
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(link) = {
+                    assert_eq!(link, Inline::Link {
+                        text: vec![
+                            inline_text("hello "),
+                            Inline::Span {
+                                variant: SpanVariant::Emphasis,
+                                children: vec![inline_text("world")],
+                            }
+                        ],
+                        link: Link{
+                            url: "https://example.com".to_string(),
+                            title: Some("the title".to_string()),
+                            reference: LinkReference::Inline,
+                        },
+                    })
+                });
+            }
+            {
+                // full
+                let (root, lookups) = parse_with(
+                    &ParseOptions::default(),
+                    indoc! {r#"
+                    [hello _world_][1]
+
+                    [1]: https://example.com
+                    "#},
+                );
+                assert_eq!(root.children.len(), 2);
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
+                    assert_eq!(link, Inline::Link {
+                        text: vec![
+                            inline_text("hello "),
+                            Inline::Span {
+                                variant: SpanVariant::Emphasis,
+                                children: vec![inline_text("world")],
+                            },
+                        ],
+                        link: Link{
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Full("1".to_string()),
+                        },
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+            {
+                // collapsed, with title
+                let (root, lookups) = parse_with(
+                    &ParseOptions::default(),
+                    indoc! {r#"
+                    [hello _world_][]
+
+                    [hello _world_]: https://example.com "my title"
+                    "#},
+                );
+                assert_eq!(root.children.len(), 2);
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
+                    assert_eq!(link, Inline::Link {
+                        text: vec![
+                            inline_text("hello "),
+                            Inline::Span {
+                                variant: SpanVariant::Emphasis,
+                                children: vec![inline_text("world")],
+                            },
+                        ],
+                        link: Link{
+                            url: "https://example.com".to_string(),
+                            title: Some("my title".to_string()),
+                            reference: LinkReference::Collapsed,
+                        },
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+            {
+                // shortcut, no title
+                let (root, lookups) = parse_with(
+                    &ParseOptions::default(),
+                    indoc! {r#"
+                    [hello _world_]
+
+                    [hello _world_]: https://example.com
+                    "#},
+                );
+                assert_eq!(root.children.len(), 2);
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
+                    assert_eq!(link, Inline::Link {
+                        text: vec![
+                            inline_text("hello "),
+                            Inline::Span {
+                                variant: SpanVariant::Emphasis,
+                                children: vec![inline_text("world")],
+                            },
+                        ],
+                        link: Link{
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Shortcut,
+                        },
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
         }
 
         /// Basically the same as [link_ref], but with an exclamation point

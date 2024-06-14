@@ -5,8 +5,8 @@ use std::fmt::Alignment;
 use std::io::Write;
 
 use crate::fmt_str::{pad_to, standard_align};
-use crate::output::{Block, Output};
 use crate::output::Block::Inlined;
+use crate::output::{Block, Output};
 use crate::tree::{CodeVariant, Footnote, Inline, InlineVariant, Link, LinkReference, MdqNode, SpanVariant};
 
 #[derive(Default)]
