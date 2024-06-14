@@ -1,50 +1,155 @@
 use std::borrow::Borrow;
 use std::cmp::max;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Alignment;
 use std::io::Write;
 
 use crate::fmt_str::{pad_to, standard_align};
 use crate::output::Block::Inlined;
 use crate::output::{Block, Output};
-use crate::tree::{CodeVariant, Inline, InlineVariant, Link, LinkReference, MdqNode, SpanVariant};
+use crate::tree::{CodeVariant, Footnote, Inline, InlineVariant, Link, LinkReference, MdqNode, SpanVariant};
 
-pub struct MdWriterImpl;
+#[derive(Default)]
+#[allow(dead_code)]
+pub struct MdOptions {
+    link_reference_options: ReferencePlacement,
+    footnote_reference_options: ReferencePlacement,
+}
 
-impl MdWriterImpl {
-    pub fn write_md<N, W>(out: &mut Output<W>, nodes: &[N])
+#[allow(dead_code)]
+pub enum ReferencePlacement {
+    /// Show links as references defined in the first section that uses the link.
+    ///
+    /// ```
+    /// # Top Header
+    ///
+    /// ## Second section
+    ///
+    /// Lorem [ipsum][1] in the first sub-section.
+    ///              ^^^
+    ///
+    /// [1]: https://example.com
+    /// ^^^^^^^^^^^^^^^^^^^^^^^^
+    ///
+    /// ## Third section
+    ///
+    /// Lorem ipsum in the second sub-section.
+    /// ```
+    BottomOfSection,
+
+    /// Show links as references defined at the bottom of the document.
+    ///
+    /// ```
+    /// # Top Header
+    ///
+    /// ## Second section
+    ///
+    /// Lorem [ipsum][1] in the first sub-section.
+    ///              ^^^
+    ///
+    /// ## Third section
+    ///
+    /// Lorem ipsum in the second sub-section.
+    ///
+    /// [1]: https://example.com
+    /// ^^^^^^^^^^^^^^^^^^^^^^^^
+    /// ```
+    BottomOfDoc,
+}
+
+impl Default for ReferencePlacement {
+    fn default() -> Self {
+        Self::BottomOfSection
+    }
+}
+
+pub fn write_md<N, W>(options: &MdOptions, out: &mut Output<W>, nodes: &[N])
+where
+    N: Borrow<MdqNode>,
+    W: Write,
+{
+    let pending_refs_capacity = 8; // arbitrary guess
+
+    let mut writer_state = MdWriterState {
+        opts: options,
+        seen_links: HashSet::with_capacity(pending_refs_capacity),
+        seen_footnotes: HashSet::with_capacity(pending_refs_capacity),
+        pending_references: PendingReferences {
+            links: HashMap::with_capacity(pending_refs_capacity),
+            footnotes: HashMap::with_capacity(pending_refs_capacity),
+        },
+    };
+    writer_state.write_md(out, nodes);
+}
+
+struct MdWriterState<'a> {
+    #[allow(dead_code)]
+    opts: &'a MdOptions,
+    seen_links: HashSet<ReifiedLabel<'a>>,
+    #[allow(dead_code)]
+    seen_footnotes: HashSet<&'a String>,
+    pending_references: PendingReferences<'a>,
+}
+
+struct PendingReferences<'a> {
+    links: HashMap<ReifiedLabel<'a>, ReifiedLink<'a>>,
+    #[allow(dead_code)]
+    footnotes: HashMap<&'a String, &'a Footnote>,
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
+struct ReifiedLink<'a> {
+    url: &'a String,
+    title: &'a Option<String>,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+enum ReifiedLabel<'a> {
+    Identifier(&'a String),
+    Inline(&'a Vec<Inline>),
+}
+
+impl<'a> MdWriterState<'a> {
+    fn write_md<N, W>(&mut self, out: &mut Output<W>, nodes: &'a [N])
     where
         N: Borrow<MdqNode>,
         W: Write,
     {
         for node in nodes {
-            Self::write_one_md(out, node.borrow());
+            self.write_one_md(out, node.borrow());
+        }
+        if matches!(self.opts.link_reference_options, ReferencePlacement::BottomOfDoc) {
+            self.write_link_references(out);
         }
     }
 
-    pub fn write_one_md<W>(out: &mut Output<W>, node: &MdqNode)
+    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node: &'a MdqNode)
     where
         W: Write,
     {
         match node {
-            MdqNode::Root { body } => Self::write_md(out, body),
+            MdqNode::Root { body } => self.write_md(out, body),
             MdqNode::Header { depth, title, body } => {
                 out.with_block(Block::Plain, |out| {
                     for _ in 0..*depth {
                         out.write_str("#");
                     }
                     out.write_str(" ");
-                    Self::write_line(out, title);
+                    self.write_line(out, title);
                 });
-                Self::write_md(out, body);
+                self.write_md(out, body);
+                if matches!(self.opts.link_reference_options, ReferencePlacement::BottomOfSection) {
+                    self.write_link_references(out);
+                }
             }
             MdqNode::Paragraph { body } => {
                 out.with_block(Block::Plain, |out| {
-                    Self::write_line(out, body);
+                    self.write_line(out, body);
                 });
             }
             MdqNode::BlockQuote { body } => {
                 out.with_block(Block::Quote, |out| {
-                    Self::write_md(out, body);
+                    self.write_md(out, body);
                 });
             }
             MdqNode::List { starting_index, items } => {
@@ -67,7 +172,7 @@ impl MdWriterImpl {
                         }
                         out.write_str(&prefix);
                         out.with_block(Inlined(prefix.len()), |out| {
-                            Self::write_md(out, &item.item);
+                            self.write_md(out, &item.item);
                         });
                     }
                 });
@@ -90,7 +195,7 @@ impl MdWriterImpl {
                 for row in rows {
                     let mut col_strs = Vec::with_capacity(row.len());
                     for (idx, col) in row.iter().enumerate() {
-                        let col_str = Self::line_to_string(col);
+                        let col_str = self.line_to_string(col);
                         // Extend the row_sizes if needed. This happens if we had fewer alignments than columns in any row.
                         // I'm not sure if that's possible, but it's easy to guard against
                         while column_widths.len() < idx {
@@ -204,22 +309,22 @@ impl MdWriterImpl {
                 });
             }
             MdqNode::Inline(inline) => {
-                Self::write_inline_element(out, inline);
+                self.write_inline_element(out, inline);
             }
         }
     }
 
-    pub fn write_line<E, W>(out: &mut Output<W>, elems: &[E])
+    pub fn write_line<E, W>(&mut self, out: &mut Output<W>, elems: &'a [E])
     where
         E: Borrow<Inline>,
         W: Write,
     {
         for elem in elems {
-            Self::write_inline_element(out, elem.borrow());
+            self.write_inline_element(out, elem.borrow());
         }
     }
 
-    pub fn write_inline_element<W>(out: &mut Output<W>, elem: &Inline)
+    pub fn write_inline_element<W>(&mut self, out: &mut Output<W>, elem: &'a Inline)
     where
         W: Write,
     {
@@ -231,7 +336,7 @@ impl MdWriterImpl {
                     SpanVariant::Strong => "**",
                 };
                 out.write_str(surround);
-                Self::write_line(out, children);
+                self.write_line(out, children);
                 out.write_str(surround);
             }
             Inline::Text { variant, value } => {
@@ -246,13 +351,15 @@ impl MdWriterImpl {
                 out.write_str(surround);
             }
             Inline::Link { text, link } => {
-                Self::write_link_inline(out, link, |out| Self::write_line(out, text));
+                self.write_link_inline(out, ReifiedLabel::Inline(text), link, |me, out| {
+                    me.write_line(out, text)
+                });
             }
             Inline::Image { alt, link } => {
                 out.write_char('!');
-                Self::write_link_inline(out, link, |out| out.write_str(alt));
+                self.write_link_inline(out, ReifiedLabel::Identifier(alt), link, |_, out| out.write_str(alt));
             }
-            Inline::Footnote { label, .. } => {
+            Inline::Footnote(Footnote { label, .. }) => {
                 out.write_str("[^");
                 out.write_str(label);
                 out.write_char(']');
@@ -271,54 +378,100 @@ impl MdWriterImpl {
     ///
     /// The `contents` function is what writes e.g. `an inline link` above. It's a function because it may be a recursive
     /// call into [write_line] (for links) or just simple text (for image alts).
-    fn write_link_inline<W, F>(out: &mut Output<W>, link: &Link, contents: F)
+    fn write_link_inline<W, F>(&mut self, out: &mut Output<W>, label: ReifiedLabel<'a>, link: &'a Link, contents: F)
     where
         W: Write,
-        F: FnOnce(&mut Output<W>),
+        F: FnOnce(&mut Self, &mut Output<W>),
     {
         out.write_str("![");
-        contents(out);
+        contents(self, out);
         out.write_char(']');
-        match &link.reference {
+        let reference_to_add = match &link.reference {
             LinkReference::Inline => {
                 out.write_char('(');
                 out.write_str(&link.url);
-                if let Some(title) = &link.title {
-                    out.write_str(" \"");
-                    Self::escape_title_to(out, title);
-                    out.write_char('"');
-                }
+                self.write_url_title(out, &link.title);
                 out.write_char(')');
+                None
             }
             LinkReference::Full(identifier) => {
                 out.write_char('[');
                 out.write_str(identifier);
                 out.write_char(']');
+                Some(ReifiedLabel::Identifier(identifier))
             }
             LinkReference::Collapsed => {
                 out.write_str("[]");
+                Some(label)
             }
             LinkReference::Shortcut => {
-                // nothing
+                // no write
+                Some(label)
+            }
+        };
+
+        if let Some(reference_label) = reference_to_add {
+            if self.seen_links.insert(reference_label.clone()) {
+                self.pending_references.links.insert(
+                    reference_label,
+                    ReifiedLink {
+                        url: &link.url,
+                        title: &link.title,
+                    },
+                );
+                // else warn?
             }
         }
     }
 
-    fn escape_title_to<W>(out: &mut Output<W>, title: &String)
+    fn write_link_references<W>(&mut self, out: &mut Output<W>)
     where
         W: Write,
     {
-        // TODO escaping
-        out.write_str(title);
+        if self.pending_references.links.is_empty() && self.seen_footnotes.is_empty() {
+            return;
+        }
+        out.with_block(Block::Plain, move |out| {
+            // TODO sort them
+            let res_to_write: Vec<_> = self.pending_references.links.drain().collect();
+            for (link_ref, link_def) in res_to_write {
+                out.write_char('[');
+                match link_ref {
+                    ReifiedLabel::Identifier(identifier) => out.write_str(identifier),
+                    ReifiedLabel::Inline(text) => self.write_line(out, text),
+                }
+                out.write_str("]: ");
+                out.write_str(&link_def.url);
+                self.write_url_title(out, &link_def.title);
+                out.write_char('\n');
+            }
+        });
     }
 
-    fn line_to_string<E>(line: &[E]) -> String
+    fn write_url_title<W>(&mut self, out: &mut Output<W>, title: &Option<String>)
+    where
+        W: Write,
+    {
+        let Some(title) = title else { return };
+        out.write_char(' ');
+        // TODO pick which quoting char to use (single, double, or paren) depending on title
+        out.write_char('"');
+        for ch in title.chars() {
+            if ch == '"' {
+                out.write_char('\\');
+            }
+            out.write_char(ch);
+        }
+        out.write_char('"');
+    }
+
+    fn line_to_string<E>(&mut self, line: &'a [E]) -> String
     where
         E: Borrow<Inline>,
     {
         let bytes: Vec<u8> = Vec::with_capacity(line.len() * 10); // rough guess
         let mut out = Output::new(bytes);
-        Self::write_line(&mut out, line);
+        self.write_line(&mut out, line);
         let bytes = out.take_underlying().unwrap();
         String::from_utf8(bytes).unwrap()
     }

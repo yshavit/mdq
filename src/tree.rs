@@ -1,6 +1,7 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::hash::{Hash, Hasher};
 
 use markdown::mdast::{AlignKind, Code, Definition, FootnoteDefinition, Math, Node, ReferenceKind, Table, TableRow};
 
@@ -45,7 +46,7 @@ pub enum MdqNode {
 }
 
 /// See https://github.github.com/gfm/#link-reference-definitions
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum LinkReference {
     Inline,
     Full(String),
@@ -88,7 +89,7 @@ impl Default for ReadOptions {
 pub type Tr = Vec<Line>; // TODO rename to TableRow
 pub type Line = Vec<Inline>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Hash)]
 pub enum CodeVariant {
     Code(Option<CodeOpts>),
     Math { metadata: Option<String> },
@@ -96,7 +97,7 @@ pub enum CodeVariant {
     Yaml,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Inline {
     Span {
         // TODO rename to Composite or something? Or Formatting?
@@ -115,13 +116,32 @@ pub enum Inline {
         alt: String,
         link: Link,
     },
-    Footnote {
-        label: String,
-        text: Vec<MdqNode>,
-    },
+    Footnote(Footnote),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+pub struct Footnote {
+    pub label: String,
+    pub text: Vec<MdqNode>,
+}
+
+/// Note that [Footnote]'s [Eq] and [Hash] only key off of its label, _not_ its text content.
+impl Hash for Footnote {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.label.hash(state);
+    }
+}
+
+/// Note that [Footnote]'s [Eq] and [Hash] only key off of its label, _not_ its text content.
+impl PartialEq for Footnote {
+    fn eq(&self, other: &Self) -> bool {
+        self.label == other.label
+    }
+}
+
+impl Eq for Footnote {}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Link {
     pub url: String,
     /// If you have `[1]: https://example.com "my title"`, this is the "my title".
@@ -137,14 +157,14 @@ pub struct ListItem {
     pub item: Vec<MdqNode>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum SpanVariant {
     Delete,
     Emphasis,
     Strong,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum InlineVariant {
     Text,
     Code,
@@ -163,7 +183,7 @@ pub enum InvalidMd {
     InternalError,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Hash)]
 pub struct CodeOpts {
     pub language: String,
     pub metadata: Option<String>,
@@ -283,10 +303,10 @@ impl MdqNode {
             }),
             Node::FootnoteReference(node) => {
                 let definition = lookups.resolve_footnote(&node.identifier, &node.label)?;
-                MdqNode::Inline(Inline::Footnote {
+                MdqNode::Inline(Inline::Footnote(Footnote {
                     label: node.label.unwrap_or(node.identifier),
                     text: MdqNode::all(definition.children.clone(), lookups)?,
-                })
+                }))
             }
             Node::Strong(node) => MdqNode::Inline(Inline::Span {
                 variant: SpanVariant::Strong,
@@ -749,12 +769,12 @@ mod tests {
                 );
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[1], Node::FootnoteReference(_), lookups => MdqNode::Inline(footnote) = {
-                    assert_eq!(footnote, Inline::Footnote{
+                    assert_eq!(footnote, Inline::Footnote(Footnote{
                         label: "a".to_string(),
                         text: vec![
                             text_paragraph("My footnote\nwith two lines.")
                         ],
-                    })
+                    }))
                 });
                 check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
             }
@@ -769,7 +789,7 @@ mod tests {
                 unwrap!(&root.children[0], Node::Paragraph(p));
 
                 check!(&p.children[1], Node::FootnoteReference(_), lookups => MdqNode::Inline(footnote) = {
-                    assert_eq!(footnote, Inline::Footnote{
+                    assert_eq!(footnote, Inline::Footnote(Footnote{
                         label: "a".to_string(),
                         text: vec![
                             MdqNode::List {
@@ -782,7 +802,7 @@ mod tests {
                                 ],
                             },
                         ],
-                    })
+                    }))
                 });
                 check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
             }
@@ -1068,25 +1088,140 @@ mod tests {
 
         #[test]
         fn link() {
-            // just a smoke test, since this is basically the same logic as image
-            let (root, lookups) = parse("[hello _world_](https://example.com)");
-            unwrap!(&root.children[0], Node::Paragraph(p));
-            check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(link) = {
-                assert_eq!(link, Inline::Link {
-                    text: vec![
-                        inline_text("hello "),
-                        Inline::Span {
-                            variant: SpanVariant::Emphasis,
-                            children: vec![inline_text("world")],
-                        }
-                    ],
-                    link: Link{
-                        url: "https://example.com".to_string(),
-                        title: None,
-                        reference: LinkReference::Inline,
-                    },
-                })
-            });
+            {
+                // inline, no title
+                let (root, lookups) = parse("[hello _world_](https://example.com)");
+                assert_eq!(root.children.len(), 1);
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(link) = {
+                    assert_eq!(link, Inline::Link {
+                        text: vec![
+                            inline_text("hello "),
+                            Inline::Span {
+                                variant: SpanVariant::Emphasis,
+                                children: vec![inline_text("world")],
+                            }
+                        ],
+                        link: Link{
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    })
+                });
+            }
+            {
+                // inline, with title
+                let (root, lookups) = parse(r#"[hello _world_](https://example.com "the title")"#);
+                assert_eq!(root.children.len(), 1);
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(link) = {
+                    assert_eq!(link, Inline::Link {
+                        text: vec![
+                            inline_text("hello "),
+                            Inline::Span {
+                                variant: SpanVariant::Emphasis,
+                                children: vec![inline_text("world")],
+                            }
+                        ],
+                        link: Link{
+                            url: "https://example.com".to_string(),
+                            title: Some("the title".to_string()),
+                            reference: LinkReference::Inline,
+                        },
+                    })
+                });
+            }
+            {
+                // full
+                let (root, lookups) = parse_with(
+                    &ParseOptions::default(),
+                    indoc! {r#"
+                    [hello _world_][1]
+
+                    [1]: https://example.com
+                    "#},
+                );
+                assert_eq!(root.children.len(), 2);
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
+                    assert_eq!(link, Inline::Link {
+                        text: vec![
+                            inline_text("hello "),
+                            Inline::Span {
+                                variant: SpanVariant::Emphasis,
+                                children: vec![inline_text("world")],
+                            },
+                        ],
+                        link: Link{
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Full("1".to_string()),
+                        },
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+            {
+                // collapsed, with title
+                let (root, lookups) = parse_with(
+                    &ParseOptions::default(),
+                    indoc! {r#"
+                    [hello _world_][]
+
+                    [hello _world_]: https://example.com "my title"
+                    "#},
+                );
+                assert_eq!(root.children.len(), 2);
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
+                    assert_eq!(link, Inline::Link {
+                        text: vec![
+                            inline_text("hello "),
+                            Inline::Span {
+                                variant: SpanVariant::Emphasis,
+                                children: vec![inline_text("world")],
+                            },
+                        ],
+                        link: Link{
+                            url: "https://example.com".to_string(),
+                            title: Some("my title".to_string()),
+                            reference: LinkReference::Collapsed,
+                        },
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
+            {
+                // shortcut, no title
+                let (root, lookups) = parse_with(
+                    &ParseOptions::default(),
+                    indoc! {r#"
+                    [hello _world_]
+
+                    [hello _world_]: https://example.com
+                    "#},
+                );
+                assert_eq!(root.children.len(), 2);
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
+                    assert_eq!(link, Inline::Link {
+                        text: vec![
+                            inline_text("hello "),
+                            Inline::Span {
+                                variant: SpanVariant::Emphasis,
+                                children: vec![inline_text("world")],
+                            },
+                        ],
+                        link: Link{
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Shortcut,
+                        },
+                    })
+                });
+                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+            }
         }
 
         /// Basically the same as [link_ref], but with an exclamation point
