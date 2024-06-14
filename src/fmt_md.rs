@@ -4,8 +4,8 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Alignment;
 use std::io::Write;
 
-use crate::fmt_str::{pad_to, standard_align};
 use crate::output::{Block, Output};
+use crate::str_utils::{pad_to, standard_align};
 use crate::tree::{CodeVariant, Footnote, Inline, InlineVariant, Link, LinkReference, MdqNode, SpanVariant};
 
 #[derive(Default)]
