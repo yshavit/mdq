@@ -22,5 +22,31 @@ jobs:
       - name: Upload to gist
         run: ./scripts/percent_to_shields_gist coverage "$LINES_PERCENT"
         env:
-          GIST_URL: ${{ vars.GIST_URL }}
+          GIST_URL: ${{ vars.COVERAGE_GIST_URL }}
           GH_TOKEN: ${{ secrets.API_TOKEN }}
+      - name: Count TODOs
+        run: |
+          set -euo pipefail
+          todos_count="$(
+            git ls-tree -r --name-only HEAD |
+            grep --fixed-string -v .github/workflows/coverage.yml |
+            grep --fixed-string -v README.md |
+            (xargs grep todo -i -o || true) |
+            wc -l
+          )"
+          if [ "$todos_count" -eq 0 ]; then
+            color=green
+          else
+            color=orange
+          fi
+          json_text="$(echo '{}' | 
+            jq -c '{schemaVersion: 1, label: $badge_label, color: $color, message: $message}' \
+            --arg badge_label "☑ Pending TODOs" --arg color "$color" --arg message "$todos_count")"
+
+          percent_coverage="$(cargo llvm-cov --json | jq '.data[].totals.lines.percent')"
+          printf '::notice title=TODOs Count::%s' "$todos_count"
+          gh gist edit "$GIST_URL" <(echo "$json_text")
+        env:
+          GIST_URL: ${{ vars.TODOS_GIST_URL }}
+          GH_TOKEN: ${{ secrets.API_TOKEN }}
+      
