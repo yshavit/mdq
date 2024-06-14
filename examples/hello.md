@@ -10,6 +10,12 @@ In fact, I'm doing very well!
 This line isn't a new paragraph, just some
 wrapping that mdq should unwrap.
 
+### Sub-section with link
+
+This is [my referenced link][a1].
+
+[a1]: https://example.com/reference
+
 ### Here's a *cool* table
 
 | Column Left | Column Middle | Column Right |
@@ -20,13 +26,7 @@ This is [my inline link](https://example.com/inline).
 
 This is [my inline link with title](https://example.com/inline "its title").
 
-This is [my referenced link][a1].
-
 This is [my referenced link with title][a2].
-
-[a1]: https://example.com/reference
-
-[a2]: https://example.com/reference "its reference title"
 
 ## Hello lists
 
@@ -37,6 +37,8 @@ This is [my referenced link with title][a2].
 
 - [x] checked
 - [ ] unchecked
+
+[a2]: https://example.com/reference "from the previous section"
 
 > This is so great
 

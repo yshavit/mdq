@@ -5,17 +5,19 @@ use std::fmt::Alignment;
 use std::io::Write;
 
 use crate::fmt_str::{pad_to, standard_align};
-use crate::output::Block::Inlined;
 use crate::output::{Block, Output};
+use crate::output::Block::Inlined;
 use crate::tree::{CodeVariant, Footnote, Inline, InlineVariant, Link, LinkReference, MdqNode, SpanVariant};
 
 #[derive(Default)]
+#[allow(dead_code)]
 pub struct MdOptions {
-    link_reference_options: LinkReferencePlacement,
-    footnote_reference_options: FootnoteReferencePlacement,
+    link_reference_options: ReferencePlacement,
+    footnote_reference_options: ReferencePlacement,
 }
 
-pub enum LinkReferencePlacement {
+#[allow(dead_code)]
+pub enum ReferencePlacement {
     /// Show links as references defined in the first section that uses the link.
     ///
     /// ```
@@ -55,20 +57,7 @@ pub enum LinkReferencePlacement {
     BottomOfDoc,
 }
 
-pub enum FootnoteReferencePlacement {
-    /// See [LinkReferencePlacement::BottomOfSection]
-    BottomOfSection,
-    /// See [LinkReferencePlacement::BottomOfDoc]
-    BottomOfDoc,
-}
-
-impl Default for FootnoteReferencePlacement {
-    fn default() -> Self {
-        Self::BottomOfDoc
-    }
-}
-
-impl Default for LinkReferencePlacement {
+impl Default for ReferencePlacement {
     fn default() -> Self {
         Self::BottomOfSection
     }
@@ -94,14 +83,17 @@ where
 }
 
 struct MdWriterState<'a> {
+    #[allow(dead_code)]
     opts: &'a MdOptions,
     seen_links: HashSet<ReifiedLabel<'a>>,
+    #[allow(dead_code)]
     seen_footnotes: HashSet<&'a String>,
     pending_references: PendingReferences<'a>,
 }
 
 struct PendingReferences<'a> {
     links: HashMap<ReifiedLabel<'a>, ReifiedLink<'a>>,
+    #[allow(dead_code)]
     footnotes: HashMap<&'a String, &'a Footnote>,
 }
 
@@ -126,6 +118,9 @@ impl<'a> MdWriterState<'a> {
         for node in nodes {
             self.write_one_md(out, node.borrow());
         }
+        if matches!(self.opts.link_reference_options, ReferencePlacement::BottomOfDoc) {
+            self.write_link_references(out);
+        }
     }
 
     pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node: &'a MdqNode)
@@ -143,6 +138,9 @@ impl<'a> MdWriterState<'a> {
                     self.write_line(out, title);
                 });
                 self.write_md(out, body);
+                if matches!(self.opts.link_reference_options, ReferencePlacement::BottomOfSection) {
+                    self.write_link_references(out);
+                }
             }
             MdqNode::Paragraph { body } => {
                 out.with_block(Block::Plain, |out| {
@@ -434,6 +432,7 @@ impl<'a> MdWriterState<'a> {
             return;
         }
         out.with_block(Block::Plain, move |out| {
+            // TODO sort them
             let res_to_write: Vec<_> = self.pending_references.links.drain().collect();
             for (link_ref, link_def) in res_to_write {
                 out.write_char('[');
@@ -444,6 +443,7 @@ impl<'a> MdWriterState<'a> {
                 out.write_str("]: ");
                 out.write_str(&link_def.url);
                 self.write_url_title(out, &link_def.title);
+                out.write_char('\n');
             }
         });
     }
