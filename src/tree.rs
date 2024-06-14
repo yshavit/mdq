@@ -125,12 +125,14 @@ pub struct Footnote {
     pub text: Vec<MdqNode>,
 }
 
+/// Note that [Footnote]'s [Eq] and [Hash] only key off of its label, _not_ its text content.
 impl Hash for Footnote {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.label.hash(state);
     }
 }
 
+/// Note that [Footnote]'s [Eq] and [Hash] only key off of its label, _not_ its text content.
 impl PartialEq for Footnote {
     fn eq(&self, other: &Self) -> bool {
         self.label == other.label
