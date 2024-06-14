@@ -16,14 +16,6 @@ pub struct MdOptions {
 }
 
 pub enum LinkReferencePlacement {
-    /// Show link URLs inline with their usages.
-    ///
-    /// ```
-    /// [foo](https://example.com)
-    ///      ^^^^^^^^^^^^^^^^^^^^^
-    /// ```
-    Inline,
-
     /// Show links as references defined in the first section that uses the link.
     ///
     /// ```
@@ -87,10 +79,7 @@ where
     N: Borrow<MdqNode>,
     W: Write,
 {
-    let pending_refs_capacity = match options.link_reference_options {
-        LinkReferencePlacement::Inline => 0,
-        _ => 8, // just a guess
-    };
+    let pending_refs_capacity = 8; // arbitrary guess
 
     let mut writer_state = MdWriterState {
         opts: options,
@@ -98,7 +87,7 @@ where
         seen_footnotes: HashSet::with_capacity(pending_refs_capacity),
         pending_references: PendingReferences {
             links: HashMap::with_capacity(pending_refs_capacity),
-            footnotes: HashMap::with_capacity(8), // footnotes are never inline (as above, 8 is just a guess here)
+            footnotes: HashMap::with_capacity(pending_refs_capacity),
         },
     };
     writer_state.write_md(out, nodes);
