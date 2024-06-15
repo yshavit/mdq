@@ -716,6 +716,101 @@ pub mod tests {
         }
     }
 
+    mod list {
+        use super::*;
+
+        #[test]
+        fn ordered() {
+            check_render(
+                mdq_nodes![List {
+                    starting_index: Some(3),
+                    items: vec![
+                        ListItem {
+                            checked: None,
+                            item: mdq_nodes!("normal")
+                        },
+                        ListItem {
+                            checked: Some(true),
+                            item: mdq_nodes!("checked")
+                        },
+                        ListItem {
+                            checked: Some(false),
+                            item: mdq_nodes!("unchecked")
+                        },
+                    ],
+                }],
+                indoc! {r#"
+                3. normal
+                4. [x] checked
+                5. [ ] unchecked"#},
+            );
+        }
+
+        #[test]
+        fn unordered() {
+            check_render(
+                mdq_nodes![List {
+                    starting_index: None,
+                    items: vec![
+                        ListItem {
+                            checked: None,
+                            item: mdq_nodes!("normal")
+                        },
+                        ListItem {
+                            checked: Some(true),
+                            item: mdq_nodes!("checked")
+                        },
+                        ListItem {
+                            checked: Some(false),
+                            item: mdq_nodes!("unchecked")
+                        },
+                    ],
+                }],
+                indoc! {r#"
+                - normal
+                - [x] checked
+                - [ ] unchecked"#},
+            );
+        }
+
+        #[test]
+        fn block_alignments() {
+            check_render(
+                mdq_nodes![List {
+                    starting_index: None,
+                    items: vec![
+                        ListItem {
+                            checked: None,
+                            item: mdq_nodes!["first paragraph", "second paragraph"],
+                        },
+                        ListItem {
+                            checked: None,
+                            item: mdq_nodes!(BlockQuote {
+                                body: mdq_nodes!["quoted block"]
+                            })
+                        },
+                        ListItem {
+                            checked: None,
+                            item: mdq_nodes!(CodeBlock {
+                                variant: CodeVariant::Code(None),
+                                value: "line 1\nline2".to_string(),
+                            })
+                        },
+                    ],
+                }],
+                indoc! {r#"
+                - first paragraph
+
+                  second paragraph
+                - > quoted block
+                - ```
+                  line 1
+                  line 2
+                  ```"#},
+            )
+        }
+    }
+
     #[test]
     fn all_variants_checked() {
         VARIANTS_CHECKER.wait_for_all();

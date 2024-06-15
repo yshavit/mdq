@@ -167,6 +167,7 @@ impl<W: SimpleWrite> Output<W> {
 
         // Append the new blocks, and then write the indent if we need it
         // When we write that indent, though, only write it until the first new Inlined (exclusive).
+        // TODO this is wrong -- block_alignments test fails due to this
         let indent_end_idx = self.blocks.len()
             + self
                 .pending_blocks

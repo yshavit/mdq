@@ -29,6 +29,9 @@ mod test_utils {
         ($node_type:tt {$($attr:ident: $val:expr),*}) => {
             MdqNode::$node_type($node_type{$($attr: $val),*})
         };
+        ($paragraph_text:literal) => {
+            crate::mdq_node!(Paragraph{body: vec![crate::mdq_inline!($paragraph_text)]})
+        }
     }
 
     #[macro_export]
@@ -41,6 +44,12 @@ mod test_utils {
                 ),*
             ]
         };
+        [$($paragraph_text:literal),*$(,)?] => {
+            vec![$(
+                    crate::mdq_node!($paragraph_text)
+                ),*
+            ]
+        }
     }
 
     #[macro_export]
