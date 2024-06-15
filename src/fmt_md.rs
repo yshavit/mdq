@@ -81,8 +81,7 @@ where
     // Always write the pending definitions at the end of the doc. If there were no sections, then BottomOfSection
     // won't have been triggered, but we still want to write them
     // TODO test this specific case
-    writer_state.write_link_definitions(out);
-    writer_state.write_footnote_definitions(out);
+    writer_state.write_definitions(out, DefinitionsToWrite::Both);
 }
 
 struct MdWriterState<'a> {
@@ -138,15 +137,16 @@ impl<'a> MdWriterState<'a> {
                     self.write_line(out, title);
                 });
                 self.write_md(out, body);
-                if matches!(self.opts.link_reference_options, ReferencePlacement::BottomOfSection) {
-                    self.write_link_definitions(out);
-                }
-                if matches!(
-                    self.opts.footnote_reference_options,
-                    ReferencePlacement::BottomOfSection
-                ) {
-                    self.write_footnote_definitions(out);
-                }
+                let which_defs_to_write =
+                    match (&self.opts.link_reference_options, &self.opts.footnote_reference_options) {
+                        (ReferencePlacement::BottomOfSection, ReferencePlacement::BottomOfSection) => {
+                            DefinitionsToWrite::Both
+                        }
+                        (_, ReferencePlacement::BottomOfSection) => DefinitionsToWrite::Footnotes,
+                        (ReferencePlacement::BottomOfSection, _) => DefinitionsToWrite::Links,
+                        (_, _) => DefinitionsToWrite::Neither,
+                    };
+                self.write_definitions(out, which_defs_to_write);
             }
             MdqNode::Paragraph(Paragraph { body }) => {
                 out.with_block(Block::Plain, |out| {
@@ -433,48 +433,50 @@ impl<'a> MdWriterState<'a> {
         }
     }
 
-    fn write_link_definitions<W>(&mut self, out: &mut Output<W>)
+    fn write_definitions<W>(&mut self, out: &mut Output<W>, which: DefinitionsToWrite)
     where
         W: SimpleWrite,
     {
-        if self.pending_references.links.is_empty() && self.seen_footnotes.is_empty() {
+        let is_empty = match which {
+            DefinitionsToWrite::Links => self.pending_references.links.is_empty(),
+            DefinitionsToWrite::Footnotes => self.pending_references.footnotes.is_empty(),
+            DefinitionsToWrite::Both => {
+                self.pending_references.links.is_empty() && self.pending_references.footnotes.is_empty()
+            }
+            DefinitionsToWrite::Neither => true,
+        };
+        if is_empty {
             return;
         }
         out.with_block(Block::Plain, move |out| {
-            // TODO sort them
-            let defs_to_write: Vec<_> = self.pending_references.links.drain().collect();
-            for (link_ref, link_def) in defs_to_write {
-                out.write_char('[');
-                match link_ref {
-                    ReifiedLabel::Identifier(identifier) => out.write_str(identifier),
-                    ReifiedLabel::Inline(text) => self.write_line(out, text),
-                }
-                out.write_str("]: ");
-                out.write_str(&link_def.url);
-                self.write_url_title(out, &link_def.title);
-                out.write_char('\n');
-            }
-        });
-    }
-
-    fn write_footnote_definitions<W>(&mut self, out: &mut Output<W>)
-    where
-        W: SimpleWrite,
-    {
-        // TODO combine this block with the link definitions
-        out.with_block(Block::Plain, move |out| {
-            // TODO sort them
-            let mut defs_to_write: Vec<_> = self.pending_references.footnotes.drain().collect();
-            defs_to_write.sort_by_key(|&kv| kv.0);
-
-            for (link_ref, text) in defs_to_write {
-                out.write_str("[^");
-                out.write_str(link_ref);
-                out.write_str("]: ");
-                out.with_block(Block::Inlined(0), |out| {
-                    self.write_md(out, text);
+            if matches!(which, DefinitionsToWrite::Links | DefinitionsToWrite::Both) {
+                // TODO sort them
+                let defs_to_write: Vec<_> = self.pending_references.links.drain().collect();
+                for (link_ref, link_def) in defs_to_write {
+                    out.write_char('[');
+                    match link_ref {
+                        ReifiedLabel::Identifier(identifier) => out.write_str(identifier),
+                        ReifiedLabel::Inline(text) => self.write_line(out, text),
+                    }
+                    out.write_str("]: ");
+                    out.write_str(&link_def.url);
+                    self.write_url_title(out, &link_def.title);
                     out.write_char('\n');
-                });
+                }
+            }
+            if matches!(which, DefinitionsToWrite::Footnotes | DefinitionsToWrite::Both) {
+                let mut defs_to_write: Vec<_> = self.pending_references.footnotes.drain().collect();
+                defs_to_write.sort_by_key(|&kv| kv.0);
+
+                for (link_ref, text) in defs_to_write {
+                    out.write_str("[^");
+                    out.write_str(link_ref);
+                    out.write_str("]: ");
+                    out.with_block(Block::Inlined(0), |out| {
+                        self.write_md(out, text);
+                        out.write_char('\n');
+                    });
+                }
             }
         });
     }
@@ -504,6 +506,14 @@ impl<'a> MdWriterState<'a> {
         self.write_line(&mut out, line);
         out.take_underlying().unwrap()
     }
+}
+
+enum DefinitionsToWrite {
+    // simple enum-set-like definition
+    Links,
+    Footnotes,
+    Both,
+    Neither,
 }
 
 #[cfg(test)]
