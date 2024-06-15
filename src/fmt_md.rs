@@ -192,8 +192,9 @@ impl<'a> MdWriterState<'a> {
                 if !alignments.is_empty() {
                     for (idx, alignment) in alignments.iter().enumerate() {
                         let width = match standard_align(alignment) {
-                            Alignment::Left | Alignment::Right => 2,
-                            Alignment::Center => 3,
+                            Some(Alignment::Left | Alignment::Right) => 2,
+                            Some(Alignment::Center) => 3,
+                            None => 1,
                         };
                         column_widths[idx] = width;
                     }
@@ -204,9 +205,9 @@ impl<'a> MdWriterState<'a> {
                     let mut col_strs = Vec::with_capacity(row.len());
                     for (idx, col) in row.iter().enumerate() {
                         let col_str = self.line_to_string(col);
-                        // Extend the row_sizes if needed. This happens if we had fewer alignments than columns in any row.
-                        // I'm not sure if that's possible, but it's easy to guard against
-                        while column_widths.len() < idx {
+                        // Extend the row_sizes if needed. This happens if we had fewer alignments than columns in any
+                        // row. I'm not sure if that's possible, but it's easy to guard against.
+                        while column_widths.len() <= idx {
                             column_widths.push(0);
                         }
                         column_widths[idx] = max(column_widths[idx], col_str.len());
@@ -216,7 +217,7 @@ impl<'a> MdWriterState<'a> {
                 }
 
                 // Create column formatters for each column
-                let write_row = |out: &mut Output<W>, row: Vec<String>| {
+                let write_row = |out: &mut Output<W>, row: Vec<String>, add_newline: bool| {
                     if row.is_empty() {
                         out.write_str("||\n");
                         return;
@@ -227,7 +228,9 @@ impl<'a> MdWriterState<'a> {
                         pad_to(out, &col, *column_widths.get(idx).unwrap_or(&0), alignments.get(idx));
                         out.write_str(" |");
                     }
-                    out.write_char('\n');
+                    if add_newline {
+                        out.write_char('\n');
+                    }
                 };
 
                 let mut rows_iter = row_strs.into_iter();
@@ -236,7 +239,7 @@ impl<'a> MdWriterState<'a> {
                 let Some(first_row) = rows_iter.next() else {
                     return; // unexpected!
                 };
-                write_row(out, first_row);
+                write_row(out, first_row, true);
 
                 // Headers
                 if !alignments.is_empty() {
@@ -245,24 +248,28 @@ impl<'a> MdWriterState<'a> {
                         let width = column_widths
                             .get(idx)
                             .unwrap_or_else(|| match standard_align(align) {
-                                Alignment::Left | Alignment::Right => &2,
-                                Alignment::Center => &3,
+                                Some(Alignment::Left | Alignment::Right) => &2,
+                                Some(Alignment::Center) => &3,
+                                None => &1,
                             })
                             .to_owned()
                             + 2; // +2 for the ' ' padding on either side
                         match standard_align(align) {
-                            Alignment::Left => {
+                            Some(Alignment::Left) => {
                                 out.write_char(':');
                                 out.write_str(&"-".repeat(width - 1));
                             }
-                            Alignment::Right => {
+                            Some(Alignment::Right) => {
                                 out.write_str(&"-".repeat(width - 1));
                                 out.write_char(':');
                             }
-                            Alignment::Center => {
+                            Some(Alignment::Center) => {
                                 out.write_char(':');
                                 out.write_str(&"-".repeat(width - 2));
                                 out.write_char(':');
+                            }
+                            None => {
+                                out.write_str(&"-".repeat(width));
                             }
                         };
                         out.write_char('|');
@@ -271,8 +278,9 @@ impl<'a> MdWriterState<'a> {
                 }
 
                 // And finally, the rows
-                for row in rows_iter {
-                    write_row(out, row);
+                let mut rows_iter = rows_iter.peekable();
+                while let Some(row) = rows_iter.next() {
+                    write_row(out, row, rows_iter.peek().is_some());
                 }
             }
             MdqNode::ThematicBreak => {
@@ -524,6 +532,7 @@ pub mod tests {
     use lazy_static::lazy_static;
 
     use crate::fmt_md::MdOptions;
+    use crate::mdq_inline;
     use crate::mdq_nodes;
     use crate::output::Output;
     use crate::tree::*;
@@ -808,6 +817,156 @@ pub mod tests {
                   line 2
                   ```"#},
             )
+        }
+    }
+
+    mod table {
+        use super::*;
+        use markdown::mdast;
+
+        #[test]
+        fn simple() {
+            check_render(
+                mdq_nodes![Table {
+                    alignments: vec![
+                        mdast::AlignKind::Left,
+                        mdast::AlignKind::Right,
+                        mdast::AlignKind::Center,
+                        mdast::AlignKind::None,
+                    ],
+                    rows: vec![
+                        // Header row
+                        vec![
+                            // columns
+                            vec![mdq_inline!("Left")],
+                            vec![mdq_inline!("Right")],
+                            vec![mdq_inline!("Center")],
+                            vec![mdq_inline!("Default")],
+                        ],
+                        // Data row
+                        vec![
+                            // columns
+                            vec![mdq_inline!("a")],
+                            vec![mdq_inline!("b")],
+                            vec![mdq_inline!("c")],
+                            vec![mdq_inline!("d")],
+                        ],
+                    ],
+                }],
+                indoc! {r#"
+                | Left | Right | Center | Default |
+                |:-----|------:|:------:|---------|
+                | a    |     b |   c    | d       |"#},
+            );
+        }
+
+        #[test]
+        fn single_char_cells() {
+            // This checks the minimum padding aspects
+            check_render(
+                mdq_nodes![Table {
+                    alignments: vec![
+                        mdast::AlignKind::Left,
+                        mdast::AlignKind::Right,
+                        mdast::AlignKind::Center,
+                        mdast::AlignKind::None,
+                    ],
+                    rows: vec![
+                        // Header row
+                        vec![
+                            // columns
+                            vec![mdq_inline!("a")],
+                            vec![mdq_inline!("b")],
+                            vec![mdq_inline!("c")],
+                            vec![mdq_inline!("d")],
+                        ],
+                        // Data row
+                        vec![
+                            // columns
+                            vec![mdq_inline!("1")],
+                            vec![mdq_inline!("2")],
+                            vec![mdq_inline!("3")],
+                            vec![mdq_inline!("4")],
+                        ],
+                    ],
+                }],
+                indoc! {r#"
+                | a | b | c | d |
+                |:--|--:|:-:|---|
+                | 1 | 2 | 3 | 4 |"#},
+            );
+        }
+
+        #[test]
+        fn empty_cells() {
+            // This checks the minimum padding aspects
+            check_render(
+                mdq_nodes![Table {
+                    alignments: vec![
+                        mdast::AlignKind::Left,
+                        mdast::AlignKind::Right,
+                        mdast::AlignKind::Center,
+                        mdast::AlignKind::None,
+                    ],
+                    rows: vec![
+                        // Header row
+                        vec![
+                            // columns
+                            vec![mdq_inline!("")],
+                            vec![mdq_inline!("")],
+                            vec![mdq_inline!("")],
+                            vec![mdq_inline!("")],
+                        ],
+                        // Data row
+                        vec![
+                            // columns
+                            vec![mdq_inline!("")],
+                            vec![mdq_inline!("")],
+                            vec![mdq_inline!("")],
+                            vec![mdq_inline!("")],
+                        ],
+                    ],
+                }],
+                indoc! {r#"
+                |  |  |   | |
+                |:-|-:|:-:|-|
+                |  |  |   | |"#},
+            );
+        }
+
+        #[test]
+        fn row_counts_inconsistent() {
+            // This is an invalid table, but we should still support it
+            check_render(
+                mdq_nodes![Table {
+                    alignments: vec![mdast::AlignKind::None, mdast::AlignKind::None,],
+                    rows: vec![
+                        // Header row: two values
+                        vec![
+                            // columns
+                            vec![mdq_inline!("A")],
+                            vec![mdq_inline!("B")],
+                        ],
+                        // First row: only one value
+                        vec![
+                            // columns
+                            vec![mdq_inline!("1")],
+                        ],
+                        // Second row: three values
+                        vec![
+                            // columns
+                            vec![mdq_inline!("i")],
+                            vec![mdq_inline!("ii")],
+                            vec![mdq_inline!("iii")],
+                        ],
+                    ],
+                }],
+                indoc! {r#"
+                | A | B  |
+                |---|----|
+                | 1 |
+                | i | ii | iii |"#},
+            );
         }
     }
 
