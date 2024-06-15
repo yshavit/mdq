@@ -133,8 +133,10 @@ impl<'a> MdWriterState<'a> {
                     for _ in 0..*depth {
                         out.write_str("#");
                     }
-                    out.write_str(" ");
-                    self.write_line(out, title);
+                    if !title.is_empty() {
+                        out.write_str(" ");
+                        self.write_line(out, title);
+                    }
                 });
                 self.write_md(out, body);
                 let which_defs_to_write =
@@ -588,8 +590,76 @@ pub mod tests {
         }
     }
 
+    mod header {
+        use super::*;
+        use crate::mdq_inline;
+
+        #[test]
+        fn totally_empty() {
+            check_render(
+                mdq_nodes![Header {
+                    depth: 3,
+                    title: vec![],
+                    body: vec![],
+                }],
+                indoc! {r#"
+                ###"#},
+            )
+        }
+
+        #[test]
+        fn only_title() {
+            check_render(
+                mdq_nodes![Header {
+                    depth: 3,
+                    title: vec![mdq_inline!("My header")],
+                    body: vec![],
+                }],
+                indoc! {r#"
+                ### My header"#},
+            )
+        }
+
+        #[test]
+        fn only_body() {
+            check_render(
+                mdq_nodes![Header {
+                    depth: 3,
+                    title: vec![],
+                    body: mdq_nodes![Paragraph {
+                        body: vec![mdq_inline!("Hello, world.")]
+                    },],
+                }],
+                indoc! {r#"
+                    ###
+
+                    Hello, world."#},
+            )
+        }
+
+        #[test]
+        fn title_and_body() {
+            check_render(
+                mdq_nodes![Header {
+                    depth: 1,
+                    title: vec![mdq_inline!("My title")],
+                    body: mdq_nodes![BlockQuote {
+                        body: mdq_nodes![Paragraph {
+                            body: vec![mdq_inline!("Hello, world.")]
+                        },],
+                    },],
+                }],
+                indoc! {r#"
+                    # My title
+
+                    > Hello, world."#},
+            )
+        }
+    }
+
     mod block_quote {
         use super::*;
+        use crate::mdq_inline;
 
         #[test]
         fn single_level() {
@@ -614,17 +684,11 @@ pub mod tests {
                 mdq_nodes![BlockQuote {
                     body: mdq_nodes![
                         Paragraph {
-                            body: vec![Inline::Text {
-                                variant: InlineVariant::Text,
-                                value: "Outer".to_string()
-                            }]
+                            body: vec![mdq_inline!("Outer")],
                         },
                         BlockQuote {
                             body: mdq_nodes![Paragraph {
-                                body: vec![Inline::Text {
-                                    variant: InlineVariant::Text,
-                                    value: "Inner".to_string()
-                                }]
+                                body: vec![mdq_inline!("Inner")],
                             },]
                         },
                     ]

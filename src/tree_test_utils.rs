@@ -33,13 +33,29 @@ mod test_utils {
 
     #[macro_export]
     macro_rules! mdq_nodes {
-        [$($node_type:tt {$($attr:ident: $val:expr),*}$(,)?),*] => {
+        [$($node_type:tt {$($attr:ident: $val:expr),*$(,)?}),*$(,)?] => {
             vec![$(
                 crate::mdq_node!($node_type {
                     $($attr: $val),*
                 })
                 ),*
             ]
+        };
+    }
+
+    #[macro_export]
+    macro_rules! mdq_inline {
+        (span $which:ident [$($contents:expr),*$(,)?]) => {
+            crate::tree::Inline::Span {
+                variant: crate::tree::SpanVariant::$which,
+                children: vec![$($contents),*],
+            }
+        };
+        ($text:literal) => {
+            crate::tree::Inline::Text {
+                variant: crate::tree::InlineVariant::Text,
+                value: $text.to_string(),
+            }
         };
     }
 
