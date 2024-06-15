@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 
-use markdown::mdast::{AlignKind, Code, Definition, FootnoteDefinition, Math, Node, ReferenceKind, Table, TableRow};
+use markdown::mdast;
 
 #[derive(Debug, PartialEq)]
 pub enum MdqNode {
@@ -29,7 +29,7 @@ pub enum MdqNode {
         items: Vec<ListItem>,
     },
     Table {
-        alignments: Vec<AlignKind>,
+        alignments: Vec<mdast::AlignKind>,
         rows: Vec<Tr>,
     },
 
@@ -174,9 +174,9 @@ pub enum InlineVariant {
 
 #[derive(Debug, PartialEq)]
 pub enum InvalidMd {
-    Unsupported(Node),
-    NonListItemDirectlyUnderList(Node),
-    NonRowDirectlyUnderTable(Node),
+    Unsupported(mdast::Node),
+    NonListItemDirectlyUnderList(mdast::Node),
+    NonRowDirectlyUnderTable(mdast::Node),
     NonInlineWhereInlineExpected,
     MissingReferenceDefinition(String),
     ConflictingReferenceDefinition(String),
@@ -201,10 +201,10 @@ impl From<InvalidMd> for NoNode {
     }
 }
 
-impl TryFrom<Node> for MdqNode {
+impl TryFrom<mdast::Node> for MdqNode {
     type Error = InvalidMd;
 
-    fn try_from(value: Node) -> Result<Self, Self::Error> {
+    fn try_from(value: mdast::Node) -> Result<Self, Self::Error> {
         Self::read(value, &ReadOptions::default())
     }
 }
@@ -213,16 +213,16 @@ impl TryFrom<Node> for MdqNode {
 /// the prod and test code both marks them as TODOs using the same source list (namely, this macro).
 macro_rules! mdx_nodes {
     {} => {
-        Node::MdxJsxFlowElement(_)
-        | Node::MdxjsEsm(_)
-        | Node::MdxTextExpression(_)
-        | Node::MdxJsxTextElement(_)
-        | Node::MdxFlowExpression(_)
+        mdast::Node::MdxJsxFlowElement(_)
+        | mdast::Node::MdxjsEsm(_)
+        | mdast::Node::MdxTextExpression(_)
+        | mdast::Node::MdxJsxTextElement(_)
+        | mdast::Node::MdxFlowExpression(_)
     };
 }
 
 impl MdqNode {
-    fn read(node: Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
+    fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
         let lookups = Lookups::new(&node, opts)?;
         match Self::from_mdast_0(node, &lookups) {
             Ok(result) => Ok(result),
@@ -231,19 +231,19 @@ impl MdqNode {
         }
     }
 
-    fn from_mdast_0(node: Node, lookups: &Lookups) -> Result<Self, NoNode> {
+    fn from_mdast_0(node: mdast::Node, lookups: &Lookups) -> Result<Self, NoNode> {
         let result = match node {
-            Node::Root(node) => MdqNode::Root {
+            mdast::Node::Root(node) => MdqNode::Root {
                 body: MdqNode::all(node.children, lookups)?,
             },
-            Node::BlockQuote(node) => MdqNode::BlockQuote {
+            mdast::Node::BlockQuote(node) => MdqNode::BlockQuote {
                 body: MdqNode::all(node.children, lookups)?,
             },
-            Node::FootnoteDefinition(_) => return Err(NoNode::Skipped),
-            Node::List(node) => {
+            mdast::Node::FootnoteDefinition(_) => return Err(NoNode::Skipped),
+            mdast::Node::List(node) => {
                 let mut li_nodes = Vec::with_capacity(node.children.len());
                 for node in node.children {
-                    let Node::ListItem(li_node) = node else {
+                    let mdast::Node::ListItem(li_node) = node else {
                         return Err(NoNode::Invalid(InvalidMd::NonListItemDirectlyUnderList(node)));
                     };
                     let li_mdq = ListItem {
@@ -257,27 +257,27 @@ impl MdqNode {
                     items: li_nodes,
                 }
             }
-            Node::Break(_) => MdqNode::Inline(Inline::Text {
+            mdast::Node::Break(_) => MdqNode::Inline(Inline::Text {
                 variant: InlineVariant::Text,
                 value: "\n".to_string(),
             }),
-            Node::InlineCode(node) => MdqNode::Inline(Inline::Text {
+            mdast::Node::InlineCode(node) => MdqNode::Inline(Inline::Text {
                 variant: InlineVariant::Code,
                 value: node.value,
             }),
-            Node::InlineMath(node) => MdqNode::Inline(Inline::Text {
+            mdast::Node::InlineMath(node) => MdqNode::Inline(Inline::Text {
                 variant: InlineVariant::Math,
                 value: node.value,
             }),
-            Node::Delete(node) => MdqNode::Inline(Inline::Span {
+            mdast::Node::Delete(node) => MdqNode::Inline(Inline::Span {
                 variant: SpanVariant::Delete,
                 children: MdqNode::inlines(node.children, lookups)?,
             }),
-            Node::Emphasis(node) => MdqNode::Inline(Inline::Span {
+            mdast::Node::Emphasis(node) => MdqNode::Inline(Inline::Span {
                 variant: SpanVariant::Emphasis,
                 children: MdqNode::inlines(node.children, lookups)?,
             }),
-            Node::Image(node) => MdqNode::Inline(Inline::Image {
+            mdast::Node::Image(node) => MdqNode::Inline(Inline::Image {
                 alt: node.alt,
                 link: Link {
                     url: node.url,
@@ -285,11 +285,11 @@ impl MdqNode {
                     reference: LinkReference::Inline,
                 },
             }),
-            Node::ImageReference(node) => MdqNode::Inline(Inline::Image {
+            mdast::Node::ImageReference(node) => MdqNode::Inline(Inline::Image {
                 alt: node.alt,
                 link: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
             }),
-            Node::Link(node) => MdqNode::Inline(Inline::Link {
+            mdast::Node::Link(node) => MdqNode::Inline(Inline::Link {
                 text: MdqNode::inlines(node.children, lookups)?,
                 link: Link {
                     url: node.url,
@@ -297,27 +297,27 @@ impl MdqNode {
                     reference: LinkReference::Inline,
                 },
             }),
-            Node::LinkReference(node) => MdqNode::Inline(Inline::Link {
+            mdast::Node::LinkReference(node) => MdqNode::Inline(Inline::Link {
                 text: MdqNode::inlines(node.children, lookups)?,
                 link: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
             }),
-            Node::FootnoteReference(node) => {
+            mdast::Node::FootnoteReference(node) => {
                 let definition = lookups.resolve_footnote(&node.identifier, &node.label)?;
                 MdqNode::Inline(Inline::Footnote(Footnote {
                     label: node.label.unwrap_or(node.identifier),
                     text: MdqNode::all(definition.children.clone(), lookups)?,
                 }))
             }
-            Node::Strong(node) => MdqNode::Inline(Inline::Span {
+            mdast::Node::Strong(node) => MdqNode::Inline(Inline::Span {
                 variant: SpanVariant::Strong,
                 children: MdqNode::inlines(node.children, lookups)?,
             }),
-            Node::Text(node) => MdqNode::Inline(Inline::Text {
+            mdast::Node::Text(node) => MdqNode::Inline(Inline::Text {
                 variant: InlineVariant::Text,
                 value: node.value,
             }),
-            Node::Code(node) => {
-                let Code { value, lang, meta, .. } = node;
+            mdast::Node::Code(node) => {
+                let mdast::Code { value, lang, meta, .. } = node;
                 MdqNode::CodeBlock {
                     value,
                     variant: CodeVariant::Code(match lang {
@@ -329,23 +329,23 @@ impl MdqNode {
                     }),
                 }
             }
-            Node::Math(node) => {
-                let Math { value, meta, .. } = node;
+            mdast::Node::Math(node) => {
+                let mdast::Math { value, meta, .. } = node;
                 MdqNode::CodeBlock {
                     value,
                     variant: CodeVariant::Math { metadata: meta },
                 }
             }
-            Node::Heading(node) => MdqNode::Header {
+            mdast::Node::Heading(node) => MdqNode::Header {
                 depth: node.depth,
                 title: Self::inlines(node.children, lookups)?,
                 body: Vec::new(),
             },
-            Node::Table(node) => {
-                let Table { children, align, .. } = node;
+            mdast::Node::Table(node) => {
+                let mdast::Table { children, align, .. } = node;
                 let mut rows = Vec::with_capacity(children.len());
                 for row_node in children {
-                    let Node::TableRow(TableRow {
+                    let mdast::Node::TableRow(mdast::TableRow {
                         children: cell_nodes, ..
                     }) = row_node
                     else {
@@ -353,7 +353,7 @@ impl MdqNode {
                     };
                     let mut column = Vec::with_capacity(cell_nodes.len());
                     for cell_node in cell_nodes {
-                        let Node::TableCell(table_cell) = cell_node else {
+                        let mdast::Node::TableCell(table_cell) = cell_node else {
                             return Err(NoNode::Invalid(InvalidMd::InternalError));
                         };
                         let cell_contents = Self::inlines(table_cell.children, lookups)?;
@@ -366,23 +366,23 @@ impl MdqNode {
                     rows,
                 }
             }
-            Node::ThematicBreak(_) => MdqNode::ThematicBreak,
-            Node::TableRow(_) | Node::TableCell(_) | Node::ListItem(_) => {
+            mdast::Node::ThematicBreak(_) => MdqNode::ThematicBreak,
+            mdast::Node::TableRow(_) | mdast::Node::TableCell(_) | mdast::Node::ListItem(_) => {
                 return Err(NoNode::Invalid(InvalidMd::InternalError)); // should have been handled by Node::Table
             }
-            Node::Definition(_) => return Err(NoNode::Skipped),
-            Node::Paragraph(node) => MdqNode::Paragraph {
+            mdast::Node::Definition(_) => return Err(NoNode::Skipped),
+            mdast::Node::Paragraph(node) => MdqNode::Paragraph {
                 body: Self::inlines(node.children, lookups)?,
             },
-            Node::Toml(node) => MdqNode::CodeBlock {
+            mdast::Node::Toml(node) => MdqNode::CodeBlock {
                 variant: CodeVariant::Toml,
                 value: node.value,
             },
-            Node::Yaml(node) => MdqNode::CodeBlock {
+            mdast::Node::Yaml(node) => MdqNode::CodeBlock {
                 variant: CodeVariant::Yaml,
                 value: node.value,
             },
-            Node::Html(node) => MdqNode::Inline(Inline::Text {
+            mdast::Node::Html(node) => MdqNode::Inline(Inline::Text {
                 variant: InlineVariant::Html,
                 value: node.value,
             }),
@@ -396,7 +396,7 @@ impl MdqNode {
         Ok(result)
     }
 
-    fn all(children: Vec<Node>, lookups: &Lookups) -> Result<Vec<Self>, InvalidMd> {
+    fn all(children: Vec<mdast::Node>, lookups: &Lookups) -> Result<Vec<Self>, InvalidMd> {
         Self::all_from_iter(NodeToMdqIter {
             children: children.into_iter(),
             lookups,
@@ -495,7 +495,7 @@ impl MdqNode {
         Ok(result)
     }
 
-    fn inlines(children: Vec<Node>, lookups: &Lookups) -> Result<Vec<Inline>, InvalidMd> {
+    fn inlines(children: Vec<mdast::Node>, lookups: &Lookups) -> Result<Vec<Inline>, InvalidMd> {
         let mdq_children = Self::all(children, lookups)?;
         let mut result = Vec::with_capacity(mdq_children.len());
         for child in mdq_children {
@@ -526,7 +526,7 @@ impl MdqNode {
 
 struct NodeToMdqIter<'a, I>
 where
-    I: Iterator<Item = Node>,
+    I: Iterator<Item = mdast::Node>,
 {
     children: I,
     lookups: &'a Lookups,
@@ -534,7 +534,7 @@ where
 
 impl<'a, I> Iterator for NodeToMdqIter<'a, I>
 where
-    I: Iterator<Item = Node>,
+    I: Iterator<Item = mdast::Node>,
 {
     type Item = Result<MdqNode, InvalidMd>;
 
@@ -558,12 +558,12 @@ where
 
 #[derive(Debug, PartialEq)]
 struct Lookups {
-    link_definitions: HashMap<String, Definition>,
-    footnote_definitions: HashMap<String, FootnoteDefinition>,
+    link_definitions: HashMap<String, mdast::Definition>,
+    footnote_definitions: HashMap<String, mdast::FootnoteDefinition>,
 }
 
 impl Lookups {
-    fn new(node: &Node, read_opts: &ReadOptions) -> Result<Self, InvalidMd> {
+    fn new(node: &mdast::Node, read_opts: &ReadOptions) -> Result<Self, InvalidMd> {
         const DEFAULT_CAPACITY: usize = 8; // random guess
 
         let mut result = Self {
@@ -580,7 +580,7 @@ impl Lookups {
         &self,
         identifier: String,
         label: Option<String>,
-        reference_kind: ReferenceKind,
+        reference_kind: mdast::ReferenceKind,
     ) -> Result<Link, NoNode> {
         if let None = label {
             todo!("What is this case???");
@@ -593,9 +593,9 @@ impl Lookups {
         };
         let human_visible_identifier = label.unwrap_or(identifier);
         let link_ref = match reference_kind {
-            ReferenceKind::Shortcut => LinkReference::Shortcut,
-            ReferenceKind::Collapsed => LinkReference::Collapsed,
-            ReferenceKind::Full => LinkReference::Full(human_visible_identifier),
+            mdast::ReferenceKind::Shortcut => LinkReference::Shortcut,
+            mdast::ReferenceKind::Collapsed => LinkReference::Collapsed,
+            mdast::ReferenceKind::Full => LinkReference::Full(human_visible_identifier),
         };
         Ok(Link {
             url: definition.url.to_owned(),
@@ -604,7 +604,11 @@ impl Lookups {
         })
     }
 
-    fn resolve_footnote(&self, identifier: &String, label: &Option<String>) -> Result<&FootnoteDefinition, NoNode> {
+    fn resolve_footnote(
+        &self,
+        identifier: &String,
+        label: &Option<String>,
+    ) -> Result<&mdast::FootnoteDefinition, NoNode> {
         if label.is_none() {
             todo!("What is this case???");
         }
@@ -617,14 +621,16 @@ impl Lookups {
         Ok(definition)
     }
 
-    fn build_lookups(&mut self, node: &Node, read_opts: &ReadOptions) -> Result<(), InvalidMd> {
+    fn build_lookups(&mut self, node: &mdast::Node, read_opts: &ReadOptions) -> Result<(), InvalidMd> {
         let x = format!("{:?}", node);
         let _ = x;
         match node {
-            Node::FootnoteDefinition(def) => {
+            mdast::Node::FootnoteDefinition(def) => {
                 Self::add_ref(&mut self.footnote_definitions, &def.identifier, def.clone(), read_opts)
             }
-            Node::Definition(def) => Self::add_ref(&mut self.link_definitions, &def.identifier, def.clone(), read_opts),
+            mdast::Node::Definition(def) => {
+                Self::add_ref(&mut self.link_definitions, &def.identifier, def.clone(), read_opts)
+            }
             _ => Ok(()),
         }?;
         if let Some(children) = node.children() {
@@ -670,14 +676,14 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
+        use std::{thread, time};
         use std::collections::HashSet;
         use std::sync::{Arc, Mutex};
-        use std::{thread, time};
 
         use indoc::indoc;
         use lazy_static::lazy_static;
-        use markdown::mdast::Node;
         use markdown::{mdast, ParseOptions};
+        use markdown::mdast::Node;
         use regex::Regex;
 
         use super::*;
@@ -1603,7 +1609,7 @@ mod tests {
             );
             assert_eq!(root.children.len(), 1);
             check!(&root.children[0], Node::Table(table_node), lookups => MdqNode::Table{alignments, rows} = {
-                assert_eq!(alignments, vec![AlignKind::Left, AlignKind::Center, AlignKind::Right, AlignKind::None]);
+                assert_eq!(alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Center, mdast::AlignKind::Right, mdast::AlignKind::None]);
                 assert_eq!(rows,
                     vec![ // rows
                         vec![// Header row
@@ -2202,12 +2208,12 @@ mod tests {
     }
 
     /// A simple representation of some nodes. Very non-exhaustive, just for testing.
-    fn simple_to_string(nodes: &Vec<Node>) -> String {
-        fn build(out: &mut String, node: &Node) {
+    fn simple_to_string(nodes: &Vec<mdast::Node>) -> String {
+        fn build(out: &mut String, node: &mdast::Node) {
             let (tag, text) = match node {
-                Node::Text(text_node) => ("", text_node.value.as_str()),
-                Node::Emphasis(_) => ("em", ""),
-                Node::Paragraph(_) => ("p", ""),
+                mdast::Node::Text(text_node) => ("", text_node.value.as_str()),
+                mdast::Node::Emphasis(_) => ("em", ""),
+                mdast::Node::Paragraph(_) => ("p", ""),
                 _ => ("", ""),
             };
             if !tag.is_empty() {
