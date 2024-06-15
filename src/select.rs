@@ -1,5 +1,5 @@
 use crate::fmt_json;
-use crate::tree::{CodeVariant, Inline, MdqNode};
+use crate::tree::*;
 
 #[allow(dead_code)]
 pub enum Selector {
@@ -66,8 +66,8 @@ impl Selector {
         }
 
         let result = match node {
-            MdqNode::Root { body } => SelectResult::Recurse(body),
-            MdqNode::Header { title, body, .. } => {
+            MdqNode::Root(Root { body }) => SelectResult::Recurse(body),
+            MdqNode::Header(Header { title, body, .. }) => {
                 if let Selector::Heading(matcher) = self {
                     if matcher.matches(&Self::line_to_string(title)) {
                         SelectResult::Found(body.iter().map(|elem| elem).collect())
@@ -78,11 +78,11 @@ impl Selector {
                     SelectResult::Recurse(body)
                 }
             }
-            MdqNode::Paragraph { .. } => {
+            MdqNode::Paragraph(Paragraph { .. }) => {
                 SelectResult::None // see TODO on Selector
             }
-            MdqNode::BlockQuote { body } => SelectResult::Recurse(body),
-            MdqNode::List { starting_index, items } => {
+            MdqNode::BlockQuote(BlockQuote { body }) => SelectResult::Recurse(body),
+            MdqNode::List(List { starting_index, items }) => {
                 let _is_ordered = starting_index.is_some(); // TODO use in selected
                 SelectResult::RecurseOwned(
                     items
@@ -94,13 +94,13 @@ impl Selector {
                         .collect(),
                 )
             }
-            MdqNode::Table { .. } => {
+            MdqNode::Table(Table { .. }) => {
                 SelectResult::None // TODO need to recurse
             }
             MdqNode::ThematicBreak => {
                 SelectResult::None // can't be selected, doesn't have children
             }
-            MdqNode::CodeBlock { variant, value } => {
+            MdqNode::CodeBlock(CodeBlock { variant, value }) => {
                 let matched = match (self, variant) {
                     (Selector::CodeBlock(matcher), CodeVariant::Code(_)) => matcher.matches(value),
                     (_, _) => false,

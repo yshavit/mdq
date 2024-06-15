@@ -3,7 +3,7 @@ use std::borrow::Borrow;
 use markdown::mdast::AlignKind;
 use serde_json::{json, Map, Value};
 
-use crate::tree::{CodeOpts, CodeVariant, Inline, Link, MdqNode};
+use crate::tree::*;
 
 const BODY_KEY: &str = "body";
 
@@ -17,21 +17,21 @@ where
 
 pub fn node_to_json<R: InlineResolver>(node: &MdqNode) -> Value {
     match node {
-        MdqNode::Root { body } => to_jsons::<R>(body),
-        MdqNode::Header {
+        MdqNode::Root(Root { body }) => to_jsons::<R>(body),
+        MdqNode::Header(Header {
             depth,
             title,
             body: contents,
-        } => json!({
+        }) => json!({
             "header": json!({
                     "title": R::inlines_to_value(title),
                     "depth": json!(depth),
                     BODY_KEY: to_jsons::<R>(contents),
             })
         }),
-        MdqNode::Paragraph { body } => json!({"paragraph": R::inlines_to_value(body)}),
-        MdqNode::BlockQuote { body } => json!({"block_quote": to_jsons::<R>(body)}),
-        MdqNode::List { starting_index, items } => {
+        MdqNode::Paragraph(Paragraph { body }) => json!({"paragraph": R::inlines_to_value(body)}),
+        MdqNode::BlockQuote(BlockQuote { body }) => json!({"block_quote": to_jsons::<R>(body)}),
+        MdqNode::List(List { starting_index, items }) => {
             let mut as_map = Map::new();
             match starting_index {
                 Some(start_idx) => {
@@ -57,10 +57,10 @@ pub fn node_to_json<R: InlineResolver>(node: &MdqNode) -> Value {
 
             json!({"list": Value::Object(as_map)})
         }
-        MdqNode::Table {
+        MdqNode::Table(Table {
             alignments: align,
             rows,
-        } => {
+        }) => {
             let aligns: Vec<Option<&str>> = align
                 .iter()
                 .map(|a| match a {
@@ -84,7 +84,7 @@ pub fn node_to_json<R: InlineResolver>(node: &MdqNode) -> Value {
         MdqNode::ThematicBreak => {
             json!({"thematic_break": Value::Null})
         }
-        MdqNode::CodeBlock { variant, value } => match variant {
+        MdqNode::CodeBlock(CodeBlock { variant, value }) => match variant {
             CodeVariant::Code(opts) => {
                 let (lang, meta) = match opts {
                     None => (None, None),

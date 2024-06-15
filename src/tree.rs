@@ -3,46 +3,67 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 
-use markdown::mdast::{AlignKind, Code, Definition, FootnoteDefinition, Math, Node, ReferenceKind, Table, TableRow};
+use markdown::mdast;
 
 #[derive(Debug, PartialEq)]
 pub enum MdqNode {
     // root
-    Root {
-        body: Vec<MdqNode>,
-    },
+    Root(Root),
 
     // paragraphs with child nodes
-    Header {
-        depth: u8,
-        title: Vec<Inline>,
-        body: Vec<MdqNode>,
-    },
-    Paragraph {
-        body: Vec<Inline>,
-    },
-    BlockQuote {
-        body: Vec<MdqNode>,
-    },
-    List {
-        starting_index: Option<u32>,
-        items: Vec<ListItem>,
-    },
-    Table {
-        alignments: Vec<AlignKind>,
-        rows: Vec<Tr>,
-    },
+    Header(Header),
+    Paragraph(Paragraph),
+    BlockQuote(BlockQuote),
+    List(List),
+    Table(Table),
 
     ThematicBreak,
 
     // blocks that contain strings (as opposed to nodes)
-    CodeBlock {
-        variant: CodeVariant,
-        value: String,
-    },
+    CodeBlock(CodeBlock),
 
     // inline spans
     Inline(Inline), // TODO rename to "span"?
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Root {
+    pub body: Vec<MdqNode>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Header {
+    pub depth: u8,
+    pub title: Vec<Inline>,
+    pub body: Vec<MdqNode>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Paragraph {
+    pub body: Vec<Inline>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct BlockQuote {
+    pub body: Vec<MdqNode>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct List {
+    pub starting_index: Option<u32>,
+    pub items: Vec<ListItem>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Table {
+    pub alignments: Vec<mdast::AlignKind>,
+    pub rows: Vec<TableRow>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CodeBlock {
+    pub variant: CodeVariant,
+    pub value: String,
 }
 
 /// See https://github.github.com/gfm/#link-reference-definitions
@@ -86,7 +107,7 @@ impl Default for ReadOptions {
     }
 }
 
-pub type Tr = Vec<Line>; // TODO rename to TableRow
+pub type TableRow = Vec<Line>;
 pub type Line = Vec<Inline>;
 
 #[derive(Debug, PartialEq, Hash)]
@@ -174,9 +195,9 @@ pub enum InlineVariant {
 
 #[derive(Debug, PartialEq)]
 pub enum InvalidMd {
-    Unsupported(Node),
-    NonListItemDirectlyUnderList(Node),
-    NonRowDirectlyUnderTable(Node),
+    Unsupported(mdast::Node),
+    NonListItemDirectlyUnderList(mdast::Node),
+    NonRowDirectlyUnderTable(mdast::Node),
     NonInlineWhereInlineExpected,
     MissingReferenceDefinition(String),
     ConflictingReferenceDefinition(String),
@@ -201,10 +222,10 @@ impl From<InvalidMd> for NoNode {
     }
 }
 
-impl TryFrom<Node> for MdqNode {
+impl TryFrom<mdast::Node> for MdqNode {
     type Error = InvalidMd;
 
-    fn try_from(value: Node) -> Result<Self, Self::Error> {
+    fn try_from(value: mdast::Node) -> Result<Self, Self::Error> {
         Self::read(value, &ReadOptions::default())
     }
 }
@@ -213,37 +234,37 @@ impl TryFrom<Node> for MdqNode {
 /// the prod and test code both marks them as TODOs using the same source list (namely, this macro).
 macro_rules! mdx_nodes {
     {} => {
-        Node::MdxJsxFlowElement(_)
-        | Node::MdxjsEsm(_)
-        | Node::MdxTextExpression(_)
-        | Node::MdxJsxTextElement(_)
-        | Node::MdxFlowExpression(_)
+        mdast::Node::MdxJsxFlowElement(_)
+        | mdast::Node::MdxjsEsm(_)
+        | mdast::Node::MdxTextExpression(_)
+        | mdast::Node::MdxJsxTextElement(_)
+        | mdast::Node::MdxFlowExpression(_)
     };
 }
 
 impl MdqNode {
-    fn read(node: Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
+    fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
         let lookups = Lookups::new(&node, opts)?;
         match Self::from_mdast_0(node, &lookups) {
             Ok(result) => Ok(result),
-            Err(NoNode::Skipped) => Ok(MdqNode::Root { body: Vec::new() }),
+            Err(NoNode::Skipped) => Ok(MdqNode::Root(Root { body: Vec::new() })),
             Err(NoNode::Invalid(err)) => Err(err),
         }
     }
 
-    fn from_mdast_0(node: Node, lookups: &Lookups) -> Result<Self, NoNode> {
+    fn from_mdast_0(node: mdast::Node, lookups: &Lookups) -> Result<Self, NoNode> {
         let result = match node {
-            Node::Root(node) => MdqNode::Root {
+            mdast::Node::Root(node) => MdqNode::Root(Root {
                 body: MdqNode::all(node.children, lookups)?,
-            },
-            Node::BlockQuote(node) => MdqNode::BlockQuote {
+            }),
+            mdast::Node::BlockQuote(node) => MdqNode::BlockQuote(BlockQuote {
                 body: MdqNode::all(node.children, lookups)?,
-            },
-            Node::FootnoteDefinition(_) => return Err(NoNode::Skipped),
-            Node::List(node) => {
+            }),
+            mdast::Node::FootnoteDefinition(_) => return Err(NoNode::Skipped),
+            mdast::Node::List(node) => {
                 let mut li_nodes = Vec::with_capacity(node.children.len());
                 for node in node.children {
-                    let Node::ListItem(li_node) = node else {
+                    let mdast::Node::ListItem(li_node) = node else {
                         return Err(NoNode::Invalid(InvalidMd::NonListItemDirectlyUnderList(node)));
                     };
                     let li_mdq = ListItem {
@@ -252,32 +273,32 @@ impl MdqNode {
                     };
                     li_nodes.push(li_mdq);
                 }
-                MdqNode::List {
+                MdqNode::List(List {
                     starting_index: node.start,
                     items: li_nodes,
-                }
+                })
             }
-            Node::Break(_) => MdqNode::Inline(Inline::Text {
+            mdast::Node::Break(_) => MdqNode::Inline(Inline::Text {
                 variant: InlineVariant::Text,
                 value: "\n".to_string(),
             }),
-            Node::InlineCode(node) => MdqNode::Inline(Inline::Text {
+            mdast::Node::InlineCode(node) => MdqNode::Inline(Inline::Text {
                 variant: InlineVariant::Code,
                 value: node.value,
             }),
-            Node::InlineMath(node) => MdqNode::Inline(Inline::Text {
+            mdast::Node::InlineMath(node) => MdqNode::Inline(Inline::Text {
                 variant: InlineVariant::Math,
                 value: node.value,
             }),
-            Node::Delete(node) => MdqNode::Inline(Inline::Span {
+            mdast::Node::Delete(node) => MdqNode::Inline(Inline::Span {
                 variant: SpanVariant::Delete,
                 children: MdqNode::inlines(node.children, lookups)?,
             }),
-            Node::Emphasis(node) => MdqNode::Inline(Inline::Span {
+            mdast::Node::Emphasis(node) => MdqNode::Inline(Inline::Span {
                 variant: SpanVariant::Emphasis,
                 children: MdqNode::inlines(node.children, lookups)?,
             }),
-            Node::Image(node) => MdqNode::Inline(Inline::Image {
+            mdast::Node::Image(node) => MdqNode::Inline(Inline::Image {
                 alt: node.alt,
                 link: Link {
                     url: node.url,
@@ -285,11 +306,11 @@ impl MdqNode {
                     reference: LinkReference::Inline,
                 },
             }),
-            Node::ImageReference(node) => MdqNode::Inline(Inline::Image {
+            mdast::Node::ImageReference(node) => MdqNode::Inline(Inline::Image {
                 alt: node.alt,
                 link: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
             }),
-            Node::Link(node) => MdqNode::Inline(Inline::Link {
+            mdast::Node::Link(node) => MdqNode::Inline(Inline::Link {
                 text: MdqNode::inlines(node.children, lookups)?,
                 link: Link {
                     url: node.url,
@@ -297,28 +318,28 @@ impl MdqNode {
                     reference: LinkReference::Inline,
                 },
             }),
-            Node::LinkReference(node) => MdqNode::Inline(Inline::Link {
+            mdast::Node::LinkReference(node) => MdqNode::Inline(Inline::Link {
                 text: MdqNode::inlines(node.children, lookups)?,
                 link: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
             }),
-            Node::FootnoteReference(node) => {
+            mdast::Node::FootnoteReference(node) => {
                 let definition = lookups.resolve_footnote(&node.identifier, &node.label)?;
                 MdqNode::Inline(Inline::Footnote(Footnote {
                     label: node.label.unwrap_or(node.identifier),
                     text: MdqNode::all(definition.children.clone(), lookups)?,
                 }))
             }
-            Node::Strong(node) => MdqNode::Inline(Inline::Span {
+            mdast::Node::Strong(node) => MdqNode::Inline(Inline::Span {
                 variant: SpanVariant::Strong,
                 children: MdqNode::inlines(node.children, lookups)?,
             }),
-            Node::Text(node) => MdqNode::Inline(Inline::Text {
+            mdast::Node::Text(node) => MdqNode::Inline(Inline::Text {
                 variant: InlineVariant::Text,
                 value: node.value,
             }),
-            Node::Code(node) => {
-                let Code { value, lang, meta, .. } = node;
-                MdqNode::CodeBlock {
+            mdast::Node::Code(node) => {
+                let mdast::Code { value, lang, meta, .. } = node;
+                MdqNode::CodeBlock(CodeBlock {
                     value,
                     variant: CodeVariant::Code(match lang {
                         None => None,
@@ -327,25 +348,25 @@ impl MdqNode {
                             metadata: meta,
                         }),
                     }),
-                }
+                })
             }
-            Node::Math(node) => {
-                let Math { value, meta, .. } = node;
-                MdqNode::CodeBlock {
+            mdast::Node::Math(node) => {
+                let mdast::Math { value, meta, .. } = node;
+                MdqNode::CodeBlock(CodeBlock {
                     value,
                     variant: CodeVariant::Math { metadata: meta },
-                }
+                })
             }
-            Node::Heading(node) => MdqNode::Header {
+            mdast::Node::Heading(node) => MdqNode::Header(Header {
                 depth: node.depth,
                 title: Self::inlines(node.children, lookups)?,
                 body: Vec::new(),
-            },
-            Node::Table(node) => {
-                let Table { children, align, .. } = node;
+            }),
+            mdast::Node::Table(node) => {
+                let mdast::Table { children, align, .. } = node;
                 let mut rows = Vec::with_capacity(children.len());
                 for row_node in children {
-                    let Node::TableRow(TableRow {
+                    let mdast::Node::TableRow(mdast::TableRow {
                         children: cell_nodes, ..
                     }) = row_node
                     else {
@@ -353,7 +374,7 @@ impl MdqNode {
                     };
                     let mut column = Vec::with_capacity(cell_nodes.len());
                     for cell_node in cell_nodes {
-                        let Node::TableCell(table_cell) = cell_node else {
+                        let mdast::Node::TableCell(table_cell) = cell_node else {
                             return Err(NoNode::Invalid(InvalidMd::InternalError));
                         };
                         let cell_contents = Self::inlines(table_cell.children, lookups)?;
@@ -361,28 +382,28 @@ impl MdqNode {
                     }
                     rows.push(column);
                 }
-                MdqNode::Table {
+                MdqNode::Table(Table {
                     alignments: align,
                     rows,
-                }
+                })
             }
-            Node::ThematicBreak(_) => MdqNode::ThematicBreak,
-            Node::TableRow(_) | Node::TableCell(_) | Node::ListItem(_) => {
+            mdast::Node::ThematicBreak(_) => MdqNode::ThematicBreak,
+            mdast::Node::TableRow(_) | mdast::Node::TableCell(_) | mdast::Node::ListItem(_) => {
                 return Err(NoNode::Invalid(InvalidMd::InternalError)); // should have been handled by Node::Table
             }
-            Node::Definition(_) => return Err(NoNode::Skipped),
-            Node::Paragraph(node) => MdqNode::Paragraph {
+            mdast::Node::Definition(_) => return Err(NoNode::Skipped),
+            mdast::Node::Paragraph(node) => MdqNode::Paragraph(Paragraph {
                 body: Self::inlines(node.children, lookups)?,
-            },
-            Node::Toml(node) => MdqNode::CodeBlock {
+            }),
+            mdast::Node::Toml(node) => MdqNode::CodeBlock(CodeBlock {
                 variant: CodeVariant::Toml,
                 value: node.value,
-            },
-            Node::Yaml(node) => MdqNode::CodeBlock {
+            }),
+            mdast::Node::Yaml(node) => MdqNode::CodeBlock(CodeBlock {
                 variant: CodeVariant::Yaml,
                 value: node.value,
-            },
-            Node::Html(node) => MdqNode::Inline(Inline::Text {
+            }),
+            mdast::Node::Html(node) => MdqNode::Inline(Inline::Text {
                 variant: InlineVariant::Html,
                 value: node.value,
             }),
@@ -396,7 +417,7 @@ impl MdqNode {
         Ok(result)
     }
 
-    fn all(children: Vec<Node>, lookups: &Lookups) -> Result<Vec<Self>, InvalidMd> {
+    fn all(children: Vec<mdast::Node>, lookups: &Lookups) -> Result<Vec<Self>, InvalidMd> {
         Self::all_from_iter(NodeToMdqIter {
             children: children.into_iter(),
             lookups,
@@ -420,11 +441,11 @@ impl MdqNode {
         let mut headers: Vec<HContainer> = Vec::with_capacity(result.capacity());
         for child_mdq in iter {
             let child_mdq = child_mdq?;
-            if let MdqNode::Header {
+            if let MdqNode::Header(Header {
                 depth,
                 title,
                 body: children,
-            } = child_mdq
+            }) = child_mdq
             {
                 // The new child is a heading. Pop the headers stack until we see a header that's
                 // of lower depth, or until there are no more left.
@@ -444,11 +465,11 @@ impl MdqNode {
                         // to the new previous, or else to the top-level results if there is no new
                         // previous. Then, we'll just loop back around.
                         let HContainer { depth, title, children } = headers.pop().unwrap(); // "let Some(prev)" above guarantees that this works
-                        let prev = MdqNode::Header {
+                        let prev = MdqNode::Header(Header {
                             depth,
                             title,
                             body: children,
-                        };
+                        });
                         if let Some(grandparent) = headers.last_mut() {
                             grandparent.children.push(prev);
                         } else {
@@ -470,11 +491,11 @@ impl MdqNode {
 
         // At this point, we still have our last tree branch of headers. Fold it up into the results.
         while let Some(HContainer { depth, title, children }) = headers.pop() {
-            let mdq_header = MdqNode::Header {
+            let mdq_header = MdqNode::Header(Header {
                 depth,
                 title,
                 body: children,
-            };
+            });
             let add_to = if let Some(HContainer { children, .. }) = headers.last_mut() {
                 children
             } else {
@@ -484,10 +505,12 @@ impl MdqNode {
         }
         headers
             .drain(..)
-            .map(|HContainer { depth, title, children }| MdqNode::Header {
-                depth,
-                title,
-                body: children,
+            .map(|HContainer { depth, title, children }| {
+                MdqNode::Header(Header {
+                    depth,
+                    title,
+                    body: children,
+                })
             })
             .for_each(|mdq_node| result.push(mdq_node));
 
@@ -495,7 +518,7 @@ impl MdqNode {
         Ok(result)
     }
 
-    fn inlines(children: Vec<Node>, lookups: &Lookups) -> Result<Vec<Inline>, InvalidMd> {
+    fn inlines(children: Vec<mdast::Node>, lookups: &Lookups) -> Result<Vec<Inline>, InvalidMd> {
         let mdq_children = Self::all(children, lookups)?;
         let mut result = Vec::with_capacity(mdq_children.len());
         for child in mdq_children {
@@ -526,7 +549,7 @@ impl MdqNode {
 
 struct NodeToMdqIter<'a, I>
 where
-    I: Iterator<Item = Node>,
+    I: Iterator<Item = mdast::Node>,
 {
     children: I,
     lookups: &'a Lookups,
@@ -534,7 +557,7 @@ where
 
 impl<'a, I> Iterator for NodeToMdqIter<'a, I>
 where
-    I: Iterator<Item = Node>,
+    I: Iterator<Item = mdast::Node>,
 {
     type Item = Result<MdqNode, InvalidMd>;
 
@@ -558,12 +581,12 @@ where
 
 #[derive(Debug, PartialEq)]
 struct Lookups {
-    link_definitions: HashMap<String, Definition>,
-    footnote_definitions: HashMap<String, FootnoteDefinition>,
+    link_definitions: HashMap<String, mdast::Definition>,
+    footnote_definitions: HashMap<String, mdast::FootnoteDefinition>,
 }
 
 impl Lookups {
-    fn new(node: &Node, read_opts: &ReadOptions) -> Result<Self, InvalidMd> {
+    fn new(node: &mdast::Node, read_opts: &ReadOptions) -> Result<Self, InvalidMd> {
         const DEFAULT_CAPACITY: usize = 8; // random guess
 
         let mut result = Self {
@@ -580,7 +603,7 @@ impl Lookups {
         &self,
         identifier: String,
         label: Option<String>,
-        reference_kind: ReferenceKind,
+        reference_kind: mdast::ReferenceKind,
     ) -> Result<Link, NoNode> {
         if let None = label {
             todo!("What is this case???");
@@ -593,9 +616,9 @@ impl Lookups {
         };
         let human_visible_identifier = label.unwrap_or(identifier);
         let link_ref = match reference_kind {
-            ReferenceKind::Shortcut => LinkReference::Shortcut,
-            ReferenceKind::Collapsed => LinkReference::Collapsed,
-            ReferenceKind::Full => LinkReference::Full(human_visible_identifier),
+            mdast::ReferenceKind::Shortcut => LinkReference::Shortcut,
+            mdast::ReferenceKind::Collapsed => LinkReference::Collapsed,
+            mdast::ReferenceKind::Full => LinkReference::Full(human_visible_identifier),
         };
         Ok(Link {
             url: definition.url.to_owned(),
@@ -604,7 +627,11 @@ impl Lookups {
         })
     }
 
-    fn resolve_footnote(&self, identifier: &String, label: &Option<String>) -> Result<&FootnoteDefinition, NoNode> {
+    fn resolve_footnote(
+        &self,
+        identifier: &String,
+        label: &Option<String>,
+    ) -> Result<&mdast::FootnoteDefinition, NoNode> {
         if label.is_none() {
             todo!("What is this case???");
         }
@@ -617,14 +644,16 @@ impl Lookups {
         Ok(definition)
     }
 
-    fn build_lookups(&mut self, node: &Node, read_opts: &ReadOptions) -> Result<(), InvalidMd> {
+    fn build_lookups(&mut self, node: &mdast::Node, read_opts: &ReadOptions) -> Result<(), InvalidMd> {
         let x = format!("{:?}", node);
         let _ = x;
         match node {
-            Node::FootnoteDefinition(def) => {
+            mdast::Node::FootnoteDefinition(def) => {
                 Self::add_ref(&mut self.footnote_definitions, &def.identifier, def.clone(), read_opts)
             }
-            Node::Definition(def) => Self::add_ref(&mut self.link_definitions, &def.identifier, def.clone(), read_opts),
+            mdast::Node::Definition(def) => {
+                Self::add_ref(&mut self.link_definitions, &def.identifier, def.clone(), read_opts)
+            }
             _ => Ok(()),
         }?;
         if let Some(children) = node.children() {
@@ -751,8 +780,8 @@ mod tests {
         fn block_quote() {
             let (root, lookups) = parse("> hello");
             let child = &root.children[0];
-            check!(child, Node::BlockQuote(_), lookups => MdqNode::BlockQuote { body } = {
-                assert_eq!(&body, &vec![text_paragraph("hello")]);
+            check!(child, Node::BlockQuote(_), lookups => MdqNode::BlockQuote(bq)= {
+                assert_eq!(&bq.body, &vec![text_paragraph("hello")]);
             });
         }
 
@@ -792,7 +821,7 @@ mod tests {
                     assert_eq!(footnote, Inline::Footnote(Footnote{
                         label: "a".to_string(),
                         text: vec![
-                            MdqNode::List {
+                            MdqNode::List(List{
                                 starting_index: None,
                                 items: vec![
                                     ListItem{
@@ -800,7 +829,7 @@ mod tests {
                                         item: vec![text_paragraph("footnote is a list")],
                                     }
                                 ],
-                            },
+                            }),
                         ],
                     }))
                 });
@@ -826,7 +855,7 @@ mod tests {
             );
             assert_eq!(root.children.len(), 2); // unordered list, then ordered
 
-            check!(&root.children[0], Node::List(ul), lookups => MdqNode::List{starting_index, items} = {
+            check!(&root.children[0], Node::List(ul), lookups => MdqNode::List(List{starting_index, items}) = {
                 for child in &ul.children {
                     check!(no_node: child, Node::ListItem(_), lookups => NoNode::Invalid(InvalidMd::InternalError));
                 }
@@ -846,7 +875,7 @@ mod tests {
                     },
                 ]);
             });
-            check!(&root.children[1], Node::List(ol), lookups => MdqNode::List{starting_index, items} = {
+            check!(&root.children[1], Node::List(ol), lookups => MdqNode::List(List{starting_index, items}) = {
                 for child in &ol.children {
                     check!(no_node: child, Node::ListItem(_), lookups => NoNode::Invalid(InvalidMd::InternalError));
                 }
@@ -881,7 +910,7 @@ mod tests {
                 "#},
             );
 
-            check!(&root.children[0], Node::Paragraph(p), lookups => MdqNode::Paragraph{body} = {
+            check!(&root.children[0], Node::Paragraph(p), lookups => MdqNode::Paragraph(Paragraph{body}) = {
                 assert_eq!(p.children.len(), 3);
                 check!(&p.children[0], Node::Text(_), lookups => MdqNode::Inline(text) = {
                     assert_eq!(text, Inline::Text {variant: InlineVariant::Text, value: "hello ".to_string()});
@@ -983,7 +1012,7 @@ mod tests {
                 let (root, lookups) = parse(indoc! {r#"
                 In <em>a paragraph.</em>
                 "#});
-                check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{body} = {
+                check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph(Paragraph{body}) = {
                     assert_eq!(body.len(), 4);
                     assert_eq!(body, vec![
                         inline_text("In "),
@@ -1003,7 +1032,7 @@ mod tests {
                 In <em
                 newline  >a paragraph.</em>
                 "#});
-                check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph{body} = {
+                check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph(Paragraph{body}) = {
                     assert_eq!(body.len(), 4);
                     assert_eq!(body, vec![
                         inline_text("In "),
@@ -1411,7 +1440,7 @@ mod tests {
                     plain code block
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock{variant, value} = {
+                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Code(None));
                     assert_eq!(value, "plain code block");
                 })
@@ -1424,7 +1453,7 @@ mod tests {
                     code block with language
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock{variant, value} = {
+                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
                         language: "rust".to_string(),
                         metadata: None})));
@@ -1439,7 +1468,7 @@ mod tests {
                     code block with language and title
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock{variant, value} = {
+                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
                         language: "rust".to_string(),
                         metadata: Some(r#"title="example.rs""#.to_string())})));
@@ -1454,7 +1483,7 @@ mod tests {
                     code block with only title
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock{variant, value} = {
+                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
                     // It's actually just a bogus language!
                     assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
                         language: r#"title="example.rs""#.to_string(),
@@ -1476,7 +1505,7 @@ mod tests {
                     x = {-b \pm \sqrt{b^2-4ac} \over 2a}
                     $$"#},
                 );
-                check!(&root.children[0], Node::Math(_), lookups => MdqNode::CodeBlock{variant, value} = {
+                check!(&root.children[0], Node::Math(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Math{metadata: None});
                     assert_eq!(value, r#"x = {-b \pm \sqrt{b^2-4ac} \over 2a}"#);
                 })
@@ -1489,7 +1518,7 @@ mod tests {
                     x = {-b \pm \sqrt{b^2-4ac} \over 2a}
                     $$"#},
                 );
-                check!(&root.children[0], Node::Math(_), lookups => MdqNode::CodeBlock{variant, value} = {
+                check!(&root.children[0], Node::Math(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Math{metadata: Some("my metadata".to_string())});
                     assert_eq!(value, r#"x = {-b \pm \sqrt{b^2-4ac} \over 2a}"#);
                 })
@@ -1507,7 +1536,7 @@ mod tests {
                 my: toml
                 +++"#},
             );
-            check!(&root.children[0], Node::Toml(_), lookups => MdqNode::CodeBlock{variant, value} = {
+            check!(&root.children[0], Node::Toml(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
                 assert_eq!(variant, CodeVariant::Toml);
                 assert_eq!(value, r#"my: toml"#);
             })
@@ -1524,7 +1553,7 @@ mod tests {
                 my: toml
                 ---"#},
             );
-            check!(&root.children[0], Node::Yaml(_), lookups => MdqNode::CodeBlock{variant, value} = {
+            check!(&root.children[0], Node::Yaml(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
                 assert_eq!(variant, CodeVariant::Yaml);
                 assert_eq!(value, r#"my: toml"#);
             })
@@ -1539,7 +1568,7 @@ mod tests {
                     And some text below it."#},
             );
 
-            let (header_depth, header_title) = check!(&root.children[0], Node::Heading(_), lookups => MdqNode::Header{depth, title, body} = {
+            let (header_depth, header_title) = check!(&root.children[0], Node::Heading(_), lookups => MdqNode::Header(Header{depth, title, body}) = {
                 assert_eq!(depth, 2);
                 assert_eq!(title, vec![
                     Inline::Text { variant: InlineVariant::Text, value: "Header with ".to_string()},
@@ -1556,15 +1585,15 @@ mod tests {
                 (depth, title)
             });
 
-            check!(&Node::Root(root), Node::Root(_), lookups => MdqNode::Root{body} = {
-                assert_eq!(body, vec![
-                    MdqNode::Header{
+            check!(&Node::Root(root), Node::Root(_), lookups => MdqNode::Root(root) = {
+                assert_eq!(root.body, vec![
+                    MdqNode::Header(Header{
                         depth: header_depth,
                         title: header_title,
                         body: vec![
                             text_paragraph("And some text below it.")
                         ]
-                    },
+                    }),
                 ])
             });
         }
@@ -1602,8 +1631,8 @@ mod tests {
                     "#},
             );
             assert_eq!(root.children.len(), 1);
-            check!(&root.children[0], Node::Table(table_node), lookups => MdqNode::Table{alignments, rows} = {
-                assert_eq!(alignments, vec![AlignKind::Left, AlignKind::Center, AlignKind::Right, AlignKind::None]);
+            check!(&root.children[0], Node::Table(table_node), lookups => MdqNode::Table(Table{alignments, rows}) = {
+                assert_eq!(alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Center, mdast::AlignKind::Right, mdast::AlignKind::None]);
                 assert_eq!(rows,
                     vec![ // rows
                         vec![// Header row
@@ -1915,30 +1944,30 @@ mod tests {
         #[test]
         fn h1_with_two_paragraphs() -> Result<(), InvalidMd> {
             let linear = vec![
-                MdqNode::Header {
+                MdqNode::Header(Header {
                     depth: 1,
                     title: vec![inline_text("first")],
                     body: vec![],
-                },
-                MdqNode::Paragraph {
+                }),
+                MdqNode::Paragraph(Paragraph {
                     body: vec![inline_text("aaa")],
-                },
-                MdqNode::Paragraph {
+                }),
+                MdqNode::Paragraph(Paragraph {
                     body: vec![inline_text("bbb")],
-                },
+                }),
             ];
-            let expect = vec![MdqNode::Header {
+            let expect = vec![MdqNode::Header(Header {
                 depth: 1,
                 title: vec![inline_text("first")],
                 body: vec![
-                    MdqNode::Paragraph {
+                    MdqNode::Paragraph(Paragraph {
                         body: vec![inline_text("aaa")],
-                    },
-                    MdqNode::Paragraph {
+                    }),
+                    MdqNode::Paragraph(Paragraph {
                         body: vec![inline_text("bbb")],
-                    },
+                    }),
                 ],
-            }];
+            })];
             let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
             Ok(())
@@ -1947,31 +1976,31 @@ mod tests {
         #[test]
         fn simple_nesting() -> Result<(), InvalidMd> {
             let linear = vec![
-                MdqNode::Header {
+                MdqNode::Header(Header {
                     depth: 1,
                     title: vec![inline_text("first")],
                     body: vec![],
-                },
-                MdqNode::Header {
+                }),
+                MdqNode::Header(Header {
                     depth: 2,
                     title: vec![inline_text("aaa")],
                     body: vec![],
-                },
-                MdqNode::Paragraph {
+                }),
+                MdqNode::Paragraph(Paragraph {
                     body: vec![inline_text("bbb")],
-                },
+                }),
             ];
-            let expect = vec![MdqNode::Header {
+            let expect = vec![MdqNode::Header(Header {
                 depth: 1,
                 title: vec![inline_text("first")],
-                body: vec![MdqNode::Header {
+                body: vec![MdqNode::Header(Header {
                     depth: 2,
                     title: vec![inline_text("aaa")],
-                    body: vec![MdqNode::Paragraph {
+                    body: vec![MdqNode::Paragraph(Paragraph {
                         body: vec![inline_text("bbb")],
-                    }],
-                }],
-            }];
+                    })],
+                })],
+            })];
             let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
             Ok(())
@@ -1980,59 +2009,59 @@ mod tests {
         #[test]
         fn only_headers() -> Result<(), InvalidMd> {
             let linear = vec![
-                MdqNode::Header {
+                MdqNode::Header(Header {
                     depth: 1,
                     title: vec![inline_text("first")],
                     body: vec![],
-                },
-                MdqNode::Header {
+                }),
+                MdqNode::Header(Header {
                     depth: 2,
                     title: vec![inline_text("second")],
                     body: vec![],
-                },
-                MdqNode::Header {
+                }),
+                MdqNode::Header(Header {
                     depth: 3,
                     title: vec![inline_text("third")],
                     body: vec![],
-                },
-                MdqNode::Header {
+                }),
+                MdqNode::Header(Header {
                     depth: 3,
                     title: vec![inline_text("fourth")],
                     body: vec![],
-                },
-                MdqNode::Header {
+                }),
+                MdqNode::Header(Header {
                     depth: 2,
                     title: vec![inline_text("fifth")],
                     body: vec![],
-                },
+                }),
             ];
-            let expect = vec![MdqNode::Header {
+            let expect = vec![MdqNode::Header(Header {
                 depth: 1,
                 title: vec![inline_text("first")],
                 body: vec![
-                    MdqNode::Header {
+                    MdqNode::Header(Header {
                         depth: 2,
                         title: vec![inline_text("second")],
                         body: vec![
-                            MdqNode::Header {
+                            MdqNode::Header(Header {
                                 depth: 3,
                                 title: vec![inline_text("third")],
                                 body: vec![],
-                            },
-                            MdqNode::Header {
+                            }),
+                            MdqNode::Header(Header {
                                 depth: 3,
                                 title: vec![inline_text("fourth")],
                                 body: vec![],
-                            },
+                            }),
                         ],
-                    },
-                    MdqNode::Header {
+                    }),
+                    MdqNode::Header(Header {
                         depth: 2,
                         title: vec![inline_text("fifth")],
                         body: vec![],
-                    },
+                    }),
                 ],
-            }];
+            })];
             let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
             Ok(())
@@ -2041,20 +2070,20 @@ mod tests {
         #[test]
         fn no_headers() -> Result<(), InvalidMd> {
             let linear = vec![
-                MdqNode::Paragraph {
+                MdqNode::Paragraph(Paragraph {
                     body: vec![inline_text("one")],
-                },
-                MdqNode::Paragraph {
+                }),
+                MdqNode::Paragraph(Paragraph {
                     body: vec![inline_text("two")],
-                },
+                }),
             ];
             let expect = vec![
-                MdqNode::Paragraph {
+                MdqNode::Paragraph(Paragraph {
                     body: vec![inline_text("one")],
-                },
-                MdqNode::Paragraph {
+                }),
+                MdqNode::Paragraph(Paragraph {
                     body: vec![inline_text("two")],
-                },
+                }),
             ];
             let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
@@ -2064,47 +2093,47 @@ mod tests {
         #[test]
         fn header_skips() -> Result<(), InvalidMd> {
             let linear = vec![
-                MdqNode::Header {
+                MdqNode::Header(Header {
                     depth: 1,
                     title: vec![inline_text("one")],
                     body: vec![],
-                },
-                MdqNode::Header {
+                }),
+                MdqNode::Header(Header {
                     depth: 5,
                     title: vec![inline_text("five")],
                     body: vec![],
-                },
-                MdqNode::Header {
+                }),
+                MdqNode::Header(Header {
                     depth: 2,
                     title: vec![inline_text("two")],
                     body: vec![],
-                },
-                MdqNode::Header {
+                }),
+                MdqNode::Header(Header {
                     depth: 3,
                     title: vec![inline_text("three")],
                     body: vec![],
-                },
+                }),
             ];
-            let expect = vec![MdqNode::Header {
+            let expect = vec![MdqNode::Header(Header {
                 depth: 1,
                 title: vec![inline_text("one")],
                 body: vec![
-                    MdqNode::Header {
+                    MdqNode::Header(Header {
                         depth: 5,
                         title: vec![inline_text("five")],
                         body: vec![],
-                    },
-                    MdqNode::Header {
+                    }),
+                    MdqNode::Header(Header {
                         depth: 2,
                         title: vec![inline_text("two")],
-                        body: vec![MdqNode::Header {
+                        body: vec![MdqNode::Header(Header {
                             depth: 3,
                             title: vec![inline_text("three")],
                             body: vec![],
-                        }],
-                    },
+                        })],
+                    }),
                 ],
-            }];
+            })];
             let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
             Ok(())
@@ -2113,38 +2142,38 @@ mod tests {
         #[test]
         fn backwards_order() -> Result<(), InvalidMd> {
             let linear = vec![
-                MdqNode::Header {
+                MdqNode::Header(Header {
                     depth: 3,
                     title: vec![inline_text("three")],
                     body: vec![],
-                },
-                MdqNode::Header {
+                }),
+                MdqNode::Header(Header {
                     depth: 2,
                     title: vec![inline_text("two")],
                     body: vec![],
-                },
-                MdqNode::Header {
+                }),
+                MdqNode::Header(Header {
                     depth: 1,
                     title: vec![inline_text("one")],
                     body: vec![],
-                },
+                }),
             ];
             let expect = vec![
-                MdqNode::Header {
+                MdqNode::Header(Header {
                     depth: 3,
                     title: vec![inline_text("three")],
                     body: vec![],
-                },
-                MdqNode::Header {
+                }),
+                MdqNode::Header(Header {
                     depth: 2,
                     title: vec![inline_text("two")],
                     body: vec![],
-                },
-                MdqNode::Header {
+                }),
+                MdqNode::Header(Header {
                     depth: 1,
                     title: vec![inline_text("one")],
                     body: vec![],
-                },
+                }),
             ];
             let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
@@ -2154,29 +2183,29 @@ mod tests {
         #[test]
         fn paragraph_before_and_after_header() -> Result<(), InvalidMd> {
             let linear = vec![
-                MdqNode::Paragraph {
+                MdqNode::Paragraph(Paragraph {
                     body: vec![inline_text("before")],
-                },
-                MdqNode::Header {
+                }),
+                MdqNode::Header(Header {
                     depth: 3,
                     title: vec![inline_text("the header")],
                     body: vec![],
-                },
-                MdqNode::Paragraph {
+                }),
+                MdqNode::Paragraph(Paragraph {
                     body: vec![inline_text("after")],
-                },
+                }),
             ];
             let expect = vec![
-                MdqNode::Paragraph {
+                MdqNode::Paragraph(Paragraph {
                     body: vec![inline_text("before")],
-                },
-                MdqNode::Header {
+                }),
+                MdqNode::Header(Header {
                     depth: 3,
                     title: vec![inline_text("the header")],
-                    body: vec![MdqNode::Paragraph {
+                    body: vec![MdqNode::Paragraph(Paragraph {
                         body: vec![inline_text("after")],
-                    }],
-                },
+                    })],
+                }),
             ];
             let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
@@ -2193,21 +2222,21 @@ mod tests {
 
     /// Helper for creating a [MdqNode::Paragraph] with plain text.
     fn text_paragraph(text: &str) -> MdqNode {
-        MdqNode::Paragraph {
+        MdqNode::Paragraph(Paragraph {
             body: vec![Inline::Text {
                 variant: InlineVariant::Text,
                 value: text.to_string(),
             }],
-        }
+        })
     }
 
     /// A simple representation of some nodes. Very non-exhaustive, just for testing.
-    fn simple_to_string(nodes: &Vec<Node>) -> String {
-        fn build(out: &mut String, node: &Node) {
+    fn simple_to_string(nodes: &Vec<mdast::Node>) -> String {
+        fn build(out: &mut String, node: &mdast::Node) {
             let (tag, text) = match node {
-                Node::Text(text_node) => ("", text_node.value.as_str()),
-                Node::Emphasis(_) => ("em", ""),
-                Node::Paragraph(_) => ("p", ""),
+                mdast::Node::Text(text_node) => ("", text_node.value.as_str()),
+                mdast::Node::Emphasis(_) => ("em", ""),
+                mdast::Node::Paragraph(_) => ("p", ""),
                 _ => ("", ""),
             };
             if !tag.is_empty() {
