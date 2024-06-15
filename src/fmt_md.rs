@@ -545,7 +545,6 @@ pub mod tests {
 
         #[test]
         fn one_paragraph() {
-            // one paragraph
             check_render(
                 mdq_nodes![Root {
                     body: mdq_nodes![Paragraph {
@@ -562,31 +561,28 @@ pub mod tests {
 
         #[test]
         fn two_paragraphs() {
-            {
-                // one paragraph
-                check_render(
-                    mdq_nodes![Root {
-                        body: mdq_nodes![
-                            Paragraph {
-                                body: vec![Inline::Text {
-                                    variant: InlineVariant::Text,
-                                    value: "First".to_string()
-                                }]
-                            },
-                            Paragraph {
-                                body: vec![Inline::Text {
-                                    variant: InlineVariant::Text,
-                                    value: "Second".to_string()
-                                }]
-                            },
-                        ]
-                    }],
-                    indoc! {r#"
-                    First
+            check_render(
+                mdq_nodes![Root {
+                    body: mdq_nodes![
+                        Paragraph {
+                            body: vec![Inline::Text {
+                                variant: InlineVariant::Text,
+                                value: "First".to_string()
+                            }]
+                        },
+                        Paragraph {
+                            body: vec![Inline::Text {
+                                variant: InlineVariant::Text,
+                                value: "Second".to_string()
+                            }]
+                        },
+                    ]
+                }],
+                indoc! {r#"
+                First
 
-                    Second"#},
-                );
-            }
+                Second"#},
+            )
         }
     }
 
@@ -654,6 +650,24 @@ pub mod tests {
 
                     > Hello, world."#},
             )
+        }
+    }
+
+    mod paragraph {
+        use super::*;
+
+        #[test]
+        fn simple() {
+            check_render(
+                mdq_nodes![Paragraph {
+                    body: vec![Inline::Text {
+                        variant: InlineVariant::Text,
+                        value: "Hello, world".to_string()
+                    }]
+                }],
+                indoc! {r#"
+                Hello, world"#},
+            );
         }
     }
 
