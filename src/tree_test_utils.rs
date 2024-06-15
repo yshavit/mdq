@@ -4,9 +4,9 @@ pub use test_utils::*;
 // export its contents.
 #[cfg(test)]
 mod test_utils {
+    use std::{thread, time};
     use std::collections::HashSet;
     use std::sync::{Arc, Mutex};
-    use std::{thread, time};
 
     use regex::Regex;
 
@@ -47,7 +47,9 @@ mod test_utils {
         require: Arc<Mutex<HashSet<String>>>,
     }
 
-    // TODO unify this with the one in tree.rs
+    // TODO unify this with the one in tree.rs.
+    // I can do that by making this generic, as well as making nodes_matcher! work with generics by having it pass in
+    // the type as an arg (e.g. `mdast::Node` or `MdqNode`
     impl MdqVariantsChecker {
         pub fn new() -> Self {
             let all_node_names = nodes_matcher! {
