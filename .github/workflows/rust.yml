@@ -35,6 +35,14 @@ jobs:
     - name: list ignored tests
       run: |
         (find . -name '*.rs' -exec grep --fixed-strings -Hno '#[ignore]' {} \; || true) | sed -E 's/^([^:]+):([^:]+):.*/::warning file=\1,line=\2,title=Ignored test::Regex indicates this test is probably ignored/'
+    - name: check ignored tests all fail
+      run: |
+        exit_code=0
+        while IFS= read -r line; do
+          printf "::error title=Ignored test is passing::%s but expected failure because it's ignored"'\n' "$line"
+          exit_code=1
+        done < <(cargo test -- --ignored --color never | grep '\.\.\. ok$' || true)
+        exit "$exit_code"
 
   fmt:
     needs: build
