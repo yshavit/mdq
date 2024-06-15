@@ -508,8 +508,6 @@ impl<'a> MdWriterState<'a> {
 
 #[cfg(test)]
 pub mod tests {
-    use std::fmt::Error;
-
     use indoc::indoc;
     use lazy_static::lazy_static;
 
@@ -643,10 +641,9 @@ pub mod tests {
     fn check_render_with(options: &MdOptions, nodes: Vec<MdqNode>, expect: &str) {
         nodes.iter().for_each(|n| VARIANTS_CHECKER.see(n));
 
-        let mut out = Output::new(vec![]);
+        let mut out = Output::new(String::default());
         write_md(options, &mut out, &nodes);
-        let vec = out.take_underlying().unwrap();
-        let actual = String::from_utf8(vec).map_err(|_| Error).unwrap();
+        let actual = out.take_underlying().unwrap();
         assert_eq!(&actual, expect);
     }
 }
