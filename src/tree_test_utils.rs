@@ -35,7 +35,7 @@ mod test_utils {
     macro_rules! mdq_nodes {
         [$($node_type:tt {$($attr:ident: $val:expr),*}$(,)?),*] => {
             vec![$(
-                mdq_node!($node_type {
+                crate::mdq_node!($node_type {
                     $($attr: $val),*
                 })
                 ),*

@@ -522,7 +522,6 @@ pub mod tests {
     use lazy_static::lazy_static;
 
     use crate::fmt_md::MdOptions;
-    use crate::mdq_node;
     use crate::mdq_nodes;
     use crate::output::Output;
     use crate::tree::*;
