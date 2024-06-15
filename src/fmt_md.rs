@@ -534,13 +534,17 @@ pub mod tests {
         check_render(vec![], indoc! {r#""#});
     }
 
-    #[test]
-    fn root() {
-        {
+    mod root {
+        use super::*;
+
+        #[test]
+        fn empty() {
             // empty body
             check_render(mdq_nodes![Root { body: vec![] }], indoc! {r#""#});
         }
-        {
+
+        #[test]
+        fn one_paragraph() {
             // one paragraph
             check_render(
                 mdq_nodes![Root {
@@ -555,30 +559,34 @@ pub mod tests {
                 Hello, world"#},
             );
         }
-        {
-            // one paragraph
-            check_render(
-                mdq_nodes![Root {
-                    body: mdq_nodes![
-                        Paragraph {
-                            body: vec![Inline::Text {
-                                variant: InlineVariant::Text,
-                                value: "First".to_string()
-                            }]
-                        },
-                        Paragraph {
-                            body: vec![Inline::Text {
-                                variant: InlineVariant::Text,
-                                value: "Second".to_string()
-                            }]
-                        },
-                    ]
-                }],
-                indoc! {r#"
+
+        #[test]
+        fn two_paragraphs() {
+            {
+                // one paragraph
+                check_render(
+                    mdq_nodes![Root {
+                        body: mdq_nodes![
+                            Paragraph {
+                                body: vec![Inline::Text {
+                                    variant: InlineVariant::Text,
+                                    value: "First".to_string()
+                                }]
+                            },
+                            Paragraph {
+                                body: vec![Inline::Text {
+                                    variant: InlineVariant::Text,
+                                    value: "Second".to_string()
+                                }]
+                            },
+                        ]
+                    }],
+                    indoc! {r#"
                     First
 
                     Second"#},
-            );
+                );
+            }
         }
     }
 
