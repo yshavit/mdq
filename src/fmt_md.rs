@@ -284,7 +284,7 @@ impl<'a> MdWriterState<'a> {
                 }
             }
             MdqNode::ThematicBreak => {
-                // out.with_block(Block::Plain, |out| out.write_str("***"));
+                out.with_block(Block::Plain, |out| out.write_str("***"));
             }
             MdqNode::CodeBlock(CodeBlock { variant, value }) => {
                 let (surround, meta) = match variant {
@@ -966,6 +966,33 @@ pub mod tests {
                 |---|----|
                 | 1 |
                 | i | ii | iii |"#},
+            );
+        }
+    }
+
+    mod thematic_break {
+        use super::*;
+        use crate::mdq_node;
+
+        #[test]
+        fn by_itself() {
+            check_render(
+                vec![MdqNode::ThematicBreak],
+                indoc! {r#"
+                ***"#},
+            );
+        }
+
+        #[test]
+        fn with_paragraphs() {
+            check_render(
+                vec![mdq_node!("before"), MdqNode::ThematicBreak, mdq_node!("after")],
+                indoc! {r#"
+                before
+
+                ***
+
+                after"#},
             );
         }
     }

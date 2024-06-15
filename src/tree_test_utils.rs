@@ -31,7 +31,7 @@ mod test_utils {
         };
         ($paragraph_text:literal) => {
             crate::mdq_node!(Paragraph{body: vec![crate::mdq_inline!($paragraph_text)]})
-        }
+        };
     }
 
     #[macro_export]
