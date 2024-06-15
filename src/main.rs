@@ -4,6 +4,7 @@ use std::string::ToString;
 
 use crate::fmt_json::TextOnly;
 use crate::fmt_md::MdOptions;
+use crate::output::Stream;
 use crate::tree::MdqNode;
 
 mod fmt_json;
@@ -19,7 +20,7 @@ fn main() {
     let ast = markdown::to_mdast(&mut contents, &markdown::ParseOptions::gfm()).unwrap();
     let mdq: MdqNode = ast.try_into().unwrap();
 
-    let mut out = output::Output::new(io::stdout());
+    let mut out = output::Output::new(Stream(io::stdout()));
 
     let selector = select::Selector::Heading(select::Matcher::Substring {
         look_for: "Hello".to_string(),

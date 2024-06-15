@@ -2,9 +2,8 @@ use std::borrow::Borrow;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Alignment;
-use std::io::Write;
 
-use crate::output::{Block, Output};
+use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align};
 use crate::tree::*;
 
@@ -64,7 +63,7 @@ impl Default for ReferencePlacement {
 pub fn write_md<N, W>(options: &MdOptions, out: &mut Output<W>, nodes: &[N])
 where
     N: Borrow<MdqNode>,
-    W: Write,
+    W: SimpleWrite,
 {
     let pending_refs_capacity = 8; // arbitrary guess
 
@@ -117,7 +116,7 @@ impl<'a> MdWriterState<'a> {
     fn write_md<N, W>(&mut self, out: &mut Output<W>, nodes: &'a [N])
     where
         N: Borrow<MdqNode>,
-        W: Write,
+        W: SimpleWrite,
     {
         for node in nodes {
             self.write_one_md(out, node.borrow());
@@ -126,7 +125,7 @@ impl<'a> MdWriterState<'a> {
 
     pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node: &'a MdqNode)
     where
-        W: Write,
+        W: SimpleWrite,
     {
         match node {
             MdqNode::Root(Root { body }) => self.write_md(out, body),
@@ -324,7 +323,7 @@ impl<'a> MdWriterState<'a> {
     pub fn write_line<E, W>(&mut self, out: &mut Output<W>, elems: &'a [E])
     where
         E: Borrow<Inline>,
-        W: Write,
+        W: SimpleWrite,
     {
         for elem in elems {
             self.write_inline_element(out, elem.borrow());
@@ -333,7 +332,7 @@ impl<'a> MdWriterState<'a> {
 
     pub fn write_inline_element<W>(&mut self, out: &mut Output<W>, elem: &'a Inline)
     where
-        W: Write,
+        W: SimpleWrite,
     {
         match elem {
             Inline::Span { variant, children } => {
@@ -390,7 +389,7 @@ impl<'a> MdWriterState<'a> {
     /// call into [write_line] (for links) or just simple text (for image alts).
     fn write_link_inline<W, F>(&mut self, out: &mut Output<W>, label: ReifiedLabel<'a>, link: &'a Link, contents: F)
     where
-        W: Write,
+        W: SimpleWrite,
         F: FnOnce(&mut Self, &mut Output<W>),
     {
         out.write_str("![");
@@ -436,7 +435,7 @@ impl<'a> MdWriterState<'a> {
 
     fn write_link_definitions<W>(&mut self, out: &mut Output<W>)
     where
-        W: Write,
+        W: SimpleWrite,
     {
         if self.pending_references.links.is_empty() && self.seen_footnotes.is_empty() {
             return;
@@ -460,7 +459,7 @@ impl<'a> MdWriterState<'a> {
 
     fn write_footnote_definitions<W>(&mut self, out: &mut Output<W>)
     where
-        W: Write,
+        W: SimpleWrite,
     {
         // TODO combine this block with the link definitions
         out.with_block(Block::Plain, move |out| {
@@ -482,7 +481,7 @@ impl<'a> MdWriterState<'a> {
 
     fn write_url_title<W>(&mut self, out: &mut Output<W>, title: &Option<String>)
     where
-        W: Write,
+        W: SimpleWrite,
     {
         let Some(title) = title else { return };
         out.write_char(' ');
@@ -501,10 +500,8 @@ impl<'a> MdWriterState<'a> {
     where
         E: Borrow<Inline>,
     {
-        let bytes: Vec<u8> = Vec::with_capacity(line.len() * 10); // rough guess
-        let mut out = Output::new(bytes);
+        let mut out = Output::new(String::with_capacity(line.len() * 10)); // rough guess
         self.write_line(&mut out, line);
-        let bytes = out.take_underlying().unwrap();
-        String::from_utf8(bytes).unwrap()
+        out.take_underlying().unwrap()
     }
 }
