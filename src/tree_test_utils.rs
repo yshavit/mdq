@@ -4,9 +4,9 @@ pub use test_utils::*;
 // export its contents.
 #[cfg(test)]
 mod test_utils {
-    use std::{thread, time};
     use std::collections::HashSet;
     use std::sync::{Arc, Mutex};
+    use std::{thread, time};
 
     use regex::Regex;
 
