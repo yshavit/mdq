@@ -508,3 +508,121 @@ impl<'a> MdWriterState<'a> {
         String::from_utf8(bytes).unwrap()
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use std::fmt::Error;
+
+    use indoc::indoc;
+    use lazy_static::lazy_static;
+
+    use crate::fmt_md::MdOptions;
+    use crate::mdq_node;
+    use crate::mdq_nodes;
+    use crate::output::Output;
+    use crate::tree::*;
+    use crate::tree_test_utils::*;
+
+    use super::write_md;
+
+    lazy_static! {
+        static ref VARIANTS_CHECKER: MdqVariantsChecker = MdqVariantsChecker::new();
+    }
+
+    #[test]
+    fn empty() {
+        check_render(vec![], indoc! {r#""#});
+    }
+
+    #[test]
+    fn root() {
+        {
+            // empty body
+            check_render(mdq_nodes![Root { body: vec![] }], indoc! {r#""#});
+        }
+        {
+            // one paragraph
+            check_render(
+                mdq_nodes![Root {
+                    body: mdq_nodes![Paragraph {
+                        body: vec![Inline::Text {
+                            variant: InlineVariant::Text,
+                            value: "Hello, world".to_string()
+                        }]
+                    }]
+                }],
+                // TODO fix these extra newlines!
+                indoc! {r#"
+                Hello, world"#},
+            );
+        }
+        {
+            // one paragraph
+            check_render(
+                mdq_nodes![Root {
+                    body: mdq_nodes![
+                        Paragraph {
+                            body: vec![Inline::Text {
+                                variant: InlineVariant::Text,
+                                value: "First".to_string()
+                            }]
+                        },
+                        Paragraph {
+                            body: vec![Inline::Text {
+                                variant: InlineVariant::Text,
+                                value: "Second".to_string()
+                            }]
+                        },
+                    ]
+                }],
+                // TODO fix these extra newlines!
+                indoc! {r#"
+                    First
+
+                    Second"#},
+            );
+        }
+    }
+
+    #[test]
+    fn block_quote() {
+        {
+            // single level
+            check_render(
+                mdq_nodes![BlockQuote {
+                    body: mdq_nodes![Paragraph {
+                        body: vec![Inline::Text {
+                            variant: InlineVariant::Text,
+                            value: "Hello, world".to_string()
+                        }]
+                    }]
+                }],
+                indoc! {
+                    r#"> Hello, world"#
+                },
+            );
+        }
+        {
+            todo!("two levels")
+        }
+    }
+
+    #[test]
+    fn all_variants_checked() {
+        VARIANTS_CHECKER.wait_for_all();
+    }
+
+    fn check_render(nodes: Vec<MdqNode>, expect: &str) {
+        check_render_with(&MdOptions::default(), nodes, expect);
+    }
+
+    fn check_render_with(options: &MdOptions, nodes: Vec<MdqNode>, expect: &str) {
+        nodes.iter().for_each(|n| VARIANTS_CHECKER.see(n));
+
+        let mut out = Output::new(vec![]);
+        write_md(options, &mut out, &nodes);
+        let vec = out.take_underlying().unwrap();
+        let actual = String::from_utf8(vec).map_err(|_| Error).unwrap();
+        assert_eq!(&actual, expect);
+    }
+}
