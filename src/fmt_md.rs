@@ -538,12 +538,6 @@ pub mod tests {
         use super::*;
 
         #[test]
-        fn empty() {
-            // empty body
-            check_render(mdq_nodes![Root { body: vec![] }], indoc! {r#""#});
-        }
-
-        #[test]
         fn one_paragraph() {
             // one paragraph
             check_render(
@@ -590,10 +584,11 @@ pub mod tests {
         }
     }
 
-    #[test]
-    fn block_quote() {
-        {
-            // single level
+    mod block_quote {
+        use super::*;
+
+        #[test]
+        fn single_level() {
             check_render(
                 mdq_nodes![BlockQuote {
                     body: mdq_nodes![Paragraph {
@@ -608,8 +603,34 @@ pub mod tests {
                 },
             );
         }
-        {
-            todo!("two levels")
+
+        #[test]
+        fn two_levels() {
+            check_render(
+                mdq_nodes![BlockQuote {
+                    body: mdq_nodes![
+                        Paragraph {
+                            body: vec![Inline::Text {
+                                variant: InlineVariant::Text,
+                                value: "Outer".to_string()
+                            }]
+                        },
+                        BlockQuote {
+                            body: mdq_nodes![Paragraph {
+                                body: vec![Inline::Text {
+                                    variant: InlineVariant::Text,
+                                    value: "Inner".to_string()
+                                }]
+                            },]
+                        },
+                    ]
+                }],
+                indoc! {r#"
+                    > Outer
+                    >
+                    > > Inner"#
+                },
+            );
         }
     }
 

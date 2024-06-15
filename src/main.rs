@@ -1,5 +1,5 @@
 use std::io;
-use std::io::{stdin, Read};
+use std::io::{Read, stdin};
 use std::string::ToString;
 
 use crate::fmt_json::TextOnly;
