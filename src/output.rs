@@ -239,6 +239,9 @@ impl<W: SimpleWrite> Output<W> {
             eprintln!("error while writing output: {}", e);
             self.writing_state = WritingState::Error;
         }
+        if matches!(self.writing_state, WritingState::HaveNotWrittenAnything) {
+            self.writing_state = WritingState::Normal;
+        }
     }
 }
 
@@ -354,6 +357,23 @@ mod tests {
                 > world
 
                 after"#}
+        );
+    }
+
+    #[test]
+    fn quote_block_one_char_at_a_time_as_initial_output() {
+        // We haven't written anything, and then we start writing quote blocks
+        assert_eq!(
+            out_to_str(|out| {
+                out.with_block(Block::Quote, |out| {
+                    out.write_str(""); // empty prefix char
+                    "hello\nworld".chars().for_each(|c| out.write_char(c));
+                    out.write_str(""); // empty suffix char
+                });
+            }),
+            indoc! {r#"
+                > hello
+                > world"#}
         );
     }
 
