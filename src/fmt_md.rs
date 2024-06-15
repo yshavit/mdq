@@ -6,7 +6,7 @@ use std::io::Write;
 
 use crate::output::{Block, Output};
 use crate::str_utils::{pad_to, standard_align};
-use crate::tree::{CodeVariant, Footnote, Inline, InlineVariant, Link, LinkReference, MdqNode, SpanVariant};
+use crate::tree::*;
 
 #[derive(Default)]
 pub struct MdOptions {
@@ -129,8 +129,8 @@ impl<'a> MdWriterState<'a> {
         W: Write,
     {
         match node {
-            MdqNode::Root { body } => self.write_md(out, body),
-            MdqNode::Header { depth, title, body } => {
+            MdqNode::Root(Root { body }) => self.write_md(out, body),
+            MdqNode::Header(Header { depth, title, body }) => {
                 out.with_block(Block::Plain, |out| {
                     for _ in 0..*depth {
                         out.write_str("#");
@@ -149,17 +149,17 @@ impl<'a> MdWriterState<'a> {
                     self.write_footnote_definitions(out);
                 }
             }
-            MdqNode::Paragraph { body } => {
+            MdqNode::Paragraph(Paragraph { body }) => {
                 out.with_block(Block::Plain, |out| {
                     self.write_line(out, body);
                 });
             }
-            MdqNode::BlockQuote { body } => {
+            MdqNode::BlockQuote(BlockQuote { body }) => {
                 out.with_block(Block::Quote, |out| {
                     self.write_md(out, body);
                 });
             }
-            MdqNode::List { starting_index, items } => {
+            MdqNode::List(List { starting_index, items }) => {
                 out.with_block(Block::Plain, |out| {
                     let mut index = starting_index.clone();
                     let mut prefix = String::with_capacity(8); // enough for "12. [ ] "
@@ -184,7 +184,7 @@ impl<'a> MdWriterState<'a> {
                     }
                 });
             }
-            MdqNode::Table { alignments, rows } => {
+            MdqNode::Table(Table { alignments, rows }) => {
                 let mut row_strs = Vec::with_capacity(rows.len());
 
                 let mut column_widths = [0].repeat(alignments.len());
@@ -277,7 +277,7 @@ impl<'a> MdWriterState<'a> {
             MdqNode::ThematicBreak => {
                 // out.with_block(Block::Plain, |out| out.write_str("***"));
             }
-            MdqNode::CodeBlock { variant, value } => {
+            MdqNode::CodeBlock(CodeBlock { variant, value }) => {
                 let (surround, meta) = match variant {
                     CodeVariant::Code(opts) => {
                         let meta = if let Some(opts) = opts {
