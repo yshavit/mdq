@@ -1,15 +1,14 @@
 use std::borrow::Borrow;
 use std::fmt::Alignment;
-use std::io::Write;
 
 use markdown::mdast::AlignKind;
 
-use crate::output::Output;
+use crate::output::{Output, SimpleWrite};
 
 pub fn pad_to<A, W>(output: &mut Output<W>, input: &str, min_width: usize, alignment: A)
 where
     A: ToAlignment,
-    W: Write,
+    W: SimpleWrite,
 {
     if input.len() >= min_width {
         return output.write_str(input);
@@ -117,12 +116,10 @@ mod test {
 
     fn output_and_get<F>(action: F) -> String
     where
-        F: FnOnce(&mut Output<Vec<u8>>),
+        F: FnOnce(&mut Output<String>),
     {
-        let vec = Vec::with_capacity(16);
-        let mut output = Output::new(vec);
+        let mut output = Output::new(String::new());
         action(&mut output);
-        let vec = output.take_underlying().unwrap();
-        String::from_utf8(vec).unwrap()
+        output.take_underlying().unwrap()
     }
 }

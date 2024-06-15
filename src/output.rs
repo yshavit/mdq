@@ -1,10 +1,35 @@
 use std::cmp::PartialEq;
-use std::io::Write;
 use std::ops::Range;
 
-use crate::output::NewlinesRequest::{AtLeast, Exactly};
+pub trait SimpleWrite {
+    fn write_str(&mut self, text: &str) -> std::io::Result<()>;
+    fn flush(&mut self) -> std::io::Result<()>;
+}
 
-pub struct Output<W: Write> {
+impl SimpleWrite for String {
+    fn write_str(&mut self, text: &str) -> std::io::Result<()> {
+        self.push_str(text);
+        Ok(())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+pub struct Stream<W: std::io::Write>(pub W);
+
+impl<W: std::io::Write> SimpleWrite for Stream<W> {
+    fn write_str(&mut self, text: &str) -> std::io::Result<()> {
+        self.0.write(&text.as_bytes()).map(|_| ())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
+}
+
+pub struct Output<W: SimpleWrite> {
     stream: W,
     pre_mode: bool,
     blocks: Vec<Block>,
@@ -14,7 +39,7 @@ pub struct Output<W: Write> {
     writing_state: WritingState,
 }
 
-pub struct PreWriter<'a, W: Write> {
+pub struct PreWriter<'a, W: SimpleWrite> {
     output: &'a mut Output<W>,
 }
 
@@ -37,7 +62,7 @@ pub enum Block {
     Inlined(usize),
 }
 
-impl<W: Write> Output<W> {
+impl<W: SimpleWrite> Output<W> {
     pub fn new(to: W) -> Self {
         Self {
             stream: to, // TODO use io::BufWriter?
@@ -92,7 +117,7 @@ impl<W: Write> Output<W> {
                 Block::Inlined(_) => 1,
             },
         };
-        self.ensure_newlines(Exactly(newlines));
+        self.ensure_newlines(NewlinesRequest::Exactly(newlines));
     }
 
     pub fn write_str(&mut self, text: &str) {
@@ -105,7 +130,7 @@ impl<W: Write> Output<W> {
                 self.set_writing_state(WritingState::Normal);
             }
             if lines.peek().is_some() {
-                self.ensure_newlines(AtLeast(1));
+                self.ensure_newlines(NewlinesRequest::AtLeast(1));
             }
         }
     }
@@ -124,7 +149,7 @@ impl<W: Write> Output<W> {
         match self.pending_blocks.first() {
             None => {}
             Some(Block::Inlined(_)) => self.set_writing_state(WritingState::IgnoringNewlines),
-            Some(_) => self.ensure_newlines(AtLeast(2)),
+            Some(_) => self.ensure_newlines(NewlinesRequest::AtLeast(2)),
         }
 
         // print the newlines before we append the new blocks
@@ -210,14 +235,14 @@ impl<W: Write> Output<W> {
         if text.is_empty() {
             return;
         }
-        if let Err(e) = self.stream.write(text.as_bytes()) {
+        if let Err(e) = self.stream.write_str(text) {
             eprintln!("error while writing output: {}", e);
             self.writing_state = WritingState::Error;
         }
     }
 }
 
-impl<W: Write> Output<W>
+impl<W: SimpleWrite> Output<W>
 where
     W: Default,
 {
@@ -227,7 +252,7 @@ where
     }
 }
 
-impl<W: Write> Drop for Output<W> {
+impl<W: SimpleWrite> Drop for Output<W> {
     fn drop(&mut self) {
         if let Err(e) = self.stream.flush() {
             if WritingState::Error != self.writing_state {
@@ -238,7 +263,7 @@ impl<W: Write> Drop for Output<W> {
     }
 }
 
-impl<'a, W: Write> PreWriter<'a, W> {
+impl<'a, W: SimpleWrite> PreWriter<'a, W> {
     pub fn write_str(&mut self, text: &str) {
         self.output.write_str(text)
     }
@@ -272,8 +297,6 @@ enum WritingState {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::Error;
-
     use indoc::indoc;
 
     use super::*;
@@ -528,11 +551,10 @@ mod tests {
 
     fn out_to_str<F>(action: F) -> String
     where
-        F: FnOnce(&mut Output<Vec<u8>>),
+        F: FnOnce(&mut Output<String>),
     {
-        let mut out = Output::new(vec![]);
+        let mut out = Output::new(String::new());
         action(&mut out);
-        let vec = out.take_underlying().unwrap();
-        String::from_utf8(vec).map_err(|_| Error).unwrap()
+        out.take_underlying().unwrap()
     }
 }
