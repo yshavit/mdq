@@ -7,7 +7,7 @@ use crate::output::NewlinesRequest::{AtLeast, Exactly};
 pub struct Output<W: Write> {
     stream: W,
     pre_mode: bool,
-    blocks: Vec<Block>, // TODO do we need this? why not just always add the block, and always pop it?
+    blocks: Vec<Block>,
     pending_blocks: Vec<Block>,
     pending_newlines: usize,
     pending_padding_after_indent: usize,
@@ -76,11 +76,11 @@ impl<W: Write> Output<W> {
         self.pop_block();
     }
 
-    pub fn push_block(&mut self, block: Block) {
+    fn push_block(&mut self, block: Block) {
         self.pending_blocks.push(block);
     }
 
-    pub fn pop_block(&mut self) {
+    fn pop_block(&mut self) {
         if !self.pending_blocks.is_empty() {
             self.write_str(""); // write a blank line for whatever blocks had been enqueued
         }
