@@ -551,7 +551,6 @@ pub mod tests {
                         }]
                     }]
                 }],
-                // TODO fix these extra newlines!
                 indoc! {r#"
                 Hello, world"#},
             );
@@ -575,7 +574,6 @@ pub mod tests {
                         },
                     ]
                 }],
-                // TODO fix these extra newlines!
                 indoc! {r#"
                     First
 

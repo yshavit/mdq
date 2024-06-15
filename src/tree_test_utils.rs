@@ -1,5 +1,7 @@
 pub use test_utils::*;
 
+// We this file's contents from prod by putting them in a submodule guarded by cfg(test), but then "pub use" it to
+// export its contents.
 #[cfg(test)]
 mod test_utils {
     use std::collections::HashSet;
