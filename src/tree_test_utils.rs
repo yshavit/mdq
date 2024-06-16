@@ -1,21 +1,5 @@
-pub use test_utils::*;
-
-// We this file's contents from prod by putting them in a submodule guarded by cfg(test), but then "pub use" it to
-// export its contents.
 #[cfg(test)]
 mod test_utils {
-
-    macro_rules! nodes_matcher {
-        {$($variant:ident$(($payload:pat))?),* $(,)?} => {
-            {
-                let variant_to_name = Regex::new("\\(.*").unwrap();
-                None.map(|n: MdqNode| match n {
-                    $(MdqNode::$variant$(($payload))? => {},)*
-                });
-                vec![$(variant_to_name.replace(stringify!($variant), "").to_string(),)*].into_iter().collect()
-            }
-        };
-    }
 
     #[macro_export]
     macro_rules! mdq_node {

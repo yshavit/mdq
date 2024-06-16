@@ -303,7 +303,10 @@ impl<'a> MdWriterState<'a> {
                     }
                     CodeVariant::Math { metadata } => {
                         let meta = if let Some(meta) = metadata {
-                            Some(meta.to_string())
+                            let mut meta_with_space = String::with_capacity(meta.len() + 1);
+                            meta_with_space.push(' ');
+                            meta_with_space.push_str(meta);
+                            Some(meta_with_space)
                         } else {
                             None
                         };
@@ -549,8 +552,11 @@ pub mod tests {
             List(_),
             Table(_),
             ThematicBreak,
-            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(_), ..}),
-            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Math{..}, ..}),
+            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(None), ..}),
+            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: None, ..})), ..}),
+            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: Some(_), ..})), ..}),
+            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Math{metadata: None}, ..}),
+            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..}),
             CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Toml, ..}),
             CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Yaml, ..}),
 
@@ -1040,6 +1046,119 @@ pub mod tests {
 
     mod code_block {
         use super::*;
+
+        #[test]
+        fn code_no_lang() {
+            check_render(
+                mdq_nodes![CodeBlock {
+                    variant: CodeVariant::Code(None),
+                    value: "one\ntwo".to_string(),
+                }],
+                indoc! {r#"
+                ```
+                one
+                two
+                ```"#},
+            );
+        }
+
+        #[test]
+        fn code_with_lang() {
+            check_render(
+                mdq_nodes![CodeBlock {
+                    variant: CodeVariant::Code(Some(CodeOpts {
+                        language: "rust".to_string(),
+                        metadata: None
+                    })),
+                    value: "one\ntwo".to_string(),
+                }],
+                indoc! {r#"
+                ```rust
+                one
+                two
+                ```"#},
+            );
+        }
+
+        #[test]
+        fn code_with_lang_and_title() {
+            check_render(
+                mdq_nodes![CodeBlock {
+                    variant: CodeVariant::Code(Some(CodeOpts {
+                        language: "rust".to_string(),
+                        metadata: Some(r#"title="my code""#.to_string())
+                    })),
+                    value: "one\ntwo".to_string(),
+                }],
+                indoc! {r#"
+                ```rust title="my code"
+                one
+                two
+                ```"#},
+            );
+        }
+
+        #[test]
+        fn math_no_metadata() {
+            check_render(
+                mdq_nodes![CodeBlock {
+                    variant: CodeVariant::Math { metadata: None },
+                    value: "one\ntwo".to_string(),
+                }],
+                indoc! {r#"
+                $$
+                one
+                two
+                $$"#},
+            );
+        }
+
+        #[test]
+        fn math_with_metadata() {
+            check_render(
+                mdq_nodes![CodeBlock {
+                    variant: CodeVariant::Math {
+                        metadata: Some("metadata".to_string())
+                    },
+                    value: "one\ntwo".to_string(),
+                }],
+                indoc! {r#"
+                $$ metadata
+                one
+                two
+                $$"#},
+            );
+        }
+
+        #[test]
+        fn toml() {
+            check_render(
+                mdq_nodes![CodeBlock {
+                    variant: CodeVariant::Toml,
+                    value: "one\ntwo".to_string(),
+                }],
+                indoc! {r#"
+                +++
+                one
+                two
+                +++"#},
+            );
+        }
+
+        #[test]
+        fn yaml() {
+            check_render(
+                mdq_nodes![CodeBlock {
+                    variant: CodeVariant::Yaml,
+                    value: "one\ntwo".to_string(),
+                }],
+                indoc! {r#"
+                ---
+                one
+                two
+                ---"#},
+            );
+        }
     }
 
     #[test]
