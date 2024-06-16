@@ -1570,7 +1570,6 @@ mod tests {
             });
         }
 
-        #[ignore]
         #[test]
         fn thematic_break() {
             let (root, lookups) = parse_with(
@@ -1649,36 +1648,37 @@ mod tests {
 
         lazy_static! {
             static ref NODES_CHECKER: VariantsChecker<Node> = crate::new_variants_checker!(Node {
-                    BlockQuote(_),
-                    Break(_),
-                    Code(_),
-                    Definition(_),
-                    Delete(_),
-                    Emphasis(_),
-                    FootnoteDefinition(_),
-                    FootnoteReference(_),
-                    Heading(_),
-                    Html(_),
-                    Image(_),
-                    ImageReference(_),
-                    InlineCode(_),
-                    InlineMath(_),
-                    Link(_),
-                    LinkReference(_),
-                    List(_),
-                    ListItem(_),
-                    Math(_),
-                    Paragraph(_),
-                    Root(_),
-                    Strong(_),
-                    Table(_),
-                    TableCell(_),
-                    TableRow(_),
-                    Text(_),
-                    ThematicBreak(_),
-                    Toml(_),
-                    Yaml(_),
-                    mdx_nodes!(),
+                BlockQuote(_),
+                Break(_),
+                Code(_),
+                Definition(_),
+                Delete(_),
+                Emphasis(_),
+                FootnoteDefinition(_),
+                FootnoteReference(_),
+                Heading(_),
+                Html(_),
+                Image(_),
+                ImageReference(_),
+                InlineCode(_),
+                InlineMath(_),
+                Link(_),
+                LinkReference(_),
+                List(_),
+                ListItem(_),
+                Math(_),
+                Paragraph(_),
+                Root(_),
+                Strong(_),
+                Table(_),
+                TableCell(_),
+                TableRow(_),
+                Text(_),
+                ThematicBreak(_),
+                Toml(_),
+                Yaml(_),
+            } ignore {
+                mdx_nodes!(),
             });
         }
     }

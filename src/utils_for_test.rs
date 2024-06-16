@@ -56,6 +56,17 @@ mod test_utils {
 
     /// Creates a new `VariantsChecker` that looks for all the variants of enum `E`.
     ///
+    /// ```
+    /// new_variants_checker(MyEnum: { Variant1, Variant2(_), ... })
+    /// ```
+    ///
+    /// You can also mark some variants as ignored; these will be added to the pattern match, but not be required to
+    /// be seen:
+    ///
+    /// ```
+    /// new_variants_checker(MyEnum: { Variant1, ... } ignore { Variant2, ... } )
+    /// ```
+    ///
     /// If you see a compilation failure here, it means the call site is missing variants (or has an unknown
     /// variant).
     ///
@@ -67,7 +78,7 @@ mod test_utils {
     /// dead-code branches.
     #[macro_export]
     macro_rules! new_variants_checker {
-        ($enum_type:ty { $($variant:pat),* $(,)? }) => {
+        ($enum_type:ty { $($variant:pat),* $(,)? } $(ignore { $($ignore_variant:pat),* $(,)? })?) => {
             {
                 use $enum_type::*;
 
@@ -75,6 +86,7 @@ mod test_utils {
                     vec![$(stringify!($variant).to_string(),)*],
                     {|elem| match elem {
                         $($variant => stringify!($variant),)*
+                        $($($ignore_variant => {""},)*)?
                     }}
                 )
             }
