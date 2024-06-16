@@ -692,6 +692,7 @@ impl Lookups {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mdq_node;
 
     ///  tests of each mdast node type
     ///
@@ -699,6 +700,7 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
+        use crate::mdq_nodes;
         use crate::utils_for_test::VariantsChecker;
         use indoc::indoc;
         use lazy_static::lazy_static;
@@ -753,7 +755,7 @@ mod tests {
             let (root, lookups) = parse("> hello");
             let child = &root.children[0];
             check!(child, Node::BlockQuote(_), lookups => MdqNode::BlockQuote(bq)= {
-                assert_eq!(&bq.body, &vec![text_paragraph("hello")]);
+                assert_eq!(bq.body, mdq_nodes!["hello"]);
             });
         }
 
@@ -772,9 +774,7 @@ mod tests {
                 check!(&p.children[1], Node::FootnoteReference(_), lookups => MdqNode::Inline(footnote) = {
                     assert_eq!(footnote, Inline::Footnote(Footnote{
                         label: "a".to_string(),
-                        text: vec![
-                            text_paragraph("My footnote\nwith two lines.")
-                        ],
+                        text: mdq_nodes!["My footnote\nwith two lines."],
                     }))
                 });
                 check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
@@ -798,7 +798,7 @@ mod tests {
                                 items: vec![
                                     ListItem{
                                         checked: None,
-                                        item: vec![text_paragraph("footnote is a list")],
+                                        item: mdq_nodes!["footnote is a list"],
                                     }
                                 ],
                             }),
@@ -835,15 +835,15 @@ mod tests {
                 assert_eq!(items, vec![
                     ListItem {
                         checked: None,
-                        item: vec![text_paragraph("First")],
+                        item: mdq_nodes!["First"],
                     },
                     ListItem {
                         checked: Some(false),
-                        item: vec![text_paragraph("Second")],
+                        item: mdq_nodes!["Second"],
                     },
                     ListItem {
                         checked: Some(true),
-                        item: vec![text_paragraph("Third\nWith a line break")],
+                        item: mdq_nodes!["Third\nWith a line break"],
                     },
                 ]);
             });
@@ -855,17 +855,17 @@ mod tests {
                 assert_eq!(items, vec![
                     ListItem {
                         checked: None,
-                        item: vec![text_paragraph("Fourth")],
+                        item: mdq_nodes!["Fourth"],
                     },
                     ListItem {
                         checked: Some(false),
-                        item: vec![text_paragraph("Fifth")],
+                        item: mdq_nodes!["Fifth"],
                     },
                     ListItem {
                         checked: Some(true),
-                        item: vec![
-                            text_paragraph("Sixth"),
-                            text_paragraph("With a paragraph"),
+                        item: mdq_nodes![
+                            "Sixth",
+                            "With a paragraph",
                         ],
                     },
                 ]);
@@ -1082,7 +1082,7 @@ mod tests {
                 // This isn't an image, though it almost looks like one
                 let (root, lookups) = parse(r#"![]("only a tooltip")"#);
                 check!(&root.children[0], Node::Paragraph(_), lookups => p @ MdqNode::Paragraph{ .. } = {
-                    assert_eq!(p, text_paragraph(r#"![]("only a tooltip")"#));
+                    assert_eq!(p, mdq_node!(r#"![]("only a tooltip")"#));
                 });
             }
         }
@@ -1562,9 +1562,7 @@ mod tests {
                     MdqNode::Header(Header{
                         depth: header_depth,
                         title: header_title,
-                        body: vec![
-                            text_paragraph("And some text below it.")
-                        ]
+                        body: mdq_nodes!["And some text below it."],
                     }),
                 ])
             });
@@ -2129,16 +2127,6 @@ mod tests {
             value: text.to_string(),
             variant: InlineVariant::Text,
         }
-    }
-
-    /// Helper for creating a [MdqNode::Paragraph] with plain text.
-    fn text_paragraph(text: &str) -> MdqNode {
-        MdqNode::Paragraph(Paragraph {
-            body: vec![Inline::Text {
-                variant: InlineVariant::Text,
-                value: text.to_string(),
-            }],
-        })
     }
 
     /// A simple representation of some nodes. Very non-exhaustive, just for testing.
