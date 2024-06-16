@@ -7,7 +7,6 @@ pub use test_utils::*;
 mod test_utils {
     use std::{thread, time};
 
-    // TODO unify this with the one in tree.rs.
     pub struct VariantsChecker<E> {
         require: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
         resolver: fn(&E) -> &str,
@@ -55,6 +54,17 @@ mod test_utils {
         }
     }
 
+    /// Creates a new `VariantsChecker` that looks for all the variants of enum `E`.
+    ///
+    /// If you see a compilation failure here, it means the call site is missing variants (or has an unknown
+    /// variant).
+    ///
+    /// We can't use strum to do this for mdast::Node, because we don't own the Node code. Instead, we rely on a bit of
+    /// trickery: we pass in a bunch of arms, and each gets [stringify!]'d and added to a set. Whenever we [see] an
+    /// item, we remove the corresponding string from the set.
+    ///
+    /// This requires that each pattern matches exactly one shape of item; in other words, that there aren't any
+    /// dead-code branches.
     #[macro_export]
     macro_rules! new_variants_checker {
         {$enum_type:ty : $($variant:pat),* $(,)?} => {

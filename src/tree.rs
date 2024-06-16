@@ -699,15 +699,11 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
-        use std::collections::HashSet;
-        use std::sync::{Arc, Mutex};
-        use std::{thread, time};
-
+        use crate::utils_for_test::VariantsChecker;
         use indoc::indoc;
         use lazy_static::lazy_static;
         use markdown::mdast::Node;
         use markdown::{mdast, ParseOptions};
-        use regex::Regex;
 
         use super::*;
 
@@ -744,30 +740,6 @@ mod tests {
                     panic!("expected {} but saw {:?}", stringify!($mdq_pat), &mdq)
                 }
             }};
-        }
-
-        /// Creates a matcher against [Node] with the given variants, and returns the variant names as a collection.
-        ///
-        /// If you see a compilation failure here, it means the call site is missing variants (or has an unknown
-        /// variant).
-        ///
-        /// This macro assumes that each variant can match a pattern `Node::TheVariant(_)`.
-        macro_rules! nodes_matcher {
-            [$($variant:ident),* $(,)?] => {
-                {
-                    None.map(|n: Node| match n {
-                        $(
-                        Node::$variant(_) => {}
-                        )*
-                        mdx_nodes!{} => {
-                            // If you implement mdx nodes, you should also remove the mdx_nodes macro. That will
-                            // (correctly) break this macro. You should add those MDX arms to the get_mdast_node_names
-                            // function, to ensure that we have tests for them.
-                        }
-                    });
-                    vec![$(stringify!($variant).to_string(),)*].into_iter().collect()
-                }
-            };
         }
 
         #[test]
@@ -1661,23 +1633,7 @@ mod tests {
 
         #[test]
         fn all_variants_tested() {
-            let timeout = time::Duration::from_millis(500);
-            let retry_delay = time::Duration::from_millis(50);
-            let start = time::Instant::now();
-            loop {
-                if NODES_CHECKER.all_were_seen() {
-                    break;
-                }
-                if start.elapsed() >= timeout {
-                    let remaining = NODES_CHECKER.remaining_as_copy();
-                    panic!(
-                        "Timed out, and missing {} variants:\n- {}",
-                        remaining.len(),
-                        remaining.join("\n- ")
-                    )
-                }
-                thread::sleep(retry_delay);
-            }
+            NODES_CHECKER.wait_for_all();
         }
 
         fn parse(md: &str) -> (mdast::Root, Lookups) {
@@ -1691,85 +1647,39 @@ mod tests {
             (root, lookups)
         }
 
-        struct NodesChecker {
-            require: Arc<Mutex<HashSet<String>>>,
-        }
-
         lazy_static! {
-            static ref NODES_CHECKER: NodesChecker = NodesChecker::new();
-        }
-
-        impl NodesChecker {
-            fn new() -> Self {
-                Self {
-                    require: Self::get_mdast_node_names(),
-                }
-            }
-
-            fn see(&self, node: &Node) {
-                let node_debug = format!("{:?}", node);
-                let re = Regex::new(r"^\w+").unwrap();
-                let node_name = re.find(&node_debug).unwrap().as_str();
-                self.require.lock().map(|mut set| set.remove(node_name)).unwrap();
-            }
-
-            fn all_were_seen(&self) -> bool {
-                self.require.lock().map(|set| set.is_empty()).unwrap()
-            }
-
-            fn remaining_as_copy(&self) -> Vec<String> {
-                let mut result: Vec<String> = self
-                    .require
-                    .lock()
-                    .map(|set| set.iter().map(|s| s.to_owned()).collect())
-                    .unwrap();
-                result.sort();
-                result
-            }
-
-            /// Returns how many variants of [Node] there are.
-            ///
-            /// We can't use strum to do this, because we don't own the Node code. Instead, we rely on a bit of
-            /// trickery. First, we create a `match` over all the variants, making sure each one is on its own line.
-            /// Then, we use [line!] to get the line counts right before and after that `match`, and do some basic
-            /// arithmetic to figure out how many variants there are.
-            ///
-            /// This isn't 100% fool-proof (it requires manually ensuring that each variant is on its own line, though
-            /// `cargo fmt` helps with that), but it should be good enough in practice.
-            fn get_mdast_node_names() -> Arc<Mutex<HashSet<String>>> {
-                let all_node_names = nodes_matcher![
-                    Root,
-                    BlockQuote,
-                    FootnoteDefinition,
-                    List,
-                    Toml,
-                    Yaml,
-                    Break,
-                    InlineCode,
-                    InlineMath,
-                    Delete,
-                    Emphasis,
-                    FootnoteReference,
-                    Html,
-                    Image,
-                    ImageReference,
-                    Link,
-                    LinkReference,
-                    Strong,
-                    Text,
-                    Code,
-                    Math,
-                    Heading,
-                    Table,
-                    ThematicBreak,
-                    TableRow,
-                    TableCell,
-                    ListItem,
-                    Definition,
-                    Paragraph,
-                ];
-                Arc::new(Mutex::new(all_node_names))
-            }
+            static ref NODES_CHECKER: VariantsChecker<Node> = crate::new_variants_checker!(Node:
+                    BlockQuote(_),
+                    Break(_),
+                    Code(_),
+                    Definition(_),
+                    Delete(_),
+                    Emphasis(_),
+                    FootnoteDefinition(_),
+                    FootnoteReference(_),
+                    Heading(_),
+                    Html(_),
+                    Image(_),
+                    ImageReference(_),
+                    InlineCode(_),
+                    InlineMath(_),
+                    Link(_),
+                    LinkReference(_),
+                    List(_),
+                    ListItem(_),
+                    Math(_),
+                    Paragraph(_),
+                    Root(_),
+                    Strong(_),
+                    Table(_),
+                    TableCell(_),
+                    TableRow(_),
+                    Text(_),
+                    ThematicBreak(_),
+                    Toml(_),
+                    Yaml(_),
+                    mdx_nodes!(),
+            );
         }
     }
 
