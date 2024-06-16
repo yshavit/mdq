@@ -210,7 +210,9 @@ impl<'a> MdWriterState<'a> {
                         while column_widths.len() <= idx {
                             column_widths.push(0);
                         }
-                        column_widths[idx] = max(column_widths[idx], col_str.len());
+                        // +1 for the padding on either side
+                        let cell_width = if col_str.is_empty() { 1 } else { col_str.len() + 2 };
+                        column_widths[idx] = max(column_widths[idx], cell_width);
                         col_strs.push(col_str);
                     }
                     row_strs.push(col_strs);
@@ -224,8 +226,18 @@ impl<'a> MdWriterState<'a> {
                     }
                     out.write_char('|');
                     for (idx, col) in row.iter().enumerate() {
-                        out.write_char(' ');
-                        pad_to(out, &col, *column_widths.get(idx).unwrap_or(&0), alignments.get(idx));
+                        let left_padding_count = if col.is_empty() {
+                            0
+                        } else {
+                            out.write_char(' ');
+                            1
+                        };
+                        pad_to(
+                            out,
+                            &col,
+                            *column_widths.get(idx).unwrap_or(&0) - left_padding_count - 1, // -1 for right padding
+                            alignments.get(idx),
+                        );
                         out.write_str(" |");
                     }
                     if add_newline {
@@ -252,8 +264,7 @@ impl<'a> MdWriterState<'a> {
                                 Some(Alignment::Center) => &3,
                                 None => &1,
                             })
-                            .to_owned()
-                            + 2; // +2 for the ' ' padding on either side
+                            .to_owned();
                         match standard_align(align) {
                             Some(Alignment::Left) => {
                                 out.write_char(':');
