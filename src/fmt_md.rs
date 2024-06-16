@@ -569,7 +569,7 @@ pub mod tests {
     use super::write_md;
 
     lazy_static! {
-        static ref VARIANTS_CHECKER: VariantsChecker<MdqNode> = crate::new_variants_checker! {MdqNode:
+        static ref VARIANTS_CHECKER: VariantsChecker<MdqNode> = crate::new_variants_checker! (MdqNode {
             Root(_),
             Header(_),
             Paragraph(_),
@@ -613,7 +613,7 @@ pub mod tests {
             Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
 
             Inline(crate::tree::Inline::Footnote{..}),
-        };
+        });
     }
 
     #[test]
