@@ -877,6 +877,21 @@ pub mod tests {
                                 value: "line 1\nline 2".to_string(),
                             })
                         },
+                        ListItem {
+                            checked: Some(false),
+                            item: mdq_nodes![
+                                Paragraph {
+                                    body: vec![mdq_inline!("closing argument")]
+                                },
+                                BlockQuote {
+                                    body: mdq_nodes!["supporting evidence"]
+                                },
+                                CodeBlock {
+                                    variant: CodeVariant::Code(None),
+                                    value: "line a\nline b".to_string(),
+                                },
+                            ]
+                        },
                     ],
                 }],
                 indoc! {r#"
@@ -889,7 +904,15 @@ pub mod tests {
                 - ```
                   line 1
                   line 2
-                  ```"#},
+                  ```
+                - [ ] closing argument
+
+                      > supporting evidence
+
+                      ```
+                      line a
+                      line b
+                      ```"#},
             )
         }
     }
