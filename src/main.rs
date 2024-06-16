@@ -9,6 +9,7 @@ use crate::tree::MdqNode;
 mod fmt_md;
 mod fmt_str;
 mod output;
+mod parsing_iter;
 mod select;
 mod str_utils;
 mod tree;
