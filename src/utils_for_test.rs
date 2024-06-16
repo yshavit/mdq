@@ -67,7 +67,7 @@ mod test_utils {
     /// dead-code branches.
     #[macro_export]
     macro_rules! new_variants_checker {
-        {$enum_type:ty : $($variant:pat),* $(,)?} => {
+        ($enum_type:ty { $($variant:pat),* $(,)? }) => {
             {
                 use $enum_type::*;
 

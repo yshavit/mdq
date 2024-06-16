@@ -1648,7 +1648,7 @@ mod tests {
         }
 
         lazy_static! {
-            static ref NODES_CHECKER: VariantsChecker<Node> = crate::new_variants_checker!(Node:
+            static ref NODES_CHECKER: VariantsChecker<Node> = crate::new_variants_checker!(Node {
                     BlockQuote(_),
                     Break(_),
                     Code(_),
@@ -1679,7 +1679,7 @@ mod tests {
                     Toml(_),
                     Yaml(_),
                     mdx_nodes!(),
-            );
+            });
         }
     }
 
