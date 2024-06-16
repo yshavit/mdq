@@ -549,8 +549,39 @@ pub mod tests {
             List(_),
             Table(_),
             ThematicBreak,
-            CodeBlock(_),
-            Inline(_),
+            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(_), ..}),
+            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Math{..}, ..}),
+            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Toml, ..}),
+            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Yaml, ..}),
+
+            Inline(crate::tree::Inline::Span{variant: SpanVariant::Delete, ..}),
+            Inline(crate::tree::Inline::Span{variant: SpanVariant::Emphasis, ..}),
+            Inline(crate::tree::Inline::Span{variant: SpanVariant::Strong, ..}),
+
+            Inline(crate::tree::Inline::Text{variant: InlineVariant::Text, ..}),
+            Inline(crate::tree::Inline::Text{variant: InlineVariant::Code, ..}),
+            Inline(crate::tree::Inline::Text{variant: InlineVariant::Math, ..}),
+            Inline(crate::tree::Inline::Text{variant: InlineVariant::Html, ..}),
+
+            Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Inline, ..}, ..}),
+            Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Full(_), ..}, ..}),
+            Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Collapsed, ..}, ..}),
+            Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Shortcut, ..}, ..}),
+            Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Inline, ..}, ..}),
+            Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Full(_), ..}, ..}),
+            Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}),
+            Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
+
+            Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Inline, ..}, ..}),
+            Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Full(_), ..}, ..}),
+            Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Collapsed, ..}, ..}),
+            Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Shortcut, ..}, ..}),
+            Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Inline, ..}, ..}),
+            Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Full(_), ..}, ..}),
+            Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}),
+            Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
+
+            Inline(crate::tree::Inline::Footnote{..}),
         };
     }
 
