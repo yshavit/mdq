@@ -536,12 +536,22 @@ pub mod tests {
     use crate::mdq_nodes;
     use crate::output::Output;
     use crate::tree::*;
-    use crate::tree_test_utils::*;
+    use crate::utils_for_test::*;
 
     use super::write_md;
 
     lazy_static! {
-        static ref VARIANTS_CHECKER: MdqVariantsChecker = MdqVariantsChecker::new();
+        static ref VARIANTS_CHECKER: VariantsChecker<MdqNode> = crate::new_variants_checker! {MdqNode:
+            Root(_),
+            Header(_),
+            Paragraph(_),
+            BlockQuote(_),
+            List(_),
+            Table(_),
+            ThematicBreak,
+            CodeBlock(_),
+            Inline(_),
+        };
     }
 
     #[test]
@@ -995,6 +1005,10 @@ pub mod tests {
                 after"#},
             );
         }
+    }
+
+    mod code_block {
+        use super::*;
     }
 
     #[test]
