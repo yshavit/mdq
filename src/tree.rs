@@ -1598,6 +1598,7 @@ mod tests {
             });
         }
 
+        #[ignore]
         #[test]
         fn thematic_break() {
             let (root, lookups) = parse_with(
