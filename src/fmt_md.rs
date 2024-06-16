@@ -470,10 +470,10 @@ impl<'a> MdWriterState<'a> {
                 remaining_defs += self.pending_references.footnotes.len()
             }
             let mut newline = |out: &mut Output<W>| {
-                remaining_defs -= 1;
                 if remaining_defs > 1 {
                     out.write_char('\n');
                 }
+                remaining_defs -= 1;
             };
 
             if matches!(which, DefinitionsToWrite::Links | DefinitionsToWrite::Both) {
@@ -499,7 +499,7 @@ impl<'a> MdWriterState<'a> {
                     out.write_str("[^");
                     out.write_str(link_ref);
                     out.write_str("]: ");
-                    out.with_block(Block::Inlined(0), |out| {
+                    out.with_block(Block::Inlined(2), |out| {
                         self.write_md(out, text);
                         newline(out);
                     });
@@ -1420,6 +1420,364 @@ pub mod tests {
                 ];
                 check_render(nodes, expect);
             }
+        }
+
+        mod image {
+            use super::*;
+            use crate::tree::{Inline, Link, MdqNode};
+
+            #[test]
+            fn inline_no_title() {
+                check_image(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline,
+                    },
+                    indoc! {r#"
+                        ![hello _world_!](https://example.com)
+
+                        ***"#},
+                );
+            }
+
+            #[test]
+            fn full_no_title() {
+                check_image(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Full("1".to_string()),
+                    },
+                    indoc! {r#"
+                        ![hello _world_!][1]
+
+                        ***
+
+                        [1]: https://example.com"#},
+                );
+            }
+
+            #[test]
+            fn collapsed_no_title() {
+                check_image(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Collapsed,
+                    },
+                    indoc! {r#"
+                        ![hello _world_!][]
+
+                        ***
+
+                        [hello _world_!]: https://example.com"#},
+                );
+            }
+
+            #[test]
+            fn shortcut_no_title() {
+                check_image(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Shortcut,
+                    },
+                    indoc! {r#"
+                        ![hello _world_!]
+
+                        ***
+
+                        [hello _world_!]: https://example.com"#},
+                );
+            }
+
+            #[test]
+            fn inline_with_title() {
+                check_image(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: Some("my title".to_string()),
+                        reference: LinkReference::Inline,
+                    },
+                    indoc! {r#"
+                        ![hello _world_!](https://example.com "my title")
+
+                        ***"#},
+                );
+            }
+
+            #[test]
+            fn full_with_title() {
+                check_image(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: Some("my title".to_string()),
+                        reference: LinkReference::Full("1".to_string()),
+                    },
+                    indoc! {r#"
+                        ![hello _world_!][1]
+
+                        ***
+
+                        [1]: https://example.com "my title""#},
+                );
+            }
+
+            #[test]
+            fn collapsed_with_title() {
+                check_image(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: Some("my title".to_string()),
+                        reference: LinkReference::Collapsed,
+                    },
+                    indoc! {r#"
+                        ![hello _world_!][]
+
+                        ***
+
+                        [hello _world_!]: https://example.com "my title""#},
+                );
+            }
+
+            #[test]
+            fn shortcut_with_title() {
+                check_image(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: Some("my title".to_string()),
+                        reference: LinkReference::Shortcut,
+                    },
+                    indoc! {r#"
+                        ![hello _world_!]
+
+                        ***
+
+                        [hello _world_!]: https://example.com "my title""#},
+                );
+            }
+
+            fn check_image(link: Link, expect: &str) {
+                let nodes = vec![
+                    MdqNode::Inline(Inline::Image {
+                        alt: "hello _world_!".to_string(),
+                        link,
+                    }),
+                    MdqNode::ThematicBreak,
+                ];
+                check_render(nodes, expect);
+            }
+        }
+    }
+
+    mod footnote {
+        use super::*;
+
+        #[test]
+        fn single_line() {
+            check_render(
+                vec![
+                    MdqNode::Inline(Inline::Footnote(Footnote {
+                        label: "a".to_string(),
+                        text: mdq_nodes![Paragraph {
+                            body: vec![mdq_inline!("Hello, world.")]
+                        }],
+                    })),
+                    MdqNode::ThematicBreak,
+                ],
+                indoc! {r#"
+                    [^a]
+
+                    ***
+
+                    [^a]: Hello, world."#},
+            )
+        }
+
+        #[test]
+        fn two_lines() {
+            check_render(
+                vec![
+                    MdqNode::Inline(Inline::Footnote(Footnote {
+                        label: "a".to_string(),
+                        text: mdq_nodes![Paragraph {
+                            body: vec![mdq_inline!("Hello,\nworld.")]
+                        }],
+                    })),
+                    MdqNode::ThematicBreak,
+                ],
+                indoc! {r#"
+                    [^a]
+
+                    ***
+
+                    [^a]: Hello,
+                      world."#},
+            )
+        }
+    }
+
+    mod annotation_and_footnote_layouts {
+        use super::*;
+        use crate::fmt_md::ReferencePlacement;
+
+        #[test]
+        fn link_and_footnote() {
+            check_render(
+                mdq_nodes![Paragraph {
+                    body: vec![
+                        mdq_inline!("Hello, "),
+                        Inline::Link {
+                            text: vec![mdq_inline!("world"),],
+                            link: Link {
+                                url: "https://example.com".to_string(),
+                                title: None,
+                                reference: LinkReference::Full("1".to_string()),
+                            }
+                        },
+                        mdq_inline!("! This is interesting"),
+                        Inline::Footnote(Footnote {
+                            label: "a".to_string(),
+                            text: mdq_nodes![Paragraph {
+                                body: vec![mdq_inline!("this is my note")]
+                            }],
+                        }),
+                        mdq_inline!("."),
+                    ],
+                }],
+                indoc! {r#"
+                    Hello, [world][1]! This is interesting[^a].
+
+                    [1]: https://example.com
+                    [^a]: this is my note"#},
+            );
+        }
+
+        #[test]
+        fn both_in_sections() {
+            check_render_with(
+                &MdOptions {
+                    link_reference_options: ReferencePlacement::BottomOfSection,
+                    footnote_reference_options: ReferencePlacement::BottomOfSection,
+                },
+                link_and_footnote_markdown(),
+                indoc! {r#"
+                    # First section
+
+                    [link description][1] and then a thought[^a].
+
+                    [1]: https://exampl.com
+                    [^a]: the footnote
+
+                    # Second section
+
+                    Second section contents."#},
+            );
+        }
+
+        #[test]
+        fn only_link_in_section() {
+            check_render_with(
+                &MdOptions {
+                    link_reference_options: ReferencePlacement::BottomOfSection,
+                    footnote_reference_options: ReferencePlacement::BottomOfDoc,
+                },
+                link_and_footnote_markdown(),
+                indoc! {r#"
+                    # First section
+
+                    [link description][1] and then a thought[^a].
+
+                    [1]: https://exampl.com
+
+                    # Second section
+
+                    Second section contents.
+
+                    [^a]: the footnote"#},
+            );
+        }
+
+        #[test]
+        fn only_footnote_in_section() {
+            check_render_with(
+                &MdOptions {
+                    link_reference_options: ReferencePlacement::BottomOfDoc,
+                    footnote_reference_options: ReferencePlacement::BottomOfSection,
+                },
+                link_and_footnote_markdown(),
+                indoc! {r#"
+                    # First section
+
+                    [link description][1] and then a thought[^a].
+
+                    [^a]: the footnote
+
+                    # Second section
+
+                    Second section contents.
+
+                    [1]: https://exampl.com"#},
+            );
+        }
+
+        #[test]
+        fn both_bottom_of_doc() {
+            check_render_with(
+                &MdOptions {
+                    link_reference_options: ReferencePlacement::BottomOfDoc,
+                    footnote_reference_options: ReferencePlacement::BottomOfDoc,
+                },
+                link_and_footnote_markdown(),
+                indoc! {r#"
+                    # First section
+
+                    [link description][1] and then a thought[^a].
+
+                    # Second section
+
+                    Second section contents.
+
+                    [1]: https://exampl.com
+                    [^a]: the footnote"#},
+            );
+        }
+
+        fn link_and_footnote_markdown() -> Vec<MdqNode> {
+            mdq_nodes![
+                Header {
+                    depth: 1,
+                    title: vec![mdq_inline!("First section")],
+                    body: mdq_nodes![Paragraph {
+                        body: vec![
+                            Inline::Link {
+                                text: vec![mdq_inline!("link description")],
+                                link: Link {
+                                    url: "https://exampl.com".to_string(),
+                                    title: None,
+                                    reference: LinkReference::Full("1".to_string()),
+                                },
+                            },
+                            mdq_inline!(" and then a thought"),
+                            Inline::Footnote(Footnote {
+                                label: "a".to_string(),
+                                text: mdq_nodes![Paragraph {
+                                    body: vec![mdq_inline!("the footnote")]
+                                }],
+                            }),
+                            mdq_inline!("."),
+                        ],
+                    }],
+                },
+                Header {
+                    depth: 1,
+                    title: vec![mdq_inline!("Second section")],
+                    body: mdq_nodes![Paragraph {
+                        body: vec![mdq_inline!("Second section contents.")]
+                    }],
+                },
+            ]
         }
     }
 
