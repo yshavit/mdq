@@ -121,12 +121,11 @@ pub enum CodeVariant {
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Inline {
     Span {
-        // TODO rename to Composite or something? Or Formatting?
         variant: SpanVariant,
         children: Vec<Inline>,
     },
     Text {
-        variant: InlineVariant,
+        variant: TextVariant,
         value: String,
     },
     Link {
@@ -185,10 +184,9 @@ pub enum SpanVariant {
     Strong,
 }
 
-// TODO rename to TextVariant
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub enum InlineVariant {
-    Text, // TODO rename to Plain
+pub enum TextVariant {
+    Plain,
     Code,
     Math,
     Html,
@@ -231,8 +229,8 @@ impl TryFrom<mdast::Node> for MdqNode {
     }
 }
 
-/// Defines all the mdx nodes as match arms. This let us easily mark them as TODOs, and in particular makes it so that
-/// the prod and test code both marks them as TODOs using the same source list (namely, this macro).
+/// Defines all the mdx nodes as match arms. This let us easily mark them as ignored, and in particular makes it so that
+/// the prod and test code both marks them as ignored using the same source list (namely, this macro).
 macro_rules! mdx_nodes {
     {} => {
         mdast::Node::MdxJsxFlowElement(_)
@@ -280,15 +278,15 @@ impl MdqNode {
                 })
             }
             mdast::Node::Break(_) => MdqNode::Inline(Inline::Text {
-                variant: InlineVariant::Text,
+                variant: TextVariant::Plain,
                 value: "\n".to_string(),
             }),
             mdast::Node::InlineCode(node) => MdqNode::Inline(Inline::Text {
-                variant: InlineVariant::Code,
+                variant: TextVariant::Code,
                 value: node.value,
             }),
             mdast::Node::InlineMath(node) => MdqNode::Inline(Inline::Text {
-                variant: InlineVariant::Math,
+                variant: TextVariant::Math,
                 value: node.value,
             }),
             mdast::Node::Delete(node) => MdqNode::Inline(Inline::Span {
@@ -335,7 +333,7 @@ impl MdqNode {
                 children: MdqNode::inlines(node.children, lookups)?,
             }),
             mdast::Node::Text(node) => MdqNode::Inline(Inline::Text {
-                variant: InlineVariant::Text,
+                variant: TextVariant::Plain,
                 value: node.value,
             }),
             mdast::Node::Code(node) => {
@@ -405,7 +403,7 @@ impl MdqNode {
                 value: node.value,
             }),
             mdast::Node::Html(node) => MdqNode::Inline(Inline::Text {
-                variant: InlineVariant::Html,
+                variant: TextVariant::Html,
                 value: node.value,
             }),
 
@@ -530,11 +528,11 @@ impl MdqNode {
             // a Node::Break between them.
             if let (
                 Some(Inline::Text {
-                    variant: InlineVariant::Text,
+                    variant: TextVariant::Plain,
                     value: prev_text,
                 }),
                 Inline::Text {
-                    variant: InlineVariant::Text,
+                    variant: TextVariant::Plain,
                     value: new_text,
                 },
             ) = (result.last_mut(), &inline)
@@ -876,17 +874,17 @@ mod tests {
             check!(&root.children[0], Node::Paragraph(p), lookups => MdqNode::Paragraph(Paragraph{body}) = {
                 assert_eq!(p.children.len(), 3);
                 check!(&p.children[0], Node::Text(_), lookups => MdqNode::Inline(text) = {
-                    assert_eq!(text, Inline::Text {variant: InlineVariant::Text, value: "hello ".to_string()});
+                    assert_eq!(text, Inline::Text {variant: TextVariant::Plain, value: "hello ".to_string()});
                 });
                 check!(&p.children[1], Node::Break(_), lookups => MdqNode::Inline(text) = {
-                    assert_eq!(text, Inline::Text {variant: InlineVariant::Text, value: "\n".to_string()});
+                    assert_eq!(text, Inline::Text {variant: TextVariant::Plain, value: "\n".to_string()});
                 });
                 check!(&p.children[2], Node::Text(_), lookups => MdqNode::Inline(text) = {
-                    assert_eq!(text, Inline::Text {variant: InlineVariant::Text, value: "world".to_string()});
+                    assert_eq!(text, Inline::Text {variant: TextVariant::Plain, value: "world".to_string()});
                 });
                 assert_eq!(body, vec![
                     // note: just a single child, which has a two-line string
-                    Inline::Text {variant: InlineVariant::Text, value: "hello \nworld".to_string()},
+                    Inline::Text {variant: TextVariant::Plain, value: "hello \nworld".to_string()},
                 ])
             });
         }
@@ -897,7 +895,7 @@ mod tests {
 
             unwrap!(&root.children[0], Node::Paragraph(p));
             check!(&p.children[0], Node::InlineCode(_), lookups => MdqNode::Inline(inline) = {
-                assert_eq!(inline, Inline::Text { variant: InlineVariant::Code, value: "foo".to_string() });
+                assert_eq!(inline, Inline::Text { variant: TextVariant::Code, value: "foo".to_string() });
             });
         }
 
@@ -909,7 +907,7 @@ mod tests {
 
             unwrap!(&root.children[0], Node::Paragraph(p));
             check!(&p.children[0], Node::InlineMath(_), lookups => MdqNode::Inline(inline) = {
-                assert_eq!(inline, Inline::Text { variant: InlineVariant::Math, value: r#" 0 \ne 1 "#.to_string() });
+                assert_eq!(inline, Inline::Text { variant: TextVariant::Math, value: r#" 0 \ne 1 "#.to_string() });
             });
         }
 
@@ -922,7 +920,7 @@ mod tests {
                 assert_eq!(inline, Inline::Span {
                     variant: SpanVariant::Delete,
                     children: vec![
-                        Inline::Text { variant: InlineVariant::Text, value: "86 me".to_string()},
+                        Inline::Text { variant: TextVariant::Plain, value: "86 me".to_string()},
                     ]
                 });
             });
@@ -937,7 +935,7 @@ mod tests {
                 assert_eq!(inline, Inline::Span {
                     variant: SpanVariant::Emphasis,
                     children: vec![
-                        Inline::Text { variant: InlineVariant::Text, value: "86 me".to_string()},
+                        Inline::Text { variant: TextVariant::Plain, value: "86 me".to_string()},
                     ]
                 });
             });
@@ -952,7 +950,7 @@ mod tests {
                 assert_eq!(inline, Inline::Span {
                     variant: SpanVariant::Strong,
                     children: vec![
-                        Inline::Text { variant: InlineVariant::Text, value: "strongman".to_string()},
+                        Inline::Text { variant: TextVariant::Plain, value: "strongman".to_string()},
                     ]
                 });
             });
@@ -965,7 +963,7 @@ mod tests {
 
                 check!(&root.children[0], Node::Html(_), lookups => MdqNode::Inline(inline) = {
                     assert_eq!(inline, Inline::Text {
-                        variant: InlineVariant::Html,
+                        variant: TextVariant::Html,
                         value: "<a href>".to_string(),
                     });
                 });
@@ -980,11 +978,11 @@ mod tests {
                     assert_eq!(body, vec![
                         mdq_inline!("In "),
                         Inline::Text {
-                            variant: InlineVariant::Html,
+                            variant: TextVariant::Html,
                             value: "<em>".to_string()},
                         mdq_inline!("a paragraph."),
                         Inline::Text {
-                            variant: InlineVariant::Html,
+                            variant: TextVariant::Html,
                             value: "</em>".to_string()},
                     ])
                 });
@@ -1000,11 +998,11 @@ mod tests {
                     assert_eq!(body, vec![
                         mdq_inline!("In "),
                         Inline::Text {
-                            variant: InlineVariant::Html,
+                            variant: TextVariant::Html,
                             value: "<em\nnewline  >".to_string()},
                         mdq_inline!("a paragraph."),
                         Inline::Text {
-                            variant: InlineVariant::Html,
+                            variant: TextVariant::Html,
                             value: "</em>".to_string()},
                     ])
                 });
@@ -1247,7 +1245,7 @@ mod tests {
                 let (root, lookups) = parse_with(&ParseOptions::default(), "https://example.com");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
-                check!(&p.children[0], Node::Text(_), lookups => MdqNode::Inline(Inline::Text{variant: InlineVariant::Text, value}) = {
+                check!(&p.children[0], Node::Text(_), lookups => MdqNode::Inline(Inline::Text{variant: TextVariant::Plain, value}) = {
                     assert_eq!(value, "https://example.com".to_string());
                 });
             }
@@ -1403,10 +1401,10 @@ mod tests {
                             Inline::Span{
                                 variant: SpanVariant::Emphasis,
                                 children: vec![
-                                    Inline::Text {variant: InlineVariant::Text,value: "my".to_string()}
+                                    Inline::Text {variant: TextVariant::Plain,value: "my".to_string()}
                                 ],
                             },
-                            Inline::Text {variant: InlineVariant::Text,value: " text".to_string()}
+                            Inline::Text {variant: TextVariant::Plain,value: " text".to_string()}
 
                         ],
                         link: Link {
@@ -1430,7 +1428,7 @@ mod tests {
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![
-                            Inline::Text {variant: InlineVariant::Text,value: "my text".to_string()},
+                            Inline::Text {variant: TextVariant::Plain,value: "my text".to_string()},
                         ],
                         link: Link {
                             url: "https://example.com/image.png".to_string(),
@@ -1584,11 +1582,11 @@ mod tests {
             let (header_depth, header_title) = check!(&root.children[0], Node::Heading(_), lookups => MdqNode::Header(Header{depth, title, body}) = {
                 assert_eq!(depth, 2);
                 assert_eq!(title, vec![
-                    Inline::Text { variant: InlineVariant::Text, value: "Header with ".to_string()},
+                    Inline::Text { variant: TextVariant::Plain, value: "Header with ".to_string()},
                     Inline::Span {
                         variant: SpanVariant::Emphasis,
                         children: vec![
-                            Inline::Text { variant: InlineVariant::Text, value: "emphasis".to_string()},
+                            Inline::Text { variant: TextVariant::Plain, value: "emphasis".to_string()},
                         ]
                     }
                 ]);
