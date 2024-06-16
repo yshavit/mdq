@@ -1226,6 +1226,56 @@ mod tests {
             }
         }
 
+        #[test]
+        fn autolinks() {
+            {
+                let (root, lookups) = parse("<https://example.com>");
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                assert_eq!(p.children.len(), 1);
+                check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(Inline::Link{text, link}) = {
+                    assert_eq!(text, vec![mdq_inline!("https://example.com")]);
+                    assert_eq!(link, Link{
+                        url: "https://example.com".to_string(),
+                        title: None,reference: LinkReference::Inline,
+                    });
+                });
+            }
+            {
+                let (root, lookups) = parse("<mailto:md@example.com>");
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                assert_eq!(p.children.len(), 1);
+                check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(Inline::Link{text, link}) = {
+                    assert_eq!(text, vec![mdq_inline!("mailto:md@example.com")]);
+                    assert_eq!(link, Link{
+                        url: "mailto:md@example.com".to_string(),
+                        title: None,reference: LinkReference::Inline,
+                    });
+                });
+            }
+            {
+                // in default parsing, bare URLs aren't autolink
+                let (root, lookups) = parse_with(&ParseOptions::default(), "https://example.com");
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                assert_eq!(p.children.len(), 1);
+                check!(&p.children[0], Node::Text(_), lookups => MdqNode::Inline(Inline::Text{variant: InlineVariant::Text, value}) = {
+                    assert_eq!(value, "https://example.com".to_string());
+                });
+            }
+            {
+                // in GFM parsing, bare URLs *are* autolink
+                let (root, lookups) = parse_with(&ParseOptions::gfm(), "https://example.com");
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                assert_eq!(p.children.len(), 1);
+                check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(Inline::Link{text, link}) = {
+                    assert_eq!(text, vec![mdq_inline!("https://example.com")]);
+                    assert_eq!(link, Link{
+                        url: "https://example.com".to_string(),
+                        title: None,reference: LinkReference::Inline,
+                    });
+                });
+            }
+        }
+
         /// Basically the same as [link_ref], but with an exclamation point
         #[test]
         fn image_ref() {
