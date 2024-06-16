@@ -9,6 +9,7 @@ use crate::tree::MdqNode;
 
 mod fmt_json;
 mod fmt_md;
+mod fmt_str;
 mod output;
 mod select;
 mod str_utils;
