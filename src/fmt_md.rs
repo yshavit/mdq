@@ -351,7 +351,7 @@ impl<'a> MdWriterState<'a> {
             Inline::Span { variant, children } => {
                 let surround = match variant {
                     SpanVariant::Delete => "~~",
-                    SpanVariant::Emphasis => "*",
+                    SpanVariant::Emphasis => "_",
                     SpanVariant::Strong => "**",
                 };
                 out.write_str(surround);
@@ -1158,6 +1158,102 @@ pub mod tests {
                 two
                 ---"#},
             );
+        }
+    }
+
+    mod inline {
+        use super::*;
+
+        mod span {
+            use super::*;
+
+            #[test]
+            fn delete() {
+                check_render(
+                    vec![MdqNode::Inline(mdq_inline!(span Delete [mdq_inline!("hello world")]))],
+                    indoc! {"~~hello world~~"},
+                );
+            }
+
+            #[test]
+            fn emphasis() {
+                check_render(
+                    vec![MdqNode::Inline(mdq_inline!(span Emphasis [mdq_inline!("hello world")]))],
+                    indoc! {"_hello world_"},
+                );
+            }
+
+            #[test]
+            fn strong() {
+                check_render(
+                    vec![MdqNode::Inline(mdq_inline!(span Strong [mdq_inline!("hello world")]))],
+                    indoc! {"**hello world**"},
+                );
+            }
+
+            #[test]
+            fn mixed() {
+                check_render(
+                    vec![MdqNode::Inline(mdq_inline!(span Emphasis [
+                        mdq_inline!("one "),
+                        mdq_inline!(span Strong [
+                            mdq_inline!("two "),
+                            mdq_inline!(span Delete [
+                                mdq_inline!("three")
+                            ]),
+                        ]),
+                    ]))],
+                    indoc! {"_one **two ~~three~~**_"},
+                );
+            }
+        }
+
+        mod text {
+            use super::*;
+
+            #[test]
+            fn text() {
+                check_render(
+                    vec![MdqNode::Inline(Inline::Text {
+                        variant: InlineVariant::Text,
+                        value: "hello world".to_string(),
+                    })],
+                    indoc! {"hello world"},
+                );
+            }
+
+            #[test]
+            fn code() {
+                check_render(
+                    vec![MdqNode::Inline(Inline::Text {
+                        variant: InlineVariant::Code,
+                        value: "hello world".to_string(),
+                    })],
+                    indoc! {"`hello world`"},
+                );
+            }
+
+            #[test]
+            fn math() {
+                check_render(
+                    vec![MdqNode::Inline(Inline::Text {
+                        variant: InlineVariant::Math,
+                        value: "hello world".to_string(),
+                    })],
+                    indoc! {"$hello world$"},
+                );
+            }
+
+            #[test]
+            fn html() {
+                check_render(
+                    vec![MdqNode::Inline(Inline::Text {
+                        variant: InlineVariant::Html,
+                        value: "<a hello />".to_string(),
+                    })],
+                    indoc! {"<a hello />"},
+                );
+            }
         }
     }
 
