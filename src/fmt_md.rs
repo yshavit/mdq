@@ -405,7 +405,7 @@ impl<'a> MdWriterState<'a> {
         W: SimpleWrite,
         F: FnOnce(&mut Self, &mut Output<W>),
     {
-        out.write_str("![");
+        out.write_char('[');
         contents(self, out);
         out.write_char(']');
         let reference_to_add = match &link.reference {
@@ -462,6 +462,20 @@ impl<'a> MdWriterState<'a> {
             return;
         }
         out.with_block(Block::Plain, move |out| {
+            let mut remaining_defs = 0;
+            if matches!(which, DefinitionsToWrite::Links | DefinitionsToWrite::Both) {
+                remaining_defs += self.pending_references.links.len()
+            }
+            if matches!(which, DefinitionsToWrite::Footnotes | DefinitionsToWrite::Both) {
+                remaining_defs += self.pending_references.footnotes.len()
+            }
+            let mut newline = |out: &mut Output<W>| {
+                remaining_defs -= 1;
+                if remaining_defs > 1 {
+                    out.write_char('\n');
+                }
+            };
+
             if matches!(which, DefinitionsToWrite::Links | DefinitionsToWrite::Both) {
                 // TODO sort them
                 let defs_to_write: Vec<_> = self.pending_references.links.drain().collect();
@@ -474,7 +488,7 @@ impl<'a> MdWriterState<'a> {
                     out.write_str("]: ");
                     out.write_str(&link_def.url);
                     self.write_url_title(out, &link_def.title);
-                    out.write_char('\n');
+                    newline(out);
                 }
             }
             if matches!(which, DefinitionsToWrite::Footnotes | DefinitionsToWrite::Both) {
@@ -487,7 +501,7 @@ impl<'a> MdWriterState<'a> {
                     out.write_str("]: ");
                     out.with_block(Block::Inlined(0), |out| {
                         self.write_md(out, text);
-                        out.write_char('\n');
+                        newline(out);
                     });
                 }
             }
@@ -1253,6 +1267,158 @@ pub mod tests {
                     })],
                     indoc! {"<a hello />"},
                 );
+            }
+        }
+
+        mod link {
+            use super::*;
+            use crate::tree::{Inline, Link, MdqNode};
+
+            #[test]
+            fn inline_no_title() {
+                check_link(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline,
+                    },
+                    indoc! {r#"
+                        [hello _world_!](https://example.com)
+
+                        ***"#},
+                );
+            }
+
+            #[test]
+            fn full_no_title() {
+                check_link(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Full("1".to_string()),
+                    },
+                    indoc! {r#"
+                        [hello _world_!][1]
+
+                        ***
+
+                        [1]: https://example.com"#},
+                );
+            }
+
+            #[test]
+            fn collapsed_no_title() {
+                check_link(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Collapsed,
+                    },
+                    indoc! {r#"
+                        [hello _world_!][]
+
+                        ***
+
+                        [hello _world_!]: https://example.com"#},
+                );
+            }
+
+            #[test]
+            fn shortcut_no_title() {
+                check_link(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Shortcut,
+                    },
+                    indoc! {r#"
+                        [hello _world_!]
+
+                        ***
+
+                        [hello _world_!]: https://example.com"#},
+                );
+            }
+
+            #[test]
+            fn inline_with_title() {
+                check_link(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: Some("my title".to_string()),
+                        reference: LinkReference::Inline,
+                    },
+                    indoc! {r#"
+                        [hello _world_!](https://example.com "my title")
+
+                        ***"#},
+                );
+            }
+
+            #[test]
+            fn full_with_title() {
+                check_link(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: Some("my title".to_string()),
+                        reference: LinkReference::Full("1".to_string()),
+                    },
+                    indoc! {r#"
+                        [hello _world_!][1]
+
+                        ***
+
+                        [1]: https://example.com "my title""#},
+                );
+            }
+
+            #[test]
+            fn collapsed_with_title() {
+                check_link(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: Some("my title".to_string()),
+                        reference: LinkReference::Collapsed,
+                    },
+                    indoc! {r#"
+                        [hello _world_!][]
+
+                        ***
+
+                        [hello _world_!]: https://example.com "my title""#},
+                );
+            }
+
+            #[test]
+            fn shortcut_with_title() {
+                check_link(
+                    Link {
+                        url: "https://example.com".to_string(),
+                        title: Some("my title".to_string()),
+                        reference: LinkReference::Shortcut,
+                    },
+                    indoc! {r#"
+                        [hello _world_!]
+
+                        ***
+
+                        [hello _world_!]: https://example.com "my title""#},
+                );
+            }
+
+            fn check_link(link: Link, expect: &str) {
+                let nodes = vec![
+                    MdqNode::Inline(Inline::Link {
+                        text: vec![
+                            mdq_inline!("hello "),
+                            mdq_inline!(span Emphasis [mdq_inline!("world")]),
+                            mdq_inline!("!"),
+                        ],
+                        link,
+                    }),
+                    MdqNode::ThematicBreak,
+                ];
+                check_render(nodes, expect);
             }
         }
     }
