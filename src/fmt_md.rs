@@ -867,14 +867,14 @@ pub mod tests {
                         ListItem {
                             checked: None,
                             item: mdq_nodes!(BlockQuote {
-                                body: mdq_nodes!["quoted block"]
+                                body: mdq_nodes!["quoted block one", "quoted block two"]
                             })
                         },
                         ListItem {
                             checked: None,
                             item: mdq_nodes!(CodeBlock {
                                 variant: CodeVariant::Code(None),
-                                value: "line 1\nline2".to_string(),
+                                value: "line 1\nline 2".to_string(),
                             })
                         },
                     ],
@@ -883,7 +883,9 @@ pub mod tests {
                 - first paragraph
 
                   second paragraph
-                - > quoted block
+                - > quoted block one
+                  >
+                  > quoted block two
                 - ```
                   line 1
                   line 2
