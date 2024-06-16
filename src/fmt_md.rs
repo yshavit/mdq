@@ -371,10 +371,10 @@ impl<'a> MdWriterState<'a> {
             }
             Inline::Text { variant, value } => {
                 let surround = match variant {
-                    InlineVariant::Text => "",
-                    InlineVariant::Code => "`",
-                    InlineVariant::Math => "$",
-                    InlineVariant::Html => "",
+                    TextVariant::Plain => "",
+                    TextVariant::Code => "`",
+                    TextVariant::Math => "$",
+                    TextVariant::Html => "",
                 };
                 out.write_str(surround);
                 out.write_str(value);
@@ -589,10 +589,10 @@ pub mod tests {
             Inline(crate::tree::Inline::Span{variant: SpanVariant::Emphasis, ..}),
             Inline(crate::tree::Inline::Span{variant: SpanVariant::Strong, ..}),
 
-            Inline(crate::tree::Inline::Text{variant: InlineVariant::Text, ..}),
-            Inline(crate::tree::Inline::Text{variant: InlineVariant::Code, ..}),
-            Inline(crate::tree::Inline::Text{variant: InlineVariant::Math, ..}),
-            Inline(crate::tree::Inline::Text{variant: InlineVariant::Html, ..}),
+            Inline(crate::tree::Inline::Text{variant: TextVariant::Plain, ..}),
+            Inline(crate::tree::Inline::Text{variant: TextVariant::Code, ..}),
+            Inline(crate::tree::Inline::Text{variant: TextVariant::Math, ..}),
+            Inline(crate::tree::Inline::Text{variant: TextVariant::Html, ..}),
 
             Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Inline, ..}, ..}),
             Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Full(_), ..}, ..}),
@@ -630,7 +630,7 @@ pub mod tests {
                 mdq_nodes![Root {
                     body: mdq_nodes![Paragraph {
                         body: vec![Inline::Text {
-                            variant: InlineVariant::Text,
+                            variant: TextVariant::Plain,
                             value: "Hello, world".to_string()
                         }]
                     }]
@@ -647,13 +647,13 @@ pub mod tests {
                     body: mdq_nodes![
                         Paragraph {
                             body: vec![Inline::Text {
-                                variant: InlineVariant::Text,
+                                variant: TextVariant::Plain,
                                 value: "First".to_string()
                             }]
                         },
                         Paragraph {
                             body: vec![Inline::Text {
-                                variant: InlineVariant::Text,
+                                variant: TextVariant::Plain,
                                 value: "Second".to_string()
                             }]
                         },
@@ -742,7 +742,7 @@ pub mod tests {
             check_render(
                 mdq_nodes![Paragraph {
                     body: vec![Inline::Text {
-                        variant: InlineVariant::Text,
+                        variant: TextVariant::Plain,
                         value: "Hello, world".to_string()
                     }]
                 }],
@@ -762,7 +762,7 @@ pub mod tests {
                 mdq_nodes![BlockQuote {
                     body: mdq_nodes![Paragraph {
                         body: vec![Inline::Text {
-                            variant: InlineVariant::Text,
+                            variant: TextVariant::Plain,
                             value: "Hello, world".to_string()
                         }]
                     }]
@@ -1265,7 +1265,7 @@ pub mod tests {
             fn text() {
                 check_render(
                     vec![MdqNode::Inline(Inline::Text {
-                        variant: InlineVariant::Text,
+                        variant: TextVariant::Plain,
                         value: "hello world".to_string(),
                     })],
                     indoc! {"hello world"},
@@ -1276,7 +1276,7 @@ pub mod tests {
             fn code() {
                 check_render(
                     vec![MdqNode::Inline(Inline::Text {
-                        variant: InlineVariant::Code,
+                        variant: TextVariant::Code,
                         value: "hello world".to_string(),
                     })],
                     indoc! {"`hello world`"},
@@ -1287,7 +1287,7 @@ pub mod tests {
             fn math() {
                 check_render(
                     vec![MdqNode::Inline(Inline::Text {
-                        variant: InlineVariant::Math,
+                        variant: TextVariant::Math,
                         value: "hello world".to_string(),
                     })],
                     indoc! {"$hello world$"},
@@ -1298,7 +1298,7 @@ pub mod tests {
             fn html() {
                 check_render(
                     vec![MdqNode::Inline(Inline::Text {
-                        variant: InlineVariant::Html,
+                        variant: TextVariant::Html,
                         value: "<a hello />".to_string(),
                     })],
                     indoc! {"<a hello />"},

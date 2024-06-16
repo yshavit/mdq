@@ -1,4 +1,4 @@
-use crate::tree::{Inline, InlineVariant};
+use crate::tree::{Inline, TextVariant};
 use std::borrow::Borrow;
 
 pub fn inlines_to_plain_string<N: Borrow<Inline>>(inlines: &[N]) -> String {
@@ -18,7 +18,7 @@ fn build_inline(out: &mut String, elem: &Inline) {
     match elem {
         Inline::Span { children, .. } => build_inlines(out, children),
         Inline::Text { variant, value, .. } => {
-            if !matches!(variant, InlineVariant::Html) {
+            if !matches!(variant, TextVariant::Html) {
                 out.push_str(value)
             }
         }
@@ -37,7 +37,7 @@ mod tests {
     use super::*;
     use indoc::indoc;
 
-    use crate::tree::{Inline, InlineVariant, MdqNode, SpanVariant};
+    use crate::tree::{Inline, MdqNode, SpanVariant, TextVariant};
     use crate::unwrap;
     use crate::utils_for_test::VariantsChecker;
     use lazy_static::lazy_static;
@@ -48,10 +48,10 @@ mod tests {
             Span { variant: SpanVariant::Delete, .. },
             Span { variant: SpanVariant::Emphasis, .. },
             Span { variant: SpanVariant::Strong, .. },
-            Text { variant: InlineVariant::Text, .. },
-            Text { variant: InlineVariant::Code, .. },
-            Text { variant: InlineVariant::Math, .. },
-            Text { variant: InlineVariant::Html, .. },
+            Text { variant: TextVariant::Plain, .. },
+            Text { variant: TextVariant::Code, .. },
+            Text { variant: TextVariant::Math, .. },
+            Text { variant: TextVariant::Html, .. },
             Link { .. },
             Image { .. },
             Footnote(_),

@@ -39,7 +39,7 @@ mod test_utils {
         };
         ($text:literal) => {
             crate::tree::Inline::Text {
-                variant: crate::tree::InlineVariant::Text,
+                variant: crate::tree::TextVariant::Plain,
                 value: $text.to_string(),
             }
         };
