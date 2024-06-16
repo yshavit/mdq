@@ -692,7 +692,9 @@ impl Lookups {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mdq_inline;
     use crate::mdq_node;
+    use crate::mdq_nodes;
 
     ///  tests of each mdast node type
     ///
@@ -700,7 +702,6 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
-        use crate::mdq_nodes;
         use crate::utils_for_test::VariantsChecker;
         use indoc::indoc;
         use lazy_static::lazy_static;
@@ -987,11 +988,11 @@ mod tests {
                 check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph(Paragraph{body}) = {
                     assert_eq!(body.len(), 4);
                     assert_eq!(body, vec![
-                        inline_text("In "),
+                        mdq_inline!("In "),
                         Inline::Text {
                             variant: InlineVariant::Html,
                             value: "<em>".to_string()},
-                        inline_text("a paragraph."),
+                        mdq_inline!("a paragraph."),
                         Inline::Text {
                             variant: InlineVariant::Html,
                             value: "</em>".to_string()},
@@ -1007,11 +1008,11 @@ mod tests {
                 check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph(Paragraph{body}) = {
                     assert_eq!(body.len(), 4);
                     assert_eq!(body, vec![
-                        inline_text("In "),
+                        mdq_inline!("In "),
                         Inline::Text {
                             variant: InlineVariant::Html,
                             value: "<em\nnewline  >".to_string()},
-                        inline_text("a paragraph."),
+                        mdq_inline!("a paragraph."),
                         Inline::Text {
                             variant: InlineVariant::Html,
                             value: "</em>".to_string()},
@@ -1097,10 +1098,10 @@ mod tests {
                 check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![
-                            inline_text("hello "),
+                            mdq_inline!("hello "),
                             Inline::Span {
                                 variant: SpanVariant::Emphasis,
-                                children: vec![inline_text("world")],
+                                children: vec![mdq_inline!("world")],
                             }
                         ],
                         link: Link{
@@ -1119,10 +1120,10 @@ mod tests {
                 check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![
-                            inline_text("hello "),
+                            mdq_inline!("hello "),
                             Inline::Span {
                                 variant: SpanVariant::Emphasis,
-                                children: vec![inline_text("world")],
+                                children: vec![mdq_inline!("world")],
                             }
                         ],
                         link: Link{
@@ -1148,10 +1149,10 @@ mod tests {
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![
-                            inline_text("hello "),
+                            mdq_inline!("hello "),
                             Inline::Span {
                                 variant: SpanVariant::Emphasis,
-                                children: vec![inline_text("world")],
+                                children: vec![mdq_inline!("world")],
                             },
                         ],
                         link: Link{
@@ -1178,10 +1179,10 @@ mod tests {
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![
-                            inline_text("hello "),
+                            mdq_inline!("hello "),
                             Inline::Span {
                                 variant: SpanVariant::Emphasis,
-                                children: vec![inline_text("world")],
+                                children: vec![mdq_inline!("world")],
                             },
                         ],
                         link: Link{
@@ -1208,10 +1209,10 @@ mod tests {
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![
-                            inline_text("hello "),
+                            mdq_inline!("hello "),
                             Inline::Span {
                                 variant: SpanVariant::Emphasis,
-                                children: vec![inline_text("world")],
+                                children: vec![mdq_inline!("world")],
                             },
                         ],
                         link: Link{
@@ -1606,16 +1607,16 @@ mod tests {
                 assert_eq!(rows,
                     vec![ // rows
                         vec![// Header row
-                            vec![inline_text("Header A")], // cells, each being a spans of inline
-                            vec![inline_text("Header B")],
-                            vec![inline_text("Header C")],
-                            vec![inline_text("Header D")],
+                            vec![mdq_inline!("Header A")], // cells, each being a spans of inline
+                            vec![mdq_inline!("Header B")],
+                            vec![mdq_inline!("Header C")],
+                            vec![mdq_inline!("Header D")],
                         ],
                         vec![// first (and only) data row
-                            vec![inline_text("1")], // cells, each being a spans of inline
-                            vec![inline_text("2")],
-                            vec![inline_text("3")],
-                            vec![inline_text("4")],
+                            vec![mdq_inline!("1")], // cells, each being a spans of inline
+                            vec![mdq_inline!("2")],
+                            vec![mdq_inline!("3")],
+                            vec![mdq_inline!("4")],
                         ],
                     ],
                 );
@@ -1855,25 +1856,25 @@ mod tests {
             let linear = vec![
                 MdqNode::Header(Header {
                     depth: 1,
-                    title: vec![inline_text("first")],
+                    title: vec![mdq_inline!("first")],
                     body: vec![],
                 }),
                 MdqNode::Paragraph(Paragraph {
-                    body: vec![inline_text("aaa")],
+                    body: vec![mdq_inline!("aaa")],
                 }),
                 MdqNode::Paragraph(Paragraph {
-                    body: vec![inline_text("bbb")],
+                    body: vec![mdq_inline!("bbb")],
                 }),
             ];
             let expect = vec![MdqNode::Header(Header {
                 depth: 1,
-                title: vec![inline_text("first")],
+                title: vec![mdq_inline!("first")],
                 body: vec![
                     MdqNode::Paragraph(Paragraph {
-                        body: vec![inline_text("aaa")],
+                        body: vec![mdq_inline!("aaa")],
                     }),
                     MdqNode::Paragraph(Paragraph {
-                        body: vec![inline_text("bbb")],
+                        body: vec![mdq_inline!("bbb")],
                     }),
                 ],
             })];
@@ -1887,26 +1888,26 @@ mod tests {
             let linear = vec![
                 MdqNode::Header(Header {
                     depth: 1,
-                    title: vec![inline_text("first")],
+                    title: vec![mdq_inline!("first")],
                     body: vec![],
                 }),
                 MdqNode::Header(Header {
                     depth: 2,
-                    title: vec![inline_text("aaa")],
+                    title: vec![mdq_inline!("aaa")],
                     body: vec![],
                 }),
                 MdqNode::Paragraph(Paragraph {
-                    body: vec![inline_text("bbb")],
+                    body: vec![mdq_inline!("bbb")],
                 }),
             ];
             let expect = vec![MdqNode::Header(Header {
                 depth: 1,
-                title: vec![inline_text("first")],
+                title: vec![mdq_inline!("first")],
                 body: vec![MdqNode::Header(Header {
                     depth: 2,
-                    title: vec![inline_text("aaa")],
+                    title: vec![mdq_inline!("aaa")],
                     body: vec![MdqNode::Paragraph(Paragraph {
-                        body: vec![inline_text("bbb")],
+                        body: vec![mdq_inline!("bbb")],
                     })],
                 })],
             })];
@@ -1920,53 +1921,53 @@ mod tests {
             let linear = vec![
                 MdqNode::Header(Header {
                     depth: 1,
-                    title: vec![inline_text("first")],
+                    title: vec![mdq_inline!("first")],
                     body: vec![],
                 }),
                 MdqNode::Header(Header {
                     depth: 2,
-                    title: vec![inline_text("second")],
+                    title: vec![mdq_inline!("second")],
                     body: vec![],
                 }),
                 MdqNode::Header(Header {
                     depth: 3,
-                    title: vec![inline_text("third")],
+                    title: vec![mdq_inline!("third")],
                     body: vec![],
                 }),
                 MdqNode::Header(Header {
                     depth: 3,
-                    title: vec![inline_text("fourth")],
+                    title: vec![mdq_inline!("fourth")],
                     body: vec![],
                 }),
                 MdqNode::Header(Header {
                     depth: 2,
-                    title: vec![inline_text("fifth")],
+                    title: vec![mdq_inline!("fifth")],
                     body: vec![],
                 }),
             ];
             let expect = vec![MdqNode::Header(Header {
                 depth: 1,
-                title: vec![inline_text("first")],
+                title: vec![mdq_inline!("first")],
                 body: vec![
                     MdqNode::Header(Header {
                         depth: 2,
-                        title: vec![inline_text("second")],
+                        title: vec![mdq_inline!("second")],
                         body: vec![
                             MdqNode::Header(Header {
                                 depth: 3,
-                                title: vec![inline_text("third")],
+                                title: vec![mdq_inline!("third")],
                                 body: vec![],
                             }),
                             MdqNode::Header(Header {
                                 depth: 3,
-                                title: vec![inline_text("fourth")],
+                                title: vec![mdq_inline!("fourth")],
                                 body: vec![],
                             }),
                         ],
                     }),
                     MdqNode::Header(Header {
                         depth: 2,
-                        title: vec![inline_text("fifth")],
+                        title: vec![mdq_inline!("fifth")],
                         body: vec![],
                     }),
                 ],
@@ -1980,18 +1981,18 @@ mod tests {
         fn no_headers() -> Result<(), InvalidMd> {
             let linear = vec![
                 MdqNode::Paragraph(Paragraph {
-                    body: vec![inline_text("one")],
+                    body: vec![mdq_inline!("one")],
                 }),
                 MdqNode::Paragraph(Paragraph {
-                    body: vec![inline_text("two")],
+                    body: vec![mdq_inline!("two")],
                 }),
             ];
             let expect = vec![
                 MdqNode::Paragraph(Paragraph {
-                    body: vec![inline_text("one")],
+                    body: vec![mdq_inline!("one")],
                 }),
                 MdqNode::Paragraph(Paragraph {
-                    body: vec![inline_text("two")],
+                    body: vec![mdq_inline!("two")],
                 }),
             ];
             let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
@@ -2004,40 +2005,40 @@ mod tests {
             let linear = vec![
                 MdqNode::Header(Header {
                     depth: 1,
-                    title: vec![inline_text("one")],
+                    title: vec![mdq_inline!("one")],
                     body: vec![],
                 }),
                 MdqNode::Header(Header {
                     depth: 5,
-                    title: vec![inline_text("five")],
+                    title: vec![mdq_inline!("five")],
                     body: vec![],
                 }),
                 MdqNode::Header(Header {
                     depth: 2,
-                    title: vec![inline_text("two")],
+                    title: vec![mdq_inline!("two")],
                     body: vec![],
                 }),
                 MdqNode::Header(Header {
                     depth: 3,
-                    title: vec![inline_text("three")],
+                    title: vec![mdq_inline!("three")],
                     body: vec![],
                 }),
             ];
             let expect = vec![MdqNode::Header(Header {
                 depth: 1,
-                title: vec![inline_text("one")],
+                title: vec![mdq_inline!("one")],
                 body: vec![
                     MdqNode::Header(Header {
                         depth: 5,
-                        title: vec![inline_text("five")],
+                        title: vec![mdq_inline!("five")],
                         body: vec![],
                     }),
                     MdqNode::Header(Header {
                         depth: 2,
-                        title: vec![inline_text("two")],
+                        title: vec![mdq_inline!("two")],
                         body: vec![MdqNode::Header(Header {
                             depth: 3,
-                            title: vec![inline_text("three")],
+                            title: vec![mdq_inline!("three")],
                             body: vec![],
                         })],
                     }),
@@ -2053,34 +2054,34 @@ mod tests {
             let linear = vec![
                 MdqNode::Header(Header {
                     depth: 3,
-                    title: vec![inline_text("three")],
+                    title: vec![mdq_inline!("three")],
                     body: vec![],
                 }),
                 MdqNode::Header(Header {
                     depth: 2,
-                    title: vec![inline_text("two")],
+                    title: vec![mdq_inline!("two")],
                     body: vec![],
                 }),
                 MdqNode::Header(Header {
                     depth: 1,
-                    title: vec![inline_text("one")],
+                    title: vec![mdq_inline!("one")],
                     body: vec![],
                 }),
             ];
             let expect = vec![
                 MdqNode::Header(Header {
                     depth: 3,
-                    title: vec![inline_text("three")],
+                    title: vec![mdq_inline!("three")],
                     body: vec![],
                 }),
                 MdqNode::Header(Header {
                     depth: 2,
-                    title: vec![inline_text("two")],
+                    title: vec![mdq_inline!("two")],
                     body: vec![],
                 }),
                 MdqNode::Header(Header {
                     depth: 1,
-                    title: vec![inline_text("one")],
+                    title: vec![mdq_inline!("one")],
                     body: vec![],
                 }),
             ];
@@ -2093,39 +2094,32 @@ mod tests {
         fn paragraph_before_and_after_header() -> Result<(), InvalidMd> {
             let linear = vec![
                 MdqNode::Paragraph(Paragraph {
-                    body: vec![inline_text("before")],
+                    body: vec![mdq_inline!("before")],
                 }),
                 MdqNode::Header(Header {
                     depth: 3,
-                    title: vec![inline_text("the header")],
+                    title: vec![mdq_inline!("the header")],
                     body: vec![],
                 }),
                 MdqNode::Paragraph(Paragraph {
-                    body: vec![inline_text("after")],
+                    body: vec![mdq_inline!("after")],
                 }),
             ];
             let expect = vec![
                 MdqNode::Paragraph(Paragraph {
-                    body: vec![inline_text("before")],
+                    body: vec![mdq_inline!("before")],
                 }),
                 MdqNode::Header(Header {
                     depth: 3,
-                    title: vec![inline_text("the header")],
+                    title: vec![mdq_inline!("the header")],
                     body: vec![MdqNode::Paragraph(Paragraph {
-                        body: vec![inline_text("after")],
+                        body: vec![mdq_inline!("after")],
                     })],
                 }),
             ];
             let actual = MdqNode::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
             Ok(())
-        }
-    }
-
-    fn inline_text(text: &str) -> Inline {
-        Inline::Text {
-            value: text.to_string(),
-            variant: InlineVariant::Text,
         }
     }
 
