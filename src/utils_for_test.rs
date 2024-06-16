@@ -1,3 +1,4 @@
+#[cfg(test)]
 pub use test_utils::*;
 
 // We this file's contents from prod by putting them in a submodule guarded by cfg(test), but then "pub use" it to
