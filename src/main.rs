@@ -13,6 +13,8 @@ mod output;
 mod select;
 mod str_utils;
 mod tree;
+mod tree_test_utils;
+mod utils_for_test;
 
 fn main() {
     let mut contents = String::new();

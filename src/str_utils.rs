@@ -17,59 +17,57 @@ where
     let padding = min_width - input.len();
 
     match standard_align(alignment) {
-        Alignment::Left => {
+        Some(Alignment::Left) | None => {
             output.write_str(input);
             (0..padding).for_each(|_| output.write_char(' '));
         }
-        Alignment::Center => {
+        Some(Alignment::Center) => {
             let left_pad = padding / 2; // round down
             let right_pad = padding - left_pad;
             (0..left_pad).for_each(|_| output.write_char(' '));
             output.write_str(input);
             (0..right_pad).for_each(|_| output.write_char(' '));
         }
-        Alignment::Right => {
+        Some(Alignment::Right) => {
             (0..padding).for_each(|_| output.write_char(' '));
             output.write_str(input);
         }
     }
 }
 
-pub fn standard_align<A>(mdast_align: A) -> Alignment
+pub fn standard_align<A>(mdast_align: A) -> Option<Alignment>
 where
     A: ToAlignment,
 {
     mdast_align.to_alignment()
 }
 
-const DEFAULT_ALIGNMENT: Alignment = Alignment::Left;
-
 pub trait ToAlignment {
-    fn to_alignment(&self) -> Alignment;
+    fn to_alignment(&self) -> Option<Alignment>;
 }
 
 impl ToAlignment for Alignment {
-    fn to_alignment(&self) -> Alignment {
-        *self
+    fn to_alignment(&self) -> Option<Alignment> {
+        Some(*self)
     }
 }
 
 impl ToAlignment for &AlignKind {
-    fn to_alignment(&self) -> Alignment {
+    fn to_alignment(&self) -> Option<Alignment> {
         match self {
-            AlignKind::Left => Alignment::Left,
-            AlignKind::Right => Alignment::Right,
-            AlignKind::Center => Alignment::Center,
-            _ => DEFAULT_ALIGNMENT,
+            AlignKind::Left => Some(Alignment::Left),
+            AlignKind::Right => Some(Alignment::Right),
+            AlignKind::Center => Some(Alignment::Center),
+            AlignKind::None => None,
         }
     }
 }
 
 impl<A: Borrow<AlignKind>> ToAlignment for Option<A> {
-    fn to_alignment(&self) -> Alignment {
+    fn to_alignment(&self) -> Option<Alignment> {
         match self {
             Some(a) => a.borrow().to_alignment(),
-            None => DEFAULT_ALIGNMENT,
+            None => None,
         }
     }
 }

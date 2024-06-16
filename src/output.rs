@@ -153,10 +153,10 @@ impl<W: SimpleWrite> Output<W> {
         }
 
         // print the newlines before we append the new blocks
-        let need_indent = if self.pending_newlines > 0 {
+        let need_full_indent = if self.pending_newlines > 0 {
             for _ in 0..(self.pending_newlines - 1) {
                 self.write_raw("\n");
-                self.write_indent(None);
+                self.write_indent(true, None);
             }
             self.write_raw("\n"); // we'll do this indent after we add the pending blocks
             self.pending_newlines = 0;
@@ -167,15 +167,20 @@ impl<W: SimpleWrite> Output<W> {
 
         // Append the new blocks, and then write the indent if we need it
         // When we write that indent, though, only write it until the first new Inlined (exclusive).
-        let indent_end_idx = self.blocks.len()
-            + self
-                .pending_blocks
-                .iter()
-                .position(|b| matches!(b, Block::Inlined(_)))
-                .unwrap_or_else(|| self.pending_blocks.len());
-        self.blocks.append(&mut self.pending_blocks);
-        if need_indent {
-            self.write_indent(Some(0..indent_end_idx));
+        if need_full_indent {
+            let indent_end_idx = self.blocks.len()
+                + self
+                    .pending_blocks
+                    .iter()
+                    .position(|b| matches!(b, Block::Inlined(_)))
+                    .unwrap_or_else(|| self.pending_blocks.len());
+            self.blocks.append(&mut self.pending_blocks);
+            self.write_indent(true, Some(0..indent_end_idx));
+        } else {
+            self.write_padding_after_indent();
+            let prev_blocks_len = self.blocks.len();
+            self.blocks.append(&mut self.pending_blocks);
+            self.write_indent(false, Some(prev_blocks_len..self.blocks.len()));
         }
 
         // Finally, write the text
@@ -185,7 +190,9 @@ impl<W: SimpleWrite> Output<W> {
         self.write_raw(text);
     }
 
-    fn write_indent(&mut self, range: Option<Range<usize>>) {
+    /// Write an indentation for a given range of indentation block. If `include_inlines` is false, `Inlined` blocks
+    /// will be disregarded. Do this for the first line in which those inlines appear (and only there).
+    fn write_indent(&mut self, include_inlines: bool, range: Option<Range<usize>>) {
         self.pending_padding_after_indent = 0;
         for idx in range.unwrap_or_else(|| 0..self.blocks.len()) {
             match &self.blocks[idx] {
@@ -196,7 +203,9 @@ impl<W: SimpleWrite> Output<W> {
                     self.pending_padding_after_indent += 1;
                 }
                 Block::Inlined(size) => {
-                    self.pending_padding_after_indent += size;
+                    if include_inlines {
+                        self.pending_padding_after_indent += size;
+                    }
                 }
             }
         }
@@ -238,6 +247,9 @@ impl<W: SimpleWrite> Output<W> {
         if let Err(e) = self.stream.write_str(text) {
             eprintln!("error while writing output: {}", e);
             self.writing_state = WritingState::Error;
+        }
+        if matches!(self.writing_state, WritingState::HaveNotWrittenAnything) {
+            self.writing_state = WritingState::Normal;
         }
     }
 }
@@ -354,6 +366,23 @@ mod tests {
                 > world
 
                 after"#}
+        );
+    }
+
+    #[test]
+    fn quote_block_one_char_at_a_time_as_initial_output() {
+        // We haven't written anything, and then we start writing quote blocks
+        assert_eq!(
+            out_to_str(|out| {
+                out.with_block(Block::Quote, |out| {
+                    out.write_str(""); // empty prefix char
+                    "hello\nworld".chars().for_each(|c| out.write_char(c));
+                    out.write_str(""); // empty suffix char
+                });
+            }),
+            indoc! {r#"
+                > hello
+                > world"#}
         );
     }
 

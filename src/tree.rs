@@ -23,7 +23,7 @@ pub enum MdqNode {
     CodeBlock(CodeBlock),
 
     // inline spans
-    Inline(Inline), // TODO rename to "span"?
+    Inline(Inline),
 }
 
 #[derive(Debug, PartialEq)]
