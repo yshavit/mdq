@@ -7,6 +7,19 @@ pub use test_utils::*;
 mod test_utils {
     use std::{thread, time};
 
+    /// Turn a pattern match into an `if let ... { else panic! }`.
+    #[macro_export]
+    macro_rules! unwrap {
+        // TODO intellij errors if these are in the other order. file a ticket.
+        ($enum_value:expr, $enum_variant:pat) => {
+            let node = $enum_value;
+            let node_debug = format!("{:?}", node);
+            let $enum_variant = node else {
+                panic!("Expected {} but saw {}", stringify!($enum_variant), node_debug);
+            };
+        };
+    }
+
     pub struct VariantsChecker<E> {
         require: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
         resolver: fn(&E) -> &str,

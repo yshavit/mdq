@@ -185,9 +185,10 @@ pub enum SpanVariant {
     Strong,
 }
 
+// TODO rename to TextVariant
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum InlineVariant {
-    Text,
+    Text, // TODO rename to Plain
     Code,
     Math,
     Html,
@@ -702,6 +703,7 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
+        use crate::unwrap;
         use crate::utils_for_test::VariantsChecker;
         use indoc::indoc;
         use lazy_static::lazy_static;
@@ -709,18 +711,6 @@ mod tests {
         use markdown::{mdast, ParseOptions};
 
         use super::*;
-
-        /// Turn a pattern match into an `if let ... { else panic! }`.
-        macro_rules! unwrap {
-            // TODO intellij errors if these are in the other order. file a ticket.
-            ($enum_value:expr, $enum_variant:pat) => {
-                let node = $enum_value;
-                let node_debug = format!("{:?}", node);
-                let $enum_variant = node else {
-                    panic!("Expected {} but saw {}", stringify!($enum_variant), node_debug);
-                };
-            };
-        }
 
         macro_rules! check {
             (no_node: $enum_value:expr, $enum_variant:pat, $lookups:expr => $no_node:expr $(, $body:block)? ) => {{

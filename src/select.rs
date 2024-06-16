@@ -1,4 +1,4 @@
-use crate::fmt_json;
+use crate::fmt_str::inlines_to_plain_string;
 use crate::tree::*;
 
 #[allow(dead_code)]
@@ -69,7 +69,7 @@ impl Selector {
             MdqNode::Root(Root { body }) => SelectResult::Recurse(body),
             MdqNode::Header(Header { title, body, .. }) => {
                 if let Selector::Heading(matcher) = self {
-                    if matcher.matches(&Self::line_to_string(title)) {
+                    if matcher.matches(&inlines_to_plain_string(title)) {
                         SelectResult::Found(body.iter().map(|elem| elem).collect())
                     } else {
                         SelectResult::Recurse(body)
@@ -144,9 +144,5 @@ impl Selector {
 
     fn find_in_children<'a>(&'a self, children: &'a Vec<MdqNode>) -> Vec<&MdqNode> {
         children.iter().flat_map(|elem| self.find(elem)).collect()
-    }
-
-    fn line_to_string(line: &[Inline]) -> String {
-        fmt_json::TextOnly::line_to_string(line)
     }
 }
