@@ -3,6 +3,8 @@ pub use test_util::*;
 
 pub type ParseResult<T> = Result<T, ParseErrorReason>;
 
+pub const SELECTOR_SEPARATOR: char = '|';
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParseError {
     pub position: Position,
