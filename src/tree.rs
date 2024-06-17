@@ -2,6 +2,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
+use std::vec::IntoIter;
 
 use markdown::mdast;
 
@@ -209,26 +210,6 @@ pub struct CodeOpts {
     pub metadata: Option<String>,
 }
 
-#[derive(Debug, PartialEq)]
-enum NoNode {
-    Skipped,
-    Invalid(InvalidMd),
-}
-
-impl From<InvalidMd> for NoNode {
-    fn from(value: InvalidMd) -> Self {
-        NoNode::Invalid(value)
-    }
-}
-
-impl TryFrom<mdast::Node> for MdqNode {
-    type Error = InvalidMd;
-
-    fn try_from(value: mdast::Node) -> Result<Self, Self::Error> {
-        Self::read(value, &ReadOptions::default())
-    }
-}
-
 /// Defines all the mdx nodes as match arms. This let us easily mark them as ignored, and in particular makes it so that
 /// the prod and test code both marks them as ignored using the same source list (namely, this macro).
 macro_rules! mdx_nodes {
@@ -242,16 +223,12 @@ macro_rules! mdx_nodes {
 }
 
 impl MdqNode {
-    fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
+    pub fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Vec<Self>, InvalidMd> {
         let lookups = Lookups::new(&node, opts)?;
-        match Self::from_mdast_0(node, &lookups) {
-            Ok(result) => Ok(result),
-            Err(NoNode::Skipped) => Ok(MdqNode::Root(Root { body: Vec::new() })),
-            Err(NoNode::Invalid(err)) => Err(err),
-        }
+        Self::from_mdast_0(node, &lookups)
     }
 
-    fn from_mdast_0(node: mdast::Node, lookups: &Lookups) -> Result<Self, NoNode> {
+    fn from_mdast_0(node: mdast::Node, lookups: &Lookups) -> Result<Vec<Self>, InvalidMd> {
         let result = match node {
             mdast::Node::Root(node) => MdqNode::Root(Root {
                 body: MdqNode::all(node.children, lookups)?,
@@ -259,12 +236,12 @@ impl MdqNode {
             mdast::Node::BlockQuote(node) => MdqNode::BlockQuote(BlockQuote {
                 body: MdqNode::all(node.children, lookups)?,
             }),
-            mdast::Node::FootnoteDefinition(_) => return Err(NoNode::Skipped),
+            mdast::Node::FootnoteDefinition(_) => return Ok(Vec::new()),
             mdast::Node::List(node) => {
                 let mut li_nodes = Vec::with_capacity(node.children.len());
                 for node in node.children {
                     let mdast::Node::ListItem(li_node) = node else {
-                        return Err(NoNode::Invalid(InvalidMd::NonListItemDirectlyUnderList(node)));
+                        return Err(InvalidMd::NonListItemDirectlyUnderList(node));
                     };
                     let li_mdq = ListItem {
                         checked: li_node.checked,
@@ -369,12 +346,12 @@ impl MdqNode {
                         children: cell_nodes, ..
                     }) = row_node
                     else {
-                        return Err(NoNode::Invalid(InvalidMd::NonRowDirectlyUnderTable(row_node)));
+                        return Err(InvalidMd::NonRowDirectlyUnderTable(row_node));
                     };
                     let mut column = Vec::with_capacity(cell_nodes.len());
                     for cell_node in cell_nodes {
                         let mdast::Node::TableCell(table_cell) = cell_node else {
-                            return Err(NoNode::Invalid(InvalidMd::InternalError));
+                            return Err(InvalidMd::InternalError);
                         };
                         let cell_contents = Self::inlines(table_cell.children, lookups)?;
                         column.push(cell_contents);
@@ -388,9 +365,9 @@ impl MdqNode {
             }
             mdast::Node::ThematicBreak(_) => MdqNode::ThematicBreak,
             mdast::Node::TableRow(_) | mdast::Node::TableCell(_) | mdast::Node::ListItem(_) => {
-                return Err(NoNode::Invalid(InvalidMd::InternalError)); // should have been handled by Node::Table
+                return Err(InvalidMd::InternalError); // should have been handled by Node::Table
             }
-            mdast::Node::Definition(_) => return Err(NoNode::Skipped),
+            mdast::Node::Definition(_) => return Ok(Vec::new()),
             mdast::Node::Paragraph(node) => MdqNode::Paragraph(Paragraph {
                 body: Self::inlines(node.children, lookups)?,
             }),
@@ -410,16 +387,17 @@ impl MdqNode {
             mdx_nodes! {} => {
                 // If you implement this, make sure to remove the mdx_nodes macro. That means you'll also need to
                 // adjust the test `nodes_matcher` macro.
-                return Err(NoNode::Invalid(InvalidMd::Unsupported(node)));
+                return Err(InvalidMd::Unsupported(node));
             }
         };
-        Ok(result)
+        Ok(vec![result])
     }
 
     fn all(children: Vec<mdast::Node>, lookups: &Lookups) -> Result<Vec<Self>, InvalidMd> {
         Self::all_from_iter(NodeToMdqIter {
-            children: children.into_iter(),
             lookups,
+            children: children.into_iter(),
+            pending: Vec::new().into_iter(),
         })
     }
 
@@ -551,6 +529,7 @@ where
     I: Iterator<Item = mdast::Node>,
 {
     children: I,
+    pending: IntoIter<MdqNode>,
     lookups: &'a Lookups,
 }
 
@@ -562,15 +541,17 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
+            if let Some(pending) = self.pending.next() {
+                return Some(Ok(pending));
+            }
             let Some(next_node) = self.children.next() else {
                 return None;
             };
             match MdqNode::from_mdast_0(next_node, self.lookups) {
                 Ok(mdq_node) => {
-                    break Some(Ok(mdq_node));
+                    self.pending = mdq_node.into_iter();
                 }
-                Err(NoNode::Skipped) => continue,
-                Err(NoNode::Invalid(err)) => {
+                Err(err) => {
                     break Some(Err(err));
                 }
             };
@@ -603,15 +584,13 @@ impl Lookups {
         identifier: String,
         label: Option<String>,
         reference_kind: mdast::ReferenceKind,
-    ) -> Result<Link, NoNode> {
+    ) -> Result<Link, InvalidMd> {
         if let None = label {
             todo!("What is this case???");
         }
         let Some(definition) = self.link_definitions.get(&identifier) else {
             let human_visible_identifier = label.unwrap_or(identifier);
-            return Err(NoNode::Invalid(InvalidMd::MissingReferenceDefinition(
-                human_visible_identifier,
-            )));
+            return Err(InvalidMd::MissingReferenceDefinition(human_visible_identifier));
         };
         let human_visible_identifier = label.unwrap_or(identifier);
         let link_ref = match reference_kind {
@@ -630,15 +609,13 @@ impl Lookups {
         &self,
         identifier: &String,
         label: &Option<String>,
-    ) -> Result<&mdast::FootnoteDefinition, NoNode> {
+    ) -> Result<&mdast::FootnoteDefinition, InvalidMd> {
         if label.is_none() {
             todo!("What is this case???");
         }
         let Some(definition) = self.footnote_definitions.get(identifier) else {
             let human_visible_identifier = label.to_owned().unwrap_or_else(|| identifier.to_string());
-            return Err(NoNode::Invalid(InvalidMd::MissingReferenceDefinition(
-                human_visible_identifier,
-            )));
+            return Err(InvalidMd::MissingReferenceDefinition(human_visible_identifier));
         };
         Ok(definition)
     }
@@ -711,22 +688,33 @@ mod tests {
         use super::*;
 
         macro_rules! check {
-            (no_node: $enum_value:expr, $enum_variant:pat, $lookups:expr => $no_node:expr $(, $body:block)? ) => {{
+            (error: $enum_value:expr, $enum_variant:pat, $lookups:expr => $err:expr $(, $body:block)? ) => {{
                 let node = $enum_value;
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
                 let mdq_err = MdqNode::from_mdast_0(node_clone, &$lookups).err().expect("expected no MdqNode");
-                assert_eq!(mdq_err, $no_node);
+                assert_eq!(mdq_err, $err);
                 $($body)?
             }};
 
-            ( $enum_value:expr, $enum_variant:pat, $lookups:expr => $mdq_pat:pat = $mdq_body:block ) => {{
+            (no_node: $enum_value:expr, $enum_variant:pat, $lookups:expr) => {{
                 let node = $enum_value;
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mdq = MdqNode::from_mdast_0(node_clone, &$lookups).unwrap();
+                let mdqs = MdqNode::from_mdast_0(node_clone, &$lookups).unwrap();
+                assert_eq!(mdqs, Vec::new());
+            }};
+
+            ($enum_value:expr, $enum_variant:pat, $lookups:expr => $mdq_pat:pat = $mdq_body:block ) => {{
+                let node = $enum_value;
+                NODES_CHECKER.see(&node);
+                unwrap!(node, $enum_variant);
+                let node_clone = node.clone();
+                let mut mdqs = MdqNode::from_mdast_0(node_clone, &$lookups).unwrap();
+                assert_eq!(mdqs.len(), 1, "expected exactly one element, but found: {:?}", mdqs);
+                let mdq = mdqs.pop().unwrap();
                 if let $mdq_pat = mdq $mdq_body else {
                     panic!("expected {} but saw {:?}", stringify!($mdq_pat), &mdq)
                 }
@@ -766,7 +754,7 @@ mod tests {
                         text: mdq_nodes!["My footnote\nwith two lines."],
                     }))
                 });
-                check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
+                check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups);
             }
             {
                 let (root, lookups) = parse_with(
@@ -794,7 +782,7 @@ mod tests {
                         ],
                     }))
                 });
-                check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups => NoNode::Skipped);
+                check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups);
             }
         }
 
@@ -818,7 +806,7 @@ mod tests {
 
             check!(&root.children[0], Node::List(ul), lookups => MdqNode::List(List{starting_index, items}) = {
                 for child in &ul.children {
-                    check!(no_node: child, Node::ListItem(_), lookups => NoNode::Invalid(InvalidMd::InternalError));
+                    check!(error: child, Node::ListItem(_), lookups => InvalidMd::InternalError);
                 }
                 assert_eq!(starting_index, None);
                 assert_eq!(items, vec![
@@ -838,7 +826,7 @@ mod tests {
             });
             check!(&root.children[1], Node::List(ol), lookups => MdqNode::List(List{starting_index, items}) = {
                 for child in &ol.children {
-                    check!(no_node: child, Node::ListItem(_), lookups => NoNode::Invalid(InvalidMd::InternalError));
+                    check!(error: child, Node::ListItem(_), lookups => InvalidMd::InternalError);
                 }
                 assert_eq!(starting_index, Some(4));
                 assert_eq!(items, vec![
@@ -1150,7 +1138,7 @@ mod tests {
                         },
                     })
                 });
-                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+                check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
             {
                 // collapsed, with title
@@ -1180,7 +1168,7 @@ mod tests {
                         },
                     })
                 });
-                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+                check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
             {
                 // shortcut, no title
@@ -1210,7 +1198,7 @@ mod tests {
                         },
                     })
                 });
-                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+                check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
         }
 
@@ -1283,7 +1271,7 @@ mod tests {
                         }
                     })
                 });
-                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+                check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
             {
                 let (root, lookups) = parse(indoc! {r#"
@@ -1301,7 +1289,7 @@ mod tests {
                         }
                     })
                 });
-                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+                check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
             {
                 let (root, lookups) = parse_with(
@@ -1322,7 +1310,7 @@ mod tests {
                         }
                     })
                 });
-                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+                check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
             {
                 let (root, lookups) = parse_with(
@@ -1343,7 +1331,7 @@ mod tests {
                         }
                     })
                 });
-                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+                check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
         }
 
@@ -1366,7 +1354,7 @@ mod tests {
                         }
                     })
                 });
-                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+                check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
             {
                 let (root, lookups) = parse(indoc! {r#"
@@ -1384,7 +1372,7 @@ mod tests {
                         }
                     })
                 });
-                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+                check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
             {
                 let (root, lookups) = parse_with(
@@ -1414,7 +1402,7 @@ mod tests {
                         }
                     })
                 });
-                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+                check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
             {
                 let (root, lookups) = parse_with(
@@ -1437,7 +1425,7 @@ mod tests {
                         }
                     })
                 });
-                check!(no_node: &root.children[1], Node::Definition(_), lookups => NoNode::Skipped);
+                check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
         }
 
@@ -1596,8 +1584,8 @@ mod tests {
                 (depth, title)
             });
 
-            check!(&Node::Root(root), Node::Root(_), lookups => MdqNode::Root(root) = {
-                assert_eq!(root.body, vec![
+            check!(&Node::Root(root), Node::Root(_), lookups => MdqNode::Root(mdq_root) = {
+                assert_eq!(mdq_root.body, vec![
                     MdqNode::Section(Section{
                         depth: header_depth,
                         title: header_title,
@@ -1660,9 +1648,9 @@ mod tests {
                 );
                 // Do a spot check for the rows and cells; mainly just so that we'll have called check! on them.
                 assert_eq!(table_node.children.len(), 2); // two rows
-                check!(no_node: &table_node.children[0], Node::TableRow(tr), lookups => NoNode::Invalid(InvalidMd::InternalError), {
+                check!(error: &table_node.children[0], Node::TableRow(tr), lookups => InvalidMd::InternalError, {
                     assert_eq!(tr.children.len(), 4); // four columns
-                    check!(no_node: &tr.children[0], Node::TableCell(_), lookups => NoNode::Invalid(InvalidMd::InternalError));
+                    check!(error: &tr.children[0], Node::TableCell(_), lookups => InvalidMd::InternalError);
                 })
             });
         }

@@ -37,7 +37,7 @@ mod tests {
     use super::*;
     use indoc::indoc;
 
-    use crate::tree::{Inline, MdqNode, SpanVariant, TextVariant};
+    use crate::tree::{Inline, MdqNode, ReadOptions, SpanVariant, TextVariant};
     use crate::unwrap;
     use crate::utils_for_test::VariantsChecker;
     use lazy_static::lazy_static;
@@ -76,7 +76,7 @@ mod tests {
     #[test]
     fn text_html() {
         let node = markdown::to_mdast("<foo>", &ParseOptions::gfm()).unwrap();
-        let mdq_node: MdqNode = node.try_into().unwrap();
+        let mdq_node: MdqNode = MdqNode::read(node, &ReadOptions::default()).unwrap().pop().unwrap();
         unwrap!(mdq_node, MdqNode::Root(root));
         unwrap!(&root.body[0], MdqNode::Inline(inline));
         VARIANTS_CHECKER.see(inline);
@@ -132,7 +132,7 @@ mod tests {
         let mut options = ParseOptions::gfm();
         options.constructs.math_text = true;
         let node = markdown::to_mdast(md, &options).unwrap();
-        let mdq_node: MdqNode = node.try_into().unwrap();
+        let mdq_node: MdqNode = MdqNode::read(node, &ReadOptions::default()).unwrap().pop().unwrap();
         unwrap!(mdq_node, MdqNode::Root(root));
         unwrap!(&root.body[0], MdqNode::Paragraph(p));
         p.body.iter().for_each(|inline| VARIANTS_CHECKER.see(inline));
