@@ -149,12 +149,12 @@ mod tests {
         next_and_check(&mut iter, Some('A'), Position { line: 1, column: 1 });
 
         assert_eq!(" \t ", iter.drop_while(|ch| ch.is_whitespace()));
-        peek_and_check(&mut iter, Some('B'), Position { line: 1, column: 3 });
-        next_and_check(&mut iter, Some('B'), Position { line: 1, column: 4 });
+        peek_and_check(&mut iter, Some('B'), Position { line: 1, column: 4 });
+        next_and_check(&mut iter, Some('B'), Position { line: 1, column: 5 });
 
         assert_eq!("", iter.drop_while(|ch| ch.is_whitespace()));
-        peek_and_check(&mut iter, None, Position { line: 1, column: 4 });
-        next_and_check(&mut iter, None, Position { line: 1, column: 4 });
+        peek_and_check(&mut iter, None, Position { line: 1, column: 5 });
+        next_and_check(&mut iter, None, Position { line: 1, column: 5 });
     }
 
     fn next_and_check<I>(iter: &mut ParsingIterator<I>, expect_ch: Option<char>, expect_pos: Position)
