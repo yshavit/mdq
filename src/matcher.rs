@@ -1,4 +1,4 @@
-use crate::parse_common::{ParseErrorReason, ParseResult};
+use crate::parse_common::{ParseErrorReason, ParseResult, SELECTOR_SEPARATOR};
 use crate::parsing_iter::ParsingIterator;
 use crate::select::SubstringMatcher;
 use regex::Regex;
@@ -41,16 +41,8 @@ impl Matcher {
         }
         let _ = chars.next(); // drop the char we peeked
         match peek_ch {
-            '*' => Ok(Matcher::Any),
-            '/' => {
-                if matches!(chars.peek(), Some('/')) {
-                    // not a regex, but an empty matcher
-                    let _ = chars.next(); // drop the '/'
-                    Ok(Matcher::Any)
-                } else {
-                    Self::parse_regex_matcher(chars)
-                }
-            }
+            '*' | SELECTOR_SEPARATOR => Ok(Matcher::Any),
+            '/' => Self::parse_regex_matcher(chars),
             _ => Err(ParseErrorReason::UnexpectedCharacter(peek_ch)),
         }
     }
@@ -64,8 +56,7 @@ impl Matcher {
             let Some(ch) = chars.next() else {
                 break;
             };
-            if ch == '/' && matches!(chars.peek(), Some('/')) {
-                chars.next(); // consume the second '/'
+            if ch == SELECTOR_SEPARATOR {
                 break;
             }
             result.push_str(&dropped);
@@ -131,14 +122,14 @@ mod test {
             "",
         );
         parse_and_check(
-            "hello// goodbye",
+            "hello| goodbye",
             Matcher::Substring(SubstringMatcher {
                 look_for: "hello".to_string(),
             }),
             " goodbye",
         );
         parse_and_check(
-            "hello // goodbye",
+            "hello | goodbye",
             Matcher::Substring(SubstringMatcher {
                 look_for: "hello".to_string(),
             }),
@@ -151,7 +142,8 @@ mod test {
         parse_and_check(r#"/foo/"#, Matcher::Regex(Regex::new("foo").unwrap()), "");
         parse_and_check(r#"/foo /"#, Matcher::Regex(Regex::new("foo ").unwrap()), "");
         parse_and_check(r#"/foo/bar"#, Matcher::Regex(Regex::new("foo").unwrap()), "bar");
-        parse_and_check(r#"//"#, Matcher::Any, ""); // NOT a regex!
+        parse_and_check(r#"//"#, Matcher::Regex(Regex::new("").unwrap()), "");
+        parse_and_check(r#"/(a|b)/"#, Matcher::Regex(Regex::new("(a|b)").unwrap()), "");
         parse_and_check(r#"/\d/"#, Matcher::Regex(Regex::new("\\d").unwrap()), "");
         parse_and_check(r#"/fizz\/buzz/"#, Matcher::Regex(Regex::new("fizz/buzz").unwrap()), "");
 

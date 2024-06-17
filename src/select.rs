@@ -112,7 +112,7 @@ mod test {
         parse_and_check("# ", Selector::Heading(HeadingSelector { matcher: Matcher::Any }), "");
 
         parse_and_check(
-            "# // next",
+            "# | next",
             Selector::Heading(HeadingSelector { matcher: Matcher::Any }),
             " next",
         );
