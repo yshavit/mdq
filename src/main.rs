@@ -8,6 +8,7 @@ use crate::tree::MdqNode;
 
 mod fmt_md;
 mod fmt_str;
+mod matcher;
 mod output;
 mod parse_common;
 mod parsing_iter;
