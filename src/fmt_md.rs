@@ -127,7 +127,6 @@ impl<'a> MdWriterState<'a> {
         W: SimpleWrite,
     {
         match node {
-            MdqNode::Root(Root { body }) => self.write_md(out, body),
             MdqNode::Section(Section { depth, title, body }) => {
                 out.with_block(Block::Plain, |out| {
                     for _ in 0..*depth {
@@ -570,7 +569,6 @@ pub mod tests {
 
     lazy_static! {
         static ref VARIANTS_CHECKER: VariantsChecker<MdqNode> = crate::new_variants_checker! (MdqNode {
-            Root(_),
             Section(_),
             Paragraph(_),
             BlockQuote(_),
@@ -627,12 +625,10 @@ pub mod tests {
         #[test]
         fn one_paragraph() {
             check_render(
-                mdq_nodes![Root {
-                    body: mdq_nodes![Paragraph {
-                        body: vec![Inline::Text {
-                            variant: TextVariant::Plain,
-                            value: "Hello, world".to_string()
-                        }]
+                mdq_nodes![Paragraph {
+                    body: vec![Inline::Text {
+                        variant: TextVariant::Plain,
+                        value: "Hello, world".to_string()
                     }]
                 }],
                 indoc! {r#"
@@ -643,22 +639,20 @@ pub mod tests {
         #[test]
         fn two_paragraphs() {
             check_render(
-                mdq_nodes![Root {
-                    body: mdq_nodes![
-                        Paragraph {
-                            body: vec![Inline::Text {
-                                variant: TextVariant::Plain,
-                                value: "First".to_string()
-                            }]
-                        },
-                        Paragraph {
-                            body: vec![Inline::Text {
-                                variant: TextVariant::Plain,
-                                value: "Second".to_string()
-                            }]
-                        },
-                    ]
-                }],
+                mdq_nodes![
+                    Paragraph {
+                        body: vec![Inline::Text {
+                            variant: TextVariant::Plain,
+                            value: "First".to_string()
+                        }]
+                    },
+                    Paragraph {
+                        body: vec![Inline::Text {
+                            variant: TextVariant::Plain,
+                            value: "Second".to_string()
+                        }]
+                    },
+                ],
                 indoc! {r#"
                 First
 

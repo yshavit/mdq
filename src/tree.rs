@@ -8,9 +8,6 @@ use markdown::mdast;
 
 #[derive(Debug, PartialEq)]
 pub enum MdqNode {
-    // root
-    Root(Root),
-
     // paragraphs with child nodes
     Section(Section),
     Paragraph(Paragraph),
@@ -230,9 +227,7 @@ impl MdqNode {
 
     fn from_mdast_0(node: mdast::Node, lookups: &Lookups) -> Result<Vec<Self>, InvalidMd> {
         let result = match node {
-            mdast::Node::Root(node) => MdqNode::Root(Root {
-                body: MdqNode::all(node.children, lookups)?,
-            }),
+            mdast::Node::Root(node) => return MdqNode::all(node.children, lookups),
             mdast::Node::BlockQuote(node) => MdqNode::BlockQuote(BlockQuote {
                 body: MdqNode::all(node.children, lookups)?,
             }),
@@ -1584,15 +1579,18 @@ mod tests {
                 (depth, title)
             });
 
-            check!(&Node::Root(root), Node::Root(_), lookups => MdqNode::Root(mdq_root) = {
-                assert_eq!(mdq_root.body, vec![
-                    MdqNode::Section(Section{
-                        depth: header_depth,
-                        title: header_title,
-                        body: mdq_nodes!["And some text below it."],
-                    }),
-                ])
-            });
+            let mdast_root = Node::Root(root); // reconstruct it, since parse_with unwrapped it
+            NODES_CHECKER.see(&mdast_root);
+            let mdqs = MdqNode::from_mdast_0(mdast_root, &lookups).unwrap();
+
+            assert_eq!(
+                mdqs,
+                vec![MdqNode::Section(Section {
+                    depth: header_depth,
+                    title: header_title,
+                    body: mdq_nodes!["And some text below it."],
+                }),]
+            );
         }
 
         #[test]

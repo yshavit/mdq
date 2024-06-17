@@ -34,11 +34,6 @@ impl Selector {
                     header.body.iter().for_each(|child| out.push(child));
                 }
             }
-            (_, MdqNode::Root(root)) => {
-                for node in &root.body {
-                    self.find_nodes_one(out, node);
-                }
-            }
             _ => {
                 // TODO better recursion
             }
