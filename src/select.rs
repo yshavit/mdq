@@ -1,5 +1,6 @@
 use crate::fmt_str::inlines_to_plain_string;
-use crate::parsing_iter::{ParsingIterator, Position};
+use crate::parse_common::{ParseError, ParseErrorReason};
+use crate::parsing_iter::ParsingIterator;
 use crate::tree::MdqNode;
 use regex::Regex;
 
@@ -81,19 +82,6 @@ impl Matcher {
 #[derive(Debug, PartialEq)]
 pub struct SubstringMatcher {
     pub look_for: String,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ParseError {
-    position: Position,
-    reason: ParseErrorReason,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ParseErrorReason {
-    UnexpectedCharacter(char),
-    UnexpectedEndOfInput,
-    InvalidSyntax(String),
 }
 
 pub fn parse_selectors(text: &str) -> core::result::Result<Vec<Selector>, ParseError> {
@@ -248,6 +236,7 @@ mod test {
 
     mod parse_matcher {
         use super::*;
+        use crate::parse_common::Position;
         use indoc::indoc;
 
         #[test]

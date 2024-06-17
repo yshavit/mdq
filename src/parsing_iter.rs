@@ -1,3 +1,5 @@
+use crate::parse_common::Position;
+
 /// An iterator that ignores newlines and counts position within the input.
 pub struct ParsingIterator<I: Iterator<Item = char>> {
     iter: I,
@@ -84,14 +86,6 @@ impl<I: Iterator<Item = char>> Iterator for ParsingIterator<I> {
             Some(ch) => self.update_position(ch),
         }
     }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct Position {
-    /// 1-indexed line position
-    pub line: usize,
-    /// 1-indexed char column position within the line.
-    pub column: usize,
 }
 
 #[cfg(test)]
