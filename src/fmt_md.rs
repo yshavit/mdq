@@ -128,7 +128,7 @@ impl<'a> MdWriterState<'a> {
     {
         match node {
             MdqNode::Root(Root { body }) => self.write_md(out, body),
-            MdqNode::Header(Header { depth, title, body }) => {
+            MdqNode::Section(Section { depth, title, body }) => {
                 out.with_block(Block::Plain, |out| {
                     for _ in 0..*depth {
                         out.write_str("#");
@@ -571,7 +571,7 @@ pub mod tests {
     lazy_static! {
         static ref VARIANTS_CHECKER: VariantsChecker<MdqNode> = crate::new_variants_checker! (MdqNode {
             Root(_),
-            Header(_),
+            Section(_),
             Paragraph(_),
             BlockQuote(_),
             List(_),
@@ -674,7 +674,7 @@ pub mod tests {
         #[test]
         fn totally_empty() {
             check_render(
-                mdq_nodes![Header {
+                mdq_nodes![Section {
                     depth: 3,
                     title: vec![],
                     body: vec![],
@@ -687,7 +687,7 @@ pub mod tests {
         #[test]
         fn only_title() {
             check_render(
-                mdq_nodes![Header {
+                mdq_nodes![Section {
                     depth: 3,
                     title: vec![mdq_inline!("My header")],
                     body: vec![],
@@ -700,7 +700,7 @@ pub mod tests {
         #[test]
         fn only_body() {
             check_render(
-                mdq_nodes![Header {
+                mdq_nodes![Section {
                     depth: 3,
                     title: vec![],
                     body: mdq_nodes![Paragraph {
@@ -717,7 +717,7 @@ pub mod tests {
         #[test]
         fn title_and_body() {
             check_render(
-                mdq_nodes![Header {
+                mdq_nodes![Section {
                     depth: 1,
                     title: vec![mdq_inline!("My title")],
                     body: mdq_nodes![BlockQuote {
@@ -1782,7 +1782,7 @@ pub mod tests {
 
         fn link_and_footnote_markdown() -> Vec<MdqNode> {
             mdq_nodes![
-                Header {
+                Section {
                     depth: 1,
                     title: vec![mdq_inline!("First section")],
                     body: mdq_nodes![Paragraph {
@@ -1806,7 +1806,7 @@ pub mod tests {
                         ],
                     }],
                 },
-                Header {
+                Section {
                     depth: 1,
                     title: vec![mdq_inline!("Second section")],
                     body: mdq_nodes![Paragraph {
