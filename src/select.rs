@@ -16,7 +16,6 @@ pub enum Selector {
 }
 
 impl Selector {
-    // TODO do I need the lifetime specifiers?
     pub fn find_nodes<'a>(&self, nodes: Vec<&'a MdqNode>) -> Vec<&'a MdqNode> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
         for node in nodes {
