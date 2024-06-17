@@ -11,7 +11,7 @@ pub enum MdqNode {
     Root(Root),
 
     // paragraphs with child nodes
-    Header(Header),
+    Section(Section),
     Paragraph(Paragraph),
     BlockQuote(BlockQuote),
     List(List),
@@ -32,7 +32,7 @@ pub struct Root {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Header {
+pub struct Section {
     pub depth: u8,
     pub title: Vec<Inline>,
     pub body: Vec<MdqNode>,
@@ -356,7 +356,7 @@ impl MdqNode {
                     variant: CodeVariant::Math { metadata: meta },
                 })
             }
-            mdast::Node::Heading(node) => MdqNode::Header(Header {
+            mdast::Node::Heading(node) => MdqNode::Section(Section {
                 depth: node.depth,
                 title: Self::inlines(node.children, lookups)?,
                 body: Vec::new(),
@@ -440,7 +440,7 @@ impl MdqNode {
         let mut headers: Vec<HContainer> = Vec::with_capacity(result.capacity());
         for child_mdq in iter {
             let child_mdq = child_mdq?;
-            if let MdqNode::Header(Header {
+            if let MdqNode::Section(Section {
                 depth,
                 title,
                 body: children,
@@ -464,7 +464,7 @@ impl MdqNode {
                         // to the new previous, or else to the top-level results if there is no new
                         // previous. Then, we'll just loop back around.
                         let HContainer { depth, title, children } = headers.pop().unwrap(); // "let Some(prev)" above guarantees that this works
-                        let prev = MdqNode::Header(Header {
+                        let prev = MdqNode::Section(Section {
                             depth,
                             title,
                             body: children,
@@ -490,7 +490,7 @@ impl MdqNode {
 
         // At this point, we still have our last tree branch of headers. Fold it up into the results.
         while let Some(HContainer { depth, title, children }) = headers.pop() {
-            let mdq_header = MdqNode::Header(Header {
+            let mdq_header = MdqNode::Section(Section {
                 depth,
                 title,
                 body: children,
@@ -505,7 +505,7 @@ impl MdqNode {
         headers
             .drain(..)
             .map(|HContainer { depth, title, children }| {
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth,
                     title,
                     body: children,
@@ -1579,7 +1579,7 @@ mod tests {
                     And some text below it."#},
             );
 
-            let (header_depth, header_title) = check!(&root.children[0], Node::Heading(_), lookups => MdqNode::Header(Header{depth, title, body}) = {
+            let (header_depth, header_title) = check!(&root.children[0], Node::Heading(_), lookups => MdqNode::Section(Section{depth, title, body}) = {
                 assert_eq!(depth, 2);
                 assert_eq!(title, vec![
                     Inline::Text { variant: TextVariant::Plain, value: "Header with ".to_string()},
@@ -1598,7 +1598,7 @@ mod tests {
 
             check!(&Node::Root(root), Node::Root(_), lookups => MdqNode::Root(root) = {
                 assert_eq!(root.body, vec![
-                    MdqNode::Header(Header{
+                    MdqNode::Section(Section{
                         depth: header_depth,
                         title: header_title,
                         body: mdq_nodes!["And some text below it."],
@@ -1892,7 +1892,7 @@ mod tests {
         #[test]
         fn h1_with_two_paragraphs() -> Result<(), InvalidMd> {
             let linear = vec![
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 1,
                     title: vec![mdq_inline!("first")],
                     body: vec![],
@@ -1904,7 +1904,7 @@ mod tests {
                     body: vec![mdq_inline!("bbb")],
                 }),
             ];
-            let expect = vec![MdqNode::Header(Header {
+            let expect = vec![MdqNode::Section(Section {
                 depth: 1,
                 title: vec![mdq_inline!("first")],
                 body: vec![
@@ -1924,12 +1924,12 @@ mod tests {
         #[test]
         fn simple_nesting() -> Result<(), InvalidMd> {
             let linear = vec![
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 1,
                     title: vec![mdq_inline!("first")],
                     body: vec![],
                 }),
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 2,
                     title: vec![mdq_inline!("aaa")],
                     body: vec![],
@@ -1938,10 +1938,10 @@ mod tests {
                     body: vec![mdq_inline!("bbb")],
                 }),
             ];
-            let expect = vec![MdqNode::Header(Header {
+            let expect = vec![MdqNode::Section(Section {
                 depth: 1,
                 title: vec![mdq_inline!("first")],
-                body: vec![MdqNode::Header(Header {
+                body: vec![MdqNode::Section(Section {
                     depth: 2,
                     title: vec![mdq_inline!("aaa")],
                     body: vec![MdqNode::Paragraph(Paragraph {
@@ -1957,53 +1957,53 @@ mod tests {
         #[test]
         fn only_headers() -> Result<(), InvalidMd> {
             let linear = vec![
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 1,
                     title: vec![mdq_inline!("first")],
                     body: vec![],
                 }),
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 2,
                     title: vec![mdq_inline!("second")],
                     body: vec![],
                 }),
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 3,
                     title: vec![mdq_inline!("third")],
                     body: vec![],
                 }),
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 3,
                     title: vec![mdq_inline!("fourth")],
                     body: vec![],
                 }),
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 2,
                     title: vec![mdq_inline!("fifth")],
                     body: vec![],
                 }),
             ];
-            let expect = vec![MdqNode::Header(Header {
+            let expect = vec![MdqNode::Section(Section {
                 depth: 1,
                 title: vec![mdq_inline!("first")],
                 body: vec![
-                    MdqNode::Header(Header {
+                    MdqNode::Section(Section {
                         depth: 2,
                         title: vec![mdq_inline!("second")],
                         body: vec![
-                            MdqNode::Header(Header {
+                            MdqNode::Section(Section {
                                 depth: 3,
                                 title: vec![mdq_inline!("third")],
                                 body: vec![],
                             }),
-                            MdqNode::Header(Header {
+                            MdqNode::Section(Section {
                                 depth: 3,
                                 title: vec![mdq_inline!("fourth")],
                                 body: vec![],
                             }),
                         ],
                     }),
-                    MdqNode::Header(Header {
+                    MdqNode::Section(Section {
                         depth: 2,
                         title: vec![mdq_inline!("fifth")],
                         body: vec![],
@@ -2041,40 +2041,40 @@ mod tests {
         #[test]
         fn header_skips() -> Result<(), InvalidMd> {
             let linear = vec![
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 1,
                     title: vec![mdq_inline!("one")],
                     body: vec![],
                 }),
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 5,
                     title: vec![mdq_inline!("five")],
                     body: vec![],
                 }),
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 2,
                     title: vec![mdq_inline!("two")],
                     body: vec![],
                 }),
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 3,
                     title: vec![mdq_inline!("three")],
                     body: vec![],
                 }),
             ];
-            let expect = vec![MdqNode::Header(Header {
+            let expect = vec![MdqNode::Section(Section {
                 depth: 1,
                 title: vec![mdq_inline!("one")],
                 body: vec![
-                    MdqNode::Header(Header {
+                    MdqNode::Section(Section {
                         depth: 5,
                         title: vec![mdq_inline!("five")],
                         body: vec![],
                     }),
-                    MdqNode::Header(Header {
+                    MdqNode::Section(Section {
                         depth: 2,
                         title: vec![mdq_inline!("two")],
-                        body: vec![MdqNode::Header(Header {
+                        body: vec![MdqNode::Section(Section {
                             depth: 3,
                             title: vec![mdq_inline!("three")],
                             body: vec![],
@@ -2090,34 +2090,34 @@ mod tests {
         #[test]
         fn backwards_order() -> Result<(), InvalidMd> {
             let linear = vec![
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 3,
                     title: vec![mdq_inline!("three")],
                     body: vec![],
                 }),
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 2,
                     title: vec![mdq_inline!("two")],
                     body: vec![],
                 }),
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 1,
                     title: vec![mdq_inline!("one")],
                     body: vec![],
                 }),
             ];
             let expect = vec![
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 3,
                     title: vec![mdq_inline!("three")],
                     body: vec![],
                 }),
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 2,
                     title: vec![mdq_inline!("two")],
                     body: vec![],
                 }),
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 1,
                     title: vec![mdq_inline!("one")],
                     body: vec![],
@@ -2134,7 +2134,7 @@ mod tests {
                 MdqNode::Paragraph(Paragraph {
                     body: vec![mdq_inline!("before")],
                 }),
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 3,
                     title: vec![mdq_inline!("the header")],
                     body: vec![],
@@ -2147,7 +2147,7 @@ mod tests {
                 MdqNode::Paragraph(Paragraph {
                     body: vec![mdq_inline!("before")],
                 }),
-                MdqNode::Header(Header {
+                MdqNode::Section(Section {
                     depth: 3,
                     title: vec![mdq_inline!("the header")],
                     body: vec![MdqNode::Paragraph(Paragraph {

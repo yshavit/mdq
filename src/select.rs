@@ -28,7 +28,7 @@ impl Selector {
     // TODO need better name -- here but also in all the other methods
     pub fn find_nodes_one<'a>(&self, out: &mut Vec<&'a MdqNode>, node: &'a MdqNode) {
         match (self, node) {
-            (Selector::Heading(selector), MdqNode::Header(header)) => {
+            (Selector::Heading(selector), MdqNode::Section(header)) => {
                 let header_text = inlines_to_plain_string(&header.title);
                 if selector.matcher.matches(&header_text) {
                     header.body.iter().for_each(|child| out.push(child));
