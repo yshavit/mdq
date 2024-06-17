@@ -3,12 +3,14 @@ use std::{env, io};
 
 use crate::fmt_md::MdOptions;
 use crate::output::Stream;
-use crate::select::parse_selectors;
+use crate::select::Selector;
 use crate::tree::MdqNode;
 
 mod fmt_md;
 mod fmt_str;
+mod matcher;
 mod output;
+mod parse_common;
 mod parsing_iter;
 mod select;
 mod str_utils;
@@ -24,7 +26,7 @@ fn main() {
     let mut out = output::Output::new(Stream(io::stdout()));
 
     let selectors_str = env::args().nth(1).unwrap_or("".to_string());
-    let selectors = parse_selectors(&selectors_str).expect("failed to parse selector");
+    let selectors = Selector::parse(&selectors_str).expect("failed to parse selector");
 
     let mut pipeline_nodes = vec![&mdq];
     for selector in selectors {
