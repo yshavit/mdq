@@ -1,6 +1,6 @@
-use crate::parse_common::ParseErrorReason;
+use crate::parse_common::{ParseErrorReason, ParseResult};
 use crate::parsing_iter::ParsingIterator;
-use crate::select::{ParseResult, SubstringMatcher};
+use crate::select::SubstringMatcher;
 use regex::Regex;
 
 #[derive(Debug)]

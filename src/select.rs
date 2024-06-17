@@ -1,6 +1,6 @@
 use crate::fmt_str::inlines_to_plain_string;
 use crate::matcher::Matcher;
-use crate::parse_common::{ParseError, ParseErrorReason};
+use crate::parse_common::{ParseError, ParseErrorReason, ParseResult};
 use crate::parsing_iter::ParsingIterator;
 use crate::tree::MdqNode;
 
@@ -56,37 +56,27 @@ pub struct SubstringMatcher {
     pub look_for: String,
 }
 
-pub fn parse_selectors(text: &str) -> Result<Vec<Selector>, ParseError> {
-    let mut iter = ParsingIterator::new(text.chars());
-    let mut selectors = Vec::with_capacity(5); // just a guess
+impl Selector {
+    pub fn parse(text: &str) -> Result<Vec<Selector>, ParseError> {
+        let mut iter = ParsingIterator::new(text.chars());
+        let mut selectors = Vec::with_capacity(5); // just a guess
 
-    loop {
-        iter.drop_while(|ch| ch.is_whitespace());
-        if iter.peek().is_none() {
-            break;
+        loop {
+            iter.drop_while(|ch| ch.is_whitespace());
+            if iter.peek().is_none() {
+                break;
+            }
+            let selector = Self::parse_selector(&mut iter).map_err(|reason| ParseError {
+                reason,
+                position: iter.input_position(),
+            })?;
+            selectors.push(selector);
         }
-        let selector = Parser::parse_selector(&mut iter).map_err(|reason| ParseError {
-            reason,
-            position: iter.input_position(),
-        })?;
-        selectors.push(selector);
+
+        Ok(selectors)
     }
 
-    Ok(selectors)
-}
-
-/// just a helper so that I don't have to keep repeating the `C: Iterator<Item = char>` bounds.
-/// TODO is there a better way to do that?
-/// TODO ooor, I could use this parser to maintain a String that I can use as a scratch space, which has an initial
-/// capacity enough for the original string.
-struct Parser<C>(std::marker::PhantomData<C>);
-pub type ParseResult<T> = Result<T, ParseErrorReason>;
-
-impl<C> Parser<C>
-where
-    C: Iterator<Item = char>,
-{
-    fn parse_selector(chars: &mut ParsingIterator<C>) -> ParseResult<Selector> {
+    fn parse_selector<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<Selector> {
         chars.drop_while(|ch| ch.is_whitespace()); // should already be the case, but this is cheap and future-proof
         match chars.next() {
             None => Ok(Selector::Any), // unexpected, but future-proof
@@ -96,7 +86,7 @@ where
         }
     }
 
-    fn parse_header(chars: &mut ParsingIterator<C>) -> ParseResult<Selector> {
+    fn parse_header<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<Selector> {
         let matcher = Matcher::parse_matcher(chars)?;
         Ok(Selector::Heading(HeadingSelector { matcher }))
     }
@@ -129,6 +119,6 @@ mod test {
     }
 
     fn parse_and_check(text: &str, expect: Selector, expect_remaining: &str) {
-        parse_and_check_mapped(text, expect, expect_remaining, |iter| Parser::parse_selector(iter))
+        parse_and_check_mapped(text, expect, expect_remaining, |iter| Selector::parse_selector(iter))
     }
 }

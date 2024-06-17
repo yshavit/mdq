@@ -1,6 +1,8 @@
 #[cfg(test)]
 pub use test_util::*;
 
+pub type ParseResult<T> = Result<T, ParseErrorReason>;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParseError {
     pub position: Position,
@@ -24,8 +26,8 @@ pub struct Position {
 
 #[cfg(test)]
 mod test_util {
+    use crate::parse_common::ParseResult;
     use crate::parsing_iter::ParsingIterator;
-    use crate::select::ParseResult;
     use std::fmt::Debug;
 
     pub fn parse_and_check_mapped<E, F>(text: &str, expect: E, expect_remaining: &str, mapper: F)
