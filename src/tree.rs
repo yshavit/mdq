@@ -20,6 +20,9 @@ pub enum MdqNode {
     // blocks that contain strings (as opposed to nodes)
     CodeBlock(CodeBlock),
 
+    #[allow(dead_code)] // selectors will create this later
+    ListItem(Option<u32>, ListItem),
+
     // inline spans
     Inline(Inline),
 }
