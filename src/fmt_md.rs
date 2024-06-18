@@ -1,10 +1,10 @@
 use std::borrow::Borrow;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
-use std::fmt::Alignment;
+use std::fmt::{Alignment, Write};
 
 use crate::output::{Block, Output, SimpleWrite};
-use crate::str_utils::{pad_to, standard_align};
+use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
 
 #[derive(Default)]
@@ -162,27 +162,17 @@ impl<'a> MdWriterState<'a> {
             MdqNode::List(List { starting_index, items }) => {
                 out.with_block(Block::Plain, |out| {
                     let mut index = starting_index.clone();
-                    let mut prefix = String::with_capacity(8); // enough for "12. [ ] "
+                    // let mut prefix = String::with_capacity(8); // enough for "12. [ ] "
                     for item in items {
-                        prefix.clear();
-                        match &mut index {
-                            None => prefix.push_str("- "),
-                            Some(i) => {
-                                std::fmt::Write::write_fmt(&mut prefix, format_args!("{}. ", &i)).unwrap();
-                                *i += 1;
-                            }
-                        };
-                        if let Some(checked) = &item.checked {
-                            prefix.push('[');
-                            prefix.push(if *checked { 'x' } else { ' ' });
-                            prefix.push_str("] ");
+                        self.write_list_item(out, &index, item);
+                        if let Some(idx) = index.as_mut() {
+                            *idx += 1;
                         }
-                        out.write_str(&prefix);
-                        out.with_block(Block::Inlined(prefix.len()), |out| {
-                            self.write_md(out, &item.item);
-                        });
                     }
                 });
+            }
+            MdqNode::ListItem(idx, item) => {
+                self.write_list_item(out, idx, item);
             }
             MdqNode::Table(Table { alignments, rows }) => {
                 let mut row_strs = Vec::with_capacity(rows.len());
@@ -341,6 +331,25 @@ impl<'a> MdWriterState<'a> {
                 self.write_inline_element(out, inline);
             }
         }
+    }
+
+    fn write_list_item<W: SimpleWrite>(&mut self, out: &mut Output<W>, index: &Option<u32>, item: &'a ListItem) {
+        let mut counting_writer = CountingWriter::wrap(out);
+        match index {
+            None => std::fmt::Write::write_str(&mut counting_writer, "- ").unwrap(),
+            Some(i) => {
+                Write::write_fmt(&mut counting_writer, format_args!("{}. ", &i)).unwrap();
+            }
+        };
+        if let Some(checked) = &item.checked {
+            std::fmt::Write::write_char(&mut counting_writer, '[').unwrap();
+            std::fmt::Write::write_char(&mut counting_writer, if *checked { 'x' } else { ' ' }).unwrap();
+            std::fmt::Write::write_str(&mut counting_writer, "] ").unwrap();
+        }
+        let count = counting_writer.count();
+        out.with_block(Block::Inlined(count), |out| {
+            self.write_md(out, &item.item);
+        });
     }
 
     pub fn write_line<E, W>(&mut self, out: &mut Output<W>, elems: &'a [E])
@@ -573,6 +582,7 @@ pub mod tests {
             Paragraph(_),
             BlockQuote(_),
             List(_),
+            ListItem(..),
             Table(_),
             ThematicBreak,
             CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(None), ..}),
@@ -908,6 +918,62 @@ pub mod tests {
                       line b
                       ```"#},
             )
+        }
+    }
+
+    mod list_item {
+        use super::*;
+
+        #[test]
+        fn unordered_no_checkbox() {
+            check_render(
+                create_li_singleton(None, None, mdq_nodes!("plain text")),
+                "- plain text",
+            );
+        }
+
+        #[test]
+        fn unordered_unchecked() {
+            check_render(
+                create_li_singleton(None, Some(false), mdq_nodes!("plain text")),
+                "- [ ] plain text",
+            );
+        }
+
+        #[test]
+        fn unordered_checked() {
+            check_render(
+                create_li_singleton(None, Some(true), mdq_nodes!("plain text")),
+                "- [x] plain text",
+            );
+        }
+
+        #[test]
+        fn ordered_no_checkbox() {
+            check_render(
+                create_li_singleton(Some(3), None, mdq_nodes!("plain text")),
+                "3. plain text",
+            );
+        }
+
+        #[test]
+        fn ordered_unchecked() {
+            check_render(
+                create_li_singleton(Some(3), Some(false), mdq_nodes!("plain text")),
+                "3. [ ] plain text",
+            );
+        }
+
+        #[test]
+        fn ordered_checked() {
+            check_render(
+                create_li_singleton(Some(3), Some(true), mdq_nodes!("plain text")),
+                "3. [x] plain text",
+            );
+        }
+
+        fn create_li_singleton(idx: Option<u32>, checked: Option<bool>, item: Vec<MdqNode>) -> Vec<MdqNode> {
+            vec![MdqNode::ListItem(idx, ListItem { checked, item })]
         }
     }
 

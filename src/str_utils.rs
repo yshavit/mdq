@@ -72,6 +72,42 @@ impl<A: Borrow<AlignKind>> ToAlignment for Option<A> {
     }
 }
 
+pub struct CountingWriter<'a, W: SimpleWrite> {
+    underlying: &'a mut W,
+    count: usize,
+}
+
+impl<'a, W: SimpleWrite> CountingWriter<'a, W> {
+    pub fn wrap(underlying: &'a mut W) -> Self {
+        Self { underlying, count: 0 }
+    }
+
+    fn write_str(&mut self, text: &str) -> std::io::Result<()> {
+        self.count += text.len();
+        self.underlying.write_str(text)
+    }
+
+    pub fn count(&self) -> usize {
+        self.count
+    }
+}
+
+impl<'a, W: SimpleWrite> SimpleWrite for CountingWriter<'a, W> {
+    fn write_str(&mut self, text: &str) -> std::io::Result<()> {
+        Self::write_str(self, text)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.underlying.flush()
+    }
+}
+
+impl<'a, W: SimpleWrite> std::fmt::Write for CountingWriter<'a, W> {
+    fn write_str(&mut self, text: &str) -> std::fmt::Result {
+        Self::write_str(self, text).map_err(|_| std::fmt::Error)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

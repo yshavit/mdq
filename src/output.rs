@@ -39,6 +39,17 @@ pub struct Output<W: SimpleWrite> {
     writing_state: WritingState,
 }
 
+impl<W: SimpleWrite> SimpleWrite for Output<W> {
+    fn write_str(&mut self, text: &str) -> std::io::Result<()> {
+        Self::write_str(self, text);
+        Ok(())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.stream.flush()
+    }
+}
+
 pub struct PreWriter<'a, W: SimpleWrite> {
     output: &'a mut Output<W>,
 }
