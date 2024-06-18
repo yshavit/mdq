@@ -5,6 +5,7 @@ use crate::fmt_md::MdOptions;
 use crate::output::Stream;
 use crate::select::Selector;
 use crate::tree::{MdqNode, ReadOptions};
+use crate::tree_ref::MdqNodeRef;
 
 mod fmt_md;
 mod fmt_str;
@@ -15,6 +16,7 @@ mod parsing_iter;
 mod select;
 mod str_utils;
 mod tree;
+mod tree_ref;
 mod tree_test_utils;
 mod utils_for_test;
 
@@ -28,7 +30,7 @@ fn main() {
     let selectors_str = env::args().nth(1).unwrap_or("".to_string());
     let selectors = Selector::parse(&selectors_str).expect("failed to parse selector");
 
-    let mut pipeline_nodes = vec![&mdq];
+    let mut pipeline_nodes = MdqNodeRef::wrap_vec(&vec![mdq]);
     for selector in selectors {
         let new_pipeline = selector.find_nodes(pipeline_nodes);
         pipeline_nodes = new_pipeline;

@@ -6,6 +6,7 @@ use std::fmt::{Alignment, Write};
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
+use crate::tree_ref::MdqNodeRef;
 
 #[derive(Default)]
 pub struct MdOptions {
@@ -60,9 +61,8 @@ impl Default for ReferencePlacement {
     }
 }
 
-pub fn write_md<N, W>(options: &MdOptions, out: &mut Output<W>, nodes: &[N])
+pub fn write_md<N, W>(options: &MdOptions, out: &mut Output<W>, nodes: &[MdqNodeRef])
 where
-    N: Borrow<MdqNode>,
     W: SimpleWrite,
 {
     let pending_refs_capacity = 8; // arbitrary guess
