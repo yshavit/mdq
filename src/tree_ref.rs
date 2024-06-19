@@ -29,7 +29,6 @@ impl<'a> From<&'a MdqNode> for MdqNodeRef<'a> {
             MdqNode::Table(v) => Self::Table(v),
             MdqNode::ThematicBreak => Self::ThematicBreak,
             MdqNode::CodeBlock(v) => Self::CodeBlock(v),
-            MdqNode::ListItem(i, v) => Self::ListItem(i.clone(), v),
             MdqNode::Inline(v) => Self::Inline(v),
         }
     }

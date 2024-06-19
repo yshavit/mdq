@@ -582,7 +582,6 @@ pub mod tests {
             Paragraph(_),
             BlockQuote(_),
             List(_),
-            ListItem(..),
             Table(_),
             ThematicBreak,
             CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(None), ..}),
