@@ -677,9 +677,7 @@ mod tests {
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
         use crate::unwrap;
-        use crate::utils_for_test::VariantsChecker;
         use indoc::indoc;
-        use lazy_static::lazy_static;
         use markdown::mdast::Node;
         use markdown::{mdast, ParseOptions};
 
@@ -1672,41 +1670,43 @@ mod tests {
             (root, lookups)
         }
 
-        lazy_static! {
-            static ref NODES_CHECKER: VariantsChecker<Node> = crate::new_variants_checker!(Node {
-                BlockQuote(_),
-                Break(_),
-                Code(_),
-                Definition(_),
-                Delete(_),
-                Emphasis(_),
-                FootnoteDefinition(_),
-                FootnoteReference(_),
-                Heading(_),
-                Html(_),
-                Image(_),
-                ImageReference(_),
-                InlineCode(_),
-                InlineMath(_),
-                Link(_),
-                LinkReference(_),
-                List(_),
-                ListItem(_),
-                Math(_),
-                Paragraph(_),
-                Root(_),
-                Strong(_),
-                Table(_),
-                TableCell(_),
-                TableRow(_),
-                Text(_),
-                ThematicBreak(_),
-                Toml(_),
-                Yaml(_),
-            } ignore {
-                mdx_nodes!(),
-            });
-        }
+        crate::variants_checker!(NODES_CHECKER = Node {
+            BlockQuote(_),
+            Break(_),
+            Code(_),
+            Definition(_),
+            Delete(_),
+            Emphasis(_),
+            FootnoteDefinition(_),
+            FootnoteReference(_),
+            Heading(_),
+            Html(_),
+            Image(_),
+            ImageReference(_),
+            InlineCode(_),
+            InlineMath(_),
+            Link(_),
+            LinkReference(_),
+            List(_),
+            ListItem(_),
+            Math(_),
+            Paragraph(_),
+            Root(_),
+            Strong(_),
+            Table(_),
+            TableCell(_),
+            TableRow(_),
+            Text(_),
+            ThematicBreak(_),
+            Toml(_),
+            Yaml(_),
+        } ignore {
+            MdxJsxFlowElement(_),
+            MdxjsEsm(_),
+            MdxTextExpression(_),
+            MdxJsxTextElement(_),
+            MdxFlowExpression(_),
+        });
     }
 
     mod lookups {

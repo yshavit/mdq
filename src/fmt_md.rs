@@ -565,64 +565,60 @@ enum DefinitionsToWrite {
 #[cfg(test)]
 pub mod tests {
     use indoc::indoc;
-    use lazy_static::lazy_static;
 
     use crate::fmt_md::MdOptions;
     use crate::mdq_inline;
     use crate::mdq_nodes;
     use crate::output::Output;
     use crate::tree::*;
-    use crate::utils_for_test::*;
 
     use super::write_md;
 
-    lazy_static! {
-        static ref VARIANTS_CHECKER: VariantsChecker<MdqNode> = crate::new_variants_checker! (MdqNode {
-            Section(_),
-            Paragraph(_),
-            BlockQuote(_),
-            List(_),
-            ListItem(..),
-            Table(_),
-            ThematicBreak,
-            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(None), ..}),
-            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: None, ..})), ..}),
-            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: Some(_), ..})), ..}),
-            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Math{metadata: None}, ..}),
-            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..}),
-            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Toml, ..}),
-            CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Yaml, ..}),
+    crate::variants_checker!(VARIANTS_CHECKER = MdqNode {
+        Section(_),
+        Paragraph(_),
+        BlockQuote(_),
+        List(_),
+        ListItem(..),
+        Table(_),
+        ThematicBreak,
+        CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(None), ..}),
+        CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: None, ..})), ..}),
+        CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: Some(_), ..})), ..}),
+        CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Math{metadata: None}, ..}),
+        CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..}),
+        CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Toml, ..}),
+        CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Yaml, ..}),
 
-            Inline(crate::tree::Inline::Span{variant: SpanVariant::Delete, ..}),
-            Inline(crate::tree::Inline::Span{variant: SpanVariant::Emphasis, ..}),
-            Inline(crate::tree::Inline::Span{variant: SpanVariant::Strong, ..}),
+        Inline(crate::tree::Inline::Span{variant: SpanVariant::Delete, ..}),
+        Inline(crate::tree::Inline::Span{variant: SpanVariant::Emphasis, ..}),
+        Inline(crate::tree::Inline::Span{variant: SpanVariant::Strong, ..}),
 
-            Inline(crate::tree::Inline::Text{variant: TextVariant::Plain, ..}),
-            Inline(crate::tree::Inline::Text{variant: TextVariant::Code, ..}),
-            Inline(crate::tree::Inline::Text{variant: TextVariant::Math, ..}),
-            Inline(crate::tree::Inline::Text{variant: TextVariant::Html, ..}),
+        Inline(crate::tree::Inline::Text{variant: TextVariant::Plain, ..}),
+        Inline(crate::tree::Inline::Text{variant: TextVariant::Code, ..}),
+        Inline(crate::tree::Inline::Text{variant: TextVariant::Math, ..}),
+        Inline(crate::tree::Inline::Text{variant: TextVariant::Html, ..}),
 
-            Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Inline, ..}, ..}),
-            Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Full(_), ..}, ..}),
-            Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Collapsed, ..}, ..}),
-            Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Shortcut, ..}, ..}),
-            Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Inline, ..}, ..}),
-            Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Full(_), ..}, ..}),
-            Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}),
-            Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
+        Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Inline, ..}, ..}),
+        Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Full(_), ..}, ..}),
+        Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Collapsed, ..}, ..}),
+        Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Shortcut, ..}, ..}),
+        Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Inline, ..}, ..}),
+        Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Full(_), ..}, ..}),
+        Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}),
+        Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
 
-            Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Inline, ..}, ..}),
-            Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Full(_), ..}, ..}),
-            Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Collapsed, ..}, ..}),
-            Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Shortcut, ..}, ..}),
-            Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Inline, ..}, ..}),
-            Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Full(_), ..}, ..}),
-            Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}),
-            Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
+        Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Inline, ..}, ..}),
+        Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Full(_), ..}, ..}),
+        Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Collapsed, ..}, ..}),
+        Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Shortcut, ..}, ..}),
+        Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Inline, ..}, ..}),
+        Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Full(_), ..}, ..}),
+        Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}),
+        Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
 
-            Inline(crate::tree::Inline::Footnote{..}),
-        });
-    }
+        Inline(crate::tree::Inline::Footnote{..}),
+    });
 
     #[test]
     fn empty() {
@@ -1875,11 +1871,6 @@ pub mod tests {
                 },
             ]
         }
-    }
-
-    #[test]
-    fn all_variants_checked() {
-        VARIANTS_CHECKER.wait_for_all();
     }
 
     fn check_render(nodes: Vec<MdqNode>, expect: &str) {
