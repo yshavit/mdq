@@ -29,17 +29,21 @@ impl Selector {
 
     // TODO need better name -- here but also in all the other methods
     pub fn find_nodes_one<'a>(&self, out: &mut Vec<MdqNodeRef<'a>>, node: MdqNodeRef<'a>) {
-        match (self, node) {
+        let found = match (self, node.clone()) {
             (Selector::Heading(selector), MdqNodeRef::Section(header)) => {
                 let header_text = inlines_to_plain_string(&header.title);
                 if selector.matcher.matches(&header_text) {
                     header.body.iter().for_each(|child| out.push(child.into()));
+                    true
+                } else {
+                    false
                 }
             }
-            (_, node) => {
-                for child in Self::find_children(node) {
-                    self.find_nodes_one(out, child);
-                }
+            _ => false,
+        };
+        if !found {
+            for child in Self::find_children(node) {
+                self.find_nodes_one(out, child);
             }
         }
     }
@@ -84,8 +88,9 @@ impl Selector {
             MdqNodeRef::Inline(inline) => match inline {
                 Inline::Span { children, .. } => children.iter().map(|child| MdqNodeRef::Inline(child)).collect(),
                 Inline::Footnote(footnote) => MdqNodeRef::wrap_vec(&footnote.text),
-                link @ Inline::Link { .. } => {
-                    vec![MdqNodeRef::Inline(link)]
+                Inline::Link { .. } => {
+                    // TODO need to return an MdqNodeRef::Link
+                    Vec::new()
                 }
                 Inline::Text { .. } | Inline::Image { .. } => Vec::new(),
             },
