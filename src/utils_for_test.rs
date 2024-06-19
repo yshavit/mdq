@@ -1,11 +1,7 @@
-#[cfg(test)]
-pub use test_utils::*;
-
 // We this file's contents from prod by putting them in a submodule guarded by cfg(test), but then "pub use" it to
 // export its contents.
 #[cfg(test)]
 mod test_utils {
-    use std::{thread, time};
 
     /// Turn a pattern match into an `if let ... { else panic! }`.
     #[macro_export]
@@ -20,64 +16,17 @@ mod test_utils {
         };
     }
 
-    pub struct VariantsChecker<E> {
-        require: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
-        resolver: fn(&E) -> &str,
-    }
-
-    impl<E> VariantsChecker<E> {
-        pub fn new<I>(require: I, resolver: fn(&E) -> &str) -> Self
-        where
-            I: IntoIterator<Item = String>,
-        {
-            Self {
-                require: std::sync::Arc::new(std::sync::Mutex::new(require.into_iter().collect())),
-                resolver,
-            }
-        }
-
-        pub fn see(&self, node: &E) {
-            let node_str = (self.resolver)(node);
-            self.require.lock().map(|mut set| set.remove(node_str)).unwrap();
-        }
-
-        pub fn wait_for_all(&self) {
-            let timeout = time::Duration::from_millis(500);
-            let retry_delay = time::Duration::from_millis(50);
-            let start = time::Instant::now();
-            loop {
-                if self.require.lock().map(|set| set.is_empty()).unwrap() {
-                    break;
-                }
-                if start.elapsed() >= timeout {
-                    let mut remaining: Vec<String> = self
-                        .require
-                        .lock()
-                        .map(|set| set.iter().map(|s| s.to_owned()).collect())
-                        .unwrap();
-                    remaining.sort();
-                    panic!(
-                        "Timed out, and missing {} variants:\n- {}",
-                        remaining.len(),
-                        remaining.join("\n- ")
-                    )
-                }
-                thread::sleep(retry_delay);
-            }
-        }
-    }
-
-    /// Creates a new `VariantsChecker` that looks for all the variants of enum `E`.
+    /// Creates a static object named `$name` that looks for all the variants of enum `E`.
     ///
     /// ```
-    /// new_variants_checker(MyEnum: { Variant1, Variant2(_), ... })
+    /// variants_checker(CHECKER_NAME = MyEnum: { Variant1, Variant2(_), ... })
     /// ```
     ///
     /// You can also mark some variants as ignored; these will be added to the pattern match, but not be required to
     /// be seen:
     ///
     /// ```
-    /// new_variants_checker(MyEnum: { Variant1, ... } ignore { Variant2, ... } )
+    /// variants_checker(CHECKER_NAME = MyEnum: { Variant1, ... } ignore { Variant2, ... } )
     /// ```
     ///
     /// If you see a compilation failure here, it means the call site is missing variants (or has an unknown
@@ -90,18 +39,67 @@ mod test_utils {
     /// This requires that each pattern matches exactly one shape of item; in other words, that there aren't any
     /// dead-code branches.
     #[macro_export]
-    macro_rules! new_variants_checker {
-        ($enum_type:ty { $($variant:pat),* $(,)? } $(ignore { $($ignore_variant:pat),* $(,)? })?) => {
-            {
-                use $enum_type::*;
+    macro_rules! variants_checker {
+        ($name:ident = $enum_type:ty { $($variant:pat),* $(,)? } $(ignore { $($ignore_variant:pat),* $(,)? })?) => {
 
-                VariantsChecker::new(
-                    vec![$(stringify!($variant).to_string(),)*],
-                    {|elem| match elem {
-                        $($variant => stringify!($variant),)*
-                        $($($ignore_variant => {""},)*)?
-                    }}
-                )
+            paste::paste!{
+                pub struct [<VariantsChecker $name:lower:camel>] {
+                    require: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+                }
+
+                impl [<VariantsChecker $name:lower:camel>] {
+                    pub fn see(&self, node: &$enum_type) {
+                        let node_str = match node {
+                            $($enum_type::$variant => stringify!($variant),)*
+                            $($($enum_type::$ignore_variant => {
+                                panic!("unexpected variant: {}", stringify!($ignore_variant));
+                            },)*)?
+                        };
+                        self.require.lock().map(|mut set| set.remove(node_str)).unwrap();
+                    }
+
+                    pub fn wait_for_all(&self) {
+                        use std::{thread, time};
+
+                        let timeout = time::Duration::from_millis(500);
+                        let retry_delay = time::Duration::from_millis(50);
+                        let start = time::Instant::now();
+                        loop {
+                            if self.require.lock().map(|set| set.is_empty()).unwrap() {
+                                break;
+                            }
+                            if start.elapsed() >= timeout {
+                                let mut remaining: Vec<String> = self
+                                    .require
+                                    .lock()
+                                    .map(|set| set.iter().map(|s| s.to_owned()).collect())
+                                    .unwrap();
+                                remaining.sort();
+                                panic!(
+                                    "Timed out, and missing {} variants:\n- {}",
+                                    remaining.len(),
+                                    remaining.join("\n- ")
+                                )
+                            }
+                            thread::sleep(retry_delay);
+                        }
+                    }
+                }
+
+                lazy_static::lazy_static! {
+                    static ref $name: [<VariantsChecker $name:lower:camel>] = [<VariantsChecker $name:lower:camel>] {
+                        require: std::sync::Arc::new(
+                            std::sync::Mutex::new(
+                                vec![$(stringify!($variant).to_string(),)*].into_iter().collect()
+                            )
+                        )
+                    };
+                }
+
+                #[test]
+                fn [<all_variants_checked_for_ $name:lower:snake>]() {
+                    $name.wait_for_all();
+                }
             }
         };
     }
