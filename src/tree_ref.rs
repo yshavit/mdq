@@ -1,5 +1,6 @@
 use crate::tree::{BlockQuote, CodeBlock, Inline, List, ListItem, MdqNode, Paragraph, Section, Table};
 
+#[derive(Debug, Clone)]
 pub enum MdqNodeRef<'a> {
     // paragraphs with child nodes
     Section(&'a Section),

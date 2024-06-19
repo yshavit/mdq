@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
-use std::fmt::{Alignment, Write};
+use std::fmt::Alignment;
 
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
@@ -61,8 +61,9 @@ impl Default for ReferencePlacement {
     }
 }
 
-pub fn write_md<N, W>(options: &MdOptions, out: &mut Output<W>, nodes: &[MdqNodeRef])
+pub fn write_md<'a, I, W>(options: &'a MdOptions, out: &mut Output<W>, nodes: I)
 where
+    I: Iterator<Item = MdqNodeRef<'a>>,
     W: SimpleWrite,
 {
     let pending_refs_capacity = 8; // arbitrary guess
@@ -112,22 +113,22 @@ enum ReifiedLabel<'a> {
 }
 
 impl<'a> MdWriterState<'a> {
-    fn write_md<N, W>(&mut self, out: &mut Output<W>, nodes: &'a [N])
+    fn write_md<I, W>(&mut self, out: &mut Output<W>, nodes: I)
     where
-        N: Borrow<MdqNode>,
+        I: Iterator<Item = MdqNodeRef<'a>>,
         W: SimpleWrite,
     {
         for node in nodes {
-            self.write_one_md(out, node.borrow());
+            self.write_one_md(out, node);
         }
     }
 
-    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node: &'a MdqNode)
+    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node: MdqNodeRef<'a>)
     where
         W: SimpleWrite,
     {
         match node {
-            MdqNode::Section(Section { depth, title, body }) => {
+            MdqNodeRef::Section(Section { depth, title, body }) => {
                 out.with_block(Block::Plain, |out| {
                     for _ in 0..*depth {
                         out.write_str("#");
@@ -137,7 +138,7 @@ impl<'a> MdWriterState<'a> {
                         self.write_line(out, title);
                     }
                 });
-                self.write_md(out, body);
+                self.write_md(out, MdqNodeRef::wrap_vec(body).into_iter());
                 let which_defs_to_write =
                     match (&self.opts.link_reference_options, &self.opts.footnote_reference_options) {
                         (ReferencePlacement::BottomOfSection, ReferencePlacement::BottomOfSection) => {
@@ -149,17 +150,17 @@ impl<'a> MdWriterState<'a> {
                     };
                 self.write_definitions(out, which_defs_to_write);
             }
-            MdqNode::Paragraph(Paragraph { body }) => {
+            MdqNodeRef::Paragraph(Paragraph { body }) => {
                 out.with_block(Block::Plain, |out| {
                     self.write_line(out, body);
                 });
             }
-            MdqNode::BlockQuote(BlockQuote { body }) => {
+            MdqNodeRef::BlockQuote(BlockQuote { body }) => {
                 out.with_block(Block::Quote, |out| {
-                    self.write_md(out, body);
+                    self.write_md(out, MdqNodeRef::wrap_vec(body).into_iter());
                 });
             }
-            MdqNode::List(List { starting_index, items }) => {
+            MdqNodeRef::List(List { starting_index, items }) => {
                 out.with_block(Block::Plain, |out| {
                     let mut index = starting_index.clone();
                     // let mut prefix = String::with_capacity(8); // enough for "12. [ ] "
@@ -171,10 +172,10 @@ impl<'a> MdWriterState<'a> {
                     }
                 });
             }
-            MdqNode::ListItem(idx, item) => {
-                self.write_list_item(out, idx, item);
+            MdqNodeRef::ListItem(idx, item) => {
+                self.write_list_item(out, &idx, item);
             }
-            MdqNode::Table(Table { alignments, rows }) => {
+            MdqNodeRef::Table(Table { alignments, rows }) => {
                 let mut row_strs = Vec::with_capacity(rows.len());
 
                 let mut column_widths = [0].repeat(alignments.len());
@@ -283,10 +284,10 @@ impl<'a> MdWriterState<'a> {
                     write_row(out, row, rows_iter.peek().is_some());
                 }
             }
-            MdqNode::ThematicBreak => {
+            MdqNodeRef::ThematicBreak => {
                 out.with_block(Block::Plain, |out| out.write_str("***"));
             }
-            MdqNode::CodeBlock(CodeBlock { variant, value }) => {
+            MdqNodeRef::CodeBlock(CodeBlock { variant, value }) => {
                 let (surround, meta) = match variant {
                     CodeVariant::Code(opts) => {
                         let meta = if let Some(opts) = opts {
@@ -327,7 +328,7 @@ impl<'a> MdWriterState<'a> {
                     out.write_str(surround);
                 });
             }
-            MdqNode::Inline(inline) => {
+            MdqNodeRef::Inline(inline) => {
                 self.write_inline_element(out, inline);
             }
         }
@@ -338,7 +339,7 @@ impl<'a> MdWriterState<'a> {
         match index {
             None => std::fmt::Write::write_str(&mut counting_writer, "- ").unwrap(),
             Some(i) => {
-                Write::write_fmt(&mut counting_writer, format_args!("{}. ", &i)).unwrap();
+                std::fmt::Write::write_fmt(&mut counting_writer, format_args!("{}. ", &i)).unwrap();
             }
         };
         if let Some(checked) = &item.checked {
@@ -348,7 +349,7 @@ impl<'a> MdWriterState<'a> {
         }
         let count = counting_writer.count();
         out.with_block(Block::Inlined(count), |out| {
-            self.write_md(out, &item.item);
+            self.write_md(out, MdqNodeRef::wrap_vec(&item.item).into_iter());
         });
     }
 
@@ -519,7 +520,7 @@ impl<'a> MdWriterState<'a> {
                     out.write_str(link_ref);
                     out.write_str("]: ");
                     out.with_block(Block::Inlined(2), |out| {
-                        self.write_md(out, text);
+                        self.write_md(out, MdqNodeRef::wrap_vec(text).into_iter());
                         newline(out);
                     });
                 }
@@ -572,12 +573,13 @@ pub mod tests {
     use crate::mdq_nodes;
     use crate::output::Output;
     use crate::tree::*;
+    use crate::tree_ref::MdqNodeRef;
     use crate::utils_for_test::*;
 
     use super::write_md;
 
     lazy_static! {
-        static ref VARIANTS_CHECKER: VariantsChecker<MdqNode> = crate::new_variants_checker! (MdqNode {
+        static ref VARIANTS_CHECKER: VariantsChecker<MdqNodeRef<'static>> = crate::new_variants_checker! (MdqNodeRef {
             Section(_),
             Paragraph(_),
             BlockQuote(_),
@@ -591,6 +593,8 @@ pub mod tests {
             CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..}),
             CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Toml, ..}),
             CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Yaml, ..}),
+
+            ListItem(..),
 
             Inline(crate::tree::Inline::Span{variant: SpanVariant::Delete, ..}),
             Inline(crate::tree::Inline::Span{variant: SpanVariant::Emphasis, ..}),
@@ -922,57 +926,41 @@ pub mod tests {
 
     mod list_item {
         use super::*;
+        use crate::tree_ref::MdqNodeRef;
 
         #[test]
         fn unordered_no_checkbox() {
-            check_render(
-                create_li_singleton(None, None, mdq_nodes!("plain text")),
-                "- plain text",
-            );
+            create_li_singleton(None, None, mdq_nodes!("plain text"), "- plain text");
         }
 
         #[test]
         fn unordered_unchecked() {
-            check_render(
-                create_li_singleton(None, Some(false), mdq_nodes!("plain text")),
-                "- [ ] plain text",
-            );
+            create_li_singleton(None, Some(false), mdq_nodes!("plain text"), "- [ ] plain text");
         }
 
         #[test]
         fn unordered_checked() {
-            check_render(
-                create_li_singleton(None, Some(true), mdq_nodes!("plain text")),
-                "- [x] plain text",
-            );
+            create_li_singleton(None, Some(true), mdq_nodes!("plain text"), "- [x] plain text");
         }
 
         #[test]
         fn ordered_no_checkbox() {
-            check_render(
-                create_li_singleton(Some(3), None, mdq_nodes!("plain text")),
-                "3. plain text",
-            );
+            create_li_singleton(Some(3), None, mdq_nodes!("plain text"), "3. plain text");
         }
 
         #[test]
         fn ordered_unchecked() {
-            check_render(
-                create_li_singleton(Some(3), Some(false), mdq_nodes!("plain text")),
-                "3. [ ] plain text",
-            );
+            create_li_singleton(Some(3), Some(false), mdq_nodes!("plain text"), "3. [ ] plain text");
         }
 
         #[test]
         fn ordered_checked() {
-            check_render(
-                create_li_singleton(Some(3), Some(true), mdq_nodes!("plain text")),
-                "3. [x] plain text",
-            );
+            create_li_singleton(Some(3), Some(true), mdq_nodes!("plain text"), "3. [x] plain text");
         }
 
-        fn create_li_singleton(idx: Option<u32>, checked: Option<bool>, item: Vec<MdqNode>) -> Vec<MdqNode> {
-            vec![MdqNode::ListItem(idx, ListItem { checked, item })]
+        fn create_li_singleton<'a>(idx: Option<u32>, checked: Option<bool>, item: Vec<MdqNode>, expected: &str) {
+            let li = ListItem { checked, item };
+            check_render_with_refs(&MdOptions::default(), vec![MdqNodeRef::ListItem(idx, &li)], expected)
         }
     }
 
@@ -1886,10 +1874,14 @@ pub mod tests {
     }
 
     fn check_render_with(options: &MdOptions, nodes: Vec<MdqNode>, expect: &str) {
+        check_render_with_refs(options, MdqNodeRef::wrap_vec(&nodes), expect)
+    }
+
+    fn check_render_with_refs<'a>(options: &MdOptions, nodes: Vec<MdqNodeRef<'a>>, expect: &str) {
         nodes.iter().for_each(|n| VARIANTS_CHECKER.see(n));
 
         let mut out = Output::new(String::default());
-        write_md(options, &mut out, &nodes);
+        write_md(options, &mut out, nodes.into_iter());
         let actual = out.take_underlying().unwrap();
         assert_eq!(&actual, expect);
     }
