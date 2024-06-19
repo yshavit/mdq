@@ -14,21 +14,18 @@ pub enum Selector {
     // Link { text: Matcher, href: Matcher },
     // CodeBlock(Matcher),
     Heading(HeadingSelector),
-    // TODO I need an "any", or maybe just a "paragraph", or maybe both
-    // TODO does it make sense to select on a block quote?
 }
 
 impl Selector {
     pub fn find_nodes<'a>(&self, nodes: Vec<MdqNodeRef<'a>>) -> Vec<MdqNodeRef<'a>> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
         for node in nodes {
-            self.find_nodes_one(&mut result, node);
+            self.build_output(&mut result, node);
         }
         result
     }
 
-    // TODO need better name -- here but also in all the other methods
-    pub fn find_nodes_one<'a>(&self, out: &mut Vec<MdqNodeRef<'a>>, node: MdqNodeRef<'a>) {
+    pub fn build_output<'a>(&self, out: &mut Vec<MdqNodeRef<'a>>, node: MdqNodeRef<'a>) {
         let found = match (self, node.clone()) {
             (Selector::Heading(selector), MdqNodeRef::Section(header)) => {
                 let header_text = inlines_to_plain_string(&header.title);
@@ -43,7 +40,7 @@ impl Selector {
         };
         if !found {
             for child in Self::find_children(node) {
-                self.find_nodes_one(out, child);
+                self.build_output(out, child);
             }
         }
     }

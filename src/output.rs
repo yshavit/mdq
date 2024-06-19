@@ -76,7 +76,7 @@ pub enum Block {
 impl<W: SimpleWrite> Output<W> {
     pub fn new(to: W) -> Self {
         Self {
-            stream: to, // TODO use io::BufWriter?
+            stream: to,
             pre_mode: false,
             blocks: Vec::default(),
             pending_blocks: Vec::default(),
@@ -147,9 +147,6 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     pub fn write_char(&mut self, ch: char) {
-        // TODO make this better if I need to; for now, I'm just establishing the API.
-        // On the other hand, it results in extra allocations, and it's always for literals; so maybe I should rm it?
-        // (It's a micro-optimization either way!)
         self.write_str(&String::from(ch))
     }
 
