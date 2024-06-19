@@ -39,24 +39,20 @@ mod tests {
 
     use crate::tree::{Inline, MdqNode, ReadOptions, SpanVariant, TextVariant};
     use crate::unwrap;
-    use crate::utils_for_test::VariantsChecker;
-    use lazy_static::lazy_static;
     use markdown::ParseOptions;
 
-    lazy_static! {
-        static ref VARIANTS_CHECKER: VariantsChecker<Inline> = crate::new_variants_checker!(Inline {
-            Span { variant: SpanVariant::Delete, .. },
-            Span { variant: SpanVariant::Emphasis, .. },
-            Span { variant: SpanVariant::Strong, .. },
-            Text { variant: TextVariant::Plain, .. },
-            Text { variant: TextVariant::Code, .. },
-            Text { variant: TextVariant::Math, .. },
-            Text { variant: TextVariant::Html, .. },
-            Link { .. },
-            Image { .. },
-            Footnote(_),
-        });
-    }
+    crate::variants_checker!(VARIANTS_CHECKER = Inline {
+        Span { variant: SpanVariant::Delete, .. },
+        Span { variant: SpanVariant::Emphasis, .. },
+        Span { variant: SpanVariant::Strong, .. },
+        Text { variant: TextVariant::Plain, .. },
+        Text { variant: TextVariant::Code, .. },
+        Text { variant: TextVariant::Math, .. },
+        Text { variant: TextVariant::Html, .. },
+        Link { .. },
+        Image { .. },
+        Footnote(_),
+    });
 
     #[test]
     fn spans() {
