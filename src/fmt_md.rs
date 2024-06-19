@@ -1,8 +1,9 @@
 use std::borrow::Borrow;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
-use std::fmt::Alignment;
+use std::fmt::{Alignment, Display};
 
+use crate::fmt_str::inlines_to_plain_string;
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
@@ -110,6 +111,15 @@ struct ReifiedLink<'a> {
 enum ReifiedLabel<'a> {
     Identifier(&'a String),
     Inline(&'a Vec<Inline>),
+}
+
+impl<'a> Display for ReifiedLabel<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ReifiedLabel::Identifier(s) => f.write_str(*s),
+            ReifiedLabel::Inline(inlines) => f.write_str(&inlines_to_plain_string(*inlines)),
+        }
+    }
 }
 
 impl<'a> MdWriterState<'a> {
@@ -497,8 +507,9 @@ impl<'a> MdWriterState<'a> {
             };
 
             if matches!(which, DefinitionsToWrite::Links | DefinitionsToWrite::Both) {
-                // TODO sort them
-                let defs_to_write: Vec<_> = self.pending_references.links.drain().collect();
+                let mut defs_to_write: Vec<_> = self.pending_references.links.drain().collect();
+                defs_to_write.sort_by_key(|(k, _)| k.to_string());
+
                 for (link_ref, link_def) in defs_to_write {
                     out.write_char('[');
                     match link_ref {
@@ -521,7 +532,6 @@ impl<'a> MdWriterState<'a> {
                     out.write_str("]: ");
                     out.with_block(Block::Inlined(2), |out| {
                         self.write_md(out, MdqNodeRef::wrap_vec(text).into_iter());
-                        newline(out);
                     });
                 }
             }
@@ -670,8 +680,9 @@ pub mod tests {
     }
 
     mod header {
-        use super::*;
         use crate::mdq_inline;
+
+        use super::*;
 
         #[test]
         fn totally_empty() {
@@ -755,8 +766,9 @@ pub mod tests {
     }
 
     mod block_quote {
-        use super::*;
         use crate::mdq_inline;
+
+        use super::*;
 
         #[test]
         fn single_level() {
@@ -920,8 +932,9 @@ pub mod tests {
     }
 
     mod list_item {
-        use super::*;
         use crate::tree_ref::MdqNodeRef;
+
+        use super::*;
 
         #[test]
         fn unordered_no_checkbox() {
@@ -960,8 +973,9 @@ pub mod tests {
     }
 
     mod table {
-        use super::*;
         use markdown::mdast;
+
+        use super::*;
 
         #[test]
         fn simple() {
@@ -1110,8 +1124,9 @@ pub mod tests {
     }
 
     mod thematic_break {
-        use super::*;
         use crate::mdq_node;
+
+        use super::*;
 
         #[test]
         fn by_itself() {
@@ -1349,8 +1364,9 @@ pub mod tests {
         }
 
         mod link {
-            use super::*;
             use crate::tree::{Inline, Link, MdqNode};
+
+            use super::*;
 
             #[test]
             fn inline_no_title() {
@@ -1501,8 +1517,9 @@ pub mod tests {
         }
 
         mod image {
-            use super::*;
             use crate::tree::{Inline, Link, MdqNode};
+
+            use super::*;
 
             #[test]
             fn inline_no_title() {
@@ -1819,6 +1836,52 @@ pub mod tests {
 
                     [1]: https://exampl.com
                     [^a]: the footnote"#},
+            );
+        }
+
+        #[test]
+        fn ordering() {
+            check_render_with(
+                &MdOptions {
+                    link_reference_options: ReferencePlacement::BottomOfDoc,
+                    footnote_reference_options: ReferencePlacement::BottomOfDoc,
+                },
+                // Define them in the opposite order that we'd expect them
+                mdq_nodes![Paragraph {
+                    body: vec![
+                        Inline::Footnote(Footnote {
+                            label: "d".to_string(),
+                            text: mdq_nodes!["footnote 1"]
+                        }),
+                        Inline::Footnote(Footnote {
+                            label: "c".to_string(),
+                            text: mdq_nodes!["footnote 2"]
+                        }),
+                        Inline::Link {
+                            text: vec![mdq_inline!("b-text")],
+                            link: Link {
+                                url: "https://example.com/b".to_string(),
+                                title: None,
+                                reference: LinkReference::Full("b".to_string()),
+                            },
+                        },
+                        Inline::Link {
+                            text: vec![mdq_inline!("a-text")],
+                            link: Link {
+                                url: "https://example.com/a".to_string(),
+                                title: None,
+                                reference: LinkReference::Full("a".to_string()),
+                            },
+                        },
+                    ]
+                }],
+                indoc! {r#"
+                    [^d][^c][b-text][b][a-text][a]
+
+                    [a]: https://example.com/a
+                    [b]: https://example.com/b
+                    [^c]: footnote 2
+                    [^d]: footnote 1"#},
             );
         }
 
