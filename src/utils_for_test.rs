@@ -16,17 +16,17 @@ mod test_utils {
         };
     }
 
-    /// Creates a new `VariantsChecker` that looks for all the variants of enum `E`.
+    /// Creates a static object named `$name` that looks for all the variants of enum `E`.
     ///
     /// ```
-    /// new_variants_checker(MyEnum: { Variant1, Variant2(_), ... })
+    /// variants_checker(CHECKER_NAME = MyEnum: { Variant1, Variant2(_), ... })
     /// ```
     ///
     /// You can also mark some variants as ignored; these will be added to the pattern match, but not be required to
     /// be seen:
     ///
     /// ```
-    /// new_variants_checker(MyEnum: { Variant1, ... } ignore { Variant2, ... } )
+    /// variants_checker(CHECKER_NAME = MyEnum: { Variant1, ... } ignore { Variant2, ... } )
     /// ```
     ///
     /// If you see a compilation failure here, it means the call site is missing variants (or has an unknown

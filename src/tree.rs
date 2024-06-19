@@ -1651,11 +1651,6 @@ mod tests {
             });
         }
 
-        #[test]
-        fn all_variants_tested() {
-            NODES_CHECKER.wait_for_all();
-        }
-
         fn parse(md: &str) -> (mdast::Root, Lookups) {
             parse_with(&ParseOptions::default(), md)
         }

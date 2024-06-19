@@ -116,11 +116,6 @@ mod tests {
         )
     }
 
-    #[test]
-    fn all_variants_checked() {
-        VARIANTS_CHECKER.wait_for_all();
-    }
-
     /// Because this is such simple functionality, we're just going to do a simple end-to-end test from original
     /// markdown to plain text.
     fn check(md: &str, expect: &str) {
