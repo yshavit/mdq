@@ -13,7 +13,7 @@ pub enum Selector {
     // Image { text: Matcher, href: Matcher },
     // Link { text: Matcher, href: Matcher },
     // CodeBlock(Matcher),
-    Heading(HeadingSelector),
+    Section(SectionSelector),
 }
 
 impl Selector {
@@ -27,7 +27,7 @@ impl Selector {
 
     pub fn build_output<'a>(&self, out: &mut Vec<MdqNodeRef<'a>>, node: MdqNodeRef<'a>) {
         let found = match (self, node.clone()) {
-            (Selector::Heading(selector), MdqNodeRef::Section(header)) => {
+            (Selector::Section(selector), MdqNodeRef::Section(header)) => {
                 let header_text = inlines_to_plain_string(&header.title);
                 if selector.matcher.matches(&header_text) {
                     header.body.iter().for_each(|child| out.push(child.into()));
@@ -96,7 +96,7 @@ impl Selector {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct HeadingSelector {
+pub struct SectionSelector {
     matcher: Matcher,
 }
 
@@ -137,7 +137,7 @@ impl Selector {
 
     fn parse_header<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<Selector> {
         let matcher = Matcher::parse_matcher(chars)?;
-        Ok(Selector::Heading(HeadingSelector { matcher }))
+        Ok(Selector::Section(SectionSelector { matcher }))
     }
 }
 
@@ -150,7 +150,7 @@ mod test {
     fn header() {
         parse_and_check(
             "# foo",
-            Selector::Heading(HeadingSelector {
+            Selector::Section(SectionSelector {
                 matcher: Matcher::Substring(SubstringMatcher {
                     look_for: "foo".to_string(),
                 }),
@@ -158,11 +158,11 @@ mod test {
             "",
         );
 
-        parse_and_check("# ", Selector::Heading(HeadingSelector { matcher: Matcher::Any }), "");
+        parse_and_check("# ", Selector::Section(SectionSelector { matcher: Matcher::Any }), "");
 
         parse_and_check(
             "# | next",
-            Selector::Heading(HeadingSelector { matcher: Matcher::Any }),
+            Selector::Section(SectionSelector { matcher: Matcher::Any }),
             " next",
         );
     }
