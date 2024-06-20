@@ -2,7 +2,7 @@ use crate::fmt_str::inlines_to_plain_string;
 use crate::matcher::Matcher;
 use crate::parse_common::{ParseError, ParseErrorReason, ParseResult};
 use crate::parsing_iter::ParsingIterator;
-use crate::tree::{Inline, ListItem};
+use crate::tree::{Inline, ListItem, MdqNode};
 use crate::tree_ref::MdqNodeRef;
 use crate::wrap_mdq_refs;
 
@@ -48,22 +48,28 @@ impl Selector {
     }
 
     pub fn build_output<'a>(&self, out: &mut Vec<MdqNodeRef<'a>>, node: MdqNodeRef<'a>) {
-        let found = match (self, node.clone()) {
+        enum Result<'a> {
+            One(bool, MdqNodeRef<'a>),
+            Several(bool, &'a Vec<MdqNode>),
+            None,
+        }
+        let result = match (self, node.clone()) {
             (Selector::Section(selector), MdqNodeRef::Section(header)) => {
                 let header_text = inlines_to_plain_string(&header.title);
-                if selector.matcher.matches(&header_text) {
-                    header.body.iter().for_each(|child| out.push(child.into()));
-                    true
-                } else {
-                    false
-                }
+                Result::Several(selector.matcher.matches(&header_text), &header.body)
             }
-            (Selector::ListItem(selector), MdqNodeRef::ListItem(idx, item)) => selector.matches(&idx, item),
-            _ => false,
+            (Selector::ListItem(selector), MdqNodeRef::ListItem(idx, item)) => {
+                Result::One(selector.matches(&idx, item), MdqNodeRef::ListItem(idx, item))
+            }
+            _ => Result::None,
         };
-        if !found {
-            for child in Self::find_children(node) {
-                self.build_output(out, child);
+        match result {
+            Result::One(true, found) => out.push(found),
+            Result::Several(true, found) => found.iter().for_each(|item| out.push(item.into())),
+            _ => {
+                for child in Self::find_children(node) {
+                    self.build_output(out, child);
+                }
             }
         }
     }
@@ -211,7 +217,7 @@ impl CheckboxSpecifier {
 }
 
 fn require_whitespace<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>, description: &str) -> ParseResult<()> {
-    if chars.drop_while(|ch| ch.is_whitespace()).is_empty() {
+    if chars.drop_while(|ch| ch.is_whitespace()).is_empty() && chars.peek().is_some() {
         return Err(ParseErrorReason::InvalidSyntax(format!(
             "{} must be followed by whitespace",
             description
