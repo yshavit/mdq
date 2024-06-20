@@ -1,10 +1,14 @@
+use crate::fmt_str::inlines_to_plain_string;
 use crate::parse_common::{ParseErrorReason, ParseResult, SELECTOR_SEPARATOR};
 use crate::parsing_iter::ParsingIterator;
 use crate::select::SubstringMatcher;
+use crate::tree::{Inline, MdqNode};
 use regex::Regex;
+use std::borrow::Borrow;
 
 #[derive(Debug)]
 pub enum Matcher {
+    // TODO rename to StringMatcher
     Any,
     Substring(SubstringMatcher),
     Regex(Regex),
@@ -23,10 +27,49 @@ impl PartialEq for Matcher {
 
 impl Matcher {
     pub fn matches(&self, haystack: &str) -> bool {
+        // TODO deprecate in favor of matches_inlines
         match self {
             Matcher::Any => true,
             Matcher::Substring(SubstringMatcher { look_for }) => haystack.contains(look_for),
             Matcher::Regex(re) => re.is_match(haystack),
+        }
+    }
+
+    pub fn matches_inlines<I: Borrow<Inline>>(&self, haystack: &[I]) -> bool {
+        self.matches(&inlines_to_plain_string(haystack))
+    }
+
+    pub fn matches_any<N: Borrow<MdqNode>>(&self, haystacks: &[N]) -> bool {
+        if matches!(self, Matcher::Any) {
+            return true;
+        }
+        haystacks.iter().any(|node| self.matches_node(node.borrow()))
+    }
+
+    fn matches_node(&self, node: &MdqNode) -> bool {
+        match node {
+            MdqNode::Section(section) => {
+                if self.matches_inlines(&section.title) {
+                    return true;
+                }
+                self.matches_any(&section.body)
+            }
+            MdqNode::Paragraph(paragraph) => self.matches_inlines(&paragraph.body),
+            MdqNode::BlockQuote(block) => self.matches_any(&block.body),
+            MdqNode::List(list) => list.items.iter().any(|li| self.matches_any(&li.item)),
+            MdqNode::Table(table) => {
+                for row in &table.rows {
+                    for cell in row {
+                        if self.matches_inlines(cell) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+            MdqNode::ThematicBreak => false,
+            MdqNode::CodeBlock(_) => false,
+            MdqNode::Inline(inline) => self.matches_inlines(&[inline]),
         }
     }
 
