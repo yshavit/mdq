@@ -2,9 +2,8 @@ use crate::tree::{Inline, TextVariant};
 use std::borrow::Borrow;
 
 pub fn inlines_to_plain_string<N: Borrow<Inline>>(inlines: &[N]) -> String {
-    let mut result = String::with_capacity(inlines.len() * 10); // random guess
+    let mut result = String::with_capacity(inlines.len() * 5); // random guess
     build_inlines(&mut result, inlines);
-
     result
 }
 
