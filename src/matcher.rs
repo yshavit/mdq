@@ -1,7 +1,6 @@
 use crate::fmt_str::inlines_to_plain_string;
-use crate::parse_common::{ParseErrorReason, ParseResult, SELECTOR_SEPARATOR};
 use crate::parsing_iter::ParsingIterator;
-use crate::select::SubstringMatcher;
+use crate::select::{ParseErrorReason, ParseResult, SELECTOR_SEPARATOR};
 use crate::tree::{Inline, MdqNode};
 use regex::Regex;
 use std::borrow::Borrow;
@@ -10,7 +9,7 @@ use std::borrow::Borrow;
 pub enum Matcher {
     // TODO rename to StringMatcher
     Any,
-    Substring(SubstringMatcher),
+    Substring(String),
     Regex(Regex),
 }
 
@@ -30,7 +29,7 @@ impl Matcher {
         // TODO deprecate in favor of matches_inlines
         match self {
             Matcher::Any => true,
-            Matcher::Substring(SubstringMatcher { look_for }) => haystack.contains(look_for),
+            Matcher::Substring(look_for) => haystack.contains(look_for),
             Matcher::Regex(re) => re.is_match(haystack),
         }
     }
@@ -106,7 +105,7 @@ impl Matcher {
             result.push(ch);
         }
 
-        Matcher::Substring(SubstringMatcher { look_for: result })
+        Matcher::Substring(result)
     }
 
     fn parse_regex_matcher<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<Matcher> {
@@ -138,46 +137,16 @@ impl Matcher {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::parse_common::{parse_and_check_mapped, Position};
+    use crate::parse_common::Position;
     use indoc::indoc;
 
     #[test]
     fn bareword() {
-        parse_and_check(
-            "hello",
-            Matcher::Substring(SubstringMatcher {
-                look_for: "hello".to_string(),
-            }),
-            "",
-        );
-        parse_and_check(
-            "hello ",
-            Matcher::Substring(SubstringMatcher {
-                look_for: "hello".to_string(),
-            }),
-            "",
-        );
-        parse_and_check(
-            "hello / goodbye",
-            Matcher::Substring(SubstringMatcher {
-                look_for: "hello / goodbye".to_string(),
-            }),
-            "",
-        );
-        parse_and_check(
-            "hello| goodbye",
-            Matcher::Substring(SubstringMatcher {
-                look_for: "hello".to_string(),
-            }),
-            " goodbye",
-        );
-        parse_and_check(
-            "hello | goodbye",
-            Matcher::Substring(SubstringMatcher {
-                look_for: "hello".to_string(),
-            }),
-            " goodbye",
-        );
+        parse_and_check("hello", Matcher::Substring("hello".to_string()), "");
+        parse_and_check("hello ", Matcher::Substring("hello".to_string()), "");
+        parse_and_check("hello / goodbye", Matcher::Substring("hello / goodbye".to_string()), "");
+        parse_and_check("hello| goodbye", Matcher::Substring("hello".to_string()), " goodbye");
+        parse_and_check("hello | goodbye", Matcher::Substring("hello".to_string()), " goodbye");
     }
 
     #[test]
@@ -217,7 +186,11 @@ mod test {
     }
 
     fn parse_and_check(text: &str, expect: Matcher, expect_remaining: &str) {
-        parse_and_check_mapped(text, expect, expect_remaining, |iter| Matcher::parse_matcher(iter))
+        let mut iter = ParsingIterator::new(text.chars());
+        let matcher = Matcher::parse_matcher(&mut iter).unwrap();
+        assert_eq!(matcher, expect);
+        let remaining: String = iter.collect();
+        assert_eq!(&remaining, expect_remaining);
     }
 
     fn expect_err(text: &str, expect: ParseErrorReason, at: Position) {
