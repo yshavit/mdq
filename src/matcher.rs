@@ -71,7 +71,7 @@ impl StringMatcher {
         }
     }
 
-    pub fn parse_matcher(chars: &mut ParsingIterator) -> ParseResult<StringMatcher> {
+    pub fn read(chars: &mut ParsingIterator) -> ParseResult<StringMatcher> {
         chars.drop_while(|ch| ch.is_whitespace());
         let peek_ch = match chars.peek() {
             None => return Ok(StringMatcher::Any),
@@ -202,7 +202,7 @@ mod test {
 
     fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) {
         let mut iter = ParsingIterator::new(text);
-        let matcher = StringMatcher::parse_matcher(&mut iter).unwrap();
+        let matcher = StringMatcher::read(&mut iter).unwrap();
         assert_eq!(matcher, expect);
         let remaining: String = iter.collect();
         assert_eq!(&remaining, expect_remaining);
@@ -210,7 +210,7 @@ mod test {
 
     fn expect_err(text: &str, expect: ParseErrorReason, at: Position) {
         let mut iter = ParsingIterator::new(text);
-        let err = StringMatcher::parse_matcher(&mut iter).expect_err("expected to fail parsing");
+        let err = StringMatcher::read(&mut iter).expect_err("expected to fail parsing");
         assert_eq!(iter.input_position(), at);
         assert_eq!(err, expect);
     }

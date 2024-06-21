@@ -1,7 +1,6 @@
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
-use crate::select::util::require_whitespace;
 use crate::select::{ParseErrorReason, ParseResult, SelectResult};
 use crate::tree_ref::{ListItemRef, MdqNodeRef};
 
@@ -24,29 +23,26 @@ impl ListItemType {
         self.read_type(chars)?;
 
         // whitespace
-        require_whitespace(chars, "List item specifier")?;
+        chars.require_whitespace("List item specifier")?;
 
         // checkbox
-        let checkbox = if chars.peek() == Some('[') {
-            chars.next(); // consume the '['
-            let spec = match chars.next() {
-                None => return Err(ParseErrorReason::UnexpectedEndOfInput),
-                Some(' ') => CheckboxSpecifier::CheckboxUnchecked,
-                Some('x') => CheckboxSpecifier::CheckboxChecked,
-                Some('?') => CheckboxSpecifier::CheckboxEither,
-                Some(other) => return Err(ParseErrorReason::UnexpectedCharacter(other)),
-            };
-            if chars.next() != Some(']') {
-                return Err(ParseErrorReason::InvalidSyntax("expected \"]\"".to_string()));
+        let checkbox = match chars.consume_if('[') {
+            false => CheckboxSpecifier::NoCheckbox,
+            true => {
+                let checkbox = match chars.next() {
+                    Some(' ') => CheckboxSpecifier::CheckboxUnchecked,
+                    Some('x') => CheckboxSpecifier::CheckboxChecked,
+                    Some('?') => CheckboxSpecifier::CheckboxEither,
+                    Some(other) => return Err(ParseErrorReason::UnexpectedCharacter(other)),
+                    None => return Err(ParseErrorReason::UnexpectedEndOfInput),
+                };
+                chars.require_char(']', || ParseErrorReason::UnexpectedEndOfInput)?;
+                checkbox
             }
-            require_whitespace(chars, "list item type")?;
-            spec
-        } else {
-            CheckboxSpecifier::NoCheckbox
         };
 
         // item string matcher
-        let string_matcher = StringMatcher::parse_matcher(chars)?;
+        let string_matcher = StringMatcher::read(chars)?;
 
         Ok(ListItemSelector {
             li_type: self,
@@ -96,7 +92,7 @@ impl ListItemType {
 
     fn read_type(&self, chars: &mut ParsingIterator) -> ParseResult<()> {
         if matches!(self, ListItemType::Ordered) {
-            chars.next().map(|_| ()).ok_or_else(|| {
+            chars.require_char('.', || {
                 ParseErrorReason::InvalidSyntax("Ordered list item specifier must start with \"1.\"".to_string())
             })
         } else {

@@ -11,8 +11,8 @@ pub struct SectionSelector {
 }
 
 impl SectionSelector {
-    pub fn read(chars: &mut ParsingIterator) -> ParseResult<SectionSelector> {
-        let matcher = StringMatcher::parse_matcher(chars)?;
+    pub fn read(iter: &mut ParsingIterator) -> ParseResult<SectionSelector> {
+        let matcher = StringMatcher::read(iter)?;
         Ok(Self { matcher })
     }
 }

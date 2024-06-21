@@ -1,4 +1,5 @@
 use crate::parse_common::Position;
+use crate::select::{ParseErrorReason, ParseResult};
 use std::str::Chars;
 
 /// An iterator that ignores newlines and counts position within the input.
@@ -63,6 +64,37 @@ impl<'a> ParsingIterator<'a> {
         dropped_chars
     }
 
+    pub fn require_whitespace(&mut self, description: &str) -> ParseResult<()> {
+        if self.drop_while(|ch| ch.is_whitespace()).is_empty() && self.peek().is_some() {
+            return Err(ParseErrorReason::InvalidSyntax(format!(
+                "{} must be followed by whitespace",
+                description
+            )));
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn require_char<F>(&mut self, ch: char, or_else: F) -> ParseResult<()>
+    where
+        F: FnOnce() -> ParseErrorReason,
+    {
+        match self.next() {
+            Some(actual) if actual == ch => Ok(()),
+            _ => Err(or_else()),
+        }
+    }
+
+    pub fn consume_if(&mut self, ch: char) -> bool {
+        match self.peek() {
+            Some(actual) if actual == ch => {
+                self.next();
+                true
+            }
+            _ => false,
+        }
+    }
+
     fn update_position(&mut self, ch: char) -> Option<char> {
         if ch == '\n' {
             self.position.line += 1;
@@ -92,6 +124,8 @@ impl Iterator for ParsingIterator<'_> {
 #[cfg(test)]
 mod tests {
     use crate::parsing_iter::{ParsingIterator, Position};
+
+    // TODO need more test coverage: run just this file w/ test coverage to find out what's lacking
 
     #[test]
     fn basic() {
