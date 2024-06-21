@@ -1,5 +1,7 @@
-pub mod base;
-pub mod list_item;
-pub mod section;
+mod base;
+mod interface;
+mod list_item;
+mod section;
 pub mod selector;
 mod util;
+pub use interface::*;

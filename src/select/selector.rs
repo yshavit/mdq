@@ -1,5 +1,6 @@
 use crate::parsing_iter::ParsingIterator;
-use crate::select::base::{ParseError, ParseErrorReason, ParseResult, SelectResult, Selector};
+use crate::select::base::Selector;
+use crate::select::interface::{ParseError, ParseErrorReason, ParseResult, SelectResult};
 use crate::select::list_item::{ListItemSelector, ListItemType};
 use crate::select::section::SectionSelector;
 use crate::tree::Inline;

@@ -1,7 +1,8 @@
 use crate::matcher::Matcher;
 use crate::parsing_iter::ParsingIterator;
-use crate::select::base::{ParseErrorReason, ParseResult, SelectResult, Selector};
+use crate::select::base::Selector;
 use crate::select::util::require_whitespace;
+use crate::select::{ParseErrorReason, ParseResult, SelectResult};
 use crate::tree_ref::{ListItemRef, MdqNodeRef};
 
 #[derive(Debug, PartialEq)]
