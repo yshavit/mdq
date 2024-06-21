@@ -19,8 +19,7 @@ impl SectionSelector {
 
 impl<'a> Selector<'a, &'a Section> for SectionSelector {
     fn matches(&self, section: &'a Section) -> bool {
-        let header_text = inlines_to_plain_string(&section.title);
-        self.matcher.matches(&header_text)
+        self.matcher.matches_inlines(&section.title)
     }
 
     fn pick(&self, item: &'a Section) -> SelectResult<'a> {

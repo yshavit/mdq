@@ -25,7 +25,6 @@ impl PartialEq for StringMatcher {
 
 impl StringMatcher {
     pub fn matches(&self, haystack: &str) -> bool {
-        // TODO deprecate in favor of matches_inlines
         match self {
             StringMatcher::Any => true,
             StringMatcher::Substring(look_for) => haystack.contains(look_for),
