@@ -2,7 +2,6 @@ use crate::fmt_str::inlines_to_plain_string;
 use crate::matcher::Matcher;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
-use crate::select::util::require_whitespace;
 use crate::select::{ParseResult, SelectResult};
 use crate::tree::Section;
 
@@ -12,9 +11,7 @@ pub struct SectionSelector {
 }
 
 impl SectionSelector {
-    pub fn read<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<SectionSelector> {
-        require_whitespace(chars, "Section specifier")?;
-
+    pub fn read(chars: &mut ParsingIterator) -> ParseResult<SectionSelector> {
         let matcher = Matcher::parse_matcher(chars)?;
         Ok(Self { matcher })
     }

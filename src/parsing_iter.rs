@@ -1,16 +1,17 @@
 use crate::parse_common::Position;
+use std::str::Chars;
 
 /// An iterator that ignores newlines and counts position within the input.
-pub struct ParsingIterator<I: Iterator<Item = char>> {
-    iter: I,
+pub struct ParsingIterator<'a> {
+    iter: Chars<'a>,
     position: Position,
     pending: Option<char>,
 }
 
-impl<I: Iterator<Item = char>> ParsingIterator<I> {
-    pub fn new(iter: I) -> Self {
+impl<'a> ParsingIterator<'a> {
+    pub fn new(from: &'a str) -> Self {
         Self {
-            iter,
+            iter: from.chars(),
             position: Position { line: 1, column: 0 },
             pending: None,
         }
@@ -73,7 +74,7 @@ impl<I: Iterator<Item = char>> ParsingIterator<I> {
     }
 }
 
-impl<I: Iterator<Item = char>> Iterator for ParsingIterator<I> {
+impl Iterator for ParsingIterator<'_> {
     type Item = char;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -94,7 +95,7 @@ mod tests {
 
     #[test]
     fn basic() {
-        let mut iter = ParsingIterator::new("AB\nC".chars());
+        let mut iter = ParsingIterator::new("AB\nC");
         assert_eq!(iter.position, Position { line: 1, column: 0 });
         next_and_check(&mut iter, Some('A'), Position { line: 1, column: 1 });
         next_and_check(&mut iter, Some('B'), Position { line: 1, column: 2 });
@@ -108,13 +109,13 @@ mod tests {
 
     #[test]
     fn empty() {
-        let mut iter = ParsingIterator::new("".chars());
+        let mut iter = ParsingIterator::new("");
         next_and_check(&mut iter, None, Position { line: 1, column: 0 });
     }
 
     #[test]
     fn peek_after_read() {
-        let mut iter = ParsingIterator::new("AB".chars());
+        let mut iter = ParsingIterator::new("AB");
         next_and_check(&mut iter, Some('A'), Position { line: 1, column: 1 });
         peek_and_check(&mut iter, Some('B'), Position { line: 1, column: 1 }); // position unchanged!
         next_and_check(&mut iter, Some('B'), Position { line: 1, column: 2 });
@@ -130,14 +131,14 @@ mod tests {
 
     #[test]
     fn peek_initial() {
-        let mut iter = ParsingIterator::new("A".chars());
+        let mut iter = ParsingIterator::new("A");
         peek_and_check(&mut iter, Some('A'), Position { line: 1, column: 0 });
         next_and_check(&mut iter, Some('A'), Position { line: 1, column: 1 });
     }
 
     #[test]
     fn drop_while() {
-        let mut iter = ParsingIterator::new("A \t B".chars());
+        let mut iter = ParsingIterator::new("A \t B");
 
         assert_eq!("", iter.drop_while(|ch| ch.is_whitespace()));
         next_and_check(&mut iter, Some('A'), Position { line: 1, column: 1 });
@@ -151,19 +152,13 @@ mod tests {
         next_and_check(&mut iter, None, Position { line: 1, column: 5 });
     }
 
-    fn next_and_check<I>(iter: &mut ParsingIterator<I>, expect_ch: Option<char>, expect_pos: Position)
-    where
-        I: Iterator<Item = char>,
-    {
+    fn next_and_check(iter: &mut ParsingIterator, expect_ch: Option<char>, expect_pos: Position) {
         let next_item = iter.next();
         assert_eq!(next_item, expect_ch);
         assert_eq!(iter.input_position(), expect_pos);
     }
 
-    fn peek_and_check<I>(iter: &mut ParsingIterator<I>, expect_ch: Option<char>, expect_pos: Position)
-    where
-        I: Iterator<Item = char>,
-    {
+    fn peek_and_check(iter: &mut ParsingIterator, expect_ch: Option<char>, expect_pos: Position) {
         let next_item = iter.peek();
         assert_eq!(next_item, expect_ch);
         assert_eq!(iter.input_position(), expect_pos);
