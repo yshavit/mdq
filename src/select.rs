@@ -114,13 +114,6 @@ impl SelectHolder {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct SubstringMatcher {
-    // TODO move to matcher.rs. Or maybe just rm? I have it here in case I want to add anchors later, but YAGNI, and
-    // I can add a struct later if I need it.
-    pub look_for: String,
-}
-
 impl SelectHolder {
     pub fn parse(text: &str) -> Result<Vec<SelectHolder>, ParseError> {
         let mut iter = ParsingIterator::new(text.chars());
@@ -151,14 +144,5 @@ impl SelectHolder {
 
             Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // TODO should be Any w/ bareword if first char is a letter
         }
-    }
-}
-
-#[cfg(test)]
-pub(crate) mod test_util {
-    use super::*;
-
-    pub fn parse_selector<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<SelectHolder> {
-        SelectHolder::parse_selector(chars)
     }
 }

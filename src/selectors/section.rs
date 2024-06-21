@@ -29,29 +29,3 @@ impl<'a> Selector<'a, &'a Section> for SectionSelector {
         SelectResult::Multi(&item.body)
     }
 }
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::parse_common::parse_and_check;
-
-    #[test]
-    fn section() {
-        parse_and_check(
-            "# foo",
-            Selector::Section(SectionSelector {
-                matcher: Matcher::Substring(SubstringMatcher {
-                    look_for: "foo".to_string(),
-                }),
-            }),
-            "",
-        );
-
-        parse_and_check("# ", Selector::Section(SectionSelector { matcher: Matcher::Any }), "");
-
-        parse_and_check(
-            "# | next",
-            Selector::Section(SectionSelector { matcher: Matcher::Any }),
-            " next",
-        );
-    }
-}

@@ -1,6 +1,3 @@
-#[cfg(test)]
-pub use crate::selectors::base::test_util::*;
-
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Position {
     /// 1-indexed line position
