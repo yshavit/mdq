@@ -19,7 +19,7 @@ pub enum ListItemType {
 }
 
 impl ListItemType {
-    pub fn read<C: Iterator<Item = char>>(self, chars: &mut ParsingIterator<C>) -> ParseResult<ListItemSelector> {
+    pub fn read(self, chars: &mut ParsingIterator) -> ParseResult<ListItemSelector> {
         // list-type-specific parsing (ie, the dot after "1" for ordered lists)
         self.read_type(chars)?;
 
@@ -94,7 +94,7 @@ impl ListItemType {
         }
     }
 
-    fn read_type<C: Iterator<Item = char>>(&self, chars: &mut ParsingIterator<C>) -> ParseResult<()> {
+    fn read_type(&self, chars: &mut ParsingIterator) -> ParseResult<()> {
         if matches!(self, ListItemType::Ordered) {
             chars.next().map(|_| ()).ok_or_else(|| {
                 ParseErrorReason::InvalidSyntax("Ordered list item specifier must start with \"1.\"".to_string())

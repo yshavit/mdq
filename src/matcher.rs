@@ -72,7 +72,7 @@ impl Matcher {
         }
     }
 
-    pub fn parse_matcher<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<Matcher> {
+    pub fn parse_matcher(chars: &mut ParsingIterator) -> ParseResult<Matcher> {
         chars.drop_while(|ch| ch.is_whitespace());
         let peek_ch = match chars.peek() {
             None => return Ok(Matcher::Any),
@@ -89,7 +89,7 @@ impl Matcher {
         }
     }
 
-    fn parse_matcher_bare<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> Matcher {
+    fn parse_matcher_bare(chars: &mut ParsingIterator) -> Matcher {
         let mut result = String::with_capacity(20); // just a guess
         let mut dropped = String::with_capacity(8); // also a guess
 
@@ -108,7 +108,7 @@ impl Matcher {
         Matcher::Substring(result)
     }
 
-    fn parse_regex_matcher<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<Matcher> {
+    fn parse_regex_matcher(chars: &mut ParsingIterator) -> ParseResult<Matcher> {
         let mut result = String::with_capacity(20); // just a guess
 
         loop {
@@ -186,7 +186,7 @@ mod test {
     }
 
     fn parse_and_check(text: &str, expect: Matcher, expect_remaining: &str) {
-        let mut iter = ParsingIterator::new(text.chars());
+        let mut iter = ParsingIterator::new(text);
         let matcher = Matcher::parse_matcher(&mut iter).unwrap();
         assert_eq!(matcher, expect);
         let remaining: String = iter.collect();
@@ -194,7 +194,7 @@ mod test {
     }
 
     fn expect_err(text: &str, expect: ParseErrorReason, at: Position) {
-        let mut iter = ParsingIterator::new(text.chars());
+        let mut iter = ParsingIterator::new(text);
         let err = Matcher::parse_matcher(&mut iter).expect_err("expected to fail parsing");
         assert_eq!(iter.input_position(), at);
         assert_eq!(err, expect);

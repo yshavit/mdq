@@ -38,7 +38,7 @@ pub enum MdqRefSelector {
 
 impl MdqRefSelector {
     pub fn parse(text: &str) -> Result<Vec<Self>, ParseError> {
-        let mut iter = ParsingIterator::new(text.chars());
+        let mut iter = ParsingIterator::new(text);
         let mut selectors = Vec::with_capacity(5); // just a guess
 
         loop {
@@ -130,7 +130,7 @@ impl MdqRefSelector {
         }
     }
 
-    fn parse_selector<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<Self> {
+    fn parse_selector(chars: &mut ParsingIterator) -> ParseResult<Self> {
         chars.drop_while(|ch| ch.is_whitespace()); // should already be the case, but this is cheap and future-proof
         match chars.next() {
             None => Ok(MdqRefSelector::Any), // unexpected, but future-proof
