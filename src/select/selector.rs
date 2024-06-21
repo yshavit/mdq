@@ -36,6 +36,25 @@ pub enum MdqRefSelector {
 }
 
 impl MdqRefSelector {
+    pub fn parse(text: &str) -> Result<Vec<Self>, ParseError> {
+        let mut iter = ParsingIterator::new(text.chars());
+        let mut selectors = Vec::with_capacity(5); // just a guess
+
+        loop {
+            iter.drop_while(|ch| ch.is_whitespace());
+            if iter.peek().is_none() {
+                break;
+            }
+            let selector = Self::parse_selector(&mut iter).map_err(|reason| ParseError {
+                reason,
+                position: iter.input_position(),
+            })?;
+            selectors.push(selector);
+        }
+
+        Ok(selectors)
+    }
+
     pub fn find_nodes<'a>(&self, nodes: Vec<MdqNodeRef<'a>>) -> Vec<MdqNodeRef<'a>> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
         for node in nodes {
@@ -44,7 +63,7 @@ impl MdqRefSelector {
         result
     }
 
-    pub fn build_output<'a>(&self, out: &mut Vec<MdqNodeRef<'a>>, node: MdqNodeRef<'a>) {
+    fn build_output<'a>(&self, out: &mut Vec<MdqNodeRef<'a>>, node: MdqNodeRef<'a>) {
         let result = match (self, node.clone()) {
             (MdqRefSelector::Section(selector), MdqNodeRef::Section(header)) => selector.try_select(&header),
             (MdqRefSelector::ListItem(selector), MdqNodeRef::ListItem(item)) => selector.try_select(item),
@@ -109,29 +128,8 @@ impl MdqRefSelector {
             },
         }
     }
-}
 
-impl MdqRefSelector {
-    pub fn parse(text: &str) -> Result<Vec<MdqRefSelector>, ParseError> {
-        let mut iter = ParsingIterator::new(text.chars());
-        let mut selectors = Vec::with_capacity(5); // just a guess
-
-        loop {
-            iter.drop_while(|ch| ch.is_whitespace());
-            if iter.peek().is_none() {
-                break;
-            }
-            let selector = Self::parse_selector(&mut iter).map_err(|reason| ParseError {
-                reason,
-                position: iter.input_position(),
-            })?;
-            selectors.push(selector);
-        }
-
-        Ok(selectors)
-    }
-
-    fn parse_selector<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<MdqRefSelector> {
+    fn parse_selector<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<Self> {
         chars.drop_while(|ch| ch.is_whitespace()); // should already be the case, but this is cheap and future-proof
         match chars.next() {
             None => Ok(MdqRefSelector::Any), // unexpected, but future-proof
