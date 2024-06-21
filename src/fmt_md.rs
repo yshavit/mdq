@@ -399,8 +399,8 @@ impl<'a> MdWriterState<'a> {
                 out.write_str(value);
                 out.write_str(surround);
             }
-            Inline::Link { text, link } => {
-                self.write_link_inline(out, ReifiedLabel::Inline(text), link, |me, out| {
+            Inline::Link { text, link_definition } => {
+                self.write_link_inline(out, ReifiedLabel::Inline(text), link_definition, |me, out| {
                     me.write_line(out, text)
                 });
             }
@@ -430,8 +430,13 @@ impl<'a> MdWriterState<'a> {
     ///
     /// The `contents` function is what writes e.g. `an inline link` above. It's a function because it may be a recursive
     /// call into [write_line] (for links) or just simple text (for image alts).
-    fn write_link_inline<W, F>(&mut self, out: &mut Output<W>, label: ReifiedLabel<'a>, link: &'a Link, contents: F)
-    where
+    fn write_link_inline<W, F>(
+        &mut self,
+        out: &mut Output<W>,
+        label: ReifiedLabel<'a>,
+        link: &'a LinkDefinition,
+        contents: F,
+    ) where
         W: SimpleWrite,
         F: FnOnce(&mut Self, &mut Output<W>),
     {
@@ -594,42 +599,42 @@ pub mod tests {
         ListItem(..),
         Table(_),
         ThematicBreak,
-        CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(None), ..}),
-        CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: None, ..})), ..}),
-        CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: Some(_), ..})), ..}),
-        CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Math{metadata: None}, ..}),
-        CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..}),
-        CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Toml, ..}),
-        CodeBlock(crate::tree::CodeBlock{variant: CodeVariant::Yaml, ..}),
+        CodeBlock(CodeBlock{variant: CodeVariant::Code(None), ..}),
+        CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: None, ..})), ..}),
+        CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: Some(_), ..})), ..}),
+        CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: None}, ..}),
+        CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..}),
+        CodeBlock(CodeBlock{variant: CodeVariant::Toml, ..}),
+        CodeBlock(CodeBlock{variant: CodeVariant::Yaml, ..}),
 
-        Inline(crate::tree::Inline::Span{variant: SpanVariant::Delete, ..}),
-        Inline(crate::tree::Inline::Span{variant: SpanVariant::Emphasis, ..}),
-        Inline(crate::tree::Inline::Span{variant: SpanVariant::Strong, ..}),
+        Inline(Inline::Span{variant: SpanVariant::Delete, ..}),
+        Inline(Inline::Span{variant: SpanVariant::Emphasis, ..}),
+        Inline(Inline::Span{variant: SpanVariant::Strong, ..}),
 
-        Inline(crate::tree::Inline::Text{variant: TextVariant::Plain, ..}),
-        Inline(crate::tree::Inline::Text{variant: TextVariant::Code, ..}),
-        Inline(crate::tree::Inline::Text{variant: TextVariant::Math, ..}),
-        Inline(crate::tree::Inline::Text{variant: TextVariant::Html, ..}),
+        Inline(Inline::Text{variant: TextVariant::Plain, ..}),
+        Inline(Inline::Text{variant: TextVariant::Code, ..}),
+        Inline(Inline::Text{variant: TextVariant::Math, ..}),
+        Inline(Inline::Text{variant: TextVariant::Html, ..}),
 
-        Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Inline, ..}, ..}),
-        Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Full(_), ..}, ..}),
-        Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Collapsed, ..}, ..}),
-        Inline(crate::tree::Inline::Link{link: Link{title: None, reference: LinkReference::Shortcut, ..}, ..}),
-        Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Inline, ..}, ..}),
-        Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Full(_), ..}, ..}),
-        Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}),
-        Inline(crate::tree::Inline::Link{link: Link{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
+        Inline(Inline::Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..}),
+        Inline(Inline::Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..}),
+        Inline(Inline::Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..}),
+        Inline(Inline::Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..}),
+        Inline(Inline::Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..}),
+        Inline(Inline::Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..}),
+        Inline(Inline::Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}),
+        Inline(Inline::Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
 
-        Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Inline, ..}, ..}),
-        Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Full(_), ..}, ..}),
-        Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Collapsed, ..}, ..}),
-        Inline(crate::tree::Inline::Image{link: Link{title: None, reference: LinkReference::Shortcut, ..}, ..}),
-        Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Inline, ..}, ..}),
-        Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Full(_), ..}, ..}),
-        Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}),
-        Inline(crate::tree::Inline::Image{link: Link{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
+        Inline(Inline::Image{link: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..}),
+        Inline(Inline::Image{link: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..}),
+        Inline(Inline::Image{link: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..}),
+        Inline(Inline::Image{link: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..}),
+        Inline(Inline::Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..}),
+        Inline(Inline::Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..}),
+        Inline(Inline::Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}),
+        Inline(Inline::Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
 
-        Inline(crate::tree::Inline::Footnote{..}),
+        Inline(Inline::Footnote{..}),
     });
 
     #[test]
@@ -1368,14 +1373,14 @@ pub mod tests {
         }
 
         mod link {
-            use crate::tree::{Inline, Link, MdqNode};
+            use crate::tree::{Inline, LinkDefinition, MdqNode};
 
             use super::*;
 
             #[test]
             fn inline_no_title() {
                 check_link(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: None,
                         reference: LinkReference::Inline,
@@ -1390,7 +1395,7 @@ pub mod tests {
             #[test]
             fn full_no_title() {
                 check_link(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: None,
                         reference: LinkReference::Full("1".to_string()),
@@ -1407,7 +1412,7 @@ pub mod tests {
             #[test]
             fn collapsed_no_title() {
                 check_link(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: None,
                         reference: LinkReference::Collapsed,
@@ -1424,7 +1429,7 @@ pub mod tests {
             #[test]
             fn shortcut_no_title() {
                 check_link(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: None,
                         reference: LinkReference::Shortcut,
@@ -1441,7 +1446,7 @@ pub mod tests {
             #[test]
             fn inline_with_title() {
                 check_link(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: Some("my title".to_string()),
                         reference: LinkReference::Inline,
@@ -1456,7 +1461,7 @@ pub mod tests {
             #[test]
             fn full_with_title() {
                 check_link(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: Some("my title".to_string()),
                         reference: LinkReference::Full("1".to_string()),
@@ -1473,7 +1478,7 @@ pub mod tests {
             #[test]
             fn collapsed_with_title() {
                 check_link(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: Some("my title".to_string()),
                         reference: LinkReference::Collapsed,
@@ -1490,7 +1495,7 @@ pub mod tests {
             #[test]
             fn shortcut_with_title() {
                 check_link(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: Some("my title".to_string()),
                         reference: LinkReference::Shortcut,
@@ -1504,7 +1509,7 @@ pub mod tests {
                 );
             }
 
-            fn check_link(link: Link, expect: &str) {
+            fn check_link(link: LinkDefinition, expect: &str) {
                 let nodes = vec![
                     MdqNode::Inline(Inline::Link {
                         text: vec![
@@ -1512,7 +1517,7 @@ pub mod tests {
                             mdq_inline!(span Emphasis [mdq_inline!("world")]),
                             mdq_inline!("!"),
                         ],
-                        link,
+                        link_definition: link,
                     }),
                     MdqNode::ThematicBreak,
                 ];
@@ -1521,14 +1526,14 @@ pub mod tests {
         }
 
         mod image {
-            use crate::tree::{Inline, Link, MdqNode};
+            use crate::tree::{Inline, LinkDefinition, MdqNode};
 
             use super::*;
 
             #[test]
             fn inline_no_title() {
                 check_image(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: None,
                         reference: LinkReference::Inline,
@@ -1543,7 +1548,7 @@ pub mod tests {
             #[test]
             fn full_no_title() {
                 check_image(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: None,
                         reference: LinkReference::Full("1".to_string()),
@@ -1560,7 +1565,7 @@ pub mod tests {
             #[test]
             fn collapsed_no_title() {
                 check_image(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: None,
                         reference: LinkReference::Collapsed,
@@ -1577,7 +1582,7 @@ pub mod tests {
             #[test]
             fn shortcut_no_title() {
                 check_image(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: None,
                         reference: LinkReference::Shortcut,
@@ -1594,7 +1599,7 @@ pub mod tests {
             #[test]
             fn inline_with_title() {
                 check_image(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: Some("my title".to_string()),
                         reference: LinkReference::Inline,
@@ -1609,7 +1614,7 @@ pub mod tests {
             #[test]
             fn full_with_title() {
                 check_image(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: Some("my title".to_string()),
                         reference: LinkReference::Full("1".to_string()),
@@ -1626,7 +1631,7 @@ pub mod tests {
             #[test]
             fn collapsed_with_title() {
                 check_image(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: Some("my title".to_string()),
                         reference: LinkReference::Collapsed,
@@ -1643,7 +1648,7 @@ pub mod tests {
             #[test]
             fn shortcut_with_title() {
                 check_image(
-                    Link {
+                    LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: Some("my title".to_string()),
                         reference: LinkReference::Shortcut,
@@ -1657,7 +1662,7 @@ pub mod tests {
                 );
             }
 
-            fn check_image(link: Link, expect: &str) {
+            fn check_image(link: LinkDefinition, expect: &str) {
                 let nodes = vec![
                     MdqNode::Inline(Inline::Image {
                         alt: "hello _world_!".to_string(),
@@ -1729,7 +1734,7 @@ pub mod tests {
                         mdq_inline!("Hello, "),
                         Inline::Link {
                             text: vec![mdq_inline!("world"),],
-                            link: Link {
+                            link_definition: LinkDefinition {
                                 url: "https://example.com".to_string(),
                                 title: None,
                                 reference: LinkReference::Full("1".to_string()),
@@ -1863,7 +1868,7 @@ pub mod tests {
                         }),
                         Inline::Link {
                             text: vec![mdq_inline!("b-text")],
-                            link: Link {
+                            link_definition: LinkDefinition {
                                 url: "https://example.com/b".to_string(),
                                 title: None,
                                 reference: LinkReference::Full("b".to_string()),
@@ -1871,7 +1876,7 @@ pub mod tests {
                         },
                         Inline::Link {
                             text: vec![mdq_inline!("a-text")],
-                            link: Link {
+                            link_definition: LinkDefinition {
                                 url: "https://example.com/a".to_string(),
                                 title: None,
                                 reference: LinkReference::Full("a".to_string()),
@@ -1898,7 +1903,7 @@ pub mod tests {
                         body: vec![
                             Inline::Link {
                                 text: vec![mdq_inline!("link description")],
-                                link: Link {
+                                link_definition: LinkDefinition {
                                     url: "https://exampl.com".to_string(),
                                     title: None,
                                     reference: LinkReference::Full("1".to_string()),
