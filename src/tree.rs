@@ -128,11 +128,11 @@ pub enum Inline {
     },
     Link {
         text: Vec<Inline>,
-        link: Link,
+        link_definition: LinkDefinition,
     },
     Image {
         alt: String,
-        link: Link,
+        link: LinkDefinition,
     },
     Footnote(Footnote),
 }
@@ -160,7 +160,7 @@ impl PartialEq for Footnote {
 impl Eq for Footnote {}
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Link {
+pub struct LinkDefinition {
     pub url: String,
     /// If you have `[1]: https://example.com "my title"`, this is the "my title".
     ///
@@ -271,7 +271,7 @@ impl MdqNode {
             }),
             mdast::Node::Image(node) => MdqNode::Inline(Inline::Image {
                 alt: node.alt,
-                link: Link {
+                link: LinkDefinition {
                     url: node.url,
                     title: node.title,
                     reference: LinkReference::Inline,
@@ -283,7 +283,7 @@ impl MdqNode {
             }),
             mdast::Node::Link(node) => MdqNode::Inline(Inline::Link {
                 text: MdqNode::inlines(node.children, lookups)?,
-                link: Link {
+                link_definition: LinkDefinition {
                     url: node.url,
                     title: node.title,
                     reference: LinkReference::Inline,
@@ -291,7 +291,7 @@ impl MdqNode {
             }),
             mdast::Node::LinkReference(node) => MdqNode::Inline(Inline::Link {
                 text: MdqNode::inlines(node.children, lookups)?,
-                link: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
+                link_definition: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
             }),
             mdast::Node::FootnoteReference(node) => {
                 let definition = lookups.resolve_footnote(&node.identifier, &node.label)?;
@@ -579,7 +579,7 @@ impl Lookups {
         identifier: String,
         label: Option<String>,
         reference_kind: mdast::ReferenceKind,
-    ) -> Result<Link, InvalidMd> {
+    ) -> Result<LinkDefinition, InvalidMd> {
         if let None = label {
             todo!("What is this case???");
         }
@@ -593,7 +593,7 @@ impl Lookups {
             mdast::ReferenceKind::Collapsed => LinkReference::Collapsed,
             mdast::ReferenceKind::Full => LinkReference::Full(human_visible_identifier),
         };
-        Ok(Link {
+        Ok(LinkDefinition {
             url: definition.url.to_owned(),
             title: definition.title.to_owned(),
             reference: link_ref,
@@ -998,7 +998,7 @@ mod tests {
                 check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "".to_string(),
-                        link: Link{
+                        link: LinkDefinition{
                             url: "".to_string(),
                             title: None,
                             reference: LinkReference::Inline,
@@ -1012,7 +1012,7 @@ mod tests {
                 check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "".to_string(),
-                        link: Link{
+                        link: LinkDefinition{
                             url: "https://example.com/foo.png".to_string(),
                             title: None,
                             reference: LinkReference::Inline,
@@ -1026,7 +1026,7 @@ mod tests {
                 check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "alt text".to_string(),
-                        link: Link{
+                        link: LinkDefinition{
                             url: "".to_string(),
                             title: None,
                             reference: LinkReference::Inline,
@@ -1040,7 +1040,7 @@ mod tests {
                 check!(&p.children[0], Node::Image(_), lookups => MdqNode::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "".to_string(),
-                        link: Link{
+                        link: LinkDefinition{
                             url: "https://example.com/foo.png".to_string(),
                             title: Some("my tooltip".to_string()),
                             reference: LinkReference::Inline,
@@ -1058,7 +1058,7 @@ mod tests {
         }
 
         #[test]
-        fn link() {
+        fn link_node() {
             {
                 // inline, no title
                 let (root, lookups) = parse("[hello _world_](https://example.com)");
@@ -1073,7 +1073,7 @@ mod tests {
                                 children: vec![mdq_inline!("world")],
                             }
                         ],
-                        link: Link{
+                        link_definition: LinkDefinition{
                             url: "https://example.com".to_string(),
                             title: None,
                             reference: LinkReference::Inline,
@@ -1095,7 +1095,7 @@ mod tests {
                                 children: vec![mdq_inline!("world")],
                             }
                         ],
-                        link: Link{
+                        link_definition: LinkDefinition{
                             url: "https://example.com".to_string(),
                             title: Some("the title".to_string()),
                             reference: LinkReference::Inline,
@@ -1124,7 +1124,7 @@ mod tests {
                                 children: vec![mdq_inline!("world")],
                             },
                         ],
-                        link: Link{
+                        link_definition: LinkDefinition{
                             url: "https://example.com".to_string(),
                             title: None,
                             reference: LinkReference::Full("1".to_string()),
@@ -1154,7 +1154,7 @@ mod tests {
                                 children: vec![mdq_inline!("world")],
                             },
                         ],
-                        link: Link{
+                        link_definition: LinkDefinition{
                             url: "https://example.com".to_string(),
                             title: Some("my title".to_string()),
                             reference: LinkReference::Collapsed,
@@ -1184,7 +1184,7 @@ mod tests {
                                 children: vec![mdq_inline!("world")],
                             },
                         ],
-                        link: Link{
+                        link_definition: LinkDefinition{
                             url: "https://example.com".to_string(),
                             title: None,
                             reference: LinkReference::Shortcut,
@@ -1201,9 +1201,9 @@ mod tests {
                 let (root, lookups) = parse("<https://example.com>");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
-                check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(Inline::Link{text, link}) = {
+                check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(Inline::Link{text, link_definition}) = {
                     assert_eq!(text, vec![mdq_inline!("https://example.com")]);
-                    assert_eq!(link, Link{
+                    assert_eq!(link_definition, LinkDefinition{
                         url: "https://example.com".to_string(),
                         title: None,reference: LinkReference::Inline,
                     });
@@ -1213,9 +1213,9 @@ mod tests {
                 let (root, lookups) = parse("<mailto:md@example.com>");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
-                check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(Inline::Link{text, link}) = {
+                check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(Inline::Link{text, link_definition}) = {
                     assert_eq!(text, vec![mdq_inline!("mailto:md@example.com")]);
-                    assert_eq!(link, Link{
+                    assert_eq!(link_definition, LinkDefinition{
                         url: "mailto:md@example.com".to_string(),
                         title: None,reference: LinkReference::Inline,
                     });
@@ -1235,9 +1235,9 @@ mod tests {
                 let (root, lookups) = parse_with(&ParseOptions::gfm(), "https://example.com");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
-                check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(Inline::Link{text, link}) = {
+                check!(&p.children[0], Node::Link(_), lookups => MdqNode::Inline(Inline::Link{text, link_definition}) = {
                     assert_eq!(text, vec![mdq_inline!("https://example.com")]);
-                    assert_eq!(link, Link{
+                    assert_eq!(link_definition, LinkDefinition{
                         url: "https://example.com".to_string(),
                         title: None,reference: LinkReference::Inline,
                     });
@@ -1257,7 +1257,7 @@ mod tests {
                 check!(&p.children[0], Node::ImageReference(_), lookups => MdqNode::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "".to_string(),
-                        link: Link {
+                        link: LinkDefinition {
                             url: "https://example.com/image.png".to_string(),
                             title: None,
                             reference: LinkReference::Full("1".to_string()),
@@ -1275,7 +1275,7 @@ mod tests {
                 check!(&p.children[0], Node::ImageReference(_), lookups => MdqNode::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "".to_string(),
-                        link: Link {
+                        link: LinkDefinition {
                             url: "https://example.com/image.png".to_string(),
                             title: Some("my title".to_string()),
                             reference: LinkReference::Full("1".to_string()),
@@ -1296,7 +1296,7 @@ mod tests {
                 check!(&p.children[0], Node::ImageReference(_), lookups => MdqNode::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "my alt".to_string(),
-                        link: Link {
+                        link: LinkDefinition {
                             url: "https://example.com/image.png".to_string(),
                             title: Some("my title".to_string()),
                             reference: LinkReference::Collapsed,
@@ -1317,7 +1317,7 @@ mod tests {
                 check!(&p.children[0], Node::ImageReference(_), lookups => MdqNode::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "my alt".to_string(),
-                        link: Link {
+                        link: LinkDefinition {
                             url: "https://example.com/image.png".to_string(),
                             title: None,
                             reference: LinkReference::Shortcut,
@@ -1340,7 +1340,7 @@ mod tests {
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![],
-                        link: Link {
+                        link_definition: LinkDefinition {
                             url: "https://example.com/image.png".to_string(),
                             title: None,
                             reference: LinkReference::Full("1".to_string()),
@@ -1358,7 +1358,7 @@ mod tests {
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdqNode::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![],
-                        link: Link {
+                        link_definition: LinkDefinition {
                             url: "https://example.com/image.png".to_string(),
                             title: Some("my title".to_string()),
                             reference: LinkReference::Full("1".to_string()),
@@ -1388,7 +1388,7 @@ mod tests {
                             Inline::Text {variant: TextVariant::Plain,value: " text".to_string()}
 
                         ],
-                        link: Link {
+                        link_definition: LinkDefinition {
                             url: "https://example.com/image.png".to_string(),
                             title: Some("my title".to_string()),
                             reference: LinkReference::Collapsed,
@@ -1411,7 +1411,7 @@ mod tests {
                         text: vec![
                             Inline::Text {variant: TextVariant::Plain,value: "my text".to_string()},
                         ],
-                        link: Link {
+                        link_definition: LinkDefinition {
                             url: "https://example.com/image.png".to_string(),
                             title: None,
                             reference: LinkReference::Shortcut,
