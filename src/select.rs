@@ -7,7 +7,7 @@ use crate::tree_ref::{ListItemRef, MdqNodeRef};
 use crate::wrap_mdq_refs;
 
 #[derive(Debug, PartialEq)]
-pub enum Selector {
+pub enum SelectHolder {
     Any,
     // List(Matcher, ListType, Selected),  // should this be list or list item?
     // Image { text: Matcher, href: Matcher },
@@ -38,7 +38,7 @@ pub enum Selector {
     ListItem(ListItemSelector),
 }
 
-impl Selector {
+impl SelectHolder {
     pub fn find_nodes<'a>(&self, nodes: Vec<MdqNodeRef<'a>>) -> Vec<MdqNodeRef<'a>> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
         for node in nodes {
@@ -49,8 +49,8 @@ impl Selector {
 
     pub fn build_output<'a>(&self, out: &mut Vec<MdqNodeRef<'a>>, node: MdqNodeRef<'a>) {
         let result = match (self, node.clone()) {
-            (Selector::Section(selector), MdqNodeRef::Section(header)) => selector.try_select(&header),
-            (Selector::ListItem(selector), MdqNodeRef::ListItem(item)) => selector.try_select(item),
+            (SelectHolder::Section(selector), MdqNodeRef::Section(header)) => selector.try_select(&header),
+            (SelectHolder::ListItem(selector), MdqNodeRef::ListItem(item)) => selector.try_select(item),
             _ => None,
         };
         match result {
@@ -121,8 +121,8 @@ pub struct SubstringMatcher {
     pub look_for: String,
 }
 
-impl Selector {
-    pub fn parse(text: &str) -> Result<Vec<Selector>, ParseError> {
+impl SelectHolder {
+    pub fn parse(text: &str) -> Result<Vec<SelectHolder>, ParseError> {
         let mut iter = ParsingIterator::new(text.chars());
         let mut selectors = Vec::with_capacity(5); // just a guess
 
@@ -141,10 +141,10 @@ impl Selector {
         Ok(selectors)
     }
 
-    fn parse_selector<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<Selector> {
+    fn parse_selector<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<SelectHolder> {
         chars.drop_while(|ch| ch.is_whitespace()); // should already be the case, but this is cheap and future-proof
         match chars.next() {
-            None => Ok(Selector::Any), // unexpected, but future-proof
+            None => Ok(SelectHolder::Any), // unexpected, but future-proof
             Some('#') => Ok(Self::Section(SectionSelector::read(chars)?)),
             Some('1') => Ok(Self::ListItem(ListItemType::Ordered.read(chars)?)),
             Some('-') => Ok(Self::ListItem(ListItemType::Unordered.read(chars)?)),
@@ -158,7 +158,7 @@ impl Selector {
 pub(crate) mod test_util {
     use super::*;
 
-    pub fn parse_selector<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<Selector> {
-        Selector::parse_selector(chars)
+    pub fn parse_selector<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<SelectHolder> {
+        SelectHolder::parse_selector(chars)
     }
 }

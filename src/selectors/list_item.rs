@@ -116,7 +116,7 @@ mod tests {
     fn ordered_no_checkbox() {
         parse_and_check(
             "1. foo",
-            crate::select::Selector::ListItem(ListItemSelector {
+            crate::select::SelectHolder::ListItem(ListItemSelector {
                 li_type: ListItemType::Ordered,
                 checkbox: CheckboxSpecifier::NoCheckbox,
                 string_matcher: Matcher::Substring(SubstringMatcher {
@@ -131,7 +131,7 @@ mod tests {
     fn unordered_no_checkbox() {
         parse_and_check(
             "- foo",
-            crate::select::Selector::ListItem(ListItemSelector {
+            crate::select::SelectHolder::ListItem(ListItemSelector {
                 li_type: ListItemType::Unordered,
                 checkbox: CheckboxSpecifier::NoCheckbox,
                 string_matcher: Matcher::Substring(SubstringMatcher {
@@ -146,7 +146,7 @@ mod tests {
     fn unordered_unchecked() {
         parse_and_check(
             "- [ ] foo",
-            crate::select::Selector::ListItem(ListItemSelector {
+            crate::select::SelectHolder::ListItem(ListItemSelector {
                 li_type: ListItemType::Unordered,
                 checkbox: CheckboxSpecifier::CheckboxUnchecked,
                 string_matcher: Matcher::Substring(SubstringMatcher {
@@ -161,7 +161,7 @@ mod tests {
     fn unordered_checked() {
         parse_and_check(
             "- [x] foo",
-            crate::select::Selector::ListItem(ListItemSelector {
+            crate::select::SelectHolder::ListItem(ListItemSelector {
                 li_type: ListItemType::Unordered,
                 checkbox: CheckboxSpecifier::CheckboxChecked,
                 string_matcher: Matcher::Substring(SubstringMatcher {
@@ -176,7 +176,7 @@ mod tests {
     fn unordered_maybe_checked() {
         parse_and_check(
             "- [?] foo",
-            crate::select::Selector::ListItem(ListItemSelector {
+            crate::select::SelectHolder::ListItem(ListItemSelector {
                 li_type: ListItemType::Unordered,
                 checkbox: CheckboxSpecifier::CheckboxEither,
                 string_matcher: Matcher::Substring(SubstringMatcher {

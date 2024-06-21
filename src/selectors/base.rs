@@ -41,11 +41,11 @@ pub enum ParseErrorReason {
 pub mod test_util {
     use crate::parsing_iter::ParsingIterator;
     use crate::select::test_util::parse_selector;
-    use crate::select::Selector;
+    use crate::select::SelectHolder;
     use crate::selectors::base::ParseResult;
     use std::fmt::Debug;
 
-    pub fn parse_and_check(text: &str, expect: Selector, expect_remaining: &str) {
+    pub fn parse_and_check(text: &str, expect: SelectHolder, expect_remaining: &str) {
         parse_and_check_mapped(text, expect, expect_remaining, |iter| parse_selector(iter))
     }
 
