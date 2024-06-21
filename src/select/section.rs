@@ -1,5 +1,5 @@
 use crate::fmt_str::inlines_to_plain_string;
-use crate::matcher::Matcher;
+use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
 use crate::select::{ParseResult, SelectResult};
@@ -7,12 +7,12 @@ use crate::tree::Section;
 
 #[derive(Debug, PartialEq)]
 pub struct SectionSelector {
-    matcher: Matcher,
+    matcher: StringMatcher,
 }
 
 impl SectionSelector {
     pub fn read(chars: &mut ParsingIterator) -> ParseResult<SectionSelector> {
-        let matcher = Matcher::parse_matcher(chars)?;
+        let matcher = StringMatcher::parse_matcher(chars)?;
         Ok(Self { matcher })
     }
 }

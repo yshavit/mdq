@@ -6,31 +6,30 @@ use regex::Regex;
 use std::borrow::Borrow;
 
 #[derive(Debug)]
-pub enum Matcher {
-    // TODO rename to StringMatcher
+pub enum StringMatcher {
     Any,
     Substring(String),
     Regex(Regex),
 }
 
-impl PartialEq for Matcher {
+impl PartialEq for StringMatcher {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Matcher::Any, Matcher::Any) => true,
-            (Matcher::Substring(lhs), Matcher::Substring(rhs)) => lhs == rhs,
-            (Matcher::Regex(lhs), Matcher::Regex(rhs)) => lhs.as_str() == rhs.as_str(),
+            (StringMatcher::Any, StringMatcher::Any) => true,
+            (StringMatcher::Substring(lhs), StringMatcher::Substring(rhs)) => lhs == rhs,
+            (StringMatcher::Regex(lhs), StringMatcher::Regex(rhs)) => lhs.as_str() == rhs.as_str(),
             _ => false,
         }
     }
 }
 
-impl Matcher {
+impl StringMatcher {
     pub fn matches(&self, haystack: &str) -> bool {
         // TODO deprecate in favor of matches_inlines
         match self {
-            Matcher::Any => true,
-            Matcher::Substring(look_for) => haystack.contains(look_for),
-            Matcher::Regex(re) => re.is_match(haystack),
+            StringMatcher::Any => true,
+            StringMatcher::Substring(look_for) => haystack.contains(look_for),
+            StringMatcher::Regex(re) => re.is_match(haystack),
         }
     }
 
@@ -39,7 +38,7 @@ impl Matcher {
     }
 
     pub fn matches_any<N: Borrow<MdqNode>>(&self, haystacks: &[N]) -> bool {
-        if matches!(self, Matcher::Any) {
+        if matches!(self, StringMatcher::Any) {
             return true;
         }
         haystacks.iter().any(|node| self.matches_node(node.borrow()))
@@ -72,10 +71,10 @@ impl Matcher {
         }
     }
 
-    pub fn parse_matcher(chars: &mut ParsingIterator) -> ParseResult<Matcher> {
+    pub fn parse_matcher(chars: &mut ParsingIterator) -> ParseResult<StringMatcher> {
         chars.drop_while(|ch| ch.is_whitespace());
         let peek_ch = match chars.peek() {
-            None => return Ok(Matcher::Any),
+            None => return Ok(StringMatcher::Any),
             Some(ch) => ch,
         };
         if peek_ch.is_alphanumeric() {
@@ -83,13 +82,13 @@ impl Matcher {
         }
         let _ = chars.next(); // drop the char we peeked
         match peek_ch {
-            '*' | SELECTOR_SEPARATOR => Ok(Matcher::Any),
+            '*' | SELECTOR_SEPARATOR => Ok(StringMatcher::Any),
             '/' => Self::parse_regex_matcher(chars),
             _ => Err(ParseErrorReason::UnexpectedCharacter(peek_ch)),
         }
     }
 
-    fn parse_matcher_bare(chars: &mut ParsingIterator) -> Matcher {
+    fn parse_matcher_bare(chars: &mut ParsingIterator) -> StringMatcher {
         let mut result = String::with_capacity(20); // just a guess
         let mut dropped = String::with_capacity(8); // also a guess
 
@@ -105,10 +104,10 @@ impl Matcher {
             result.push(ch);
         }
 
-        Matcher::Substring(result)
+        StringMatcher::Substring(result)
     }
 
-    fn parse_regex_matcher(chars: &mut ParsingIterator) -> ParseResult<Matcher> {
+    fn parse_regex_matcher(chars: &mut ParsingIterator) -> ParseResult<StringMatcher> {
         let mut result = String::with_capacity(20); // just a guess
 
         loop {
@@ -128,7 +127,7 @@ impl Matcher {
         }
 
         match Regex::new(&result) {
-            Ok(re) => Ok(Matcher::Regex(re)),
+            Ok(re) => Ok(StringMatcher::Regex(re)),
             Err(err) => Err(ParseErrorReason::InvalidSyntax(err.to_string())),
         }
     }
@@ -142,22 +141,38 @@ mod test {
 
     #[test]
     fn bareword() {
-        parse_and_check("hello", Matcher::Substring("hello".to_string()), "");
-        parse_and_check("hello ", Matcher::Substring("hello".to_string()), "");
-        parse_and_check("hello / goodbye", Matcher::Substring("hello / goodbye".to_string()), "");
-        parse_and_check("hello| goodbye", Matcher::Substring("hello".to_string()), " goodbye");
-        parse_and_check("hello | goodbye", Matcher::Substring("hello".to_string()), " goodbye");
+        parse_and_check("hello", StringMatcher::Substring("hello".to_string()), "");
+        parse_and_check("hello ", StringMatcher::Substring("hello".to_string()), "");
+        parse_and_check(
+            "hello / goodbye",
+            StringMatcher::Substring("hello / goodbye".to_string()),
+            "",
+        );
+        parse_and_check(
+            "hello| goodbye",
+            StringMatcher::Substring("hello".to_string()),
+            " goodbye",
+        );
+        parse_and_check(
+            "hello | goodbye",
+            StringMatcher::Substring("hello".to_string()),
+            " goodbye",
+        );
     }
 
     #[test]
     fn regex() {
-        parse_and_check(r#"/foo/"#, Matcher::Regex(Regex::new("foo").unwrap()), "");
-        parse_and_check(r#"/foo /"#, Matcher::Regex(Regex::new("foo ").unwrap()), "");
-        parse_and_check(r#"/foo/bar"#, Matcher::Regex(Regex::new("foo").unwrap()), "bar");
-        parse_and_check(r#"//"#, Matcher::Regex(Regex::new("").unwrap()), "");
-        parse_and_check(r#"/(a|b)/"#, Matcher::Regex(Regex::new("(a|b)").unwrap()), "");
-        parse_and_check(r#"/\d/"#, Matcher::Regex(Regex::new("\\d").unwrap()), "");
-        parse_and_check(r#"/fizz\/buzz/"#, Matcher::Regex(Regex::new("fizz/buzz").unwrap()), "");
+        parse_and_check(r#"/foo/"#, StringMatcher::Regex(Regex::new("foo").unwrap()), "");
+        parse_and_check(r#"/foo /"#, StringMatcher::Regex(Regex::new("foo ").unwrap()), "");
+        parse_and_check(r#"/foo/bar"#, StringMatcher::Regex(Regex::new("foo").unwrap()), "bar");
+        parse_and_check(r#"//"#, StringMatcher::Regex(Regex::new("").unwrap()), "");
+        parse_and_check(r#"/(a|b)/"#, StringMatcher::Regex(Regex::new("(a|b)").unwrap()), "");
+        parse_and_check(r#"/\d/"#, StringMatcher::Regex(Regex::new("\\d").unwrap()), "");
+        parse_and_check(
+            r#"/fizz\/buzz/"#,
+            StringMatcher::Regex(Regex::new("fizz/buzz").unwrap()),
+            "",
+        );
 
         expect_err(
             r#"/unclosed"#,
@@ -185,9 +200,9 @@ mod test {
         );
     }
 
-    fn parse_and_check(text: &str, expect: Matcher, expect_remaining: &str) {
+    fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) {
         let mut iter = ParsingIterator::new(text);
-        let matcher = Matcher::parse_matcher(&mut iter).unwrap();
+        let matcher = StringMatcher::parse_matcher(&mut iter).unwrap();
         assert_eq!(matcher, expect);
         let remaining: String = iter.collect();
         assert_eq!(&remaining, expect_remaining);
@@ -195,7 +210,7 @@ mod test {
 
     fn expect_err(text: &str, expect: ParseErrorReason, at: Position) {
         let mut iter = ParsingIterator::new(text);
-        let err = Matcher::parse_matcher(&mut iter).expect_err("expected to fail parsing");
+        let err = StringMatcher::parse_matcher(&mut iter).expect_err("expected to fail parsing");
         assert_eq!(iter.input_position(), at);
         assert_eq!(err, expect);
     }

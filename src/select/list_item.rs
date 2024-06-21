@@ -1,4 +1,4 @@
-use crate::matcher::Matcher;
+use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
 use crate::select::util::require_whitespace;
@@ -9,7 +9,7 @@ use crate::tree_ref::{ListItemRef, MdqNodeRef};
 pub struct ListItemSelector {
     li_type: ListItemType,
     checkbox: CheckboxSpecifier,
-    string_matcher: Matcher,
+    string_matcher: StringMatcher,
 }
 
 #[derive(Debug, PartialEq)]
@@ -46,7 +46,7 @@ impl ListItemType {
         };
 
         // item string matcher
-        let string_matcher = Matcher::parse_matcher(chars)?;
+        let string_matcher = StringMatcher::parse_matcher(chars)?;
 
         Ok(ListItemSelector {
             li_type: self,
