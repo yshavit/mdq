@@ -1,4 +1,3 @@
-use crate::fmt_str::inlines_to_plain_string;
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
