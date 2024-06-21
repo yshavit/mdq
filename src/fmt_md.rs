@@ -7,7 +7,7 @@ use crate::fmt_str::inlines_to_plain_string;
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
-use crate::tree_ref::MdqNodeRef;
+use crate::tree_ref::{ListItemRef, MdqNodeRef};
 
 #[derive(Default)]
 pub struct MdOptions {
@@ -182,7 +182,7 @@ impl<'a> MdWriterState<'a> {
                     }
                 });
             }
-            MdqNodeRef::ListItem(idx, item) => {
+            MdqNodeRef::ListItem(ListItemRef(idx, item)) => {
                 self.write_list_item(out, &idx, item);
             }
             MdqNodeRef::Table(Table { alignments, rows }) => {
@@ -932,7 +932,7 @@ pub mod tests {
     }
 
     mod list_item {
-        use crate::tree_ref::MdqNodeRef;
+        use crate::tree_ref::{ListItemRef, MdqNodeRef};
 
         use super::*;
 
@@ -968,7 +968,11 @@ pub mod tests {
 
         fn create_li_singleton<'a>(idx: Option<u32>, checked: Option<bool>, item: Vec<MdqNode>, expected: &str) {
             let li = ListItem { checked, item };
-            check_render_with_refs(&MdOptions::default(), vec![MdqNodeRef::ListItem(idx, &li)], expected)
+            check_render_with_refs(
+                &MdOptions::default(),
+                vec![MdqNodeRef::ListItem(ListItemRef(idx, &li))],
+                expected,
+            )
         }
     }
 

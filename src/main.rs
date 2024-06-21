@@ -14,6 +14,7 @@ mod output;
 mod parse_common;
 mod parsing_iter;
 mod select;
+mod selectors;
 mod str_utils;
 mod tree;
 mod tree_ref;

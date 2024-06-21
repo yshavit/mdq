@@ -14,11 +14,14 @@ pub enum MdqNodeRef<'a> {
     // blocks that contain strings (&'a as opposed to nodes)
     CodeBlock(&'a CodeBlock),
 
-    ListItem(Option<u32>, &'a ListItem),
+    ListItem(ListItemRef<'a>),
 
     // inline spans
     Inline(&'a Inline),
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct ListItemRef<'a>(pub Option<u32>, pub &'a ListItem);
 
 impl<'a> From<&'a MdqNode> for MdqNodeRef<'a> {
     fn from(value: &'a MdqNode) -> Self {

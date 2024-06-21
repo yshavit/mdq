@@ -1,9 +1,9 @@
-use crate::fmt_str::inlines_to_plain_string;
-use crate::matcher::Matcher;
-use crate::parse_common::{ParseError, ParseErrorReason, ParseResult};
 use crate::parsing_iter::ParsingIterator;
-use crate::tree::{Inline, ListItem, MdqNode};
-use crate::tree_ref::MdqNodeRef;
+use crate::selectors::base::{ParseError, ParseErrorReason, ParseResult, SelectResult, Selector};
+use crate::selectors::list_item::{ListItemSelector, ListItemType};
+use crate::selectors::section::SectionSelector;
+use crate::tree::Inline;
+use crate::tree_ref::{ListItemRef, MdqNodeRef};
 use crate::wrap_mdq_refs;
 
 #[derive(Debug, PartialEq)]
@@ -48,25 +48,15 @@ impl Selector {
     }
 
     pub fn build_output<'a>(&self, out: &mut Vec<MdqNodeRef<'a>>, node: MdqNodeRef<'a>) {
-        enum Result<'a> {
-            One(bool, MdqNodeRef<'a>),
-            Several(bool, &'a Vec<MdqNode>),
-            None,
-        }
         let result = match (self, node.clone()) {
-            (Selector::Section(selector), MdqNodeRef::Section(header)) => {
-                let header_text = inlines_to_plain_string(&header.title);
-                Result::Several(selector.matcher.matches(&header_text), &header.body)
-            }
-            (Selector::ListItem(selector), MdqNodeRef::ListItem(idx, item)) => {
-                Result::One(selector.matches(&idx, item), MdqNodeRef::ListItem(idx, item))
-            }
-            _ => Result::None,
+            (Selector::Section(selector), MdqNodeRef::Section(header)) => selector.try_select(&header),
+            (Selector::ListItem(selector), MdqNodeRef::ListItem(item)) => selector.try_select(item),
+            _ => None,
         };
         match result {
-            Result::One(true, found) => out.push(found),
-            Result::Several(true, found) => found.iter().for_each(|item| out.push(item.into())),
-            _ => {
+            Some(SelectResult::One(found)) => out.push(found),
+            Some(SelectResult::Multi(found)) => found.iter().for_each(|item| out.push(item.into())),
+            None => {
                 for child in Self::find_children(node) {
                     self.build_output(out, child);
                 }
@@ -89,7 +79,7 @@ impl Selector {
                 let mut idx = list.starting_index;
                 let mut result = Vec::with_capacity(list.items.len());
                 for item in &list.items {
-                    result.push(MdqNodeRef::ListItem(idx.clone(), item));
+                    result.push(MdqNodeRef::ListItem(ListItemRef(idx.clone(), item)));
                     if let Some(idx) = idx.as_mut() {
                         *idx += 1;
                     }
@@ -110,7 +100,7 @@ impl Selector {
             }
             MdqNodeRef::ThematicBreak => Vec::new(),
             MdqNodeRef::CodeBlock(_) => Vec::new(),
-            MdqNodeRef::ListItem(_, item) => MdqNodeRef::wrap_vec(&item.item),
+            MdqNodeRef::ListItem(ListItemRef(_, item)) => MdqNodeRef::wrap_vec(&item.item),
             MdqNodeRef::Inline(inline) => match inline {
                 Inline::Span { children, .. } => children.iter().map(|child| MdqNodeRef::Inline(child)).collect(),
                 Inline::Footnote(footnote) => MdqNodeRef::wrap_vec(&footnote.text),
@@ -122,11 +112,6 @@ impl Selector {
             },
         }
     }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct SectionSelector {
-    matcher: Matcher,
 }
 
 #[derive(Debug, PartialEq)]
@@ -160,229 +145,20 @@ impl Selector {
         chars.drop_while(|ch| ch.is_whitespace()); // should already be the case, but this is cheap and future-proof
         match chars.next() {
             None => Ok(Selector::Any), // unexpected, but future-proof
-            Some('#') => Self::parse_header(chars),
-            Some('-') => ListItemSelector::read(ListItemType::Unordered, chars),
-            Some('1') => ListItemSelector::read(ListItemType::Ordered, chars),
+            Some('#') => Ok(Self::Section(SectionSelector::read(chars)?)),
+            Some('1') => Ok(Self::ListItem(ListItemType::Ordered.read(chars)?)),
+            Some('-') => Ok(Self::ListItem(ListItemType::Unordered.read(chars)?)),
 
             Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // TODO should be Any w/ bareword if first char is a letter
         }
     }
-
-    fn parse_header<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<Selector> {
-        require_whitespace(chars, "Section specifier")?;
-        let matcher = Matcher::parse_matcher(chars)?;
-        Ok(Selector::Section(SectionSelector { matcher }))
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct ListItemSelector {
-    li_type: ListItemType,
-    checkbox: CheckboxSpecifier,
-    string_matcher: Matcher,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum ListItemType {
-    Ordered,
-    Unordered,
-}
-
-impl ListItemType {
-    fn matches(&self, idx: &Option<u32>) -> bool {
-        match self {
-            ListItemType::Ordered => idx.is_some(),
-            ListItemType::Unordered => idx.is_none(),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum CheckboxSpecifier {
-    CheckboxUnchecked,
-    CheckboxChecked,
-    CheckboxEither,
-    NoCheckbox,
-}
-
-impl CheckboxSpecifier {
-    fn matches(&self, checked: &Option<bool>) -> bool {
-        match self {
-            CheckboxSpecifier::CheckboxUnchecked => checked == &Some(false),
-            CheckboxSpecifier::CheckboxChecked => checked == &Some(true),
-            CheckboxSpecifier::CheckboxEither => checked.is_some(),
-            CheckboxSpecifier::NoCheckbox => checked.is_none(),
-        }
-    }
-}
-
-fn require_whitespace<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>, description: &str) -> ParseResult<()> {
-    if chars.drop_while(|ch| ch.is_whitespace()).is_empty() && chars.peek().is_some() {
-        return Err(ParseErrorReason::InvalidSyntax(format!(
-            "{} must be followed by whitespace",
-            description
-        )));
-    } else {
-        Ok(())
-    }
-}
-
-impl ListItemSelector {
-    fn read<C: Iterator<Item = char>>(li_type: ListItemType, chars: &mut ParsingIterator<C>) -> ParseResult<Selector> {
-        if matches!(li_type, ListItemType::Ordered) {
-            if chars.next() != Some('.') {
-                return Err(ParseErrorReason::InvalidSyntax(
-                    "Ordered list item specifier must start with \"1.\"".to_string(),
-                ));
-            }
-        }
-        require_whitespace(chars, "List item specifier")?;
-        let checkbox = if chars.peek() == Some('[') {
-            chars.next(); // consume the '['
-            let spec = match chars.next() {
-                None => return Err(ParseErrorReason::UnexpectedEndOfInput),
-                Some(' ') => CheckboxSpecifier::CheckboxUnchecked,
-                Some('x') => CheckboxSpecifier::CheckboxChecked,
-                Some('?') => CheckboxSpecifier::CheckboxEither,
-                Some(other) => return Err(ParseErrorReason::UnexpectedCharacter(other)),
-            };
-            if chars.next() != Some(']') {
-                return Err(ParseErrorReason::InvalidSyntax("expected \"]\"".to_string()));
-            }
-            require_whitespace(chars, "list item type")?;
-            spec
-        } else {
-            CheckboxSpecifier::NoCheckbox
-        };
-        let string_matcher = Matcher::parse_matcher(chars)?;
-
-        Ok(Selector::ListItem(ListItemSelector {
-            li_type,
-            checkbox,
-            string_matcher,
-        }))
-    }
-
-    fn matches(&self, actual_idx: &Option<u32>, actual_item: &ListItem) -> bool {
-        if !self.li_type.matches(actual_idx) {
-            return false;
-        }
-        if !self.checkbox.matches(&actual_item.checked) {
-            return false;
-        }
-        self.string_matcher.matches_any(&actual_item.item)
-    }
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test_util {
     use super::*;
-    use crate::parse_common::parse_and_check_mapped;
 
-    #[test]
-    fn section() {
-        parse_and_check(
-            "# foo",
-            Selector::Section(SectionSelector {
-                matcher: Matcher::Substring(SubstringMatcher {
-                    look_for: "foo".to_string(),
-                }),
-            }),
-            "",
-        );
-
-        parse_and_check("# ", Selector::Section(SectionSelector { matcher: Matcher::Any }), "");
-
-        parse_and_check(
-            "# | next",
-            Selector::Section(SectionSelector { matcher: Matcher::Any }),
-            " next",
-        );
-    }
-
-    mod list_item {
-        use super::*;
-        use crate::select::test::parse_and_check;
-
-        // TODO need negative tests
-
-        #[test]
-        fn ordered_no_checkbox() {
-            parse_and_check(
-                "1. foo",
-                Selector::ListItem(ListItemSelector {
-                    li_type: ListItemType::Ordered,
-                    checkbox: CheckboxSpecifier::NoCheckbox,
-                    string_matcher: Matcher::Substring(SubstringMatcher {
-                        look_for: "foo".to_string(),
-                    }),
-                }),
-                "",
-            );
-        }
-
-        #[test]
-        fn unordered_no_checkbox() {
-            parse_and_check(
-                "- foo",
-                Selector::ListItem(ListItemSelector {
-                    li_type: ListItemType::Unordered,
-                    checkbox: CheckboxSpecifier::NoCheckbox,
-                    string_matcher: Matcher::Substring(SubstringMatcher {
-                        look_for: "foo".to_string(),
-                    }),
-                }),
-                "",
-            );
-        }
-
-        #[test]
-        fn unordered_unchecked() {
-            parse_and_check(
-                "- [ ] foo",
-                Selector::ListItem(ListItemSelector {
-                    li_type: ListItemType::Unordered,
-                    checkbox: CheckboxSpecifier::CheckboxUnchecked,
-                    string_matcher: Matcher::Substring(SubstringMatcher {
-                        look_for: "foo".to_string(),
-                    }),
-                }),
-                "",
-            );
-        }
-
-        #[test]
-        fn unordered_checked() {
-            parse_and_check(
-                "- [x] foo",
-                Selector::ListItem(ListItemSelector {
-                    li_type: ListItemType::Unordered,
-                    checkbox: CheckboxSpecifier::CheckboxChecked,
-                    string_matcher: Matcher::Substring(SubstringMatcher {
-                        look_for: "foo".to_string(),
-                    }),
-                }),
-                "",
-            );
-        }
-
-        #[test]
-        fn unordered_maybe_checked() {
-            parse_and_check(
-                "- [?] foo",
-                Selector::ListItem(ListItemSelector {
-                    li_type: ListItemType::Unordered,
-                    checkbox: CheckboxSpecifier::CheckboxEither,
-                    string_matcher: Matcher::Substring(SubstringMatcher {
-                        look_for: "foo".to_string(),
-                    }),
-                }),
-                "",
-            );
-        }
-    }
-
-    fn parse_and_check(text: &str, expect: Selector, expect_remaining: &str) {
-        parse_and_check_mapped(text, expect, expect_remaining, |iter| Selector::parse_selector(iter))
+    pub fn parse_selector<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<Selector> {
+        Selector::parse_selector(chars)
     }
 }
