@@ -1,8 +1,8 @@
 use crate::fmt_str::inlines_to_plain_string;
 use crate::matcher::Matcher;
 use crate::parsing_iter::ParsingIterator;
-use crate::selectors::base::{ParseResult, SelectResult, Selector};
-use crate::selectors::util::require_whitespace;
+use crate::select::base::{ParseResult, SelectResult, Selector};
+use crate::select::util::require_whitespace;
 use crate::tree::Section;
 
 #[derive(Debug, PartialEq)]

@@ -1,18 +1,15 @@
 use crate::parsing_iter::ParsingIterator;
-use crate::selectors::base::{ParseError, ParseErrorReason, ParseResult, SelectResult, Selector};
-use crate::selectors::list_item::{ListItemSelector, ListItemType};
-use crate::selectors::section::SectionSelector;
+use crate::select::base::{ParseError, ParseErrorReason, ParseResult, SelectResult, Selector};
+use crate::select::list_item::{ListItemSelector, ListItemType};
+use crate::select::section::SectionSelector;
 use crate::tree::Inline;
 use crate::tree_ref::{ListItemRef, MdqNodeRef};
 use crate::wrap_mdq_refs;
 
 #[derive(Debug, PartialEq)]
-pub enum SelectHolder {
+pub enum MdqRefSelector {
     Any,
-    // List(Matcher, ListType, Selected),  // should this be list or list item?
-    // Image { text: Matcher, href: Matcher },
-    // Link { text: Matcher, href: Matcher },
-    // CodeBlock(Matcher),
+
     /// Selects the content of a section identified by its heading.
     ///
     /// Format: `# <string_matcher>`
@@ -38,7 +35,7 @@ pub enum SelectHolder {
     ListItem(ListItemSelector),
 }
 
-impl SelectHolder {
+impl MdqRefSelector {
     pub fn find_nodes<'a>(&self, nodes: Vec<MdqNodeRef<'a>>) -> Vec<MdqNodeRef<'a>> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
         for node in nodes {
@@ -49,8 +46,8 @@ impl SelectHolder {
 
     pub fn build_output<'a>(&self, out: &mut Vec<MdqNodeRef<'a>>, node: MdqNodeRef<'a>) {
         let result = match (self, node.clone()) {
-            (SelectHolder::Section(selector), MdqNodeRef::Section(header)) => selector.try_select(&header),
-            (SelectHolder::ListItem(selector), MdqNodeRef::ListItem(item)) => selector.try_select(item),
+            (MdqRefSelector::Section(selector), MdqNodeRef::Section(header)) => selector.try_select(&header),
+            (MdqRefSelector::ListItem(selector), MdqNodeRef::ListItem(item)) => selector.try_select(item),
             _ => None,
         };
         match result {
@@ -114,8 +111,8 @@ impl SelectHolder {
     }
 }
 
-impl SelectHolder {
-    pub fn parse(text: &str) -> Result<Vec<SelectHolder>, ParseError> {
+impl MdqRefSelector {
+    pub fn parse(text: &str) -> Result<Vec<MdqRefSelector>, ParseError> {
         let mut iter = ParsingIterator::new(text.chars());
         let mut selectors = Vec::with_capacity(5); // just a guess
 
@@ -134,10 +131,10 @@ impl SelectHolder {
         Ok(selectors)
     }
 
-    fn parse_selector<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<SelectHolder> {
+    fn parse_selector<C: Iterator<Item = char>>(chars: &mut ParsingIterator<C>) -> ParseResult<MdqRefSelector> {
         chars.drop_while(|ch| ch.is_whitespace()); // should already be the case, but this is cheap and future-proof
         match chars.next() {
-            None => Ok(SelectHolder::Any), // unexpected, but future-proof
+            None => Ok(MdqRefSelector::Any), // unexpected, but future-proof
             Some('#') => Ok(Self::Section(SectionSelector::read(chars)?)),
             Some('1') => Ok(Self::ListItem(ListItemType::Ordered.read(chars)?)),
             Some('-') => Ok(Self::ListItem(ListItemType::Unordered.read(chars)?)),

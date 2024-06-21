@@ -1,5 +1,5 @@
 use crate::parsing_iter::ParsingIterator;
-use crate::selectors::base::{ParseErrorReason, ParseResult};
+use crate::select::base::{ParseErrorReason, ParseResult};
 
 pub fn require_whitespace<C: Iterator<Item = char>>(
     chars: &mut ParsingIterator<C>,

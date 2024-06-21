@@ -1,6 +1,6 @@
 use crate::fmt_str::inlines_to_plain_string;
 use crate::parsing_iter::ParsingIterator;
-use crate::selectors::base::{ParseErrorReason, ParseResult, SELECTOR_SEPARATOR};
+use crate::select::base::{ParseErrorReason, ParseResult, SELECTOR_SEPARATOR};
 use crate::tree::{Inline, MdqNode};
 use regex::Regex;
 use std::borrow::Borrow;

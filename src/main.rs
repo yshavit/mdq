@@ -3,7 +3,7 @@ use std::{env, io};
 
 use crate::fmt_md::MdOptions;
 use crate::output::Stream;
-use crate::select::SelectHolder;
+use crate::select::selector::MdqRefSelector;
 use crate::tree::{MdqNode, ReadOptions};
 use crate::tree_ref::MdqNodeRef;
 
@@ -14,7 +14,6 @@ mod output;
 mod parse_common;
 mod parsing_iter;
 mod select;
-mod selectors;
 mod str_utils;
 mod tree;
 mod tree_ref;
@@ -29,7 +28,7 @@ fn main() {
     let mut out = output::Output::new(Stream(io::stdout()));
 
     let selectors_str = env::args().nth(1).unwrap_or("".to_string());
-    let selectors = SelectHolder::parse(&selectors_str).expect("failed to parse selector");
+    let selectors = MdqRefSelector::parse(&selectors_str).expect("failed to parse selector");
 
     let mut pipeline_nodes = MdqNodeRef::wrap_vec(&mdqs);
     for selector in selectors {
