@@ -8,6 +8,7 @@ use markdown::mdast;
 
 #[derive(Debug, PartialEq)]
 pub enum MdqNode {
+    Block(Block),
     // paragraphs with child nodes
     Section(Section),
     Paragraph(Paragraph),
@@ -22,6 +23,17 @@ pub enum MdqNode {
 
     // inline spans
     Inline(Inline),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Block {
+    LeafBlock(LeafBlock),
+    // TODO #53 leaf blocks
+}
+
+#[derive(Debug, PartialEq)]
+pub enum LeafBlock {
+    // TODO #53
 }
 
 #[derive(Debug, PartialEq)]

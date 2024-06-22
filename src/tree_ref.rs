@@ -26,6 +26,7 @@ pub struct ListItemRef<'a>(pub Option<u32>, pub &'a ListItem);
 impl<'a> From<&'a MdqNode> for MdqNodeRef<'a> {
     fn from(value: &'a MdqNode) -> Self {
         match value {
+            MdqNode::Block(block) => todo!("#53"),
             MdqNode::Section(v) => Self::Section(v),
             MdqNode::Paragraph(v) => Self::Paragraph(v),
             MdqNode::BlockQuote(v) => Self::BlockQuote(v),

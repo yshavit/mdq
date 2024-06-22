@@ -1,7 +1,7 @@
 use crate::fmt_str::inlines_to_plain_string;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::{ParseErrorReason, ParseResult, SELECTOR_SEPARATOR};
-use crate::tree::{Inline, MdqNode};
+use crate::tree::{Block, Inline, MdqNode};
 use regex::Regex;
 use std::borrow::Borrow;
 
@@ -43,8 +43,16 @@ impl StringMatcher {
         haystacks.iter().any(|node| self.matches_node(node.borrow()))
     }
 
+    fn matches_block(&self, block: &Block) -> bool {
+        match block {
+            Block::LeafBlock(c) => todo!("53"),
+        };
+    }
+
     fn matches_node(&self, node: &MdqNode) -> bool {
         match node {
+            MdqNode::Block(block) => self.matches_block(block),
+
             MdqNode::Section(section) => {
                 if self.matches_inlines(&section.title) {
                     return true;
