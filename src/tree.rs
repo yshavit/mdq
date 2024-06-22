@@ -16,8 +16,6 @@ pub enum MdqNode {
     List(List),
     Table(Table),
 
-    ThematicBreak,
-
     // blocks that contain strings (as opposed to nodes)
     CodeBlock(CodeBlock),
 
@@ -33,6 +31,7 @@ pub enum Block {
 
 #[derive(Debug, PartialEq)]
 pub enum LeafBlock {
+    ThematicBreak,
     // TODO #53
 }
 
@@ -231,6 +230,35 @@ macro_rules! mdx_nodes {
     };
 }
 
+/// Creates a nested enum.
+///
+/// This macro translates:
+/// ```
+/// node!(A::B::C { foo: 123 }
+/// ```
+///
+/// into:
+///
+/// ```
+/// A::B(B::C(C { foo: 123 }))
+/// ```
+#[macro_export]
+macro_rules! m_node {
+    ($last:ident { $($attr:ident : $val:expr),* $(,)? }) => {
+        $last $({
+            $( $attr: $val )*,
+        })?
+    };
+
+    ($last:ident :: $next:ident) => {
+        $last::$next
+    };
+
+    ($head:ident :: $next:ident $(:: $($tail:ident)::*)? $({ $($attr:ident : $val:expr),* $(,)? })? ) => {
+        $head::$next( m_node!($next $(:: $($tail)::*)? $({ $($attr : $val),* })?) )
+    };
+}
+
 impl MdqNode {
     pub fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Vec<Self>, InvalidMd> {
         let lookups = Lookups::new(&node, opts)?;
@@ -370,7 +398,7 @@ impl MdqNode {
                     rows,
                 })
             }
-            mdast::Node::ThematicBreak(_) => MdqNode::ThematicBreak,
+            mdast::Node::ThematicBreak(_) => m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
             mdast::Node::TableRow(_) | mdast::Node::TableCell(_) | mdast::Node::ListItem(_) => {
                 return Err(InvalidMd::InternalError); // should have been handled by Node::Table
             }
@@ -1617,7 +1645,7 @@ mod tests {
             );
 
             assert_eq!(root.children.len(), 3);
-            check!(&root.children[1], Node::ThematicBreak(_), lookups => MdqNode::ThematicBreak = {
+            check!(&root.children[1], Node::ThematicBreak(_), lookups => m_node!(MdqNode::Block::LeafBlock::ThematicBreak) = {
                 // nothing to check
             });
         }

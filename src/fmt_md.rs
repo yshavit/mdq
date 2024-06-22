@@ -7,7 +7,7 @@ use crate::fmt_str::inlines_to_plain_string;
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
-use crate::tree_ref::{ListItemRef, MdqNodeRef};
+use crate::tree_ref::{ListItemRef, MdqNodeRef, NonSelectable};
 
 #[derive(Default)]
 pub struct MdOptions {
@@ -294,9 +294,6 @@ impl<'a> MdWriterState<'a> {
                     write_row(out, row, rows_iter.peek().is_some());
                 }
             }
-            MdqNodeRef::ThematicBreak => {
-                out.with_block(Block::Plain, |out| out.write_str("***"));
-            }
             MdqNodeRef::CodeBlock(CodeBlock { variant, value }) => {
                 let (surround, meta) = match variant {
                     CodeVariant::Code(opts) => {
@@ -341,6 +338,11 @@ impl<'a> MdWriterState<'a> {
             MdqNodeRef::Inline(inline) => {
                 self.write_inline_element(out, inline);
             }
+            MdqNodeRef::NonSelectable(node) => match node {
+                NonSelectable::ThematicBreak => {
+                    out.with_block(Block::Plain, |out| out.write_str("***"));
+                }
+            },
         }
     }
 
@@ -583,11 +585,13 @@ pub mod tests {
     use indoc::indoc;
 
     use crate::fmt_md::MdOptions;
+    use crate::m_node;
     use crate::mdq_inline;
+    use crate::mdq_node;
     use crate::mdq_nodes;
     use crate::output::Output;
     use crate::tree::*;
-    use crate::tree_ref::MdqNodeRef;
+    use crate::tree_ref::{MdqNodeRef, NonSelectable};
 
     use super::write_md;
 
@@ -598,7 +602,6 @@ pub mod tests {
         List(_),
         ListItem(..),
         Table(_),
-        ThematicBreak,
         CodeBlock(CodeBlock{variant: CodeVariant::Code(None), ..}),
         CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: None, ..})), ..}),
         CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: Some(_), ..})), ..}),
@@ -635,6 +638,8 @@ pub mod tests {
         Inline(Inline::Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
 
         Inline(Inline::Footnote{..}),
+
+        NonSelectable(NonSelectable::ThematicBreak),
     });
 
     #[test]
@@ -1133,14 +1138,12 @@ pub mod tests {
     }
 
     mod thematic_break {
-        use crate::mdq_node;
-
         use super::*;
 
         #[test]
         fn by_itself() {
             check_render(
-                vec![MdqNode::ThematicBreak],
+                vec![m_node!(MdqNode::Block::LeafBlock::ThematicBreak)],
                 indoc! {r#"
                 ***"#},
             );
@@ -1149,7 +1152,11 @@ pub mod tests {
         #[test]
         fn with_paragraphs() {
             check_render(
-                vec![mdq_node!("before"), MdqNode::ThematicBreak, mdq_node!("after")],
+                vec![
+                    mdq_node!("before"),
+                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
+                    mdq_node!("after"),
+                ],
                 indoc! {r#"
                 before
 
@@ -1519,7 +1526,7 @@ pub mod tests {
                         ],
                         link_definition: link,
                     }),
-                    MdqNode::ThematicBreak,
+                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
                 ];
                 check_render(nodes, expect);
             }
@@ -1668,7 +1675,7 @@ pub mod tests {
                         alt: "hello _world_!".to_string(),
                         link,
                     }),
-                    MdqNode::ThematicBreak,
+                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
                 ];
                 check_render(nodes, expect);
             }
@@ -1688,7 +1695,7 @@ pub mod tests {
                             body: vec![mdq_inline!("Hello, world.")]
                         }],
                     })),
-                    MdqNode::ThematicBreak,
+                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
                 ],
                 indoc! {r#"
                     [^a]
@@ -1709,7 +1716,7 @@ pub mod tests {
                             body: vec![mdq_inline!("Hello,\nworld.")]
                         }],
                     })),
-                    MdqNode::ThematicBreak,
+                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
                 ],
                 indoc! {r#"
                     [^a]

@@ -115,7 +115,6 @@ impl MdqRefSelector {
                 }
                 result
             }
-            MdqNodeRef::ThematicBreak => Vec::new(),
             MdqNodeRef::CodeBlock(_) => Vec::new(),
             MdqNodeRef::ListItem(ListItemRef(_, item)) => MdqNodeRef::wrap_vec(&item.item),
             MdqNodeRef::Inline(inline) => match inline {
@@ -127,6 +126,7 @@ impl MdqRefSelector {
                 }
                 Inline::Text { .. } | Inline::Image { .. } => Vec::new(),
             },
+            MdqNodeRef::NonSelectable(_) => Vec::new(),
         }
     }
 

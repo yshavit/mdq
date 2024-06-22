@@ -1,4 +1,6 @@
-use crate::tree::{BlockQuote, CodeBlock, Inline, List, ListItem, MdqNode, Paragraph, Section, Table};
+use crate::tree::{
+    Block, BlockQuote, CodeBlock, Inline, LeafBlock, List, ListItem, MdqNode, Paragraph, Section, Table,
+};
 
 #[derive(Debug, Clone)]
 pub enum MdqNodeRef<'a> {
@@ -9,8 +11,6 @@ pub enum MdqNodeRef<'a> {
     List(&'a List),
     Table(&'a Table),
 
-    ThematicBreak,
-
     // blocks that contain strings (&'a as opposed to nodes)
     CodeBlock(&'a CodeBlock),
 
@@ -18,6 +18,13 @@ pub enum MdqNodeRef<'a> {
 
     // inline spans
     Inline(&'a Inline),
+
+    NonSelectable(NonSelectable),
+}
+
+#[derive(Debug, Clone)]
+pub enum NonSelectable {
+    ThematicBreak,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -26,13 +33,14 @@ pub struct ListItemRef<'a>(pub Option<u32>, pub &'a ListItem);
 impl<'a> From<&'a MdqNode> for MdqNodeRef<'a> {
     fn from(value: &'a MdqNode) -> Self {
         match value {
-            MdqNode::Block(block) => todo!("#53"),
+            MdqNode::Block(Block::LeafBlock(LeafBlock::ThematicBreak)) => {
+                Self::NonSelectable(NonSelectable::ThematicBreak)
+            }
             MdqNode::Section(v) => Self::Section(v),
             MdqNode::Paragraph(v) => Self::Paragraph(v),
             MdqNode::BlockQuote(v) => Self::BlockQuote(v),
             MdqNode::List(v) => Self::List(v),
             MdqNode::Table(v) => Self::Table(v),
-            MdqNode::ThematicBreak => Self::ThematicBreak,
             MdqNode::CodeBlock(v) => Self::CodeBlock(v),
             MdqNode::Inline(v) => Self::Inline(v),
         }
