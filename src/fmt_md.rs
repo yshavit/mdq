@@ -653,12 +653,7 @@ pub mod tests {
         #[test]
         fn one_paragraph() {
             check_render(
-                mdq_nodes![Paragraph {
-                    body: vec![Inline::Text {
-                        variant: TextVariant::Plain,
-                        value: "Hello, world".to_string()
-                    }]
-                }],
+                mdq_nodes!["Hello, world"],
                 indoc! {r#"
                 Hello, world"#},
             );
@@ -667,20 +662,7 @@ pub mod tests {
         #[test]
         fn two_paragraphs() {
             check_render(
-                mdq_nodes![
-                    Paragraph {
-                        body: vec![Inline::Text {
-                            variant: TextVariant::Plain,
-                            value: "First".to_string()
-                        }]
-                    },
-                    Paragraph {
-                        body: vec![Inline::Text {
-                            variant: TextVariant::Plain,
-                            value: "Second".to_string()
-                        }]
-                    },
-                ],
+                mdq_nodes!["First", "Second",],
                 indoc! {r#"
                 First
 
@@ -726,9 +708,7 @@ pub mod tests {
                 mdq_nodes![Section {
                     depth: 3,
                     title: vec![],
-                    body: mdq_nodes![Paragraph {
-                        body: vec![mdq_inline!("Hello, world.")]
-                    },],
+                    body: mdq_nodes!["Hello, world."],
                 }],
                 indoc! {r#"
                     ###
@@ -744,9 +724,7 @@ pub mod tests {
                     depth: 1,
                     title: vec![mdq_inline!("My title")],
                     body: mdq_nodes![BlockQuote {
-                        body: mdq_nodes![Paragraph {
-                            body: vec![mdq_inline!("Hello, world.")]
-                        },],
+                        body: mdq_nodes!["Hello, world."],
                     },],
                 }],
                 indoc! {r#"
@@ -763,12 +741,7 @@ pub mod tests {
         #[test]
         fn simple() {
             check_render(
-                mdq_nodes![Paragraph {
-                    body: vec![Inline::Text {
-                        variant: TextVariant::Plain,
-                        value: "Hello, world".to_string()
-                    }]
-                }],
+                mdq_nodes!["Hello, world"],
                 indoc! {r#"
                 Hello, world"#},
             );
@@ -776,7 +749,6 @@ pub mod tests {
     }
 
     mod block_quote {
-        use crate::mdq_inline;
 
         use super::*;
 
@@ -784,12 +756,7 @@ pub mod tests {
         fn single_level() {
             check_render(
                 mdq_nodes![BlockQuote {
-                    body: mdq_nodes![Paragraph {
-                        body: vec![Inline::Text {
-                            variant: TextVariant::Plain,
-                            value: "Hello, world".to_string()
-                        }]
-                    }]
+                    body: mdq_nodes!["Hello, world"]
                 }],
                 indoc! {
                     r#"> Hello, world"#
@@ -802,13 +769,9 @@ pub mod tests {
             check_render(
                 mdq_nodes![BlockQuote {
                     body: mdq_nodes![
-                        Paragraph {
-                            body: vec![mdq_inline!("Outer")],
-                        },
+                        "Outer",
                         BlockQuote {
-                            body: mdq_nodes![Paragraph {
-                                body: vec![mdq_inline!("Inner")],
-                            },]
+                            body: mdq_nodes!["Inner"],
                         },
                     ]
                 }],
@@ -904,9 +867,7 @@ pub mod tests {
                         ListItem {
                             checked: Some(false),
                             item: mdq_nodes![
-                                Paragraph {
-                                    body: vec![mdq_inline!("closing argument")]
-                                },
+                                "closing argument",
                                 BlockQuote {
                                     body: mdq_nodes!["supporting evidence"]
                                 },
@@ -1691,9 +1652,7 @@ pub mod tests {
                 vec![
                     MdqNode::Inline(Inline::Footnote(Footnote {
                         label: "a".to_string(),
-                        text: mdq_nodes![Paragraph {
-                            body: vec![mdq_inline!("Hello, world.")]
-                        }],
+                        text: mdq_nodes!["Hello, world."],
                     })),
                     m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
                 ],
@@ -1712,9 +1671,7 @@ pub mod tests {
                 vec![
                     MdqNode::Inline(Inline::Footnote(Footnote {
                         label: "a".to_string(),
-                        text: mdq_nodes![Paragraph {
-                            body: vec![mdq_inline!("Hello,\nworld.")]
-                        }],
+                        text: mdq_nodes!["Hello,\nworld."],
                     })),
                     m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
                 ],
@@ -1736,7 +1693,7 @@ pub mod tests {
         #[test]
         fn link_and_footnote() {
             check_render(
-                mdq_nodes![Paragraph {
+                mdq_nodes![Block::LeafBlock::Paragraph {
                     body: vec![
                         mdq_inline!("Hello, "),
                         Inline::Link {
@@ -1750,9 +1707,7 @@ pub mod tests {
                         mdq_inline!("! This is interesting"),
                         Inline::Footnote(Footnote {
                             label: "a".to_string(),
-                            text: mdq_nodes![Paragraph {
-                                body: vec![mdq_inline!("this is my note")]
-                            }],
+                            text: mdq_nodes!["this is my note"],
                         }),
                         mdq_inline!("."),
                     ],
@@ -1863,7 +1818,7 @@ pub mod tests {
                     footnote_reference_options: ReferencePlacement::BottomOfDoc,
                 },
                 // Define them in the opposite order that we'd expect them
-                mdq_nodes![Paragraph {
+                mdq_nodes![Block::LeafBlock::Paragraph {
                     body: vec![
                         Inline::Footnote(Footnote {
                             label: "d".to_string(),
@@ -1906,7 +1861,7 @@ pub mod tests {
                 Section {
                     depth: 1,
                     title: vec![mdq_inline!("First section")],
-                    body: mdq_nodes![Paragraph {
+                    body: mdq_nodes![Block::LeafBlock::Paragraph {
                         body: vec![
                             Inline::Link {
                                 text: vec![mdq_inline!("link description")],
@@ -1919,9 +1874,7 @@ pub mod tests {
                             mdq_inline!(" and then a thought"),
                             Inline::Footnote(Footnote {
                                 label: "a".to_string(),
-                                text: mdq_nodes![Paragraph {
-                                    body: vec![mdq_inline!("the footnote")]
-                                }],
+                                text: mdq_nodes!["the footnote"],
                             }),
                             mdq_inline!("."),
                         ],
@@ -1930,9 +1883,7 @@ pub mod tests {
                 Section {
                     depth: 1,
                     title: vec![mdq_inline!("Second section")],
-                    body: mdq_nodes![Paragraph {
-                        body: vec![mdq_inline!("Second section contents.")]
-                    }],
+                    body: mdq_nodes!["Second section contents."],
                 },
             ]
         }

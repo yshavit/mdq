@@ -36,7 +36,7 @@ mod tests {
     use super::*;
     use indoc::indoc;
 
-    use crate::tree::{Inline, MdqNode, ReadOptions, SpanVariant, TextVariant};
+    use crate::tree::{Block, Inline, LeafBlock, MdqNode, ReadOptions, SpanVariant, TextVariant};
     use crate::unwrap;
     use markdown::ParseOptions;
 
@@ -122,7 +122,7 @@ mod tests {
         options.constructs.math_text = true;
         let node = markdown::to_mdast(md, &options).unwrap();
         let mdq_nodes = MdqNode::read(node, &ReadOptions::default()).unwrap();
-        unwrap!(&mdq_nodes[0], MdqNode::Paragraph(p));
+        unwrap!(&mdq_nodes[0], MdqNode::Block(Block::LeafBlock(LeafBlock::Paragraph(p)))); // TODO can I use m_node here?
         p.body.iter().for_each(|inline| VARIANTS_CHECKER.see(inline));
         let actual = inlines_to_plain_string(&p.body);
         assert_eq!(&actual, expect);

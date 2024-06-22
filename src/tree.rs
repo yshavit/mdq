@@ -11,7 +11,6 @@ pub enum MdqNode {
     Block(Block),
     // paragraphs with child nodes
     Section(Section),
-    Paragraph(Paragraph),
     BlockQuote(BlockQuote),
     List(List),
     Table(Table),
@@ -32,6 +31,7 @@ pub enum Block {
 #[derive(Debug, PartialEq)]
 pub enum LeafBlock {
     ThematicBreak,
+    Paragraph(Paragraph),
     // TODO #53
 }
 
@@ -244,18 +244,21 @@ macro_rules! mdx_nodes {
 /// ```
 #[macro_export]
 macro_rules! m_node {
-    ($last:ident { $($attr:ident : $val:expr),* $(,)? }) => {
-        $last $({
-            $( $attr: $val )*,
-        })?
+    // Terminal cases for Foo{ bar: bazz } in its various configurations
+    ($last:ident { $($args:tt)* }) => {
+        $last {
+            $($args)*
+        }
     };
 
+    // Terminal empty struct: Foo::Bar
     ($last:ident :: $next:ident) => {
         $last::$next
     };
 
-    ($head:ident :: $next:ident $(:: $($tail:ident)::*)? $({ $($attr:ident : $val:expr),* $(,)? })? ) => {
-        $head::$next( m_node!($next $(:: $($tail)::*)? $({ $($attr : $val),* })?) )
+    // Recursive case: A::B<tail> -> A::B(B<tail>)
+    ($head:ident :: $next:ident $(:: $($tail:ident)::*)? $({ $($args:tt)* })? ) => {
+        $head::$next( m_node!($next $(:: $($tail)::*)? $({ $($args)* })?) )
     };
 }
 
@@ -403,7 +406,7 @@ impl MdqNode {
                 return Err(InvalidMd::InternalError); // should have been handled by Node::Table
             }
             mdast::Node::Definition(_) => return Ok(Vec::new()),
-            mdast::Node::Paragraph(node) => MdqNode::Paragraph(Paragraph {
+            mdast::Node::Paragraph(node) => m_node!(MdqNode::Block::LeafBlock::Paragraph {
                 body: Self::inlines(node.children, lookups)?,
             }),
             mdast::Node::Toml(node) => MdqNode::CodeBlock(CodeBlock {
@@ -892,7 +895,7 @@ mod tests {
                 "#},
             );
 
-            check!(&root.children[0], Node::Paragraph(p), lookups => MdqNode::Paragraph(Paragraph{body}) = {
+            check!(&root.children[0], Node::Paragraph(p), lookups => m_node!(MdqNode::Block::LeafBlock::Paragraph{body}) = {
                 assert_eq!(p.children.len(), 3);
                 check!(&p.children[0], Node::Text(_), lookups => MdqNode::Inline(text) = {
                     assert_eq!(text, Inline::Text {variant: TextVariant::Plain, value: "hello ".to_string()});
@@ -994,7 +997,7 @@ mod tests {
                 let (root, lookups) = parse(indoc! {r#"
                 In <em>a paragraph.</em>
                 "#});
-                check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph(Paragraph{body}) = {
+                check!(&root.children[0], Node::Paragraph(_), lookups => m_node!(MdqNode::Block::LeafBlock::Paragraph{body}) = {
                     assert_eq!(body.len(), 4);
                     assert_eq!(body, vec![
                         mdq_inline!("In "),
@@ -1014,7 +1017,7 @@ mod tests {
                 In <em
                 newline  >a paragraph.</em>
                 "#});
-                check!(&root.children[0], Node::Paragraph(_), lookups => MdqNode::Paragraph(Paragraph{body}) = {
+                check!(&root.children[0], Node::Paragraph(_), lookups => m_node!(MdqNode::Block::LeafBlock::Paragraph{body}) = {
                     assert_eq!(body.len(), 4);
                     assert_eq!(body, vec![
                         mdq_inline!("In "),
@@ -1091,7 +1094,7 @@ mod tests {
             {
                 // This isn't an image, though it almost looks like one
                 let (root, lookups) = parse(r#"![]("only a tooltip")"#);
-                check!(&root.children[0], Node::Paragraph(_), lookups => p @ MdqNode::Paragraph{ .. } = {
+                check!(&root.children[0], Node::Paragraph(_), lookups => p @ m_node!(MdqNode::Block::LeafBlock::Paragraph{ .. }) = {
                     assert_eq!(p, mdq_node!(r#"![]("only a tooltip")"#));
                 });
             }
@@ -1918,10 +1921,10 @@ mod tests {
                     title: vec![mdq_inline!("first")],
                     body: vec![],
                 }),
-                MdqNode::Paragraph(Paragraph {
+                m_node!(MdqNode::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("aaa")],
                 }),
-                MdqNode::Paragraph(Paragraph {
+                m_node!(MdqNode::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("bbb")],
                 }),
             ];
@@ -1929,10 +1932,10 @@ mod tests {
                 depth: 1,
                 title: vec![mdq_inline!("first")],
                 body: vec![
-                    MdqNode::Paragraph(Paragraph {
+                    m_node!(MdqNode::Block::LeafBlock::Paragraph {
                         body: vec![mdq_inline!("aaa")],
                     }),
-                    MdqNode::Paragraph(Paragraph {
+                    m_node!(MdqNode::Block::LeafBlock::Paragraph {
                         body: vec![mdq_inline!("bbb")],
                     }),
                 ],
@@ -1955,7 +1958,7 @@ mod tests {
                     title: vec![mdq_inline!("aaa")],
                     body: vec![],
                 }),
-                MdqNode::Paragraph(Paragraph {
+                m_node!(MdqNode::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("bbb")],
                 }),
             ];
@@ -1965,7 +1968,7 @@ mod tests {
                 body: vec![MdqNode::Section(Section {
                     depth: 2,
                     title: vec![mdq_inline!("aaa")],
-                    body: vec![MdqNode::Paragraph(Paragraph {
+                    body: vec![m_node!(MdqNode::Block::LeafBlock::Paragraph {
                         body: vec![mdq_inline!("bbb")],
                     })],
                 })],
@@ -2039,18 +2042,18 @@ mod tests {
         #[test]
         fn no_headers() -> Result<(), InvalidMd> {
             let linear = vec![
-                MdqNode::Paragraph(Paragraph {
+                m_node!(MdqNode::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("one")],
                 }),
-                MdqNode::Paragraph(Paragraph {
+                m_node!(MdqNode::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("two")],
                 }),
             ];
             let expect = vec![
-                MdqNode::Paragraph(Paragraph {
+                m_node!(MdqNode::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("one")],
                 }),
-                MdqNode::Paragraph(Paragraph {
+                m_node!(MdqNode::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("two")],
                 }),
             ];
@@ -2152,7 +2155,7 @@ mod tests {
         #[test]
         fn paragraph_before_and_after_header() -> Result<(), InvalidMd> {
             let linear = vec![
-                MdqNode::Paragraph(Paragraph {
+                m_node!(MdqNode::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("before")],
                 }),
                 MdqNode::Section(Section {
@@ -2160,18 +2163,18 @@ mod tests {
                     title: vec![mdq_inline!("the header")],
                     body: vec![],
                 }),
-                MdqNode::Paragraph(Paragraph {
+                m_node!(MdqNode::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("after")],
                 }),
             ];
             let expect = vec![
-                MdqNode::Paragraph(Paragraph {
+                m_node!(MdqNode::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("before")],
                 }),
                 MdqNode::Section(Section {
                     depth: 3,
                     title: vec![mdq_inline!("the header")],
-                    body: vec![MdqNode::Paragraph(Paragraph {
+                    body: vec![m_node!(MdqNode::Block::LeafBlock::Paragraph {
                         body: vec![mdq_inline!("after")],
                     })],
                 }),

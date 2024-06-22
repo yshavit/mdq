@@ -33,11 +33,13 @@ pub struct ListItemRef<'a>(pub Option<u32>, pub &'a ListItem);
 impl<'a> From<&'a MdqNode> for MdqNodeRef<'a> {
     fn from(value: &'a MdqNode) -> Self {
         match value {
-            MdqNode::Block(Block::LeafBlock(LeafBlock::ThematicBreak)) => {
-                Self::NonSelectable(NonSelectable::ThematicBreak)
-            }
+            MdqNode::Block(block) => match block {
+                Block::LeafBlock(leaf) => match leaf {
+                    LeafBlock::ThematicBreak => Self::NonSelectable(NonSelectable::ThematicBreak),
+                    LeafBlock::Paragraph(p) => Self::Paragraph(p),
+                },
+            },
             MdqNode::Section(v) => Self::Section(v),
-            MdqNode::Paragraph(v) => Self::Paragraph(v),
             MdqNode::BlockQuote(v) => Self::BlockQuote(v),
             MdqNode::List(v) => Self::List(v),
             MdqNode::Table(v) => Self::Table(v),

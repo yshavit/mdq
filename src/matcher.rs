@@ -46,6 +46,7 @@ impl StringMatcher {
     fn matches_block(&self, block: &Block) -> bool {
         match block {
             Block::LeafBlock(LeafBlock::ThematicBreak) => false,
+            Block::LeafBlock(LeafBlock::Paragraph(p)) => self.matches_inlines(&p.body),
         }
     }
 
@@ -59,7 +60,6 @@ impl StringMatcher {
                 }
                 self.matches_any(&section.body)
             }
-            MdqNode::Paragraph(paragraph) => self.matches_inlines(&paragraph.body),
             MdqNode::BlockQuote(block) => self.matches_any(&block.body),
             MdqNode::List(list) => list.items.iter().any(|li| self.matches_any(&li.item)),
             MdqNode::Table(table) => {
