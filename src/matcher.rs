@@ -84,11 +84,16 @@ impl StringMatcher {
         if peek_ch.is_alphanumeric() {
             return Ok(Self::parse_matcher_bare(chars, bareword_end));
         }
-        let _ = chars.next(); // drop the char we peeked
         match peek_ch {
-            '*' => Ok(StringMatcher::Any),
-            '/' => Self::parse_regex_matcher(chars),
-            other if other == bareword_end => Ok(StringMatcher::Any),
+            '*' => {
+                let _ = chars.next(); // drop the char we peeked
+                Ok(StringMatcher::Any)
+            }
+            '/' => {
+                let _ = chars.next();
+                Self::parse_regex_matcher(chars)
+            }
+            other if other == bareword_end => Ok(StringMatcher::Any), // do *not* consume it!
             _ => Err(ParseErrorReason::InvalidSyntax(
                 "invalid string specifier (must be quoted or a bareword that starts with a letter)".to_string(),
             )),
@@ -101,12 +106,13 @@ impl StringMatcher {
 
         loop {
             chars.drop_to_while(&mut dropped, |ch| ch.is_whitespace());
-            let Some(ch) = chars.next() else {
+            let Some(ch) = chars.peek() else {
                 break;
             };
             if ch == bareword_end {
                 break;
             }
+            let _ = chars.next();
             result.push_str(&dropped);
             result.push(ch);
         }
@@ -169,6 +175,7 @@ mod test {
         parse_and_check_with(']', "foo] rest", StringMatcher::Substring("foo".to_string()), " rest");
     }
 
+    //noinspection RegExpSingleCharAlternation (for the "(a|b)" case)
     #[test]
     fn regex() {
         parse_and_check(r#"/foo/"#, StringMatcher::Regex(Regex::new("foo").unwrap()), "");
