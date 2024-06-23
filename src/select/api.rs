@@ -46,7 +46,7 @@ impl Display for ParseErrorReason {
 
 macro_rules! selectors {
     // TODO can I replace $bang:literal with literally just a "!"?
-    [$($(#[$meta:meta])* {$($char:literal $(::$($read_variant:ident)::+)? ),+} $name:ident),* $(,)?] => {
+    [$($(#[$meta:meta])* $(!)? {$($char:literal $(::$($read_variant:ident)::+)? ),+} $name:ident),* $(,)?] => {
         #[derive(Debug, PartialEq)]
         pub enum MdqRefSelector {
             $(
@@ -71,11 +71,7 @@ macro_rules! selectors {
                     None => Err(ParseErrorReason::UnexpectedEndOfInput),
                     $(
                         $(
-                            Some($char) => paste::paste!{ {
-                                let read = [<$name Selector>]::read($( $($read_variant)::+ ,)?chars)?;
-                                let variant = Self::$name(read);
-                                Ok(variant)
-                            } },
+                            Some($char) => paste::paste!{ Ok(Self::$name([<$name Selector>]::read($( $($read_variant)::+ ,)?chars)?))},
                         )+
                     )*
                     Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // TODO should be Any w/ bareword if first char is a letter
@@ -112,8 +108,7 @@ selectors![
     {'1'::ListItemType::Ordered,'-'::ListItemType::Unordered} ListItem,
 
     {'['} Link,
-    // TODO fix this so it's qualified
-    {'!'} Image,
+    ! {'!'} Image,
 ];
 
 impl MdqRefSelector {
