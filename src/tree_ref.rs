@@ -6,16 +6,8 @@ use crate::tree::{
 /// selected.
 #[derive(Debug, Clone)]
 pub enum MdqNodeRef<'a> {
-    // paragraphs with child nodes
     Section(&'a Section),
-    Paragraph(&'a Paragraph),
-    BlockQuote(&'a BlockQuote),
-    List(&'a List),
-    Table(&'a Table),
-
     ListItem(ListItemRef<'a>),
-
-    // inline spans
     Inline(&'a Inline),
 
     NonSelectable(NonSelectable<'a>),
@@ -25,6 +17,10 @@ pub enum MdqNodeRef<'a> {
 pub enum NonSelectable<'a> {
     ThematicBreak,
     CodeBlock(&'a CodeBlock),
+    Paragraph(&'a Paragraph),
+    BlockQuote(&'a BlockQuote),
+    List(&'a List),
+    Table(&'a Table),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -36,13 +32,13 @@ impl<'a> From<&'a MdqNode> for MdqNodeRef<'a> {
             MdqNode::Block(block) => match block {
                 Block::LeafBlock(leaf) => match leaf {
                     LeafBlock::ThematicBreak => Self::NonSelectable(NonSelectable::ThematicBreak),
-                    LeafBlock::Paragraph(p) => Self::Paragraph(p),
+                    LeafBlock::Paragraph(p) => Self::NonSelectable(NonSelectable::Paragraph(p)),
                     LeafBlock::CodeBlock(c) => Self::NonSelectable(NonSelectable::CodeBlock(c)),
-                    LeafBlock::Table(t) => Self::Table(t),
+                    LeafBlock::Table(t) => Self::NonSelectable(NonSelectable::Table(t)),
                 },
                 Block::Container(container) => match container {
-                    Container::List(list) => Self::List(list),
-                    Container::BlockQuote(block) => Self::BlockQuote(block),
+                    Container::List(list) => Self::NonSelectable(NonSelectable::List(list)),
+                    Container::BlockQuote(block) => Self::NonSelectable(NonSelectable::BlockQuote(block)),
                     Container::Section(section) => Self::Section(section),
                 },
             },

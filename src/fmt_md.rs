@@ -160,139 +160,8 @@ impl<'a> MdWriterState<'a> {
                     };
                 self.write_definitions(out, which_defs_to_write);
             }
-            MdqNodeRef::Paragraph(Paragraph { body }) => {
-                out.with_block(Block::Plain, |out| {
-                    self.write_line(out, body);
-                });
-            }
-            MdqNodeRef::BlockQuote(BlockQuote { body }) => {
-                out.with_block(Block::Quote, |out| {
-                    self.write_md(out, MdqNodeRef::wrap_vec(body).into_iter());
-                });
-            }
-            MdqNodeRef::List(List { starting_index, items }) => {
-                out.with_block(Block::Plain, |out| {
-                    let mut index = starting_index.clone();
-                    // let mut prefix = String::with_capacity(8); // enough for "12. [ ] "
-                    for item in items {
-                        self.write_list_item(out, &index, item);
-                        if let Some(idx) = index.as_mut() {
-                            *idx += 1;
-                        }
-                    }
-                });
-            }
             MdqNodeRef::ListItem(ListItemRef(idx, item)) => {
                 self.write_list_item(out, &idx, item);
-            }
-            MdqNodeRef::Table(Table { alignments, rows }) => {
-                let mut row_strs = Vec::with_capacity(rows.len());
-
-                let mut column_widths = [0].repeat(alignments.len());
-                if !alignments.is_empty() {
-                    for (idx, alignment) in alignments.iter().enumerate() {
-                        let width = match standard_align(alignment) {
-                            Some(Alignment::Left | Alignment::Right) => 2,
-                            Some(Alignment::Center) => 3,
-                            None => 1,
-                        };
-                        column_widths[idx] = width;
-                    }
-                }
-
-                // Pre-calculate all the cells, and also how wide each column needs to be
-                for row in rows {
-                    let mut col_strs = Vec::with_capacity(row.len());
-                    for (idx, col) in row.iter().enumerate() {
-                        let col_str = self.line_to_string(col);
-                        // Extend the row_sizes if needed. This happens if we had fewer alignments than columns in any
-                        // row. I'm not sure if that's possible, but it's easy to guard against.
-                        while column_widths.len() <= idx {
-                            column_widths.push(0);
-                        }
-                        // +1 for the padding on either side
-                        let cell_width = if col_str.is_empty() { 1 } else { col_str.len() + 2 };
-                        column_widths[idx] = max(column_widths[idx], cell_width);
-                        col_strs.push(col_str);
-                    }
-                    row_strs.push(col_strs);
-                }
-
-                // Create column formatters for each column
-                let write_row = |out: &mut Output<W>, row: Vec<String>, add_newline: bool| {
-                    if row.is_empty() {
-                        out.write_str("||\n");
-                        return;
-                    }
-                    out.write_char('|');
-                    for (idx, col) in row.iter().enumerate() {
-                        let left_padding_count = if col.is_empty() {
-                            0
-                        } else {
-                            out.write_char(' ');
-                            1
-                        };
-                        pad_to(
-                            out,
-                            &col,
-                            *column_widths.get(idx).unwrap_or(&0) - left_padding_count - 1, // -1 for right padding
-                            alignments.get(idx),
-                        );
-                        out.write_str(" |");
-                    }
-                    if add_newline {
-                        out.write_char('\n');
-                    }
-                };
-
-                let mut rows_iter = row_strs.into_iter();
-
-                // First row
-                let Some(first_row) = rows_iter.next() else {
-                    return; // unexpected!
-                };
-                write_row(out, first_row, true);
-
-                // Headers
-                if !alignments.is_empty() {
-                    out.write_char('|');
-                    for (idx, align) in alignments.iter().enumerate() {
-                        let width = column_widths
-                            .get(idx)
-                            .unwrap_or_else(|| match standard_align(align) {
-                                Some(Alignment::Left | Alignment::Right) => &2,
-                                Some(Alignment::Center) => &3,
-                                None => &1,
-                            })
-                            .to_owned();
-                        match standard_align(align) {
-                            Some(Alignment::Left) => {
-                                out.write_char(':');
-                                out.write_str(&"-".repeat(width - 1));
-                            }
-                            Some(Alignment::Right) => {
-                                out.write_str(&"-".repeat(width - 1));
-                                out.write_char(':');
-                            }
-                            Some(Alignment::Center) => {
-                                out.write_char(':');
-                                out.write_str(&"-".repeat(width - 2));
-                                out.write_char(':');
-                            }
-                            None => {
-                                out.write_str(&"-".repeat(width));
-                            }
-                        };
-                        out.write_char('|');
-                    }
-                    out.write_char('\n');
-                }
-
-                // And finally, the rows
-                let mut rows_iter = rows_iter.peekable();
-                while let Some(row) = rows_iter.next() {
-                    write_row(out, row, rows_iter.peek().is_some());
-                }
             }
             MdqNodeRef::Inline(inline) => {
                 self.write_inline_element(out, inline);
@@ -304,7 +173,148 @@ impl<'a> MdWriterState<'a> {
                 NonSelectable::CodeBlock(block) => {
                     self.write_code_block(out, block);
                 }
+                NonSelectable::Paragraph(para) => self.write_paragraph(out, para),
+                NonSelectable::BlockQuote(block) => self.write_block_quote(out, block),
+                NonSelectable::List(list) => self.write_list(out, list),
+                NonSelectable::Table(table) => self.write_table(out, table),
             },
+        }
+    }
+
+    fn write_paragraph<W: SimpleWrite>(&mut self, out: &mut Output<W>, paragraph: &'a Paragraph) {
+        out.with_block(Block::Plain, |out| {
+            self.write_line(out, &paragraph.body);
+        });
+    }
+
+    fn write_block_quote<W: SimpleWrite>(&mut self, out: &mut Output<W>, block: &'a BlockQuote) {
+        out.with_block(Block::Quote, |out| {
+            self.write_md(out, MdqNodeRef::wrap_vec(&block.body).into_iter());
+        });
+    }
+
+    fn write_list<W: SimpleWrite>(&mut self, out: &mut Output<W>, list: &'a List) {
+        out.with_block(Block::Plain, |out| {
+            let mut index = list.starting_index;
+            // let mut prefix = String::with_capacity(8); // enough for "12. [ ] "
+            for item in &list.items {
+                self.write_list_item(out, &index, item);
+                if let Some(idx) = index.as_mut() {
+                    *idx += 1;
+                }
+            }
+        });
+    }
+
+    fn write_table<W: SimpleWrite>(&mut self, out: &mut Output<W>, table: &'a Table) {
+        let Table { alignments, rows } = table;
+
+        let mut row_strs = Vec::with_capacity(rows.len());
+
+        let mut column_widths = [0].repeat(alignments.len());
+        if !alignments.is_empty() {
+            for (idx, alignment) in alignments.iter().enumerate() {
+                let width = match standard_align(alignment) {
+                    Some(Alignment::Left | Alignment::Right) => 2,
+                    Some(Alignment::Center) => 3,
+                    None => 1,
+                };
+                column_widths[idx] = width;
+            }
+        }
+
+        // Pre-calculate all the cells, and also how wide each column needs to be
+        for row in rows {
+            let mut col_strs = Vec::with_capacity(row.len());
+            for (idx, col) in row.iter().enumerate() {
+                let col_str = self.line_to_string(col);
+                // Extend the row_sizes if needed. This happens if we had fewer alignments than columns in any
+                // row. I'm not sure if that's possible, but it's easy to guard against.
+                while column_widths.len() <= idx {
+                    column_widths.push(0);
+                }
+                // +1 for the padding on either side
+                let cell_width = if col_str.is_empty() { 1 } else { col_str.len() + 2 };
+                column_widths[idx] = max(column_widths[idx], cell_width);
+                col_strs.push(col_str);
+            }
+            row_strs.push(col_strs);
+        }
+
+        // Create column formatters for each column
+        let write_row = |out: &mut Output<W>, row: Vec<String>, add_newline: bool| {
+            if row.is_empty() {
+                out.write_str("||\n");
+                return;
+            }
+            out.write_char('|');
+            for (idx, col) in row.iter().enumerate() {
+                let left_padding_count = if col.is_empty() {
+                    0
+                } else {
+                    out.write_char(' ');
+                    1
+                };
+                pad_to(
+                    out,
+                    &col,
+                    *column_widths.get(idx).unwrap_or(&0) - left_padding_count - 1, // -1 for right padding
+                    alignments.get(idx),
+                );
+                out.write_str(" |");
+            }
+            if add_newline {
+                out.write_char('\n');
+            }
+        };
+
+        let mut rows_iter = row_strs.into_iter();
+
+        // First row
+        let Some(first_row) = rows_iter.next() else {
+            return; // unexpected!
+        };
+        write_row(out, first_row, true);
+
+        // Headers
+        if !alignments.is_empty() {
+            out.write_char('|');
+            for (idx, align) in alignments.iter().enumerate() {
+                let width = column_widths
+                    .get(idx)
+                    .unwrap_or_else(|| match standard_align(align) {
+                        Some(Alignment::Left | Alignment::Right) => &2,
+                        Some(Alignment::Center) => &3,
+                        None => &1,
+                    })
+                    .to_owned();
+                match standard_align(align) {
+                    Some(Alignment::Left) => {
+                        out.write_char(':');
+                        out.write_str(&"-".repeat(width - 1));
+                    }
+                    Some(Alignment::Right) => {
+                        out.write_str(&"-".repeat(width - 1));
+                        out.write_char(':');
+                    }
+                    Some(Alignment::Center) => {
+                        out.write_char(':');
+                        out.write_str(&"-".repeat(width - 2));
+                        out.write_char(':');
+                    }
+                    None => {
+                        out.write_str(&"-".repeat(width));
+                    }
+                };
+                out.write_char('|');
+            }
+            out.write_char('\n');
+        }
+
+        // And finally, the rows
+        let mut rows_iter = rows_iter.peekable();
+        while let Some(row) = rows_iter.next() {
+            write_row(out, row, rows_iter.peek().is_some());
         }
     }
 
@@ -602,11 +612,7 @@ pub mod tests {
 
     crate::variants_checker!(VARIANTS_CHECKER = MdqNodeRef {
         Section(_),
-        Paragraph(_),
-        BlockQuote(_),
-        List(_),
         ListItem(..),
-        Table(_),
 
         Inline(Inline::Span{variant: SpanVariant::Delete, ..}),
         Inline(Inline::Span{variant: SpanVariant::Emphasis, ..}),
@@ -645,6 +651,10 @@ pub mod tests {
         NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..})),
         NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Toml, ..})),
         NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Yaml, ..})),
+        NonSelectable(NonSelectable::Paragraph(_)),
+        NonSelectable(NonSelectable::BlockQuote(_)),
+        NonSelectable(NonSelectable::List(_)),
+        NonSelectable(NonSelectable::Table(_)),
     });
 
     #[test]
