@@ -395,7 +395,7 @@ impl<'a> MdWriterState<'a> {
         W: SimpleWrite,
     {
         match elem {
-            Inline::Formatting { variant, children } => {
+            Inline::Formatting(Formatting { variant, children }) => {
                 let surround = match variant {
                     FormattingVariant::Delete => "~~",
                     FormattingVariant::Emphasis => "_",
@@ -614,9 +614,9 @@ pub mod tests {
         Section(_),
         ListItem(..),
 
-        Inline(Inline::Formatting{variant: FormattingVariant::Delete, ..}),
-        Inline(Inline::Formatting{variant: FormattingVariant::Emphasis, ..}),
-        Inline(Inline::Formatting{variant: FormattingVariant::Strong, ..}),
+        Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Delete, ..})),
+        Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Emphasis, ..})),
+        Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Strong, ..})),
 
         Inline(Inline::Text{variant: TextVariant::Plain, ..}),
         Inline(Inline::Text{variant: TextVariant::Code, ..}),

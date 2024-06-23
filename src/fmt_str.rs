@@ -1,4 +1,4 @@
-use crate::tree::{Inline, TextVariant};
+use crate::tree::{Formatting, Inline, TextVariant};
 use std::borrow::Borrow;
 
 pub fn inlines_to_plain_string<N: Borrow<Inline>>(inlines: &[N]) -> String {
@@ -15,7 +15,7 @@ fn build_inlines<N: Borrow<Inline>>(out: &mut String, inlines: &[N]) {
 
 fn build_inline(out: &mut String, elem: &Inline) {
     match elem {
-        Inline::Formatting { children, .. } => build_inlines(out, children),
+        Inline::Formatting(Formatting { children, .. }) => build_inlines(out, children),
         Inline::Text { variant, value, .. } => {
             if !matches!(variant, TextVariant::Html) {
                 out.push_str(value)
@@ -41,9 +41,9 @@ mod tests {
     use markdown::ParseOptions;
 
     crate::variants_checker!(VARIANTS_CHECKER = Inline {
-        Formatting { variant: FormattingVariant::Delete, .. },
-        Formatting { variant: FormattingVariant::Emphasis, .. },
-        Formatting { variant: FormattingVariant::Strong, .. },
+        Formatting(Formatting{ variant: FormattingVariant::Delete, .. }),
+        Formatting(Formatting{ variant: FormattingVariant::Emphasis, .. }),
+        Formatting(Formatting{ variant: FormattingVariant::Strong, .. }),
         Text { variant: TextVariant::Plain, .. },
         Text { variant: TextVariant::Code, .. },
         Text { variant: TextVariant::Math, .. },

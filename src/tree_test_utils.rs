@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod test_utils {
-
     #[macro_export]
     macro_rules! md_elem {
         ( $($node_names:ident)::* {$($attr:ident: $val:expr),*}) => {
@@ -24,10 +23,10 @@ mod test_utils {
     #[macro_export]
     macro_rules! mdq_inline {
         (span $which:ident [$($contents:expr),*$(,)?]) => {
-            crate::tree::Inline::Formatting {
+            crate::tree::Inline::Formatting(Formatting {
                 variant: crate::tree::FormattingVariant::$which,
                 children: vec![$($contents),*],
-            }
+            })
         };
         ($text:literal) => {
             crate::tree::Inline::Text {
