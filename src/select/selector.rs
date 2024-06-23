@@ -115,7 +115,6 @@ impl MdqRefSelector {
                 }
                 result
             }
-            MdqNodeRef::CodeBlock(_) => Vec::new(),
             MdqNodeRef::ListItem(ListItemRef(_, item)) => MdqNodeRef::wrap_vec(&item.item),
             MdqNodeRef::Inline(inline) => match inline {
                 Inline::Span { children, .. } => children.iter().map(|child| MdqNodeRef::Inline(child)).collect(),

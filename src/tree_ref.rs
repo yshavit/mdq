@@ -2,6 +2,8 @@ use crate::tree::{
     Block, BlockQuote, CodeBlock, Inline, LeafBlock, List, ListItem, MdqNode, Paragraph, Section, Table,
 };
 
+/// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
+/// selected.
 #[derive(Debug, Clone)]
 pub enum MdqNodeRef<'a> {
     // paragraphs with child nodes
@@ -11,20 +13,18 @@ pub enum MdqNodeRef<'a> {
     List(&'a List),
     Table(&'a Table),
 
-    // blocks that contain strings (&'a as opposed to nodes)
-    CodeBlock(&'a CodeBlock),
-
     ListItem(ListItemRef<'a>),
 
     // inline spans
     Inline(&'a Inline),
 
-    NonSelectable(NonSelectable),
+    NonSelectable(NonSelectable<'a>),
 }
 
 #[derive(Debug, Clone)]
-pub enum NonSelectable {
+pub enum NonSelectable<'a> {
     ThematicBreak,
+    CodeBlock(&'a CodeBlock),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -37,13 +37,13 @@ impl<'a> From<&'a MdqNode> for MdqNodeRef<'a> {
                 Block::LeafBlock(leaf) => match leaf {
                     LeafBlock::ThematicBreak => Self::NonSelectable(NonSelectable::ThematicBreak),
                     LeafBlock::Paragraph(p) => Self::Paragraph(p),
+                    LeafBlock::CodeBlock(c) => Self::NonSelectable(NonSelectable::CodeBlock(c)),
                 },
             },
             MdqNode::Section(v) => Self::Section(v),
             MdqNode::BlockQuote(v) => Self::BlockQuote(v),
             MdqNode::List(v) => Self::List(v),
             MdqNode::Table(v) => Self::Table(v),
-            MdqNode::CodeBlock(v) => Self::CodeBlock(v),
             MdqNode::Inline(v) => Self::Inline(v),
         }
     }

@@ -294,47 +294,6 @@ impl<'a> MdWriterState<'a> {
                     write_row(out, row, rows_iter.peek().is_some());
                 }
             }
-            MdqNodeRef::CodeBlock(CodeBlock { variant, value }) => {
-                let (surround, meta) = match variant {
-                    CodeVariant::Code(opts) => {
-                        let meta = if let Some(opts) = opts {
-                            let mut extras = opts.language.to_string();
-                            if let Some(meta) = &opts.metadata {
-                                extras.push(' ');
-                                extras.push_str(meta);
-                            }
-                            Some(extras)
-                        } else {
-                            None
-                        };
-                        ("```", meta)
-                    }
-                    CodeVariant::Math { metadata } => {
-                        let meta = if let Some(meta) = metadata {
-                            let mut meta_with_space = String::with_capacity(meta.len() + 1);
-                            meta_with_space.push(' ');
-                            meta_with_space.push_str(meta);
-                            Some(meta_with_space)
-                        } else {
-                            None
-                        };
-                        ("$$", meta)
-                    }
-                    CodeVariant::Toml => ("+++", None),
-                    CodeVariant::Yaml => ("---", None),
-                };
-
-                out.with_pre_block(|out| {
-                    out.write_str(surround);
-                    if let Some(meta) = meta {
-                        out.write_str(&meta);
-                    }
-                    out.write_char('\n');
-                    out.write_str(value);
-                    out.write_char('\n');
-                    out.write_str(surround);
-                });
-            }
             MdqNodeRef::Inline(inline) => {
                 self.write_inline_element(out, inline);
             }
@@ -342,8 +301,54 @@ impl<'a> MdWriterState<'a> {
                 NonSelectable::ThematicBreak => {
                     out.with_block(Block::Plain, |out| out.write_str("***"));
                 }
+                NonSelectable::CodeBlock(block) => {
+                    self.write_code_block(out, block);
+                }
             },
         }
+    }
+
+    fn write_code_block<W: SimpleWrite>(&mut self, out: &mut Output<W>, block: &CodeBlock) {
+        let CodeBlock { variant, value } = block;
+        let (surround, meta) = match variant {
+            CodeVariant::Code(opts) => {
+                let meta = if let Some(opts) = opts {
+                    let mut extras = opts.language.to_string();
+                    if let Some(meta) = &opts.metadata {
+                        extras.push(' ');
+                        extras.push_str(meta);
+                    }
+                    Some(extras)
+                } else {
+                    None
+                };
+                ("```", meta)
+            }
+            CodeVariant::Math { metadata } => {
+                let meta = if let Some(meta) = metadata {
+                    let mut meta_with_space = String::with_capacity(meta.len() + 1);
+                    meta_with_space.push(' ');
+                    meta_with_space.push_str(meta);
+                    Some(meta_with_space)
+                } else {
+                    None
+                };
+                ("$$", meta)
+            }
+            CodeVariant::Toml => ("+++", None),
+            CodeVariant::Yaml => ("---", None),
+        };
+
+        out.with_pre_block(|out| {
+            out.write_str(surround);
+            if let Some(meta) = meta {
+                out.write_str(&meta);
+            }
+            out.write_char('\n');
+            out.write_str(value);
+            out.write_char('\n');
+            out.write_str(surround);
+        });
     }
 
     fn write_list_item<W: SimpleWrite>(&mut self, out: &mut Output<W>, index: &Option<u32>, item: &'a ListItem) {
@@ -602,13 +607,6 @@ pub mod tests {
         List(_),
         ListItem(..),
         Table(_),
-        CodeBlock(CodeBlock{variant: CodeVariant::Code(None), ..}),
-        CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: None, ..})), ..}),
-        CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: Some(_), ..})), ..}),
-        CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: None}, ..}),
-        CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..}),
-        CodeBlock(CodeBlock{variant: CodeVariant::Toml, ..}),
-        CodeBlock(CodeBlock{variant: CodeVariant::Yaml, ..}),
 
         Inline(Inline::Span{variant: SpanVariant::Delete, ..}),
         Inline(Inline::Span{variant: SpanVariant::Emphasis, ..}),
@@ -640,6 +638,13 @@ pub mod tests {
         Inline(Inline::Footnote{..}),
 
         NonSelectable(NonSelectable::ThematicBreak),
+        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Code(None), ..})),
+        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: None, ..})), ..})),
+        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: Some(_), ..})), ..})),
+        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: None}, ..})),
+        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..})),
+        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Toml, ..})),
+        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Yaml, ..})),
     });
 
     #[test]
@@ -859,7 +864,7 @@ pub mod tests {
                         },
                         ListItem {
                             checked: None,
-                            item: mdq_nodes!(CodeBlock {
+                            item: mdq_nodes!(Block::LeafBlock::CodeBlock {
                                 variant: CodeVariant::Code(None),
                                 value: "line 1\nline 2".to_string(),
                             })
@@ -871,7 +876,7 @@ pub mod tests {
                                 BlockQuote {
                                     body: mdq_nodes!["supporting evidence"]
                                 },
-                                CodeBlock {
+                                Block::LeafBlock::CodeBlock {
                                     variant: CodeVariant::Code(None),
                                     value: "line a\nline b".to_string(),
                                 },
@@ -1134,7 +1139,7 @@ pub mod tests {
         #[test]
         fn code_no_lang() {
             check_render(
-                mdq_nodes![CodeBlock {
+                mdq_nodes![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Code(None),
                     value: "one\ntwo".to_string(),
                 }],
@@ -1149,7 +1154,7 @@ pub mod tests {
         #[test]
         fn code_with_lang() {
             check_render(
-                mdq_nodes![CodeBlock {
+                mdq_nodes![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Code(Some(CodeOpts {
                         language: "rust".to_string(),
                         metadata: None
@@ -1167,7 +1172,7 @@ pub mod tests {
         #[test]
         fn code_with_lang_and_title() {
             check_render(
-                mdq_nodes![CodeBlock {
+                mdq_nodes![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Code(Some(CodeOpts {
                         language: "rust".to_string(),
                         metadata: Some(r#"title="my code""#.to_string())
@@ -1185,7 +1190,7 @@ pub mod tests {
         #[test]
         fn math_no_metadata() {
             check_render(
-                mdq_nodes![CodeBlock {
+                mdq_nodes![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Math { metadata: None },
                     value: "one\ntwo".to_string(),
                 }],
@@ -1200,7 +1205,7 @@ pub mod tests {
         #[test]
         fn math_with_metadata() {
             check_render(
-                mdq_nodes![CodeBlock {
+                mdq_nodes![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Math {
                         metadata: Some("metadata".to_string())
                     },
@@ -1217,7 +1222,7 @@ pub mod tests {
         #[test]
         fn toml() {
             check_render(
-                mdq_nodes![CodeBlock {
+                mdq_nodes![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Toml,
                     value: "one\ntwo".to_string(),
                 }],
@@ -1232,7 +1237,7 @@ pub mod tests {
         #[test]
         fn yaml() {
             check_render(
-                mdq_nodes![CodeBlock {
+                mdq_nodes![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Yaml,
                     value: "one\ntwo".to_string(),
                 }],

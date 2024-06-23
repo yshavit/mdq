@@ -45,8 +45,8 @@ impl StringMatcher {
 
     fn matches_block(&self, block: &Block) -> bool {
         match block {
-            Block::LeafBlock(LeafBlock::ThematicBreak) => false,
             Block::LeafBlock(LeafBlock::Paragraph(p)) => self.matches_inlines(&p.body),
+            Block::LeafBlock(LeafBlock::ThematicBreak | LeafBlock::CodeBlock(_)) => false,
         }
     }
 
@@ -72,7 +72,6 @@ impl StringMatcher {
                 }
                 false
             }
-            MdqNode::CodeBlock(_) => false,
             MdqNode::Inline(inline) => self.matches_inlines(&[inline]),
         }
     }

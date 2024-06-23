@@ -16,7 +16,6 @@ pub enum MdqNode {
     Table(Table),
 
     // blocks that contain strings (as opposed to nodes)
-    CodeBlock(CodeBlock),
 
     // inline spans
     Inline(Inline),
@@ -32,6 +31,7 @@ pub enum Block {
 pub enum LeafBlock {
     ThematicBreak,
     Paragraph(Paragraph),
+    CodeBlock(CodeBlock),
     // TODO #53
 }
 
@@ -353,7 +353,7 @@ impl MdqNode {
             }),
             mdast::Node::Code(node) => {
                 let mdast::Code { value, lang, meta, .. } = node;
-                MdqNode::CodeBlock(CodeBlock {
+                m_node!(MdqNode::Block::LeafBlock::CodeBlock {
                     value,
                     variant: CodeVariant::Code(match lang {
                         None => None,
@@ -366,7 +366,7 @@ impl MdqNode {
             }
             mdast::Node::Math(node) => {
                 let mdast::Math { value, meta, .. } = node;
-                MdqNode::CodeBlock(CodeBlock {
+                m_node!(MdqNode::Block::LeafBlock::CodeBlock {
                     value,
                     variant: CodeVariant::Math { metadata: meta },
                 })
@@ -409,11 +409,11 @@ impl MdqNode {
             mdast::Node::Paragraph(node) => m_node!(MdqNode::Block::LeafBlock::Paragraph {
                 body: Self::inlines(node.children, lookups)?,
             }),
-            mdast::Node::Toml(node) => MdqNode::CodeBlock(CodeBlock {
+            mdast::Node::Toml(node) => m_node!(MdqNode::Block::LeafBlock::CodeBlock {
                 variant: CodeVariant::Toml,
                 value: node.value,
             }),
-            mdast::Node::Yaml(node) => MdqNode::CodeBlock(CodeBlock {
+            mdast::Node::Yaml(node) => m_node!(MdqNode::Block::LeafBlock::CodeBlock {
                 variant: CodeVariant::Yaml,
                 value: node.value,
             }),
@@ -1475,7 +1475,7 @@ mod tests {
                     plain code block
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdqNode::Block::LeafBlock::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Code(None));
                     assert_eq!(value, "plain code block");
                 })
@@ -1488,7 +1488,7 @@ mod tests {
                     code block with language
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdqNode::Block::LeafBlock::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
                         language: "rust".to_string(),
                         metadata: None})));
@@ -1503,7 +1503,7 @@ mod tests {
                     code block with language and title
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdqNode::Block::LeafBlock::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
                         language: "rust".to_string(),
                         metadata: Some(r#"title="example.rs""#.to_string())})));
@@ -1518,7 +1518,7 @@ mod tests {
                     code block with only title
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdqNode::Block::LeafBlock::CodeBlock{variant, value}) = {
                     // It's actually just a bogus language!
                     assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
                         language: r#"title="example.rs""#.to_string(),
@@ -1540,7 +1540,7 @@ mod tests {
                     x = {-b \pm \sqrt{b^2-4ac} \over 2a}
                     $$"#},
                 );
-                check!(&root.children[0], Node::Math(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Math(_), lookups => m_node!(MdqNode::Block::LeafBlock::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Math{metadata: None});
                     assert_eq!(value, r#"x = {-b \pm \sqrt{b^2-4ac} \over 2a}"#);
                 })
@@ -1553,7 +1553,7 @@ mod tests {
                     x = {-b \pm \sqrt{b^2-4ac} \over 2a}
                     $$"#},
                 );
-                check!(&root.children[0], Node::Math(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Math(_), lookups => m_node!(MdqNode::Block::LeafBlock::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Math{metadata: Some("my metadata".to_string())});
                     assert_eq!(value, r#"x = {-b \pm \sqrt{b^2-4ac} \over 2a}"#);
                 })
@@ -1571,7 +1571,7 @@ mod tests {
                 my: toml
                 +++"#},
             );
-            check!(&root.children[0], Node::Toml(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
+            check!(&root.children[0], Node::Toml(_), lookups => m_node!(MdqNode::Block::LeafBlock::CodeBlock{variant, value}) = {
                 assert_eq!(variant, CodeVariant::Toml);
                 assert_eq!(value, r#"my: toml"#);
             })
@@ -1588,7 +1588,7 @@ mod tests {
                 my: toml
                 ---"#},
             );
-            check!(&root.children[0], Node::Yaml(_), lookups => MdqNode::CodeBlock(CodeBlock{variant, value}) = {
+            check!(&root.children[0], Node::Yaml(_), lookups => m_node!(MdqNode::Block::LeafBlock::CodeBlock{variant, value}) = {
                 assert_eq!(variant, CodeVariant::Yaml);
                 assert_eq!(value, r#"my: toml"#);
             })
