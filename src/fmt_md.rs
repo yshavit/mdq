@@ -177,25 +177,19 @@ impl<'a> MdWriterState<'a> {
                 self.write_inline_element(out, inline);
             }
             MdElemRef::Link(link) => {
-                // TODO unify with write_inline_element
-                out.with_block(Block::Plain, |out| {
-                    self.write_link_inline(
-                        out,
-                        ReifiedLabel::Inline(&link.text),
-                        &link.link_definition,
-                        |me, out| {
-                            me.write_line(out, &link.text);
-                        },
-                    );
-                });
+                self.write_link_inline_portion(
+                    out,
+                    ReifiedLabel::Inline(&link.text),
+                    &link.link_definition,
+                    |me, out| {
+                        me.write_line(out, &link.text);
+                    },
+                );
             }
             MdElemRef::Image(image) => {
-                // TODO unify with write_inline_element
-                out.with_block(Block::Plain, |out| {
-                    out.write_char('!');
-                    self.write_link_inline(out, ReifiedLabel::Identifier(&image.alt), &image.link, |_, out| {
-                        out.write_str(&image.alt);
-                    });
+                out.write_char('!');
+                self.write_link_inline_portion(out, ReifiedLabel::Identifier(&image.alt), &image.link, |_, out| {
+                    out.write_str(&image.alt);
                 });
             }
         }
@@ -436,15 +430,8 @@ impl<'a> MdWriterState<'a> {
                 out.write_str(value);
                 out.write_str(surround);
             }
-            Inline::Link(Link { text, link_definition }) => {
-                self.write_link_inline(out, ReifiedLabel::Inline(text), link_definition, |me, out| {
-                    me.write_line(out, text)
-                });
-            }
-            Inline::Image(Image { alt, link }) => {
-                out.write_char('!');
-                self.write_link_inline(out, ReifiedLabel::Identifier(alt), link, |_, out| out.write_str(alt));
-            }
+            Inline::Link(link) => self.write_one_md(out, MdElemRef::Link(link)),
+            Inline::Image(image) => self.write_one_md(out, MdElemRef::Image(image)),
             Inline::Footnote(Footnote { label, text }) => {
                 out.write_str("[^");
                 out.write_str(label);
@@ -467,7 +454,7 @@ impl<'a> MdWriterState<'a> {
     ///
     /// The `contents` function is what writes e.g. `an inline link` above. It's a function because it may be a recursive
     /// call into [write_line] (for links) or just simple text (for image alts).
-    fn write_link_inline<W, F>(
+    fn write_link_inline_portion<W, F>(
         &mut self,
         out: &mut Output<W>,
         label: ReifiedLabel<'a>,
@@ -1719,9 +1706,7 @@ pub mod tests {
                     }),
                 ],
                 indoc! {r#"
-                    [link text one][1]
-
-                    [link text two][2]
+                    [link text one][1][link text two][2]
 
                     [1]: https://example.com/1
                     [2]: https://example.com/2"#},
@@ -1750,9 +1735,7 @@ pub mod tests {
                     }),
                 ],
                 indoc! {r#"
-                    [link text one](https://example.com/1)
-
-                    [link text two](https://example.com/2)"#},
+                [link text one](https://example.com/1)[link text two](https://example.com/2)"#},
             );
         }
     }
@@ -1800,9 +1783,7 @@ pub mod tests {
                     }),
                 ],
                 indoc! {r#"
-                    ![alt text one][1]
-
-                    ![alt text two][2]
+                    ![alt text one][1]![alt text two][2]
 
                     [1]: https://example.com/1.png
                     [2]: https://example.com/2.png"#},
