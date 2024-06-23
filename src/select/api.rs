@@ -4,7 +4,7 @@ use crate::select::base::Selector;
 use crate::select::sel_list_item::{ListItemSelector, ListItemType};
 use crate::select::sel_section::SectionSelector;
 use crate::tree::{Formatting, Image, Inline, Link, MdElem, Text};
-use crate::tree_ref::{ListItemRef, MdElemRef, NonSelectable};
+use crate::tree_ref::{ListItemRef, MdElemRef};
 
 pub enum SelectResult<'a> {
     One(MdElemRef<'a>),
@@ -112,44 +112,42 @@ impl MdqRefSelector {
         match node {
             MdElemRef::Section(s) => MdElemRef::wrap_vec(&s.body),
             MdElemRef::ListItem(ListItemRef(_, item)) => MdElemRef::wrap_vec(&item.item),
-            MdElemRef::NonSelectable(elem) => match elem {
-                NonSelectable::Paragraph(p) => p.body.iter().map(|child| child.into()).collect(),
-                NonSelectable::BlockQuote(b) => MdElemRef::wrap_vec(&b.body),
-                NonSelectable::List(list) => {
-                    let mut idx = list.starting_index;
-                    let mut result = Vec::with_capacity(list.items.len());
-                    for item in &list.items {
-                        result.push(MdElemRef::ListItem(ListItemRef(idx.clone(), item)));
-                        if let Some(idx) = idx.as_mut() {
-                            *idx += 1;
+            MdElemRef::Paragraph(p) => p.body.iter().map(|child| MdElemRef::Inline(child)).collect(),
+            MdElemRef::BlockQuote(b) => MdElemRef::wrap_vec(&b.body),
+            MdElemRef::List(list) => {
+                let mut idx = list.starting_index;
+                let mut result = Vec::with_capacity(list.items.len());
+                for item in &list.items {
+                    result.push(MdElemRef::ListItem(ListItemRef(idx.clone(), item)));
+                    if let Some(idx) = idx.as_mut() {
+                        *idx += 1;
+                    }
+                }
+                result
+            }
+            MdElemRef::Table(table) => {
+                let count_estimate = table.rows.len() * table.rows.first().map(|tr| tr.len()).unwrap_or(0);
+                let mut result = Vec::with_capacity(count_estimate);
+                for row in &table.rows {
+                    for col in row {
+                        for cell in col {
+                            result.push(MdElemRef::Inline(cell));
                         }
                     }
-                    result
                 }
-                NonSelectable::Table(table) => {
-                    let count_estimate = table.rows.len() * table.rows.first().map(|tr| tr.len()).unwrap_or(0);
-                    let mut result = Vec::with_capacity(count_estimate);
-                    for row in &table.rows {
-                        for col in row {
-                            for cell in col {
-                                result.push(MdElemRef::NonSelectable(NonSelectable::Inline(cell)));
-                            }
-                        }
-                    }
-                    result
+                result
+            }
+            MdElemRef::ThematicBreak | MdElemRef::CodeBlock(_) => Vec::new(),
+            MdElemRef::Inline(inline) => match inline {
+                Inline::Formatting(Formatting { children, .. }) => {
+                    children.iter().map(|child| MdElemRef::Inline(child)).collect()
                 }
-                NonSelectable::ThematicBreak | NonSelectable::CodeBlock(_) => Vec::new(),
-                NonSelectable::Inline(inline) => match inline {
-                    Inline::Formatting(Formatting { children, .. }) => {
-                        children.iter().map(|child| child.into()).collect()
-                    }
-                    Inline::Footnote(footnote) => MdElemRef::wrap_vec(&footnote.text),
-                    Inline::Link(Link { .. }) => {
-                        // TODO need to return an MdqNodeRef::Link
-                        Vec::new()
-                    }
-                    Inline::Text(Text { .. }) | Inline::Image(Image { .. }) => Vec::new(),
-                },
+                Inline::Footnote(footnote) => MdElemRef::wrap_vec(&footnote.text),
+                Inline::Link(Link { .. }) => {
+                    // TODO need to return an MdqNodeRef::Link
+                    Vec::new()
+                }
+                Inline::Text(Text { .. }) | Inline::Image(Image { .. }) => Vec::new(),
             },
         }
     }
