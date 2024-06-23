@@ -177,6 +177,7 @@ impl<'a> MdWriterState<'a> {
                 self.write_inline_element(out, inline);
             }
             MdElemRef::Link(link) => {
+                // TODO unify with write_inline_element
                 out.with_block(Block::Plain, |out| {
                     self.write_link_inline(
                         out,
@@ -186,6 +187,15 @@ impl<'a> MdWriterState<'a> {
                             me.write_line(out, &link.text);
                         },
                     );
+                });
+            }
+            MdElemRef::Image(image) => {
+                // TODO unify with write_inline_element
+                out.with_block(Block::Plain, |out| {
+                    out.write_char('!');
+                    self.write_link_inline(out, ReifiedLabel::Identifier(&image.alt), &image.link, |_, out| {
+                        out.write_str(&image.alt);
+                    });
                 });
             }
         }
@@ -624,6 +634,7 @@ pub mod tests {
         Section(_),
         ListItem(..),
         Link(..),
+        Image(..),
 
         Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Delete, ..})),
         Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Emphasis, ..})),
@@ -1742,6 +1753,59 @@ pub mod tests {
                     [link text one](https://example.com/1)
 
                     [link text two](https://example.com/2)"#},
+            );
+        }
+    }
+
+    mod image {
+        use super::*;
+
+        #[test]
+        fn single_image() {
+            check_render_refs(
+                vec![MdElemRef::Image(&Image {
+                    alt: "alt text".to_string(),
+                    link: LinkDefinition {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Full("1".to_string()),
+                    },
+                })],
+                indoc! {r#"
+                    ![alt text][1]
+
+                    [1]: https://example.com"#},
+            );
+        }
+
+        #[test]
+        fn two_images() {
+            check_render_refs(
+                vec![
+                    MdElemRef::Image(&Image {
+                        alt: "alt text one".to_string(),
+                        link: LinkDefinition {
+                            url: "https://example.com/1.png".to_string(),
+                            title: None,
+                            reference: LinkReference::Full("1".to_string()),
+                        },
+                    }),
+                    MdElemRef::Image(&Image {
+                        alt: "alt text two".to_string(),
+                        link: LinkDefinition {
+                            url: "https://example.com/2.png".to_string(),
+                            title: None,
+                            reference: LinkReference::Full("2".to_string()),
+                        },
+                    }),
+                ],
+                indoc! {r#"
+                    ![alt text one][1]
+
+                    ![alt text two][2]
+
+                    [1]: https://example.com/1.png
+                    [2]: https://example.com/2.png"#},
             );
         }
     }

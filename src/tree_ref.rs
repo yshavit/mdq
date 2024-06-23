@@ -1,5 +1,6 @@
 use crate::tree::{
-    Block, BlockQuote, CodeBlock, Container, Inline, LeafBlock, Link, List, ListItem, MdElem, Paragraph, Section, Table,
+    Block, BlockQuote, CodeBlock, Container, Image, Inline, LeafBlock, Link, List, ListItem, MdElem, Paragraph,
+    Section, Table,
 };
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
@@ -19,6 +20,7 @@ pub enum MdElemRef<'a> {
     // sub-elements
     ListItem(ListItemRef<'a>),
     Link(&'a Link),
+    Image(&'a Image),
 }
 
 #[derive(Debug, Clone, Copy)]
