@@ -15,7 +15,7 @@ fn build_inlines<N: Borrow<Inline>>(out: &mut String, inlines: &[N]) {
 
 fn build_inline(out: &mut String, elem: &Inline) {
     match elem {
-        Inline::Span { children, .. } => build_inlines(out, children),
+        Inline::Formatting { children, .. } => build_inlines(out, children),
         Inline::Text { variant, value, .. } => {
             if !matches!(variant, TextVariant::Html) {
                 out.push_str(value)
@@ -36,14 +36,14 @@ mod tests {
     use super::*;
     use indoc::indoc;
 
-    use crate::tree::{Block, Inline, LeafBlock, MdElem, ReadOptions, SpanVariant, TextVariant};
+    use crate::tree::{Block, FormattingVariant, Inline, LeafBlock, MdElem, ReadOptions, TextVariant};
     use crate::unwrap;
     use markdown::ParseOptions;
 
     crate::variants_checker!(VARIANTS_CHECKER = Inline {
-        Span { variant: SpanVariant::Delete, .. },
-        Span { variant: SpanVariant::Emphasis, .. },
-        Span { variant: SpanVariant::Strong, .. },
+        Formatting { variant: FormattingVariant::Delete, .. },
+        Formatting { variant: FormattingVariant::Emphasis, .. },
+        Formatting { variant: FormattingVariant::Strong, .. },
         Text { variant: TextVariant::Plain, .. },
         Text { variant: TextVariant::Code, .. },
         Text { variant: TextVariant::Math, .. },

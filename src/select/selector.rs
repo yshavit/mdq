@@ -92,7 +92,7 @@ impl MdqRefSelector {
             MdElemRef::Section(s) => MdElemRef::wrap_vec(&s.body),
             MdElemRef::ListItem(ListItemRef(_, item)) => MdElemRef::wrap_vec(&item.item),
             MdElemRef::Inline(inline) => match inline {
-                Inline::Span { children, .. } => children.iter().map(|child| MdElemRef::Inline(child)).collect(),
+                Inline::Formatting { children, .. } => children.iter().map(|child| MdElemRef::Inline(child)).collect(),
                 Inline::Footnote(footnote) => MdElemRef::wrap_vec(&footnote.text),
                 Inline::Link { .. } => {
                     // TODO need to return an MdqNodeRef::Link

@@ -122,8 +122,8 @@ pub enum CodeVariant {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Inline {
-    Span {
-        variant: SpanVariant,
+    Formatting {
+        variant: FormattingVariant,
         children: Vec<Inline>,
     },
     Text {
@@ -180,7 +180,7 @@ pub struct ListItem {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub enum SpanVariant {
+pub enum FormattingVariant {
     Delete,
     Emphasis,
     Strong,
@@ -297,12 +297,12 @@ impl MdElem {
                 variant: TextVariant::Math,
                 value: node.value,
             }),
-            mdast::Node::Delete(node) => MdElem::Inline(Inline::Span {
-                variant: SpanVariant::Delete,
+            mdast::Node::Delete(node) => MdElem::Inline(Inline::Formatting {
+                variant: FormattingVariant::Delete,
                 children: MdElem::inlines(node.children, lookups)?,
             }),
-            mdast::Node::Emphasis(node) => MdElem::Inline(Inline::Span {
-                variant: SpanVariant::Emphasis,
+            mdast::Node::Emphasis(node) => MdElem::Inline(Inline::Formatting {
+                variant: FormattingVariant::Emphasis,
                 children: MdElem::inlines(node.children, lookups)?,
             }),
             mdast::Node::Image(node) => MdElem::Inline(Inline::Image {
@@ -336,8 +336,8 @@ impl MdElem {
                     text: MdElem::all(definition.children.clone(), lookups)?,
                 }))
             }
-            mdast::Node::Strong(node) => MdElem::Inline(Inline::Span {
-                variant: SpanVariant::Strong,
+            mdast::Node::Strong(node) => MdElem::Inline(Inline::Formatting {
+                variant: FormattingVariant::Strong,
                 children: MdElem::inlines(node.children, lookups)?,
             }),
             mdast::Node::Text(node) => MdElem::Inline(Inline::Text {
@@ -934,8 +934,8 @@ mod tests {
 
             unwrap!(&root.children[0], Node::Paragraph(p));
             check!(&p.children[0], Node::Delete(_), lookups => MdElem::Inline(inline) = {
-                assert_eq!(inline, Inline::Span {
-                    variant: SpanVariant::Delete,
+                assert_eq!(inline, Inline::Formatting {
+                    variant: FormattingVariant::Delete,
                     children: vec![
                         Inline::Text { variant: TextVariant::Plain, value: "86 me".to_string()},
                     ]
@@ -949,8 +949,8 @@ mod tests {
 
             unwrap!(&root.children[0], Node::Paragraph(p));
             check!(&p.children[0], Node::Emphasis(_), lookups => MdElem::Inline(inline) = {
-                assert_eq!(inline, Inline::Span {
-                    variant: SpanVariant::Emphasis,
+                assert_eq!(inline, Inline::Formatting {
+                    variant: FormattingVariant::Emphasis,
                     children: vec![
                         Inline::Text { variant: TextVariant::Plain, value: "86 me".to_string()},
                     ]
@@ -964,8 +964,8 @@ mod tests {
 
             unwrap!(&root.children[0], Node::Paragraph(p));
             check!(&p.children[0], Node::Strong(_), lookups => MdElem::Inline(inline) = {
-                assert_eq!(inline, Inline::Span {
-                    variant: SpanVariant::Strong,
+                assert_eq!(inline, Inline::Formatting {
+                    variant: FormattingVariant::Strong,
                     children: vec![
                         Inline::Text { variant: TextVariant::Plain, value: "strongman".to_string()},
                     ]
@@ -1104,8 +1104,8 @@ mod tests {
                     assert_eq!(link, Inline::Link {
                         text: vec![
                             mdq_inline!("hello "),
-                            Inline::Span {
-                                variant: SpanVariant::Emphasis,
+                            Inline::Formatting {
+                                variant: FormattingVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             }
                         ],
@@ -1126,8 +1126,8 @@ mod tests {
                     assert_eq!(link, Inline::Link {
                         text: vec![
                             mdq_inline!("hello "),
-                            Inline::Span {
-                                variant: SpanVariant::Emphasis,
+                            Inline::Formatting {
+                                variant: FormattingVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             }
                         ],
@@ -1155,8 +1155,8 @@ mod tests {
                     assert_eq!(link, Inline::Link {
                         text: vec![
                             mdq_inline!("hello "),
-                            Inline::Span {
-                                variant: SpanVariant::Emphasis,
+                            Inline::Formatting {
+                                variant: FormattingVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             },
                         ],
@@ -1185,8 +1185,8 @@ mod tests {
                     assert_eq!(link, Inline::Link {
                         text: vec![
                             mdq_inline!("hello "),
-                            Inline::Span {
-                                variant: SpanVariant::Emphasis,
+                            Inline::Formatting {
+                                variant: FormattingVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             },
                         ],
@@ -1215,8 +1215,8 @@ mod tests {
                     assert_eq!(link, Inline::Link {
                         text: vec![
                             mdq_inline!("hello "),
-                            Inline::Span {
-                                variant: SpanVariant::Emphasis,
+                            Inline::Formatting {
+                                variant: FormattingVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             },
                         ],
@@ -1415,8 +1415,8 @@ mod tests {
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![
-                            Inline::Span{
-                                variant: SpanVariant::Emphasis,
+                            Inline::Formatting{
+                                variant: FormattingVariant::Emphasis,
                                 children: vec![
                                     Inline::Text {variant: TextVariant::Plain,value: "my".to_string()}
                                 ],
@@ -1600,8 +1600,8 @@ mod tests {
                 assert_eq!(depth, 2);
                 assert_eq!(title, vec![
                     Inline::Text { variant: TextVariant::Plain, value: "Header with ".to_string()},
-                    Inline::Span {
-                        variant: SpanVariant::Emphasis,
+                    Inline::Formatting {
+                        variant: FormattingVariant::Emphasis,
                         children: vec![
                             Inline::Text { variant: TextVariant::Plain, value: "emphasis".to_string()},
                         ]

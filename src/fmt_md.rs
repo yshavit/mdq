@@ -395,11 +395,11 @@ impl<'a> MdWriterState<'a> {
         W: SimpleWrite,
     {
         match elem {
-            Inline::Span { variant, children } => {
+            Inline::Formatting { variant, children } => {
                 let surround = match variant {
-                    SpanVariant::Delete => "~~",
-                    SpanVariant::Emphasis => "_",
-                    SpanVariant::Strong => "**",
+                    FormattingVariant::Delete => "~~",
+                    FormattingVariant::Emphasis => "_",
+                    FormattingVariant::Strong => "**",
                 };
                 out.write_str(surround);
                 self.write_line(out, children);
@@ -614,9 +614,9 @@ pub mod tests {
         Section(_),
         ListItem(..),
 
-        Inline(Inline::Span{variant: SpanVariant::Delete, ..}),
-        Inline(Inline::Span{variant: SpanVariant::Emphasis, ..}),
-        Inline(Inline::Span{variant: SpanVariant::Strong, ..}),
+        Inline(Inline::Formatting{variant: FormattingVariant::Delete, ..}),
+        Inline(Inline::Formatting{variant: FormattingVariant::Emphasis, ..}),
+        Inline(Inline::Formatting{variant: FormattingVariant::Strong, ..}),
 
         Inline(Inline::Text{variant: TextVariant::Plain, ..}),
         Inline(Inline::Text{variant: TextVariant::Code, ..}),
