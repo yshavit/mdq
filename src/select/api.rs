@@ -86,7 +86,10 @@ macro_rules! selectors {
                             $(
                                 $(
                                     $(
-                                        Some($bang_char) => paste::paste!{ Ok(Self::$name([<$name Selector>]::read($( $($bang_read_variant)::+ ,)?chars)?))},
+                                        Some($bang_char) => {
+                                            let _ = chars.next(); // drop the peeked char
+                                            paste::paste!{ Ok(Self::$name([<$name Selector>]::read($( $($bang_read_variant)::+ ,)?chars)?))}
+                                        }
                                     )+
                                 )?
                             )*
