@@ -7,11 +7,34 @@ use crate::tree_ref::MdElemRef;
 
 #[derive(Debug, PartialEq)]
 pub struct LinkSelector {
-    display_matcher: StringMatcher,
-    url_matcher: StringMatcher,
+    matchers: LinkMatchers,
 }
 
 impl LinkSelector {
+    pub fn read(iter: &mut ParsingIterator) -> ParseResult<Self> {
+        let matchers = LinkMatchers::read(iter)?;
+        Ok(Self { matchers })
+    }
+}
+
+impl<'a> Selector<'a, &'a Link> for LinkSelector {
+    fn matches(&self, item: &'a Link) -> bool {
+        self.matchers.display_matcher.matches_inlines(&item.text)
+            && self.matchers.url_matcher.matches(&item.link_definition.url)
+    }
+
+    fn pick(&self, item: &'a Link) -> SelectResult<'a> {
+        SelectResult::One(MdElemRef::Link(item))
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct LinkMatchers {
+    pub display_matcher: StringMatcher,
+    pub url_matcher: StringMatcher,
+}
+
+impl LinkMatchers {
     pub fn read(iter: &mut ParsingIterator) -> ParseResult<Self> {
         let display_matcher = StringMatcher::read(iter, ']')?;
         iter.require_str("](")?;
@@ -21,15 +44,5 @@ impl LinkSelector {
             display_matcher,
             url_matcher,
         })
-    }
-}
-
-impl<'a> Selector<'a, &'a Link> for LinkSelector {
-    fn matches(&self, item: &'a Link) -> bool {
-        self.display_matcher.matches_inlines(&item.text) && self.url_matcher.matches(&item.link_definition.url)
-    }
-
-    fn pick(&self, item: &'a Link) -> SelectResult<'a> {
-        SelectResult::One(MdElemRef::Link(item))
     }
 }

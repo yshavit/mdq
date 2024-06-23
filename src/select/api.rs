@@ -1,10 +1,11 @@
 use crate::parse_common::Position;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
+use crate::select::sel_image::ImageSelector;
 use crate::select::sel_link::LinkSelector;
 use crate::select::sel_list_item::{ListItemSelector, ListItemType};
 use crate::select::sel_section::SectionSelector;
-use crate::tree::{Formatting, Image, Inline, Link, MdElem, Text};
+use crate::tree::{Formatting, Inline, Link, MdElem, Text};
 use crate::tree_ref::{ListItemRef, MdElemRef};
 use std::fmt::{Display, Formatter};
 
@@ -72,6 +73,9 @@ pub enum MdqRefSelector {
 
     // TODO docs
     Link(LinkSelector),
+
+    // TODO docs
+    Image(ImageSelector),
 }
 
 impl MdqRefSelector {
@@ -121,6 +125,7 @@ impl MdqRefSelector {
             (MdqRefSelector::Section(selector), MdElemRef::Section(header)) => selector.try_select(header),
             (MdqRefSelector::ListItem(selector), MdElemRef::ListItem(item)) => selector.try_select(item),
             (MdqRefSelector::Link(selector), MdElemRef::Link(item)) => selector.try_select(item),
+            (MdqRefSelector::Image(selector), MdElemRef::Image(item)) => selector.try_select(item),
             _ => None,
         };
         match result {
@@ -176,10 +181,12 @@ impl MdqRefSelector {
                 }
                 Inline::Footnote(footnote) => MdElemRef::wrap_vec(&footnote.text),
                 Inline::Link(link) => vec![MdElemRef::Link(link)], // TODO find a test case that hits this to make sure it doesn't infinite-loop!
-                Inline::Text(Text { .. }) | Inline::Image(Image { .. }) => Vec::new(),
+                Inline::Image(image) => vec![MdElemRef::Image(image)],
+                Inline::Text(Text { .. }) => Vec::new(),
             },
 
             MdElemRef::Link(Link { text, .. }) => text.iter().map(|child| MdElemRef::Inline(child)).collect(),
+            MdElemRef::Image(_) => Vec::new(),
         }
     }
 
@@ -191,6 +198,16 @@ impl MdqRefSelector {
             Some('1') => Ok(Self::ListItem(ListItemType::Ordered.read(chars)?)),
             Some('-') => Ok(Self::ListItem(ListItemType::Unordered.read(chars)?)),
             Some('[') => Ok(Self::Link(LinkSelector::read(chars)?)),
+            Some('!') => {
+                match chars.peek() {
+                    Some('[') => {
+                        let _ = chars.next();
+                        Ok(Self::Image(ImageSelector::read(chars)?))
+                    }
+                    Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // reserved for functions
+                    None => Err(ParseErrorReason::UnexpectedEndOfInput),
+                }
+            }
 
             Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // TODO should be Any w/ bareword if first char is a letter
         }
