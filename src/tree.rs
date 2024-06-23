@@ -14,28 +14,23 @@ pub enum MdqNode {
 
 #[derive(Debug, PartialEq)]
 pub enum Block {
-    LeafBlock(LeafBlock),
     Container(Container),
+    LeafBlock(LeafBlock),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum LeafBlock {
-    ThematicBreak,
-    Paragraph(Paragraph),
     CodeBlock(CodeBlock),
+    Paragraph(Paragraph),
     Table(Table),
+    ThematicBreak,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Container {
-    Section(Section),
-    List(List),
     BlockQuote(BlockQuote),
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Root {
-    pub body: Vec<MdqNode>,
+    List(List),
+    Section(Section),
 }
 
 #[derive(Debug, PartialEq)]
