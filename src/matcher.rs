@@ -76,7 +76,7 @@ impl StringMatcher {
     }
 
     pub fn read(chars: &mut ParsingIterator, bareword_end: char) -> ParseResult<StringMatcher> {
-        chars.drop_while(|ch| ch.is_whitespace());
+        chars.drop_whitespace();
         let peek_ch = match chars.peek() {
             None => return Ok(StringMatcher::Any),
             Some(ch) => ch,
@@ -84,11 +84,17 @@ impl StringMatcher {
         if peek_ch.is_alphanumeric() {
             return Ok(Self::parse_matcher_bare(chars, bareword_end));
         }
-        let _ = chars.next(); // drop the char we peeked
         match peek_ch {
-            '*' => Ok(StringMatcher::Any),
-            '/' => Self::parse_regex_matcher(chars),
-            other if other == bareword_end => Ok(StringMatcher::Any),
+            '*' => {
+                let _ = chars.next(); // drop the char we peeked
+                chars.drop_whitespace();
+                Ok(StringMatcher::Any)
+            }
+            '/' => {
+                let _ = chars.next();
+                Self::parse_regex_matcher(chars)
+            }
+            other if other == bareword_end => Ok(StringMatcher::Any), // do *not* consume it!
             _ => Err(ParseErrorReason::InvalidSyntax(
                 "invalid string specifier (must be quoted or a bareword that starts with a letter)".to_string(),
             )),
@@ -100,13 +106,16 @@ impl StringMatcher {
         let mut dropped = String::with_capacity(8); // also a guess
 
         loop {
+            // Drop whitespace, but keep a record of it. If we see a char within this bareword (ie not end-of-input or
+            // the bareword_end), then we'll append that whitespace back.
             chars.drop_to_while(&mut dropped, |ch| ch.is_whitespace());
-            let Some(ch) = chars.next() else {
+            let Some(ch) = chars.peek() else {
                 break;
             };
             if ch == bareword_end {
                 break;
             }
+            let _ = chars.next();
             result.push_str(&dropped);
             result.push(ch);
         }
@@ -159,16 +168,17 @@ mod test {
         parse_and_check(
             "hello| goodbye",
             StringMatcher::Substring("hello".to_string()),
-            " goodbye",
+            "| goodbye",
         );
         parse_and_check(
             "hello | goodbye",
             StringMatcher::Substring("hello".to_string()),
-            " goodbye",
+            "| goodbye",
         );
-        parse_and_check_with(']', "foo] rest", StringMatcher::Substring("foo".to_string()), " rest");
+        parse_and_check_with(']', "foo] rest", StringMatcher::Substring("foo".to_string()), "] rest");
     }
 
+    //noinspection RegExpSingleCharAlternation (for the "(a|b)" case)
     #[test]
     fn regex() {
         parse_and_check(r#"/foo/"#, StringMatcher::Regex(Regex::new("foo").unwrap()), "");
@@ -211,9 +221,11 @@ mod test {
 
     #[test]
     fn any() {
-        parse_and_check("| rest", StringMatcher::Any, " rest");
-        parse_and_check(" | rest", StringMatcher::Any, " rest");
-        parse_and_check_with(']', "] rest", StringMatcher::Any, " rest");
+        parse_and_check("| rest", StringMatcher::Any, "| rest");
+        parse_and_check(" | rest", StringMatcher::Any, "| rest");
+        parse_and_check("*| rest", StringMatcher::Any, "| rest");
+        parse_and_check(" * | rest", StringMatcher::Any, "| rest");
+        parse_and_check_with(']', "] rest", StringMatcher::Any, "] rest");
     }
 
     fn parse_and_check_with(bareword_end: char, text: &str, expect: StringMatcher, expect_remaining: &str) {

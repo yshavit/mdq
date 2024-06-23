@@ -1,6 +1,7 @@
 use crate::parse_common::Position;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
+use crate::select::sel_link::LinkSelector;
 use crate::select::sel_list_item::{ListItemSelector, ListItemType};
 use crate::select::sel_section::SectionSelector;
 use crate::tree::{Formatting, Image, Inline, Link, MdElem, Text};
@@ -68,6 +69,9 @@ pub enum MdqRefSelector {
     ///
     /// In bareword form, the string matcher terminates with the [selector delimiter character](SELECTOR_SEPARATOR).
     ListItem(ListItemSelector),
+
+    // TODO docs
+    Link(LinkSelector),
 }
 
 impl MdqRefSelector {
@@ -76,7 +80,7 @@ impl MdqRefSelector {
         let mut selectors = Vec::with_capacity(5); // just a guess
 
         loop {
-            iter.drop_while(|ch| ch.is_whitespace());
+            iter.drop_whitespace();
             if iter.peek().is_none() {
                 break;
             }
@@ -102,6 +106,7 @@ impl MdqRefSelector {
         let result = match (self, node.clone()) {
             (MdqRefSelector::Section(selector), MdElemRef::Section(header)) => selector.try_select(&header),
             (MdqRefSelector::ListItem(selector), MdElemRef::ListItem(item)) => selector.try_select(item),
+            (MdqRefSelector::Link(selector), MdElemRef::Link(item)) => selector.try_select(item),
             _ => None,
         };
         match result {
@@ -156,22 +161,22 @@ impl MdqRefSelector {
                     children.iter().map(|child| MdElemRef::Inline(child)).collect()
                 }
                 Inline::Footnote(footnote) => MdElemRef::wrap_vec(&footnote.text),
-                Inline::Link(Link { .. }) => {
-                    // TODO need to return an MdqNodeRef::Link
-                    Vec::new()
-                }
+                Inline::Link(link) => vec![MdElemRef::Link(link)], // TODO find a test case that hits this to make sure it doesn't infinite-loop!
                 Inline::Text(Text { .. }) | Inline::Image(Image { .. }) => Vec::new(),
             },
+
+            MdElemRef::Link(Link { text, .. }) => text.iter().map(|child| MdElemRef::Inline(child)).collect(),
         }
     }
 
     fn parse_selector(chars: &mut ParsingIterator) -> ParseResult<Self> {
-        chars.drop_while(|ch| ch.is_whitespace()); // should already be the case, but this is cheap and future-proof
+        chars.drop_whitespace(); // should already be the case, but this is cheap and future-proof
         match chars.next() {
             None => Ok(MdqRefSelector::Any), // unexpected, but future-proof
             Some('#') => Ok(Self::Section(SectionSelector::read(chars)?)),
             Some('1') => Ok(Self::ListItem(ListItemType::Ordered.read(chars)?)),
             Some('-') => Ok(Self::ListItem(ListItemType::Unordered.read(chars)?)),
+            Some('[') => Ok(Self::Link(LinkSelector::read(chars)?)),
 
             Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // TODO should be Any w/ bareword if first char is a letter
         }
