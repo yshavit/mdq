@@ -51,7 +51,7 @@ macro_rules! selectors {
         pub enum MdqRefSelector {
             $(
                 $(#[$meta])*
-                 $name ( paste::paste!{[<$name Selector >]}),
+                $name ( paste::paste!{[<$name Selector >]}),
             )*
         }
 
