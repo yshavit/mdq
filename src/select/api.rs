@@ -104,7 +104,7 @@ impl MdqRefSelector {
 
     fn build_output<'a>(&self, out: &mut Vec<MdElemRef<'a>>, node: MdElemRef<'a>) {
         let result = match (self, node.clone()) {
-            (MdqRefSelector::Section(selector), MdElemRef::Section(header)) => selector.try_select(&header),
+            (MdqRefSelector::Section(selector), MdElemRef::Section(header)) => selector.try_select(header),
             (MdqRefSelector::ListItem(selector), MdElemRef::ListItem(item)) => selector.try_select(item),
             (MdqRefSelector::Link(selector), MdElemRef::Link(item)) => selector.try_select(item),
             _ => None,

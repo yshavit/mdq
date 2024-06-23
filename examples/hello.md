@@ -1,5 +1,7 @@
 # Greetings
 
+![welcome mat image](https://example.com/welcome.png)
+
 How are you!
 
 *I'm* doing well.
