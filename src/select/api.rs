@@ -43,17 +43,14 @@ impl Display for ParseErrorReason {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum MdqRefSelector {
-    Any,
-
+crate::selectors![
     /// Selects the content of a section identified by its heading.
     ///
     /// Format: `# <string_matcher>`
     ///
     /// In bareword form, the string matcher terminates with the
     /// [selector delimiter character](parse_common::SELECTOR_SEPARATOR).
-    Section(SectionSelector),
+    {'#'} Section,
 
     /// Selects a list item.
     ///
@@ -69,14 +66,11 @@ pub enum MdqRefSelector {
     /// checkbox specifier is omitted, the selector will only select list items without a checkbox.
     ///
     /// In bareword form, the string matcher terminates with the [selector delimiter character](SELECTOR_SEPARATOR).
-    ListItem(ListItemSelector),
+    {'1'::Ordered,'-'::Unordered} ListItem,
 
-    // TODO docs
-    Link(LinkSelector),
-
-    // TODO docs
-    Image(ImageSelector),
-}
+    {'['} Link,
+    '!' {'['} Image,
+];
 
 impl MdqRefSelector {
     pub fn parse(text: &str) -> Result<Vec<Self>, ParseError> {
@@ -121,14 +115,8 @@ impl MdqRefSelector {
     }
 
     fn build_output<'a>(&self, out: &mut Vec<MdElemRef<'a>>, node: MdElemRef<'a>) {
-        let result = match (self, node.clone()) {
-            (MdqRefSelector::Section(selector), MdElemRef::Section(header)) => selector.try_select(header),
-            (MdqRefSelector::ListItem(selector), MdElemRef::ListItem(item)) => selector.try_select(item),
-            (MdqRefSelector::Link(selector), MdElemRef::Link(item)) => selector.try_select(item),
-            (MdqRefSelector::Image(selector), MdElemRef::Image(item)) => selector.try_select(item),
-            _ => None,
-        };
-        match result {
+        // try_select_node is defined in macro_helpers::selectors!
+        match self.try_select_node(node) {
             Some(SelectResult::One(found)) => out.push(found),
             Some(SelectResult::Multi(found)) => found.iter().for_each(|item| out.push(item.into())),
             None => {
@@ -193,7 +181,7 @@ impl MdqRefSelector {
     fn parse_selector(chars: &mut ParsingIterator) -> ParseResult<Self> {
         chars.drop_whitespace(); // should already be the case, but this is cheap and future-proof
         match chars.next() {
-            None => Ok(MdqRefSelector::Any), // unexpected, but future-proof
+            None => todo!("not yet implemented: should be Any w/ a matcher"),
             Some('#') => Ok(Self::Section(SectionSelector::read(chars)?)),
             Some('1') => Ok(Self::ListItem(ListItemType::Ordered.read(chars)?)),
             Some('-') => Ok(Self::ListItem(ListItemType::Unordered.read(chars)?)),
@@ -211,5 +199,32 @@ impl MdqRefSelector {
 
             Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // TODO should be Any w/ bareword if first char is a letter
         }
+    }
+}
+
+mod macro_helpers {
+
+    #[macro_export]
+    macro_rules! selectors {
+        [$($(#[$meta:meta])* $($qualifier:literal)? {$($char:literal $(:: $read_variant:ident)? ),+} $name:ident),* $(,)?] => {
+            #[derive(Debug, PartialEq)]
+            pub enum MdqRefSelector {
+                $(
+                    $(#[$meta])*
+                    $name( paste::paste!{[< $name Selector >]} )
+                ),*
+            }
+
+            impl MdqRefSelector {
+                fn try_select_node<'a>(&self, node: MdElemRef<'a>) -> Option<SelectResult<'a>> {
+                    match (self, node) {
+                        $(
+                        (Self::$name(selector), MdElemRef::$name(elem)) => selector.try_select(elem),
+                        )*
+                        _ => None
+                    }
+                }
+            }
+        };
     }
 }

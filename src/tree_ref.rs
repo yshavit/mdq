@@ -5,7 +5,7 @@ use crate::tree::{
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
 /// selected.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum MdElemRef<'a> {
     // main elements
     BlockQuote(&'a BlockQuote),
