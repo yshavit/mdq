@@ -1,11 +1,11 @@
 use crate::tree::{
-    Block, BlockQuote, CodeBlock, Container, Inline, LeafBlock, List, ListItem, MdqNode, Paragraph, Section, Table,
+    Block, BlockQuote, CodeBlock, Container, Inline, LeafBlock, List, ListItem, MdqElem, Paragraph, Section, Table,
 };
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
 /// selected.
 #[derive(Debug, Clone)]
-pub enum MdqNodeRef<'a> {
+pub enum MdElemRef<'a> {
     Section(&'a Section),
     ListItem(ListItemRef<'a>),
     Inline(&'a Inline),
@@ -26,10 +26,10 @@ pub enum NonSelectable<'a> {
 #[derive(Debug, Clone, Copy)]
 pub struct ListItemRef<'a>(pub Option<u32>, pub &'a ListItem);
 
-impl<'a> From<&'a MdqNode> for MdqNodeRef<'a> {
-    fn from(value: &'a MdqNode) -> Self {
+impl<'a> From<&'a MdqElem> for MdElemRef<'a> {
+    fn from(value: &'a MdqElem) -> Self {
         match value {
-            MdqNode::Block(block) => match block {
+            MdqElem::Block(block) => match block {
                 Block::LeafBlock(leaf) => match leaf {
                     LeafBlock::ThematicBreak => Self::NonSelectable(NonSelectable::ThematicBreak),
                     LeafBlock::Paragraph(p) => Self::NonSelectable(NonSelectable::Paragraph(p)),
@@ -42,7 +42,7 @@ impl<'a> From<&'a MdqNode> for MdqNodeRef<'a> {
                     Container::Section(section) => Self::Section(section),
                 },
             },
-            MdqNode::Inline(v) => Self::Inline(v),
+            MdqElem::Inline(v) => Self::Inline(v),
         }
     }
 }
@@ -51,16 +51,16 @@ impl<'a> From<&'a MdqNode> for MdqNodeRef<'a> {
 macro_rules! wrap_mdq_refs {
     ($variant:ident: $source:expr) => {{
         let source = $source;
-        let mut result: Vec<MdqNodeRef> = Vec::with_capacity(source.len());
+        let mut result: Vec<MdElemRef> = Vec::with_capacity(source.len());
         for elem in source {
-            result.push(MdqNodeRef::$variant(elem));
+            result.push(MdElemRef::$variant(elem));
         }
         result
     }};
 }
 
-impl<'a> MdqNodeRef<'a> {
-    pub fn wrap_vec(source: &'a Vec<MdqNode>) -> Vec<Self> {
+impl<'a> MdElemRef<'a> {
+    pub fn wrap_vec(source: &'a Vec<MdqElem>) -> Vec<Self> {
         let mut result: Vec<Self> = Vec::with_capacity(source.len());
         for elem in source {
             result.push(elem.into());

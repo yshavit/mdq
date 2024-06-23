@@ -1,10 +1,10 @@
 use crate::parse_common::Position;
-use crate::tree::MdqNode;
-use crate::tree_ref::MdqNodeRef;
+use crate::tree::MdqElem;
+use crate::tree_ref::MdElemRef;
 
 pub enum SelectResult<'a> {
-    One(MdqNodeRef<'a>),
-    Multi(&'a Vec<MdqNode>),
+    One(MdElemRef<'a>),
+    Multi(&'a Vec<MdqElem>),
 }
 
 pub type ParseResult<T> = Result<T, ParseErrorReason>;

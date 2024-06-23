@@ -7,7 +7,7 @@ use crate::fmt_str::inlines_to_plain_string;
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
-use crate::tree_ref::{ListItemRef, MdqNodeRef, NonSelectable};
+use crate::tree_ref::{ListItemRef, MdElemRef, NonSelectable};
 
 #[derive(Default)]
 pub struct MdOptions {
@@ -64,7 +64,7 @@ impl Default for ReferencePlacement {
 
 pub fn write_md<'a, I, W>(options: &'a MdOptions, out: &mut Output<W>, nodes: I)
 where
-    I: Iterator<Item = MdqNodeRef<'a>>,
+    I: Iterator<Item = MdElemRef<'a>>,
     W: SimpleWrite,
 {
     let pending_refs_capacity = 8; // arbitrary guess
@@ -98,7 +98,7 @@ struct MdWriterState<'a> {
 struct PendingReferences<'a> {
     links: HashMap<ReifiedLabel<'a>, ReifiedLink<'a>>,
     #[allow(dead_code)]
-    footnotes: HashMap<&'a String, &'a Vec<MdqNode>>,
+    footnotes: HashMap<&'a String, &'a Vec<MdqElem>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
@@ -125,7 +125,7 @@ impl<'a> Display for ReifiedLabel<'a> {
 impl<'a> MdWriterState<'a> {
     fn write_md<I, W>(&mut self, out: &mut Output<W>, nodes: I)
     where
-        I: Iterator<Item = MdqNodeRef<'a>>,
+        I: Iterator<Item = MdElemRef<'a>>,
         W: SimpleWrite,
     {
         for node in nodes {
@@ -133,12 +133,12 @@ impl<'a> MdWriterState<'a> {
         }
     }
 
-    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node: MdqNodeRef<'a>)
+    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node: MdElemRef<'a>)
     where
         W: SimpleWrite,
     {
         match node {
-            MdqNodeRef::Section(Section { depth, title, body }) => {
+            MdElemRef::Section(Section { depth, title, body }) => {
                 out.with_block(Block::Plain, |out| {
                     for _ in 0..*depth {
                         out.write_str("#");
@@ -148,7 +148,7 @@ impl<'a> MdWriterState<'a> {
                         self.write_line(out, title);
                     }
                 });
-                self.write_md(out, MdqNodeRef::wrap_vec(body).into_iter());
+                self.write_md(out, MdElemRef::wrap_vec(body).into_iter());
                 let which_defs_to_write =
                     match (&self.opts.link_reference_options, &self.opts.footnote_reference_options) {
                         (ReferencePlacement::BottomOfSection, ReferencePlacement::BottomOfSection) => {
@@ -160,13 +160,13 @@ impl<'a> MdWriterState<'a> {
                     };
                 self.write_definitions(out, which_defs_to_write);
             }
-            MdqNodeRef::ListItem(ListItemRef(idx, item)) => {
+            MdElemRef::ListItem(ListItemRef(idx, item)) => {
                 self.write_list_item(out, &idx, item);
             }
-            MdqNodeRef::Inline(inline) => {
+            MdElemRef::Inline(inline) => {
                 self.write_inline_element(out, inline);
             }
-            MdqNodeRef::NonSelectable(node) => match node {
+            MdElemRef::NonSelectable(node) => match node {
                 NonSelectable::ThematicBreak => {
                     out.with_block(Block::Plain, |out| out.write_str("***"));
                 }
@@ -189,7 +189,7 @@ impl<'a> MdWriterState<'a> {
 
     fn write_block_quote<W: SimpleWrite>(&mut self, out: &mut Output<W>, block: &'a BlockQuote) {
         out.with_block(Block::Quote, |out| {
-            self.write_md(out, MdqNodeRef::wrap_vec(&block.body).into_iter());
+            self.write_md(out, MdElemRef::wrap_vec(&block.body).into_iter());
         });
     }
 
@@ -376,7 +376,7 @@ impl<'a> MdWriterState<'a> {
         }
         let count = counting_writer.count();
         out.with_block(Block::Inlined(count), |out| {
-            self.write_md(out, MdqNodeRef::wrap_vec(&item.item).into_iter());
+            self.write_md(out, MdElemRef::wrap_vec(&item.item).into_iter());
         });
     }
 
@@ -553,7 +553,7 @@ impl<'a> MdWriterState<'a> {
                     out.write_str(link_ref);
                     out.write_str("]: ");
                     out.with_block(Block::Inlined(2), |out| {
-                        self.write_md(out, MdqNodeRef::wrap_vec(text).into_iter());
+                        self.write_md(out, MdElemRef::wrap_vec(text).into_iter());
                     });
                 }
             }
@@ -601,16 +601,16 @@ pub mod tests {
 
     use crate::fmt_md::MdOptions;
     use crate::m_node;
+    use crate::md_elem;
+    use crate::md_elems;
     use crate::mdq_inline;
-    use crate::mdq_node;
-    use crate::mdq_nodes;
     use crate::output::Output;
     use crate::tree::*;
-    use crate::tree_ref::{MdqNodeRef, NonSelectable};
+    use crate::tree_ref::{MdElemRef, NonSelectable};
 
     use super::write_md;
 
-    crate::variants_checker!(VARIANTS_CHECKER = MdqNodeRef {
+    crate::variants_checker!(VARIANTS_CHECKER = MdElemRef {
         Section(_),
         ListItem(..),
 
@@ -668,7 +668,7 @@ pub mod tests {
         #[test]
         fn one_paragraph() {
             check_render(
-                mdq_nodes!["Hello, world"],
+                md_elems!["Hello, world"],
                 indoc! {r#"
                 Hello, world"#},
             );
@@ -677,7 +677,7 @@ pub mod tests {
         #[test]
         fn two_paragraphs() {
             check_render(
-                mdq_nodes!["First", "Second",],
+                md_elems!["First", "Second",],
                 indoc! {r#"
                 First
 
@@ -694,7 +694,7 @@ pub mod tests {
         #[test]
         fn totally_empty() {
             check_render(
-                mdq_nodes![Block::Container::Section {
+                md_elems![Block::Container::Section {
                     depth: 3,
                     title: vec![],
                     body: vec![],
@@ -707,7 +707,7 @@ pub mod tests {
         #[test]
         fn only_title() {
             check_render(
-                mdq_nodes![Block::Container::Section {
+                md_elems![Block::Container::Section {
                     depth: 3,
                     title: vec![mdq_inline!("My header")],
                     body: vec![],
@@ -720,7 +720,7 @@ pub mod tests {
         #[test]
         fn only_body() {
             check_render(
-                mdq_nodes![Block::Container::Section {
+                md_elems![Block::Container::Section {
                     depth: 3,
                     title: vec![],
                     body: mdq_nodes!["Hello, world."],
@@ -735,7 +735,7 @@ pub mod tests {
         #[test]
         fn title_and_body() {
             check_render(
-                mdq_nodes![Block::Container::Section {
+                md_elems![Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("My title")],
                     body: mdq_nodes![Block::Container::BlockQuote {
@@ -756,7 +756,7 @@ pub mod tests {
         #[test]
         fn simple() {
             check_render(
-                mdq_nodes!["Hello, world"],
+                md_elems!["Hello, world"],
                 indoc! {r#"
                 Hello, world"#},
             );
@@ -770,7 +770,7 @@ pub mod tests {
         #[test]
         fn single_level() {
             check_render(
-                mdq_nodes![Block::Container::BlockQuote {
+                md_elems![Block::Container::BlockQuote {
                     body: mdq_nodes!["Hello, world"]
                 }],
                 indoc! {
@@ -782,7 +782,7 @@ pub mod tests {
         #[test]
         fn two_levels() {
             check_render(
-                mdq_nodes![Block::Container::BlockQuote {
+                md_elems![Block::Container::BlockQuote {
                     body: mdq_nodes![
                         "Outer",
                         Block::Container::BlockQuote {
@@ -805,7 +805,7 @@ pub mod tests {
         #[test]
         fn ordered() {
             check_render(
-                mdq_nodes![Block::Container::List {
+                md_elems![Block::Container::List {
                     starting_index: Some(3),
                     items: vec![
                         ListItem {
@@ -832,7 +832,7 @@ pub mod tests {
         #[test]
         fn unordered() {
             check_render(
-                mdq_nodes![Block::Container::List {
+                md_elems![Block::Container::List {
                     starting_index: None,
                     items: vec![
                         ListItem {
@@ -859,7 +859,7 @@ pub mod tests {
         #[test]
         fn block_alignments() {
             check_render(
-                mdq_nodes![Block::Container::List {
+                md_elems![Block::Container::List {
                     starting_index: None,
                     items: vec![
                         ListItem {
@@ -918,45 +918,45 @@ pub mod tests {
     }
 
     mod list_item {
-        use crate::tree_ref::{ListItemRef, MdqNodeRef};
+        use crate::tree_ref::{ListItemRef, MdElemRef};
 
         use super::*;
 
         #[test]
         fn unordered_no_checkbox() {
-            create_li_singleton(None, None, mdq_nodes!("plain text"), "- plain text");
+            create_li_singleton(None, None, md_elems!("plain text"), "- plain text");
         }
 
         #[test]
         fn unordered_unchecked() {
-            create_li_singleton(None, Some(false), mdq_nodes!("plain text"), "- [ ] plain text");
+            create_li_singleton(None, Some(false), md_elems!("plain text"), "- [ ] plain text");
         }
 
         #[test]
         fn unordered_checked() {
-            create_li_singleton(None, Some(true), mdq_nodes!("plain text"), "- [x] plain text");
+            create_li_singleton(None, Some(true), md_elems!("plain text"), "- [x] plain text");
         }
 
         #[test]
         fn ordered_no_checkbox() {
-            create_li_singleton(Some(3), None, mdq_nodes!("plain text"), "3. plain text");
+            create_li_singleton(Some(3), None, md_elems!("plain text"), "3. plain text");
         }
 
         #[test]
         fn ordered_unchecked() {
-            create_li_singleton(Some(3), Some(false), mdq_nodes!("plain text"), "3. [ ] plain text");
+            create_li_singleton(Some(3), Some(false), md_elems!("plain text"), "3. [ ] plain text");
         }
 
         #[test]
         fn ordered_checked() {
-            create_li_singleton(Some(3), Some(true), mdq_nodes!("plain text"), "3. [x] plain text");
+            create_li_singleton(Some(3), Some(true), md_elems!("plain text"), "3. [x] plain text");
         }
 
-        fn create_li_singleton<'a>(idx: Option<u32>, checked: Option<bool>, item: Vec<MdqNode>, expected: &str) {
+        fn create_li_singleton<'a>(idx: Option<u32>, checked: Option<bool>, item: Vec<MdqElem>, expected: &str) {
             let li = ListItem { checked, item };
             check_render_with_refs(
                 &MdOptions::default(),
-                vec![MdqNodeRef::ListItem(ListItemRef(idx, &li))],
+                vec![MdElemRef::ListItem(ListItemRef(idx, &li))],
                 expected,
             )
         }
@@ -970,7 +970,7 @@ pub mod tests {
         #[test]
         fn simple() {
             check_render(
-                mdq_nodes![Block::LeafBlock::Table {
+                md_elems![Block::LeafBlock::Table {
                     alignments: vec![
                         mdast::AlignKind::Left,
                         mdast::AlignKind::Right,
@@ -1007,7 +1007,7 @@ pub mod tests {
         fn single_char_cells() {
             // This checks the minimum padding aspects
             check_render(
-                mdq_nodes![Block::LeafBlock::Table {
+                md_elems![Block::LeafBlock::Table {
                     alignments: vec![
                         mdast::AlignKind::Left,
                         mdast::AlignKind::Right,
@@ -1044,7 +1044,7 @@ pub mod tests {
         fn empty_cells() {
             // This checks the minimum padding aspects
             check_render(
-                mdq_nodes![Block::LeafBlock::Table {
+                md_elems![Block::LeafBlock::Table {
                     alignments: vec![
                         mdast::AlignKind::Left,
                         mdast::AlignKind::Right,
@@ -1081,7 +1081,7 @@ pub mod tests {
         fn row_counts_inconsistent() {
             // This is an invalid table, but we should still support it
             check_render(
-                mdq_nodes![Block::LeafBlock::Table {
+                md_elems![Block::LeafBlock::Table {
                     alignments: vec![mdast::AlignKind::None, mdast::AlignKind::None,],
                     rows: vec![
                         // Header row: two values
@@ -1119,7 +1119,7 @@ pub mod tests {
         #[test]
         fn by_itself() {
             check_render(
-                vec![m_node!(MdqNode::Block::LeafBlock::ThematicBreak)],
+                vec![m_node!(MdqElem::Block::LeafBlock::ThematicBreak)],
                 indoc! {r#"
                 ***"#},
             );
@@ -1129,9 +1129,9 @@ pub mod tests {
         fn with_paragraphs() {
             check_render(
                 vec![
-                    mdq_node!("before"),
-                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
-                    mdq_node!("after"),
+                    md_elem!("before"),
+                    m_node!(MdqElem::Block::LeafBlock::ThematicBreak),
+                    md_elem!("after"),
                 ],
                 indoc! {r#"
                 before
@@ -1149,7 +1149,7 @@ pub mod tests {
         #[test]
         fn code_no_lang() {
             check_render(
-                mdq_nodes![Block::LeafBlock::CodeBlock {
+                md_elems![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Code(None),
                     value: "one\ntwo".to_string(),
                 }],
@@ -1164,7 +1164,7 @@ pub mod tests {
         #[test]
         fn code_with_lang() {
             check_render(
-                mdq_nodes![Block::LeafBlock::CodeBlock {
+                md_elems![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Code(Some(CodeOpts {
                         language: "rust".to_string(),
                         metadata: None
@@ -1182,7 +1182,7 @@ pub mod tests {
         #[test]
         fn code_with_lang_and_title() {
             check_render(
-                mdq_nodes![Block::LeafBlock::CodeBlock {
+                md_elems![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Code(Some(CodeOpts {
                         language: "rust".to_string(),
                         metadata: Some(r#"title="my code""#.to_string())
@@ -1200,7 +1200,7 @@ pub mod tests {
         #[test]
         fn math_no_metadata() {
             check_render(
-                mdq_nodes![Block::LeafBlock::CodeBlock {
+                md_elems![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Math { metadata: None },
                     value: "one\ntwo".to_string(),
                 }],
@@ -1215,7 +1215,7 @@ pub mod tests {
         #[test]
         fn math_with_metadata() {
             check_render(
-                mdq_nodes![Block::LeafBlock::CodeBlock {
+                md_elems![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Math {
                         metadata: Some("metadata".to_string())
                     },
@@ -1232,7 +1232,7 @@ pub mod tests {
         #[test]
         fn toml() {
             check_render(
-                mdq_nodes![Block::LeafBlock::CodeBlock {
+                md_elems![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Toml,
                     value: "one\ntwo".to_string(),
                 }],
@@ -1247,7 +1247,7 @@ pub mod tests {
         #[test]
         fn yaml() {
             check_render(
-                mdq_nodes![Block::LeafBlock::CodeBlock {
+                md_elems![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Yaml,
                     value: "one\ntwo".to_string(),
                 }],
@@ -1269,7 +1269,7 @@ pub mod tests {
             #[test]
             fn delete() {
                 check_render(
-                    vec![MdqNode::Inline(mdq_inline!(span Delete [mdq_inline!("hello world")]))],
+                    vec![MdqElem::Inline(mdq_inline!(span Delete [mdq_inline!("hello world")]))],
                     indoc! {"~~hello world~~"},
                 );
             }
@@ -1277,7 +1277,7 @@ pub mod tests {
             #[test]
             fn emphasis() {
                 check_render(
-                    vec![MdqNode::Inline(mdq_inline!(span Emphasis [mdq_inline!("hello world")]))],
+                    vec![MdqElem::Inline(mdq_inline!(span Emphasis [mdq_inline!("hello world")]))],
                     indoc! {"_hello world_"},
                 );
             }
@@ -1285,7 +1285,7 @@ pub mod tests {
             #[test]
             fn strong() {
                 check_render(
-                    vec![MdqNode::Inline(mdq_inline!(span Strong [mdq_inline!("hello world")]))],
+                    vec![MdqElem::Inline(mdq_inline!(span Strong [mdq_inline!("hello world")]))],
                     indoc! {"**hello world**"},
                 );
             }
@@ -1293,7 +1293,7 @@ pub mod tests {
             #[test]
             fn mixed() {
                 check_render(
-                    vec![MdqNode::Inline(mdq_inline!(span Emphasis [
+                    vec![MdqElem::Inline(mdq_inline!(span Emphasis [
                         mdq_inline!("one "),
                         mdq_inline!(span Strong [
                             mdq_inline!("two "),
@@ -1313,7 +1313,7 @@ pub mod tests {
             #[test]
             fn text() {
                 check_render(
-                    vec![MdqNode::Inline(Inline::Text {
+                    vec![MdqElem::Inline(Inline::Text {
                         variant: TextVariant::Plain,
                         value: "hello world".to_string(),
                     })],
@@ -1324,7 +1324,7 @@ pub mod tests {
             #[test]
             fn code() {
                 check_render(
-                    vec![MdqNode::Inline(Inline::Text {
+                    vec![MdqElem::Inline(Inline::Text {
                         variant: TextVariant::Code,
                         value: "hello world".to_string(),
                     })],
@@ -1335,7 +1335,7 @@ pub mod tests {
             #[test]
             fn math() {
                 check_render(
-                    vec![MdqNode::Inline(Inline::Text {
+                    vec![MdqElem::Inline(Inline::Text {
                         variant: TextVariant::Math,
                         value: "hello world".to_string(),
                     })],
@@ -1346,7 +1346,7 @@ pub mod tests {
             #[test]
             fn html() {
                 check_render(
-                    vec![MdqNode::Inline(Inline::Text {
+                    vec![MdqElem::Inline(Inline::Text {
                         variant: TextVariant::Html,
                         value: "<a hello />".to_string(),
                     })],
@@ -1356,7 +1356,7 @@ pub mod tests {
         }
 
         mod link {
-            use crate::tree::{Inline, LinkDefinition, MdqNode};
+            use crate::tree::{Inline, LinkDefinition, MdqElem};
 
             use super::*;
 
@@ -1494,7 +1494,7 @@ pub mod tests {
 
             fn check_link(link: LinkDefinition, expect: &str) {
                 let nodes = vec![
-                    MdqNode::Inline(Inline::Link {
+                    MdqElem::Inline(Inline::Link {
                         text: vec![
                             mdq_inline!("hello "),
                             mdq_inline!(span Emphasis [mdq_inline!("world")]),
@@ -1502,14 +1502,14 @@ pub mod tests {
                         ],
                         link_definition: link,
                     }),
-                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
+                    m_node!(MdqElem::Block::LeafBlock::ThematicBreak),
                 ];
                 check_render(nodes, expect);
             }
         }
 
         mod image {
-            use crate::tree::{Inline, LinkDefinition, MdqNode};
+            use crate::tree::{Inline, LinkDefinition, MdqElem};
 
             use super::*;
 
@@ -1647,11 +1647,11 @@ pub mod tests {
 
             fn check_image(link: LinkDefinition, expect: &str) {
                 let nodes = vec![
-                    MdqNode::Inline(Inline::Image {
+                    MdqElem::Inline(Inline::Image {
                         alt: "hello _world_!".to_string(),
                         link,
                     }),
-                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
+                    m_node!(MdqElem::Block::LeafBlock::ThematicBreak),
                 ];
                 check_render(nodes, expect);
             }
@@ -1665,11 +1665,11 @@ pub mod tests {
         fn single_line() {
             check_render(
                 vec![
-                    MdqNode::Inline(Inline::Footnote(Footnote {
+                    MdqElem::Inline(Inline::Footnote(Footnote {
                         label: "a".to_string(),
-                        text: mdq_nodes!["Hello, world."],
+                        text: md_elems!["Hello, world."],
                     })),
-                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
+                    m_node!(MdqElem::Block::LeafBlock::ThematicBreak),
                 ],
                 indoc! {r#"
                     [^a]
@@ -1684,11 +1684,11 @@ pub mod tests {
         fn two_lines() {
             check_render(
                 vec![
-                    MdqNode::Inline(Inline::Footnote(Footnote {
+                    MdqElem::Inline(Inline::Footnote(Footnote {
                         label: "a".to_string(),
-                        text: mdq_nodes!["Hello,\nworld."],
+                        text: md_elems!["Hello,\nworld."],
                     })),
-                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
+                    m_node!(MdqElem::Block::LeafBlock::ThematicBreak),
                 ],
                 indoc! {r#"
                     [^a]
@@ -1708,7 +1708,7 @@ pub mod tests {
         #[test]
         fn link_and_footnote() {
             check_render(
-                mdq_nodes![Block::LeafBlock::Paragraph {
+                md_elems![Block::LeafBlock::Paragraph {
                     body: vec![
                         mdq_inline!("Hello, "),
                         Inline::Link {
@@ -1833,7 +1833,7 @@ pub mod tests {
                     footnote_reference_options: ReferencePlacement::BottomOfDoc,
                 },
                 // Define them in the opposite order that we'd expect them
-                mdq_nodes![Block::LeafBlock::Paragraph {
+                md_elems![Block::LeafBlock::Paragraph {
                     body: vec![
                         Inline::Footnote(Footnote {
                             label: "d".to_string(),
@@ -1871,8 +1871,8 @@ pub mod tests {
             );
         }
 
-        fn link_and_footnote_markdown() -> Vec<MdqNode> {
-            mdq_nodes![
+        fn link_and_footnote_markdown() -> Vec<MdqElem> {
+            md_elems![
                 Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("First section")],
@@ -1904,15 +1904,15 @@ pub mod tests {
         }
     }
 
-    fn check_render(nodes: Vec<MdqNode>, expect: &str) {
+    fn check_render(nodes: Vec<MdqElem>, expect: &str) {
         check_render_with(&MdOptions::default(), nodes, expect);
     }
 
-    fn check_render_with(options: &MdOptions, nodes: Vec<MdqNode>, expect: &str) {
-        check_render_with_refs(options, MdqNodeRef::wrap_vec(&nodes), expect)
+    fn check_render_with(options: &MdOptions, nodes: Vec<MdqElem>, expect: &str) {
+        check_render_with_refs(options, MdElemRef::wrap_vec(&nodes), expect)
     }
 
-    fn check_render_with_refs<'a>(options: &MdOptions, nodes: Vec<MdqNodeRef<'a>>, expect: &str) {
+    fn check_render_with_refs<'a>(options: &MdOptions, nodes: Vec<MdElemRef<'a>>, expect: &str) {
         nodes.iter().for_each(|n| VARIANTS_CHECKER.see(n));
 
         let mut out = Output::new(String::default());

@@ -2,29 +2,23 @@
 mod test_utils {
 
     #[macro_export]
-    macro_rules! mdq_node {
+    macro_rules! md_elem {
         ( $($node_names:ident)::* {$($attr:ident: $val:expr),*}) => {
-            crate::m_node!(MdqNode::$($node_names)::* {$($attr: $val),*})
+            crate::m_node!(MdqElem::$($node_names)::* {$($attr: $val),*})
         };
         ($paragraph_text:literal) => {
-            crate::m_node!(MdqNode::Block::LeafBlock::Paragraph{body: vec![crate::mdq_inline!($paragraph_text)]})
+            crate::m_node!(MdqElem::Block::LeafBlock::Paragraph{body: vec![crate::mdq_inline!($paragraph_text)]})
         };
     }
 
     #[macro_export]
-    macro_rules! mdq_nodes {
+    macro_rules! md_elems {
         [$($first:tt $( $(:: $($rest:ident)::* )? {$($attr:ident: $val:expr),*$(,)?})? ),*$(,)?] => {
             vec![$(
                 crate::mdq_node!($first$( $(:: $($rest)::*)? { $($attr: $val),* })?)
                 ),*
             ]
         };
-        // [$($paragraph_text:literal),*$(,)?] => {
-        //     vec![$(
-        //             crate::mdq_node!($paragraph_text)
-        //         ),*
-        //     ]
-        // } TODO rm if I don't need this
     }
 
     #[macro_export]

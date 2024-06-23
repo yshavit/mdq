@@ -36,7 +36,7 @@ mod tests {
     use super::*;
     use indoc::indoc;
 
-    use crate::tree::{Block, Inline, LeafBlock, MdqNode, ReadOptions, SpanVariant, TextVariant};
+    use crate::tree::{Block, Inline, LeafBlock, MdqElem, ReadOptions, SpanVariant, TextVariant};
     use crate::unwrap;
     use markdown::ParseOptions;
 
@@ -71,8 +71,8 @@ mod tests {
     #[test]
     fn text_html() {
         let node = markdown::to_mdast("<foo>", &ParseOptions::gfm()).unwrap();
-        let mdq_nodes = MdqNode::read(node, &ReadOptions::default()).unwrap();
-        unwrap!(&mdq_nodes[0], MdqNode::Inline(inline));
+        let mdq_nodes = MdqElem::read(node, &ReadOptions::default()).unwrap();
+        unwrap!(&mdq_nodes[0], MdqElem::Inline(inline));
         VARIANTS_CHECKER.see(inline);
         let actual = inlines_to_plain_string(&[inline]);
         assert_eq!(&actual, "");
@@ -121,8 +121,8 @@ mod tests {
         let mut options = ParseOptions::gfm();
         options.constructs.math_text = true;
         let node = markdown::to_mdast(md, &options).unwrap();
-        let mdq_nodes = MdqNode::read(node, &ReadOptions::default()).unwrap();
-        unwrap!(&mdq_nodes[0], MdqNode::Block(Block::LeafBlock(LeafBlock::Paragraph(p)))); // TODO can I use m_node here?
+        let mdq_nodes = MdqElem::read(node, &ReadOptions::default()).unwrap();
+        unwrap!(&mdq_nodes[0], MdqElem::Block(Block::LeafBlock(LeafBlock::Paragraph(p)))); // TODO can I use m_node here?
         p.body.iter().for_each(|inline| VARIANTS_CHECKER.see(inline));
         let actual = inlines_to_plain_string(&p.body);
         assert_eq!(&actual, expect);
