@@ -15,7 +15,6 @@ pub struct MdOptions {
     footnote_reference_options: ReferencePlacement,
 }
 
-#[allow(dead_code)]
 pub enum ReferencePlacement {
     /// Show links as references defined in the first section that uses the link.
     ///
@@ -53,6 +52,7 @@ pub enum ReferencePlacement {
     /// [1]: https://example.com
     /// ^^^^^^^^^^^^^^^^^^^^^^^^
     /// ```
+    #[allow(dead_code)]
     BottomOfDoc,
 }
 
@@ -87,37 +87,46 @@ where
 }
 
 struct MdWriterState<'a> {
-    #[allow(dead_code)]
     opts: &'a MdOptions,
-    seen_links: HashSet<ReifiedLabel<'a>>,
-    #[allow(dead_code)]
+    seen_links: HashSet<LinkLabel<'a>>,
     seen_footnotes: HashSet<&'a String>,
     pending_references: PendingReferences<'a>,
 }
 
 struct PendingReferences<'a> {
-    links: HashMap<ReifiedLabel<'a>, ReifiedLink<'a>>,
-    #[allow(dead_code)]
+    links: HashMap<LinkLabel<'a>, UrlAndTitle<'a>>,
     footnotes: HashMap<&'a String, &'a Vec<MdElem>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
-struct ReifiedLink<'a> {
+struct UrlAndTitle<'a> {
     url: &'a String,
     title: &'a Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
-enum ReifiedLabel<'a> {
+enum LinkLabel<'a> {
     Identifier(&'a String),
     Inline(&'a Vec<Inline>),
 }
 
-impl<'a> Display for ReifiedLabel<'a> {
+impl<'a> LinkLabel<'a> {
+    fn write_to<'b, W: SimpleWrite>(&self, writer: &mut MdWriterState<'b>, out: &mut Output<W>)
+    where
+        'a: 'b,
+    {
+        match self {
+            LinkLabel::Identifier(text) => out.write_str(text),
+            LinkLabel::Inline(text) => writer.write_line(out, text),
+        }
+    }
+}
+
+impl<'a> Display for LinkLabel<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ReifiedLabel::Identifier(s) => f.write_str(*s),
-            ReifiedLabel::Inline(inlines) => f.write_str(&inlines_to_plain_string(*inlines)),
+            LinkLabel::Identifier(s) => f.write_str(*s),
+            LinkLabel::Inline(inlines) => f.write_str(&inlines_to_plain_string(*inlines)),
         }
     }
 }
@@ -177,26 +186,11 @@ impl<'a> MdWriterState<'a> {
                 self.write_inline_element(out, inline);
             }
             MdElemRef::Link(link) => {
-                // TODO unify with write_inline_element
-                out.with_block(Block::Plain, |out| {
-                    self.write_link_inline(
-                        out,
-                        ReifiedLabel::Inline(&link.text),
-                        &link.link_definition,
-                        |me, out| {
-                            me.write_line(out, &link.text);
-                        },
-                    );
-                });
+                self.write_link_inline_portion(out, LinkLabel::Inline(&link.text), &link.link_definition);
             }
             MdElemRef::Image(image) => {
-                // TODO unify with write_inline_element
-                out.with_block(Block::Plain, |out| {
-                    out.write_char('!');
-                    self.write_link_inline(out, ReifiedLabel::Identifier(&image.alt), &image.link, |_, out| {
-                        out.write_str(&image.alt);
-                    });
-                });
+                out.write_char('!');
+                self.write_link_inline_portion(out, LinkLabel::Identifier(&image.alt), &image.link);
             }
         }
     }
@@ -436,15 +430,8 @@ impl<'a> MdWriterState<'a> {
                 out.write_str(value);
                 out.write_str(surround);
             }
-            Inline::Link(Link { text, link_definition }) => {
-                self.write_link_inline(out, ReifiedLabel::Inline(text), link_definition, |me, out| {
-                    me.write_line(out, text)
-                });
-            }
-            Inline::Image(Image { alt, link }) => {
-                out.write_char('!');
-                self.write_link_inline(out, ReifiedLabel::Identifier(alt), link, |_, out| out.write_str(alt));
-            }
+            Inline::Link(link) => self.write_one_md(out, MdElemRef::Link(link)),
+            Inline::Image(image) => self.write_one_md(out, MdElemRef::Image(image)),
             Inline::Footnote(Footnote { label, text }) => {
                 out.write_str("[^");
                 out.write_str(label);
@@ -467,18 +454,12 @@ impl<'a> MdWriterState<'a> {
     ///
     /// The `contents` function is what writes e.g. `an inline link` above. It's a function because it may be a recursive
     /// call into [write_line] (for links) or just simple text (for image alts).
-    fn write_link_inline<W, F>(
-        &mut self,
-        out: &mut Output<W>,
-        label: ReifiedLabel<'a>,
-        link: &'a LinkDefinition,
-        contents: F,
-    ) where
+    fn write_link_inline_portion<W>(&mut self, out: &mut Output<W>, label: LinkLabel<'a>, link: &'a LinkDefinition)
+    where
         W: SimpleWrite,
-        F: FnOnce(&mut Self, &mut Output<W>),
     {
         out.write_char('[');
-        contents(self, out);
+        label.write_to(self, out);
         out.write_char(']');
         let reference_to_add = match &link.reference {
             LinkReference::Inline => {
@@ -492,7 +473,7 @@ impl<'a> MdWriterState<'a> {
                 out.write_char('[');
                 out.write_str(identifier);
                 out.write_char(']');
-                Some(ReifiedLabel::Identifier(identifier))
+                Some(LinkLabel::Identifier(identifier))
             }
             LinkReference::Collapsed => {
                 out.write_str("[]");
@@ -508,7 +489,7 @@ impl<'a> MdWriterState<'a> {
             if self.seen_links.insert(reference_label.clone()) {
                 self.pending_references.links.insert(
                     reference_label,
-                    ReifiedLink {
+                    UrlAndTitle {
                         url: &link.url,
                         title: &link.title,
                     },
@@ -555,8 +536,8 @@ impl<'a> MdWriterState<'a> {
                 for (link_ref, link_def) in defs_to_write {
                     out.write_char('[');
                     match link_ref {
-                        ReifiedLabel::Identifier(identifier) => out.write_str(identifier),
-                        ReifiedLabel::Inline(text) => self.write_line(out, text),
+                        LinkLabel::Identifier(identifier) => out.write_str(identifier),
+                        LinkLabel::Inline(text) => self.write_line(out, text),
                     }
                     out.write_str("]: ");
                     out.write_str(&link_def.url);
@@ -1719,9 +1700,7 @@ pub mod tests {
                     }),
                 ],
                 indoc! {r#"
-                    [link text one][1]
-
-                    [link text two][2]
+                    [link text one][1][link text two][2]
 
                     [1]: https://example.com/1
                     [2]: https://example.com/2"#},
@@ -1750,9 +1729,7 @@ pub mod tests {
                     }),
                 ],
                 indoc! {r#"
-                    [link text one](https://example.com/1)
-
-                    [link text two](https://example.com/2)"#},
+                [link text one](https://example.com/1)[link text two](https://example.com/2)"#},
             );
         }
     }
@@ -1800,9 +1777,7 @@ pub mod tests {
                     }),
                 ],
                 indoc! {r#"
-                    ![alt text one][1]
-
-                    ![alt text two][2]
+                    ![alt text one][1]![alt text two][2]
 
                     [1]: https://example.com/1.png
                     [2]: https://example.com/2.png"#},
