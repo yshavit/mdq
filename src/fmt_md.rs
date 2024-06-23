@@ -52,6 +52,7 @@ pub enum ReferencePlacement {
     /// [1]: https://example.com
     /// ^^^^^^^^^^^^^^^^^^^^^^^^
     /// ```
+    #[allow(dead_code)]
     BottomOfDoc,
 }
 
