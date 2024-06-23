@@ -1,10 +1,32 @@
+use crate::parse_common::Position;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
-use crate::select::interface::{ParseError, ParseErrorReason, ParseResult, SelectResult};
-use crate::select::list_item::{ListItemSelector, ListItemType};
-use crate::select::section::SectionSelector;
-use crate::tree::{Formatting, Image, Inline, Link, Text};
+use crate::select::sel_list_item::{ListItemSelector, ListItemType};
+use crate::select::sel_section::SectionSelector;
+use crate::tree::{Formatting, Image, Inline, Link, MdElem, Text};
 use crate::tree_ref::{ListItemRef, MdElemRef, NonSelectable};
+
+pub enum SelectResult<'a> {
+    One(MdElemRef<'a>),
+    Multi(&'a Vec<MdElem>),
+}
+
+pub type ParseResult<T> = Result<T, ParseErrorReason>;
+
+pub const SELECTOR_SEPARATOR: char = '|';
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParseError {
+    pub position: Position,
+    pub reason: ParseErrorReason,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParseErrorReason {
+    UnexpectedCharacter(char),
+    UnexpectedEndOfInput,
+    InvalidSyntax(String),
+}
 
 #[derive(Debug, PartialEq)]
 pub enum MdqRefSelector {

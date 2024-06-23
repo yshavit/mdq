@@ -3,9 +3,9 @@ use std::{env, io};
 
 use crate::fmt_md::MdOptions;
 use crate::output::Stream;
-use crate::select::selector::MdqRefSelector;
 use crate::tree::{MdElem, ReadOptions};
 use crate::tree_ref::MdElemRef;
+use select::MdqRefSelector;
 
 mod fmt_md;
 mod fmt_str;
