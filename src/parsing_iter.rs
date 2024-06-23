@@ -64,6 +64,10 @@ impl<'a> ParsingIterator<'a> {
         dropped_chars
     }
 
+    pub fn drop_whitespace(&mut self) -> String {
+        self.drop_while(|ch| ch.is_whitespace())
+    }
+
     pub fn require_whitespace(&mut self, description: &str) -> ParseResult<()> {
         if self.drop_while(|ch| ch.is_whitespace()).is_empty() && self.peek().is_some() {
             return Err(ParseErrorReason::InvalidSyntax(format!(

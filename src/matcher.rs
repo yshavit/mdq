@@ -76,7 +76,7 @@ impl StringMatcher {
     }
 
     pub fn read(chars: &mut ParsingIterator, bareword_end: char) -> ParseResult<StringMatcher> {
-        chars.drop_while(|ch| ch.is_whitespace());
+        chars.drop_whitespace();
         let peek_ch = match chars.peek() {
             None => return Ok(StringMatcher::Any),
             Some(ch) => ch,
@@ -87,6 +87,7 @@ impl StringMatcher {
         match peek_ch {
             '*' => {
                 let _ = chars.next(); // drop the char we peeked
+                chars.drop_whitespace();
                 Ok(StringMatcher::Any)
             }
             '/' => {
@@ -105,6 +106,8 @@ impl StringMatcher {
         let mut dropped = String::with_capacity(8); // also a guess
 
         loop {
+            // Drop whitespace, but keep a record of it. If we see a char within this bareword (ie not end-of-input or
+            // the bareword_end), then we'll append that whitespace back.
             chars.drop_to_while(&mut dropped, |ch| ch.is_whitespace());
             let Some(ch) = chars.peek() else {
                 break;
@@ -165,14 +168,14 @@ mod test {
         parse_and_check(
             "hello| goodbye",
             StringMatcher::Substring("hello".to_string()),
-            " goodbye",
+            "| goodbye",
         );
         parse_and_check(
             "hello | goodbye",
             StringMatcher::Substring("hello".to_string()),
-            " goodbye",
+            "| goodbye",
         );
-        parse_and_check_with(']', "foo] rest", StringMatcher::Substring("foo".to_string()), " rest");
+        parse_and_check_with(']', "foo] rest", StringMatcher::Substring("foo".to_string()), "] rest");
     }
 
     //noinspection RegExpSingleCharAlternation (for the "(a|b)" case)
@@ -218,9 +221,11 @@ mod test {
 
     #[test]
     fn any() {
-        parse_and_check("| rest", StringMatcher::Any, " rest");
-        parse_and_check(" | rest", StringMatcher::Any, " rest");
-        parse_and_check_with(']', "] rest", StringMatcher::Any, " rest");
+        parse_and_check("| rest", StringMatcher::Any, "| rest");
+        parse_and_check(" | rest", StringMatcher::Any, "| rest");
+        parse_and_check("*| rest", StringMatcher::Any, "| rest");
+        parse_and_check(" * | rest", StringMatcher::Any, "| rest");
+        parse_and_check_with(']', "] rest", StringMatcher::Any, "] rest");
     }
 
     fn parse_and_check_with(bareword_end: char, text: &str, expect: StringMatcher, expect_remaining: &str) {
