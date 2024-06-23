@@ -10,7 +10,7 @@ pub struct SectionSelector {
 }
 
 impl SectionSelector {
-    pub fn read(iter: &mut ParsingIterator) -> ParseResult<SectionSelector> {
+    pub fn read(iter: &mut ParsingIterator) -> ParseResult<Self> {
         let matcher = StringMatcher::read(iter, SELECTOR_SEPARATOR)?;
         Ok(Self { matcher })
     }

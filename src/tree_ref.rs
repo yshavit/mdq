@@ -1,20 +1,24 @@
 use crate::tree::{
-    Block, BlockQuote, CodeBlock, Container, Inline, LeafBlock, List, ListItem, MdElem, Paragraph, Section, Table,
+    Block, BlockQuote, CodeBlock, Container, Inline, LeafBlock, Link, List, ListItem, MdElem, Paragraph, Section, Table,
 };
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
 /// selected.
 #[derive(Debug, Clone)]
 pub enum MdElemRef<'a> {
+    // main elements
     BlockQuote(&'a BlockQuote),
     CodeBlock(&'a CodeBlock),
     Inline(&'a Inline),
     List(&'a List),
-    ListItem(ListItemRef<'a>),
     Paragraph(&'a Paragraph),
     Section(&'a Section),
     Table(&'a Table),
     ThematicBreak,
+
+    // sub-elements
+    ListItem(ListItemRef<'a>),
+    Link(&'a Link),
 }
 
 #[derive(Debug, Clone, Copy)]

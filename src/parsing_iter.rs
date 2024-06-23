@@ -89,6 +89,13 @@ impl<'a> ParsingIterator<'a> {
         }
     }
 
+    pub fn require_str(&mut self, s: &str) -> ParseResult<()> {
+        for ch in s.chars() {
+            self.require_char(ch)?;
+        }
+        Ok(())
+    }
+
     pub fn consume_if(&mut self, ch: char) -> bool {
         match self.peek() {
             Some(actual) if actual == ch => {

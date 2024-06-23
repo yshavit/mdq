@@ -176,6 +176,18 @@ impl<'a> MdWriterState<'a> {
             MdElemRef::Inline(inline) => {
                 self.write_inline_element(out, inline);
             }
+            MdElemRef::Link(link) => {
+                out.with_block(Block::Plain, |out| {
+                    self.write_link_inline(
+                        out,
+                        ReifiedLabel::Inline(&link.text),
+                        &link.link_definition,
+                        |me, out| {
+                            me.write_line(out, &link.text);
+                        },
+                    );
+                });
+            }
         }
     }
 
@@ -611,6 +623,7 @@ pub mod tests {
     crate::variants_checker!(VARIANTS_CHECKER = MdElemRef {
         Section(_),
         ListItem(..),
+        Link(..),
 
         Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Delete, ..})),
         Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Emphasis, ..})),
@@ -952,11 +965,7 @@ pub mod tests {
 
         fn create_li_singleton<'a>(idx: Option<u32>, checked: Option<bool>, item: Vec<MdElem>, expected: &str) {
             let li = ListItem { checked, item };
-            check_render_with_refs(
-                &MdOptions::default(),
-                vec![MdElemRef::ListItem(ListItemRef(idx, &li))],
-                expected,
-            )
+            check_render_refs(vec![MdElemRef::ListItem(ListItemRef(idx, &li))], expected)
         }
     }
 
@@ -1656,6 +1665,87 @@ pub mod tests {
         }
     }
 
+    mod link {
+        use super::*;
+
+        #[test]
+        fn single_link() {
+            check_render_refs(
+                vec![MdElemRef::Link(&Link {
+                    text: vec![mdq_inline!("link text")],
+                    link_definition: LinkDefinition {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Full("1".to_string()),
+                    },
+                })],
+                indoc! {r#"
+                    [link text][1]
+
+                    [1]: https://example.com"#},
+            );
+        }
+
+        #[test]
+        fn two_links() {
+            check_render_refs(
+                vec![
+                    MdElemRef::Link(&Link {
+                        text: vec![mdq_inline!("link text one")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com/1".to_string(),
+                            title: None,
+                            reference: LinkReference::Full("1".to_string()),
+                        },
+                    }),
+                    MdElemRef::Link(&Link {
+                        text: vec![mdq_inline!("link text two")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com/2".to_string(),
+                            title: None,
+                            reference: LinkReference::Full("2".to_string()),
+                        },
+                    }),
+                ],
+                indoc! {r#"
+                    [link text one][1]
+
+                    [link text two][2]
+
+                    [1]: https://example.com/1
+                    [2]: https://example.com/2"#},
+            );
+        }
+
+        #[test]
+        fn two_links_inline() {
+            check_render_refs(
+                vec![
+                    MdElemRef::Link(&Link {
+                        text: vec![mdq_inline!("link text one")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com/1".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    }),
+                    MdElemRef::Link(&Link {
+                        text: vec![mdq_inline!("link text two")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com/2".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    }),
+                ],
+                indoc! {r#"
+                    [link text one](https://example.com/1)
+
+                    [link text two](https://example.com/2)"#},
+            );
+        }
+    }
+
     mod footnote {
         use super::*;
 
@@ -1907,10 +1997,14 @@ pub mod tests {
     }
 
     fn check_render_with(options: &MdOptions, nodes: Vec<MdElem>, expect: &str) {
-        check_render_with_refs(options, MdElemRef::wrap_vec(&nodes), expect)
+        check_render_refs_with(options, MdElemRef::wrap_vec(&nodes), expect)
     }
 
-    fn check_render_with_refs<'a>(options: &MdOptions, nodes: Vec<MdElemRef<'a>>, expect: &str) {
+    fn check_render_refs(nodes: Vec<MdElemRef>, expect: &str) {
+        check_render_refs_with(&MdOptions::default(), nodes, expect)
+    }
+
+    fn check_render_refs_with<'a>(options: &MdOptions, nodes: Vec<MdElemRef<'a>>, expect: &str) {
         nodes.iter().for_each(|n| VARIANTS_CHECKER.see(n));
 
         let mut out = Output::new(String::default());
