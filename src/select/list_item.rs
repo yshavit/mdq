@@ -2,7 +2,7 @@ use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
 use crate::select::{ParseErrorReason, ParseResult, SelectResult};
-use crate::tree_ref::{ListItemRef, MdqNodeRef};
+use crate::tree_ref::{ListItemRef, MdElemRef};
 
 #[derive(Debug, PartialEq)]
 pub struct ListItemSelector {
@@ -78,7 +78,7 @@ impl<'a> Selector<'a, ListItemRef<'a>> for ListItemSelector {
     }
 
     fn pick(&self, item: ListItemRef<'a>) -> SelectResult<'a> {
-        SelectResult::One(MdqNodeRef::ListItem(item))
+        SelectResult::One(MdElemRef::ListItem(item))
     }
 }
 

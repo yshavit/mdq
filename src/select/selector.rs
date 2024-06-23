@@ -4,7 +4,7 @@ use crate::select::interface::{ParseError, ParseErrorReason, ParseResult, Select
 use crate::select::list_item::{ListItemSelector, ListItemType};
 use crate::select::section::SectionSelector;
 use crate::tree::Inline;
-use crate::tree_ref::{ListItemRef, MdqNodeRef, NonSelectable};
+use crate::tree_ref::{ListItemRef, MdElemRef, NonSelectable};
 use crate::wrap_mdq_refs;
 
 #[derive(Debug, PartialEq)]
@@ -56,7 +56,7 @@ impl MdqRefSelector {
         Ok(selectors)
     }
 
-    pub fn find_nodes<'a>(&self, nodes: Vec<MdqNodeRef<'a>>) -> Vec<MdqNodeRef<'a>> {
+    pub fn find_nodes<'a>(&self, nodes: Vec<MdElemRef<'a>>) -> Vec<MdElemRef<'a>> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
         for node in nodes {
             self.build_output(&mut result, node);
@@ -64,10 +64,10 @@ impl MdqRefSelector {
         result
     }
 
-    fn build_output<'a>(&self, out: &mut Vec<MdqNodeRef<'a>>, node: MdqNodeRef<'a>) {
+    fn build_output<'a>(&self, out: &mut Vec<MdElemRef<'a>>, node: MdElemRef<'a>) {
         let result = match (self, node.clone()) {
-            (MdqRefSelector::Section(selector), MdqNodeRef::Section(header)) => selector.try_select(&header),
-            (MdqRefSelector::ListItem(selector), MdqNodeRef::ListItem(item)) => selector.try_select(item),
+            (MdqRefSelector::Section(selector), MdElemRef::Section(header)) => selector.try_select(&header),
+            (MdqRefSelector::ListItem(selector), MdElemRef::ListItem(item)) => selector.try_select(item),
             _ => None,
         };
         match result {
@@ -87,27 +87,27 @@ impl MdqRefSelector {
     /// selector-specific. For example, an [MdqNode::Section] has child nodes both in its title and in its body, but
     /// only the body nodes are relevant for select recursion. `MdqNode` shouldn't need to know about that oddity; it
     /// belongs here.
-    fn find_children<'a>(node: MdqNodeRef) -> Vec<MdqNodeRef> {
+    fn find_children<'a>(node: MdElemRef) -> Vec<MdElemRef> {
         match node {
-            MdqNodeRef::Section(s) => MdqNodeRef::wrap_vec(&s.body),
-            MdqNodeRef::ListItem(ListItemRef(_, item)) => MdqNodeRef::wrap_vec(&item.item),
-            MdqNodeRef::Inline(inline) => match inline {
-                Inline::Span { children, .. } => children.iter().map(|child| MdqNodeRef::Inline(child)).collect(),
-                Inline::Footnote(footnote) => MdqNodeRef::wrap_vec(&footnote.text),
+            MdElemRef::Section(s) => MdElemRef::wrap_vec(&s.body),
+            MdElemRef::ListItem(ListItemRef(_, item)) => MdElemRef::wrap_vec(&item.item),
+            MdElemRef::Inline(inline) => match inline {
+                Inline::Span { children, .. } => children.iter().map(|child| MdElemRef::Inline(child)).collect(),
+                Inline::Footnote(footnote) => MdElemRef::wrap_vec(&footnote.text),
                 Inline::Link { .. } => {
                     // TODO need to return an MdqNodeRef::Link
                     Vec::new()
                 }
                 Inline::Text { .. } | Inline::Image { .. } => Vec::new(),
             },
-            MdqNodeRef::NonSelectable(elem) => match elem {
+            MdElemRef::NonSelectable(elem) => match elem {
                 NonSelectable::Paragraph(p) => wrap_mdq_refs!(Inline: &p.body),
-                NonSelectable::BlockQuote(b) => MdqNodeRef::wrap_vec(&b.body),
+                NonSelectable::BlockQuote(b) => MdElemRef::wrap_vec(&b.body),
                 NonSelectable::List(list) => {
                     let mut idx = list.starting_index;
                     let mut result = Vec::with_capacity(list.items.len());
                     for item in &list.items {
-                        result.push(MdqNodeRef::ListItem(ListItemRef(idx.clone(), item)));
+                        result.push(MdElemRef::ListItem(ListItemRef(idx.clone(), item)));
                         if let Some(idx) = idx.as_mut() {
                             *idx += 1;
                         }
@@ -120,7 +120,7 @@ impl MdqRefSelector {
                     for row in &table.rows {
                         for col in row {
                             for cell in col {
-                                result.push(MdqNodeRef::Inline(cell));
+                                result.push(MdElemRef::Inline(cell));
                             }
                         }
                     }

@@ -1,7 +1,7 @@
 use crate::fmt_str::inlines_to_plain_string;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::{ParseErrorReason, ParseResult, SELECTOR_SEPARATOR};
-use crate::tree::{Block, Container, Inline, LeafBlock, MdqNode};
+use crate::tree::{Block, Container, Inline, LeafBlock, MdElem};
 use regex::Regex;
 use std::borrow::Borrow;
 
@@ -36,7 +36,7 @@ impl StringMatcher {
         self.matches(&inlines_to_plain_string(haystack))
     }
 
-    pub fn matches_any<N: Borrow<MdqNode>>(&self, haystacks: &[N]) -> bool {
+    pub fn matches_any<N: Borrow<MdElem>>(&self, haystacks: &[N]) -> bool {
         if matches!(self, StringMatcher::Any) {
             return true;
         }
@@ -68,10 +68,10 @@ impl StringMatcher {
         }
     }
 
-    fn matches_node(&self, node: &MdqNode) -> bool {
+    fn matches_node(&self, node: &MdElem) -> bool {
         match node {
-            MdqNode::Block(block) => self.matches_block(block),
-            MdqNode::Inline(inline) => self.matches_inlines(&[inline]),
+            MdElem::Block(block) => self.matches_block(block),
+            MdElem::Inline(inline) => self.matches_inlines(&[inline]),
         }
     }
 
