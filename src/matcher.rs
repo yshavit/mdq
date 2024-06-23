@@ -59,19 +59,18 @@ impl StringMatcher {
             }
             Block::Container(Container::List(list)) => list.items.iter().any(|li| self.matches_any(&li.item)),
             Block::Container(Container::BlockQuote(block)) => self.matches_any(&block.body),
+            Block::Container(Container::Section(section)) => {
+                if self.matches_inlines(&section.title) {
+                    return true;
+                }
+                self.matches_any(&section.body)
+            }
         }
     }
 
     fn matches_node(&self, node: &MdqNode) -> bool {
         match node {
             MdqNode::Block(block) => self.matches_block(block),
-
-            MdqNode::Section(section) => {
-                if self.matches_inlines(&section.title) {
-                    return true;
-                }
-                self.matches_any(&section.body)
-            }
             MdqNode::Inline(inline) => self.matches_inlines(&[inline]),
         }
     }

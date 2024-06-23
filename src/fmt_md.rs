@@ -684,7 +684,7 @@ pub mod tests {
         #[test]
         fn totally_empty() {
             check_render(
-                mdq_nodes![Section {
+                mdq_nodes![Block::Container::Section {
                     depth: 3,
                     title: vec![],
                     body: vec![],
@@ -697,7 +697,7 @@ pub mod tests {
         #[test]
         fn only_title() {
             check_render(
-                mdq_nodes![Section {
+                mdq_nodes![Block::Container::Section {
                     depth: 3,
                     title: vec![mdq_inline!("My header")],
                     body: vec![],
@@ -710,7 +710,7 @@ pub mod tests {
         #[test]
         fn only_body() {
             check_render(
-                mdq_nodes![Section {
+                mdq_nodes![Block::Container::Section {
                     depth: 3,
                     title: vec![],
                     body: mdq_nodes!["Hello, world."],
@@ -725,7 +725,7 @@ pub mod tests {
         #[test]
         fn title_and_body() {
             check_render(
-                mdq_nodes![Section {
+                mdq_nodes![Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("My title")],
                     body: mdq_nodes![Block::Container::BlockQuote {
@@ -1863,7 +1863,7 @@ pub mod tests {
 
         fn link_and_footnote_markdown() -> Vec<MdqNode> {
             mdq_nodes![
-                Section {
+                Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("First section")],
                     body: mdq_nodes![Block::LeafBlock::Paragraph {
@@ -1885,7 +1885,7 @@ pub mod tests {
                         ],
                     }],
                 },
-                Section {
+                Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("Second section")],
                     body: mdq_nodes!["Second section contents."],
