@@ -10,7 +10,6 @@ use markdown::mdast;
 pub enum MdqNode {
     Block(Block),
     Section(Section),
-    BlockQuote(BlockQuote),
     Inline(Inline),
 }
 
@@ -31,6 +30,7 @@ pub enum LeafBlock {
 #[derive(Debug, PartialEq)]
 pub enum Container {
     List(List),
+    BlockQuote(BlockQuote),
 }
 
 #[derive(Debug, PartialEq)]
@@ -269,7 +269,7 @@ impl MdqNode {
     fn from_mdast_0(node: mdast::Node, lookups: &Lookups) -> Result<Vec<Self>, InvalidMd> {
         let result = match node {
             mdast::Node::Root(node) => return MdqNode::all(node.children, lookups),
-            mdast::Node::BlockQuote(node) => MdqNode::BlockQuote(BlockQuote {
+            mdast::Node::BlockQuote(node) => m_node!(MdqNode::Block::Container::BlockQuote {
                 body: MdqNode::all(node.children, lookups)?,
             }),
             mdast::Node::FootnoteDefinition(_) => return Ok(Vec::new()),
@@ -765,8 +765,8 @@ mod tests {
         fn block_quote() {
             let (root, lookups) = parse("> hello");
             let child = &root.children[0];
-            check!(child, Node::BlockQuote(_), lookups => MdqNode::BlockQuote(bq)= {
-                assert_eq!(bq.body, mdq_nodes!["hello"]);
+            check!(child, Node::BlockQuote(_), lookups => m_node!(MdqNode::Block::Container::BlockQuote{body}) = {
+                assert_eq!(body, mdq_nodes!["hello"]);
             });
         }
 

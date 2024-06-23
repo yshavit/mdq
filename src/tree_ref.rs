@@ -42,10 +42,10 @@ impl<'a> From<&'a MdqNode> for MdqNodeRef<'a> {
                 },
                 Block::Container(container) => match container {
                     Container::List(list) => Self::List(list),
+                    Container::BlockQuote(block) => Self::BlockQuote(block),
                 },
             },
             MdqNode::Section(v) => Self::Section(v),
-            MdqNode::BlockQuote(v) => Self::BlockQuote(v),
             MdqNode::Inline(v) => Self::Inline(v),
         }
     }

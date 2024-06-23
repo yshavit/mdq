@@ -58,6 +58,7 @@ impl StringMatcher {
                 false
             }
             Block::Container(Container::List(list)) => list.items.iter().any(|li| self.matches_any(&li.item)),
+            Block::Container(Container::BlockQuote(block)) => self.matches_any(&block.body),
         }
     }
 
@@ -71,7 +72,6 @@ impl StringMatcher {
                 }
                 self.matches_any(&section.body)
             }
-            MdqNode::BlockQuote(block) => self.matches_any(&block.body),
             MdqNode::Inline(inline) => self.matches_inlines(&[inline]),
         }
     }

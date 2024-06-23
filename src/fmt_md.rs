@@ -728,7 +728,7 @@ pub mod tests {
                 mdq_nodes![Section {
                     depth: 1,
                     title: vec![mdq_inline!("My title")],
-                    body: mdq_nodes![BlockQuote {
+                    body: mdq_nodes![Block::Container::BlockQuote {
                         body: mdq_nodes!["Hello, world."],
                     },],
                 }],
@@ -760,7 +760,7 @@ pub mod tests {
         #[test]
         fn single_level() {
             check_render(
-                mdq_nodes![BlockQuote {
+                mdq_nodes![Block::Container::BlockQuote {
                     body: mdq_nodes!["Hello, world"]
                 }],
                 indoc! {
@@ -772,10 +772,10 @@ pub mod tests {
         #[test]
         fn two_levels() {
             check_render(
-                mdq_nodes![BlockQuote {
+                mdq_nodes![Block::Container::BlockQuote {
                     body: mdq_nodes![
                         "Outer",
-                        BlockQuote {
+                        Block::Container::BlockQuote {
                             body: mdq_nodes!["Inner"],
                         },
                     ]
@@ -858,7 +858,7 @@ pub mod tests {
                         },
                         ListItem {
                             checked: None,
-                            item: mdq_nodes!(BlockQuote {
+                            item: mdq_nodes!(Block::Container::BlockQuote {
                                 body: mdq_nodes!["quoted block one", "quoted block two"]
                             })
                         },
@@ -873,7 +873,7 @@ pub mod tests {
                             checked: Some(false),
                             item: mdq_nodes![
                                 "closing argument",
-                                BlockQuote {
+                                Block::Container::BlockQuote {
                                     body: mdq_nodes!["supporting evidence"]
                                 },
                                 Block::LeafBlock::CodeBlock {
