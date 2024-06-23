@@ -3,7 +3,8 @@ use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
 use crate::select::sel_image::ImageSelector;
 use crate::select::sel_link::LinkSelector;
-use crate::select::sel_list_item::{ListItemSelector, ListItemType};
+use crate::select::sel_list_item::ListItemSelector;
+use crate::select::sel_list_item::ListItemType;
 use crate::select::sel_section::SectionSelector;
 use crate::tree::{Formatting, Inline, Link, MdElem, Text};
 use crate::tree_ref::{ListItemRef, MdElemRef};
@@ -43,33 +44,76 @@ impl Display for ParseErrorReason {
     }
 }
 
-crate::selectors![
-    /// Selects the content of a section identified by its heading.
-    ///
-    /// Format: `# <string_matcher>`
-    ///
-    /// In bareword form, the string matcher terminates with the
-    /// [selector delimiter character](parse_common::SELECTOR_SEPARATOR).
+macro_rules! selectors {
+    // TODO can I replace $bang:literal with literally just a "!"?
+    [$($(#[$meta:meta])* {$($char:literal $(::$($read_variant:ident)::+)? ),+} $name:ident),* $(,)?] => {
+        #[derive(Debug, PartialEq)]
+        pub enum MdqRefSelector {
+            $(
+                $(#[$meta])*
+                 $name ( paste::paste!{[<$name Selector >]}),
+            )*
+        }
+
+        impl MdqRefSelector {
+            fn try_select_node<'a>(&self, node: MdElemRef<'a>) -> Option<SelectResult<'a>> {
+                match (self, node) {
+                    $(
+                    (Self::$name(selector), MdElemRef::$name(elem)) => selector.try_select(elem),
+                    )*
+                    _ => None
+                }
+            }
+
+            fn my_parse(chars: &mut ParsingIterator) -> ParseResult<Self> {
+                chars.drop_whitespace(); // should already be the case, but this is cheap and future-proof
+                match chars.next() {
+                    None => Err(ParseErrorReason::UnexpectedEndOfInput),
+                    $(
+                        $(
+                            Some($char) => paste::paste!{ {
+                                let read = [<$name Selector>]::read($( $($read_variant)::+ ,)?chars)?;
+                                let variant = Self::$name(read);
+                                Ok(variant)
+                            } },
+                        )+
+                    )*
+                    Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // TODO should be Any w/ bareword if first char is a letter
+                }
+            }
+        }
+    };
+}
+
+selectors![
+    // TODO rust-doc-ify these; I'm just commenting them out for now to remove noise while debugging a macro
+    // Selects the content of a section identified by its heading.
+    //
+    // Format: `# <string_matcher>`
+    //
+    // In bareword form, the string matcher terminates with the
+    // [selector delimiter character](parse_common::SELECTOR_SEPARATOR).
     {'#'} Section,
 
-    /// Selects a list item.
-    ///
-    /// Format: `<type> [checkbox] <string_matcher>` where:
-    /// - _type_ is either `-` for unordered lists or `1.` for ordered lists. Note that ordered lists are _only_
-    ///   identified by `1.`. Other digits are invalid.
-    /// - _checkbox_, if provided, must be one of:
-    ///   - `[ ]` for an unchecked box
-    ///   - `[x]` for a checked box
-    ///   - `[?]` for a box that may be checked or unchecked
-    ///
-    /// If the checkbox specifier is provided, the selector will only select list items with a checkbox. If the
-    /// checkbox specifier is omitted, the selector will only select list items without a checkbox.
-    ///
-    /// In bareword form, the string matcher terminates with the [selector delimiter character](SELECTOR_SEPARATOR).
-    {'1'::Ordered,'-'::Unordered} ListItem,
+    // Selects a list item.
+    //
+    // Format: `<type> [checkbox] <string_matcher>` where:
+    // - _type_ is either `-` for unordered lists or `1.` for ordered lists. Note that ordered lists are _only_
+    //   identified by `1.`. Other digits are invalid.
+    // - _checkbox_, if provided, must be one of:
+    //   - `[ ]` for an unchecked box
+    //   - `[x]` for a checked box
+    //   - `[?]` for a box that may be checked or unchecked
+    //
+    // If the checkbox specifier is provided, the selector will only select list items with a checkbox. If the
+    // checkbox specifier is omitted, the selector will only select list items without a checkbox.
+    //
+    // In bareword form, the string matcher terminates with the [selector delimiter character](SELECTOR_SEPARATOR).
+    {'1'::ListItemType::Ordered,'-'::ListItemType::Unordered} ListItem,
 
     {'['} Link,
-    '!' {'['} Image,
+    // TODO fix this so it's qualified
+    {'!'} Image,
 ];
 
 impl MdqRefSelector {
@@ -179,52 +223,34 @@ impl MdqRefSelector {
     }
 
     fn parse_selector(chars: &mut ParsingIterator) -> ParseResult<Self> {
-        chars.drop_whitespace(); // should already be the case, but this is cheap and future-proof
-        match chars.next() {
-            None => todo!("not yet implemented: should be Any w/ a matcher"),
-            Some('#') => Ok(Self::Section(SectionSelector::read(chars)?)),
-            Some('1') => Ok(Self::ListItem(ListItemType::Ordered.read(chars)?)),
-            Some('-') => Ok(Self::ListItem(ListItemType::Unordered.read(chars)?)),
-            Some('[') => Ok(Self::Link(LinkSelector::read(chars)?)),
-            Some('!') => {
-                match chars.peek() {
-                    Some('[') => {
-                        let _ = chars.next();
-                        Ok(Self::Image(ImageSelector::read(chars)?))
-                    }
-                    Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // reserved for functions
-                    None => Err(ParseErrorReason::UnexpectedEndOfInput),
-                }
-            }
-
-            Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // TODO should be Any w/ bareword if first char is a letter
-        }
+        Self::my_parse(chars)
+        // chars.drop_whitespace(); // should already be the case, but this is cheap and future-proof
+        // match chars.next() {
+        //     None => todo!("not yet implemented: should be Any w/ a matcher"),
+        //     Some('#') => Ok(Self::Section(SectionSelector::read(chars)?)),
+        //     // Some('1') => Ok(Self::ListItem(ListItemType::Ordered.read(chars)?)),
+        //     // Some('-') => Ok(Self::ListItem(ListItemType::Unordered.read(chars)?)),
+        //     Some('[') => {
+        //         let selector = LinkSelector::read(chars)?;
+        //         let selector_variant = Self::Link(selector);
+        //         Ok(selector_variant)
+        //     }
+        //     Some('!') => {
+        //         match chars.peek() {
+        //             Some('[') => {
+        //                 let _ = chars.next();
+        //                 Ok(Self::Image(ImageSelector::read(chars)?))
+        //             }
+        //             Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // reserved for functions
+        //             None => Err(ParseErrorReason::UnexpectedEndOfInput),
+        //         }
+        //     }
+        //
+        //     Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // TODO should be Any w/ bareword if first char is a letter
+        // }
     }
 }
 
-mod macro_helpers {
+/*
 
-    #[macro_export]
-    macro_rules! selectors {
-        [$($(#[$meta:meta])* $($qualifier:literal)? {$($char:literal $(:: $read_variant:ident)? ),+} $name:ident),* $(,)?] => {
-            #[derive(Debug, PartialEq)]
-            pub enum MdqRefSelector {
-                $(
-                    $(#[$meta])*
-                    $name( paste::paste!{[< $name Selector >]} )
-                ),*
-            }
-
-            impl MdqRefSelector {
-                fn try_select_node<'a>(&self, node: MdElemRef<'a>) -> Option<SelectResult<'a>> {
-                    match (self, node) {
-                        $(
-                        (Self::$name(selector), MdElemRef::$name(elem)) => selector.try_select(elem),
-                        )*
-                        _ => None
-                    }
-                }
-            }
-        };
-    }
-}
+*/
