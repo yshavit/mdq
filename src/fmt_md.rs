@@ -7,7 +7,7 @@ use crate::fmt_str::inlines_to_plain_string;
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
-use crate::tree_ref::{ListItemRef, MdElemRef, NonSelectable};
+use crate::tree_ref::{ListItemRef, MdElemRef};
 
 #[derive(Default)]
 pub struct MdOptions {
@@ -133,11 +133,11 @@ impl<'a> MdWriterState<'a> {
         }
     }
 
-    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node: MdElemRef<'a>)
+    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node_ref: MdElemRef<'a>)
     where
         W: SimpleWrite,
     {
-        match node {
+        match node_ref {
             MdElemRef::Section(Section { depth, title, body }) => {
                 out.with_block(Block::Plain, |out| {
                     for _ in 0..*depth {
@@ -163,21 +163,19 @@ impl<'a> MdWriterState<'a> {
             MdElemRef::ListItem(ListItemRef(idx, item)) => {
                 self.write_list_item(out, &idx, item);
             }
-            MdElemRef::NonSelectable(node) => match node {
-                NonSelectable::ThematicBreak => {
-                    out.with_block(Block::Plain, |out| out.write_str("***"));
-                }
-                NonSelectable::CodeBlock(block) => {
-                    self.write_code_block(out, block);
-                }
-                NonSelectable::Paragraph(para) => self.write_paragraph(out, para),
-                NonSelectable::BlockQuote(block) => self.write_block_quote(out, block),
-                NonSelectable::List(list) => self.write_list(out, list),
-                NonSelectable::Table(table) => self.write_table(out, table),
-                NonSelectable::Inline(inline) => {
-                    self.write_inline_element(out, inline);
-                }
-            },
+            MdElemRef::ThematicBreak => {
+                out.with_block(Block::Plain, |out| out.write_str("***"));
+            }
+            MdElemRef::CodeBlock(block) => {
+                self.write_code_block(out, block);
+            }
+            MdElemRef::Paragraph(para) => self.write_paragraph(out, para),
+            MdElemRef::BlockQuote(block) => self.write_block_quote(out, block),
+            MdElemRef::List(list) => self.write_list(out, list),
+            MdElemRef::Table(table) => self.write_table(out, table),
+            MdElemRef::Inline(inline) => {
+                self.write_inline_element(out, inline);
+            }
         }
     }
 
@@ -606,7 +604,7 @@ pub mod tests {
     use crate::mdq_inline;
     use crate::output::Output;
     use crate::tree::*;
-    use crate::tree_ref::{MdElemRef, NonSelectable};
+    use crate::tree_ref::MdElemRef;
 
     use super::write_md;
 
@@ -614,47 +612,47 @@ pub mod tests {
         Section(_),
         ListItem(..),
 
-        NonSelectable(NonSelectable::Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Delete, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Emphasis, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Strong, ..}))),
+        Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Delete, ..})),
+        Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Emphasis, ..})),
+        Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Strong, ..})),
 
-        NonSelectable(NonSelectable::Inline(Inline::Text(Text{variant: TextVariant::Plain, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Text(Text{variant: TextVariant::Code, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Text(Text{variant: TextVariant::Math, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Text(Text{variant: TextVariant::Html, ..}))),
+        Inline(Inline::Text(Text{variant: TextVariant::Plain, ..})),
+        Inline(Inline::Text(Text{variant: TextVariant::Code, ..})),
+        Inline(Inline::Text(Text{variant: TextVariant::Math, ..})),
+        Inline(Inline::Text(Text{variant: TextVariant::Html, ..})),
 
-        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}))),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..})),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..})),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..})),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..})),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..})),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..})),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..})),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..})),
 
-        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}))),
-        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}))),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..})),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..})),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..})),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..})),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..})),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..})),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..})),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..})),
 
-        NonSelectable(NonSelectable::Inline(Inline::Footnote{..})),
+        Inline(Inline::Footnote{..}),
 
-        NonSelectable(NonSelectable::ThematicBreak),
-        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Code(None), ..})),
-        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: None, ..})), ..})),
-        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: Some(_), ..})), ..})),
-        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: None}, ..})),
-        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..})),
-        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Toml, ..})),
-        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Yaml, ..})),
-        NonSelectable(NonSelectable::Paragraph(_)),
-        NonSelectable(NonSelectable::BlockQuote(_)),
-        NonSelectable(NonSelectable::List(_)),
-        NonSelectable(NonSelectable::Table(_)),
+        ThematicBreak,
+        CodeBlock(CodeBlock{variant: CodeVariant::Code(None), ..}),
+        CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: None, ..})), ..}),
+        CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: Some(_), ..})), ..}),
+        CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: None}, ..}),
+        CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..}),
+        CodeBlock(CodeBlock{variant: CodeVariant::Toml, ..}),
+        CodeBlock(CodeBlock{variant: CodeVariant::Yaml, ..}),
+        Paragraph(_),
+        BlockQuote(_),
+        List(_),
+        Table(_),
     });
 
     #[test]
