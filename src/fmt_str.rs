@@ -1,4 +1,4 @@
-use crate::tree::{Formatting, Inline, TextVariant};
+use crate::tree::{Formatting, Inline, Text, TextVariant};
 use std::borrow::Borrow;
 
 pub fn inlines_to_plain_string<N: Borrow<Inline>>(inlines: &[N]) -> String {
@@ -16,7 +16,7 @@ fn build_inlines<N: Borrow<Inline>>(out: &mut String, inlines: &[N]) {
 fn build_inline(out: &mut String, elem: &Inline) {
     match elem {
         Inline::Formatting(Formatting { children, .. }) => build_inlines(out, children),
-        Inline::Text { variant, value, .. } => {
+        Inline::Text(Text { variant, value, .. }) => {
             if !matches!(variant, TextVariant::Html) {
                 out.push_str(value)
             }
@@ -44,10 +44,10 @@ mod tests {
         Formatting(Formatting{ variant: FormattingVariant::Delete, .. }),
         Formatting(Formatting{ variant: FormattingVariant::Emphasis, .. }),
         Formatting(Formatting{ variant: FormattingVariant::Strong, .. }),
-        Text { variant: TextVariant::Plain, .. },
-        Text { variant: TextVariant::Code, .. },
-        Text { variant: TextVariant::Math, .. },
-        Text { variant: TextVariant::Html, .. },
+        Text(Text { variant: TextVariant::Plain, .. }),
+        Text(Text { variant: TextVariant::Code, .. }),
+        Text(Text { variant: TextVariant::Math, .. }),
+        Text(Text { variant: TextVariant::Html, .. }),
         Link { .. },
         Image { .. },
         Footnote(_),

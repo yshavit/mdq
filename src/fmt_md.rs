@@ -405,7 +405,7 @@ impl<'a> MdWriterState<'a> {
                 self.write_line(out, children);
                 out.write_str(surround);
             }
-            Inline::Text { variant, value } => {
+            Inline::Text(Text { variant, value }) => {
                 let surround = match variant {
                     TextVariant::Plain => "",
                     TextVariant::Code => "`",
@@ -618,10 +618,10 @@ pub mod tests {
         Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Emphasis, ..})),
         Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Strong, ..})),
 
-        Inline(Inline::Text{variant: TextVariant::Plain, ..}),
-        Inline(Inline::Text{variant: TextVariant::Code, ..}),
-        Inline(Inline::Text{variant: TextVariant::Math, ..}),
-        Inline(Inline::Text{variant: TextVariant::Html, ..}),
+        Inline(Inline::Text(Text{variant: TextVariant::Plain, ..})),
+        Inline(Inline::Text(Text{variant: TextVariant::Code, ..})),
+        Inline(Inline::Text(Text{variant: TextVariant::Math, ..})),
+        Inline(Inline::Text(Text{variant: TextVariant::Html, ..})),
 
         Inline(Inline::Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..}),
         Inline(Inline::Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..}),
@@ -1313,10 +1313,10 @@ pub mod tests {
             #[test]
             fn text() {
                 check_render(
-                    vec![MdElem::Inline(Inline::Text {
+                    vec![MdElem::Inline(Inline::Text(Text {
                         variant: TextVariant::Plain,
                         value: "hello world".to_string(),
-                    })],
+                    }))],
                     indoc! {"hello world"},
                 );
             }
@@ -1324,10 +1324,10 @@ pub mod tests {
             #[test]
             fn code() {
                 check_render(
-                    vec![MdElem::Inline(Inline::Text {
+                    vec![MdElem::Inline(Inline::Text(Text {
                         variant: TextVariant::Code,
                         value: "hello world".to_string(),
-                    })],
+                    }))],
                     indoc! {"`hello world`"},
                 );
             }
@@ -1335,10 +1335,10 @@ pub mod tests {
             #[test]
             fn math() {
                 check_render(
-                    vec![MdElem::Inline(Inline::Text {
+                    vec![MdElem::Inline(Inline::Text(Text {
                         variant: TextVariant::Math,
                         value: "hello world".to_string(),
-                    })],
+                    }))],
                     indoc! {"$hello world$"},
                 );
             }
@@ -1346,10 +1346,10 @@ pub mod tests {
             #[test]
             fn html() {
                 check_render(
-                    vec![MdElem::Inline(Inline::Text {
+                    vec![MdElem::Inline(Inline::Text(Text {
                         variant: TextVariant::Html,
                         value: "<a hello />".to_string(),
-                    })],
+                    }))],
                     indoc! {"<a hello />"},
                 );
             }
