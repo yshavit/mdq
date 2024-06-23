@@ -46,7 +46,12 @@ impl Display for ParseErrorReason {
 
 macro_rules! selectors {
     // TODO can I replace $bang:literal with literally just a "!"?
-    [$($(#[$meta:meta])* $(!)? {$($char:literal $(::$($read_variant:ident)::+)? ),+} $name:ident),* $(,)?] => {
+    [
+        $($(#[$meta:meta])*
+        $({$($char:literal $(::$($read_variant:ident)::+)? ),+})?
+        $(! {$($bang_char:literal $(::$($bang_read_variant:ident)::+)? ),+})?
+        $name:ident),* $(,)?
+    ] => {
         #[derive(Debug, PartialEq)]
         pub enum MdqRefSelector {
             $(
@@ -65,15 +70,30 @@ macro_rules! selectors {
                 }
             }
 
-            fn my_parse(chars: &mut ParsingIterator) -> ParseResult<Self> {
+            fn parse_selector(chars: &mut ParsingIterator) -> ParseResult<Self> {
                 chars.drop_whitespace(); // should already be the case, but this is cheap and future-proof
                 match chars.next() {
                     None => Err(ParseErrorReason::UnexpectedEndOfInput),
                     $(
                         $(
-                            Some($char) => paste::paste!{ Ok(Self::$name([<$name Selector>]::read($( $($read_variant)::+ ,)?chars)?))},
-                        )+
+                            $(
+                                Some($char) => paste::paste!{ Ok(Self::$name([<$name Selector>]::read($( $($read_variant)::+ ,)?chars)?))},
+                            )+
+                        )?
                     )*
+                    Some('!') => {
+                        match chars.peek() {
+                            $(
+                                $(
+                                    $(
+                                        Some($bang_char) => paste::paste!{ Ok(Self::$name([<$name Selector>]::read($( $($bang_read_variant)::+ ,)?chars)?))},
+                                    )+
+                                )?
+                            )*
+                            Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // reserved for functions
+                            None => Err(ParseErrorReason::UnexpectedEndOfInput),
+                        }
+                    }
                     Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // TODO should be Any w/ bareword if first char is a letter
                 }
             }
@@ -108,7 +128,7 @@ selectors![
     {'1'::ListItemType::Ordered,'-'::ListItemType::Unordered} ListItem,
 
     {'['} Link,
-    ! {'!'} Image,
+    ! {'['} Image,
 ];
 
 impl MdqRefSelector {
@@ -135,6 +155,7 @@ impl MdqRefSelector {
                 }
                 _ => {}
             }
+            // parse_selector  is defined in macro_helpers::selectors!
             let selector = Self::parse_selector(&mut iter).map_err(|reason| ParseError {
                 reason,
                 position: iter.input_position(),
@@ -215,34 +236,6 @@ impl MdqRefSelector {
             MdElemRef::Link(Link { text, .. }) => text.iter().map(|child| MdElemRef::Inline(child)).collect(),
             MdElemRef::Image(_) => Vec::new(),
         }
-    }
-
-    fn parse_selector(chars: &mut ParsingIterator) -> ParseResult<Self> {
-        Self::my_parse(chars)
-        // chars.drop_whitespace(); // should already be the case, but this is cheap and future-proof
-        // match chars.next() {
-        //     None => todo!("not yet implemented: should be Any w/ a matcher"),
-        //     Some('#') => Ok(Self::Section(SectionSelector::read(chars)?)),
-        //     // Some('1') => Ok(Self::ListItem(ListItemType::Ordered.read(chars)?)),
-        //     // Some('-') => Ok(Self::ListItem(ListItemType::Unordered.read(chars)?)),
-        //     Some('[') => {
-        //         let selector = LinkSelector::read(chars)?;
-        //         let selector_variant = Self::Link(selector);
-        //         Ok(selector_variant)
-        //     }
-        //     Some('!') => {
-        //         match chars.peek() {
-        //             Some('[') => {
-        //                 let _ = chars.next();
-        //                 Ok(Self::Image(ImageSelector::read(chars)?))
-        //             }
-        //             Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // reserved for functions
-        //             None => Err(ParseErrorReason::UnexpectedEndOfInput),
-        //         }
-        //     }
-        //
-        //     Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // TODO should be Any w/ bareword if first char is a letter
-        // }
     }
 }
 
