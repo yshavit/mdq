@@ -3,30 +3,28 @@ mod test_utils {
 
     #[macro_export]
     macro_rules! mdq_node {
-        ($node_type:tt {$($attr:ident: $val:expr),*}) => {
-            MdqNode::$node_type($node_type{$($attr: $val),*})
+        ( $($node_names:ident)::* {$($attr:ident: $val:expr),*}) => {
+            crate::m_node!(MdqNode::$($node_names)::* {$($attr: $val),*})
         };
         ($paragraph_text:literal) => {
-            crate::mdq_node!(Paragraph{body: vec![crate::mdq_inline!($paragraph_text)]})
+            crate::m_node!(MdqNode::Block::LeafBlock::Paragraph{body: vec![crate::mdq_inline!($paragraph_text)]})
         };
     }
 
     #[macro_export]
     macro_rules! mdq_nodes {
-        [$($node_type:tt {$($attr:ident: $val:expr),*$(,)?}),*$(,)?] => {
+        [$($first:tt $( $(:: $($rest:ident)::* )? {$($attr:ident: $val:expr),*$(,)?})? ),*$(,)?] => {
             vec![$(
-                crate::mdq_node!($node_type {
-                    $($attr: $val),*
-                })
+                crate::mdq_node!($first$( $(:: $($rest)::*)? { $($attr: $val),* })?)
                 ),*
             ]
         };
-        [$($paragraph_text:literal),*$(,)?] => {
-            vec![$(
-                    crate::mdq_node!($paragraph_text)
-                ),*
-            ]
-        }
+        // [$($paragraph_text:literal),*$(,)?] => {
+        //     vec![$(
+        //             crate::mdq_node!($paragraph_text)
+        //         ),*
+        //     ]
+        // } TODO rm if I don't need this
     }
 
     #[macro_export]

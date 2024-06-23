@@ -1,5 +1,9 @@
-use crate::tree::{BlockQuote, CodeBlock, Inline, List, ListItem, MdqNode, Paragraph, Section, Table};
+use crate::tree::{
+    Block, BlockQuote, CodeBlock, Container, Inline, LeafBlock, List, ListItem, MdqNode, Paragraph, Section, Table,
+};
 
+/// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
+/// selected.
 #[derive(Debug, Clone)]
 pub enum MdqNodeRef<'a> {
     // paragraphs with child nodes
@@ -9,15 +13,18 @@ pub enum MdqNodeRef<'a> {
     List(&'a List),
     Table(&'a Table),
 
-    ThematicBreak,
-
-    // blocks that contain strings (&'a as opposed to nodes)
-    CodeBlock(&'a CodeBlock),
-
     ListItem(ListItemRef<'a>),
 
     // inline spans
     Inline(&'a Inline),
+
+    NonSelectable(NonSelectable<'a>),
+}
+
+#[derive(Debug, Clone)]
+pub enum NonSelectable<'a> {
+    ThematicBreak,
+    CodeBlock(&'a CodeBlock),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -26,13 +33,19 @@ pub struct ListItemRef<'a>(pub Option<u32>, pub &'a ListItem);
 impl<'a> From<&'a MdqNode> for MdqNodeRef<'a> {
     fn from(value: &'a MdqNode) -> Self {
         match value {
-            MdqNode::Section(v) => Self::Section(v),
-            MdqNode::Paragraph(v) => Self::Paragraph(v),
-            MdqNode::BlockQuote(v) => Self::BlockQuote(v),
-            MdqNode::List(v) => Self::List(v),
-            MdqNode::Table(v) => Self::Table(v),
-            MdqNode::ThematicBreak => Self::ThematicBreak,
-            MdqNode::CodeBlock(v) => Self::CodeBlock(v),
+            MdqNode::Block(block) => match block {
+                Block::LeafBlock(leaf) => match leaf {
+                    LeafBlock::ThematicBreak => Self::NonSelectable(NonSelectable::ThematicBreak),
+                    LeafBlock::Paragraph(p) => Self::Paragraph(p),
+                    LeafBlock::CodeBlock(c) => Self::NonSelectable(NonSelectable::CodeBlock(c)),
+                    LeafBlock::Table(t) => Self::Table(t),
+                },
+                Block::Container(container) => match container {
+                    Container::List(list) => Self::List(list),
+                    Container::BlockQuote(block) => Self::BlockQuote(block),
+                    Container::Section(section) => Self::Section(section),
+                },
+            },
             MdqNode::Inline(v) => Self::Inline(v),
         }
     }

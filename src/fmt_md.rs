@@ -7,7 +7,7 @@ use crate::fmt_str::inlines_to_plain_string;
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
-use crate::tree_ref::{ListItemRef, MdqNodeRef};
+use crate::tree_ref::{ListItemRef, MdqNodeRef, NonSelectable};
 
 #[derive(Default)]
 pub struct MdOptions {
@@ -294,54 +294,61 @@ impl<'a> MdWriterState<'a> {
                     write_row(out, row, rows_iter.peek().is_some());
                 }
             }
-            MdqNodeRef::ThematicBreak => {
-                out.with_block(Block::Plain, |out| out.write_str("***"));
-            }
-            MdqNodeRef::CodeBlock(CodeBlock { variant, value }) => {
-                let (surround, meta) = match variant {
-                    CodeVariant::Code(opts) => {
-                        let meta = if let Some(opts) = opts {
-                            let mut extras = opts.language.to_string();
-                            if let Some(meta) = &opts.metadata {
-                                extras.push(' ');
-                                extras.push_str(meta);
-                            }
-                            Some(extras)
-                        } else {
-                            None
-                        };
-                        ("```", meta)
-                    }
-                    CodeVariant::Math { metadata } => {
-                        let meta = if let Some(meta) = metadata {
-                            let mut meta_with_space = String::with_capacity(meta.len() + 1);
-                            meta_with_space.push(' ');
-                            meta_with_space.push_str(meta);
-                            Some(meta_with_space)
-                        } else {
-                            None
-                        };
-                        ("$$", meta)
-                    }
-                    CodeVariant::Toml => ("+++", None),
-                    CodeVariant::Yaml => ("---", None),
-                };
-
-                out.with_pre_block(|out| {
-                    out.write_str(surround);
-                    if let Some(meta) = meta {
-                        out.write_str(&meta);
-                    }
-                    out.write_char('\n');
-                    out.write_str(value);
-                    out.write_char('\n');
-                    out.write_str(surround);
-                });
-            }
             MdqNodeRef::Inline(inline) => {
                 self.write_inline_element(out, inline);
             }
+            MdqNodeRef::NonSelectable(node) => match node {
+                NonSelectable::ThematicBreak => {
+                    out.with_block(Block::Plain, |out| out.write_str("***"));
+                }
+                NonSelectable::CodeBlock(block) => {
+                    self.write_code_block(out, block);
+                }
+            },
         }
+    }
+
+    fn write_code_block<W: SimpleWrite>(&mut self, out: &mut Output<W>, block: &CodeBlock) {
+        let CodeBlock { variant, value } = block;
+        let (surround, meta) = match variant {
+            CodeVariant::Code(opts) => {
+                let meta = if let Some(opts) = opts {
+                    let mut extras = opts.language.to_string();
+                    if let Some(meta) = &opts.metadata {
+                        extras.push(' ');
+                        extras.push_str(meta);
+                    }
+                    Some(extras)
+                } else {
+                    None
+                };
+                ("```", meta)
+            }
+            CodeVariant::Math { metadata } => {
+                let meta = if let Some(meta) = metadata {
+                    let mut meta_with_space = String::with_capacity(meta.len() + 1);
+                    meta_with_space.push(' ');
+                    meta_with_space.push_str(meta);
+                    Some(meta_with_space)
+                } else {
+                    None
+                };
+                ("$$", meta)
+            }
+            CodeVariant::Toml => ("+++", None),
+            CodeVariant::Yaml => ("---", None),
+        };
+
+        out.with_pre_block(|out| {
+            out.write_str(surround);
+            if let Some(meta) = meta {
+                out.write_str(&meta);
+            }
+            out.write_char('\n');
+            out.write_str(value);
+            out.write_char('\n');
+            out.write_str(surround);
+        });
     }
 
     fn write_list_item<W: SimpleWrite>(&mut self, out: &mut Output<W>, index: &Option<u32>, item: &'a ListItem) {
@@ -583,11 +590,13 @@ pub mod tests {
     use indoc::indoc;
 
     use crate::fmt_md::MdOptions;
+    use crate::m_node;
     use crate::mdq_inline;
+    use crate::mdq_node;
     use crate::mdq_nodes;
     use crate::output::Output;
     use crate::tree::*;
-    use crate::tree_ref::MdqNodeRef;
+    use crate::tree_ref::{MdqNodeRef, NonSelectable};
 
     use super::write_md;
 
@@ -598,14 +607,6 @@ pub mod tests {
         List(_),
         ListItem(..),
         Table(_),
-        ThematicBreak,
-        CodeBlock(CodeBlock{variant: CodeVariant::Code(None), ..}),
-        CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: None, ..})), ..}),
-        CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: Some(_), ..})), ..}),
-        CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: None}, ..}),
-        CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..}),
-        CodeBlock(CodeBlock{variant: CodeVariant::Toml, ..}),
-        CodeBlock(CodeBlock{variant: CodeVariant::Yaml, ..}),
 
         Inline(Inline::Span{variant: SpanVariant::Delete, ..}),
         Inline(Inline::Span{variant: SpanVariant::Emphasis, ..}),
@@ -635,6 +636,15 @@ pub mod tests {
         Inline(Inline::Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
 
         Inline(Inline::Footnote{..}),
+
+        NonSelectable(NonSelectable::ThematicBreak),
+        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Code(None), ..})),
+        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: None, ..})), ..})),
+        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: Some(_), ..})), ..})),
+        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: None}, ..})),
+        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..})),
+        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Toml, ..})),
+        NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Yaml, ..})),
     });
 
     #[test]
@@ -648,12 +658,7 @@ pub mod tests {
         #[test]
         fn one_paragraph() {
             check_render(
-                mdq_nodes![Paragraph {
-                    body: vec![Inline::Text {
-                        variant: TextVariant::Plain,
-                        value: "Hello, world".to_string()
-                    }]
-                }],
+                mdq_nodes!["Hello, world"],
                 indoc! {r#"
                 Hello, world"#},
             );
@@ -662,20 +667,7 @@ pub mod tests {
         #[test]
         fn two_paragraphs() {
             check_render(
-                mdq_nodes![
-                    Paragraph {
-                        body: vec![Inline::Text {
-                            variant: TextVariant::Plain,
-                            value: "First".to_string()
-                        }]
-                    },
-                    Paragraph {
-                        body: vec![Inline::Text {
-                            variant: TextVariant::Plain,
-                            value: "Second".to_string()
-                        }]
-                    },
-                ],
+                mdq_nodes!["First", "Second",],
                 indoc! {r#"
                 First
 
@@ -692,7 +684,7 @@ pub mod tests {
         #[test]
         fn totally_empty() {
             check_render(
-                mdq_nodes![Section {
+                mdq_nodes![Block::Container::Section {
                     depth: 3,
                     title: vec![],
                     body: vec![],
@@ -705,7 +697,7 @@ pub mod tests {
         #[test]
         fn only_title() {
             check_render(
-                mdq_nodes![Section {
+                mdq_nodes![Block::Container::Section {
                     depth: 3,
                     title: vec![mdq_inline!("My header")],
                     body: vec![],
@@ -718,12 +710,10 @@ pub mod tests {
         #[test]
         fn only_body() {
             check_render(
-                mdq_nodes![Section {
+                mdq_nodes![Block::Container::Section {
                     depth: 3,
                     title: vec![],
-                    body: mdq_nodes![Paragraph {
-                        body: vec![mdq_inline!("Hello, world.")]
-                    },],
+                    body: mdq_nodes!["Hello, world."],
                 }],
                 indoc! {r#"
                     ###
@@ -735,13 +725,11 @@ pub mod tests {
         #[test]
         fn title_and_body() {
             check_render(
-                mdq_nodes![Section {
+                mdq_nodes![Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("My title")],
-                    body: mdq_nodes![BlockQuote {
-                        body: mdq_nodes![Paragraph {
-                            body: vec![mdq_inline!("Hello, world.")]
-                        },],
+                    body: mdq_nodes![Block::Container::BlockQuote {
+                        body: mdq_nodes!["Hello, world."],
                     },],
                 }],
                 indoc! {r#"
@@ -758,12 +746,7 @@ pub mod tests {
         #[test]
         fn simple() {
             check_render(
-                mdq_nodes![Paragraph {
-                    body: vec![Inline::Text {
-                        variant: TextVariant::Plain,
-                        value: "Hello, world".to_string()
-                    }]
-                }],
+                mdq_nodes!["Hello, world"],
                 indoc! {r#"
                 Hello, world"#},
             );
@@ -771,20 +754,14 @@ pub mod tests {
     }
 
     mod block_quote {
-        use crate::mdq_inline;
 
         use super::*;
 
         #[test]
         fn single_level() {
             check_render(
-                mdq_nodes![BlockQuote {
-                    body: mdq_nodes![Paragraph {
-                        body: vec![Inline::Text {
-                            variant: TextVariant::Plain,
-                            value: "Hello, world".to_string()
-                        }]
-                    }]
+                mdq_nodes![Block::Container::BlockQuote {
+                    body: mdq_nodes!["Hello, world"]
                 }],
                 indoc! {
                     r#"> Hello, world"#
@@ -795,15 +772,11 @@ pub mod tests {
         #[test]
         fn two_levels() {
             check_render(
-                mdq_nodes![BlockQuote {
+                mdq_nodes![Block::Container::BlockQuote {
                     body: mdq_nodes![
-                        Paragraph {
-                            body: vec![mdq_inline!("Outer")],
-                        },
-                        BlockQuote {
-                            body: mdq_nodes![Paragraph {
-                                body: vec![mdq_inline!("Inner")],
-                            },]
+                        "Outer",
+                        Block::Container::BlockQuote {
+                            body: mdq_nodes!["Inner"],
                         },
                     ]
                 }],
@@ -822,7 +795,7 @@ pub mod tests {
         #[test]
         fn ordered() {
             check_render(
-                mdq_nodes![List {
+                mdq_nodes![Block::Container::List {
                     starting_index: Some(3),
                     items: vec![
                         ListItem {
@@ -849,7 +822,7 @@ pub mod tests {
         #[test]
         fn unordered() {
             check_render(
-                mdq_nodes![List {
+                mdq_nodes![Block::Container::List {
                     starting_index: None,
                     items: vec![
                         ListItem {
@@ -876,7 +849,7 @@ pub mod tests {
         #[test]
         fn block_alignments() {
             check_render(
-                mdq_nodes![List {
+                mdq_nodes![Block::Container::List {
                     starting_index: None,
                     items: vec![
                         ListItem {
@@ -885,13 +858,13 @@ pub mod tests {
                         },
                         ListItem {
                             checked: None,
-                            item: mdq_nodes!(BlockQuote {
+                            item: mdq_nodes!(Block::Container::BlockQuote {
                                 body: mdq_nodes!["quoted block one", "quoted block two"]
                             })
                         },
                         ListItem {
                             checked: None,
-                            item: mdq_nodes!(CodeBlock {
+                            item: mdq_nodes!(Block::LeafBlock::CodeBlock {
                                 variant: CodeVariant::Code(None),
                                 value: "line 1\nline 2".to_string(),
                             })
@@ -899,13 +872,11 @@ pub mod tests {
                         ListItem {
                             checked: Some(false),
                             item: mdq_nodes![
-                                Paragraph {
-                                    body: vec![mdq_inline!("closing argument")]
-                                },
-                                BlockQuote {
+                                "closing argument",
+                                Block::Container::BlockQuote {
                                     body: mdq_nodes!["supporting evidence"]
                                 },
-                                CodeBlock {
+                                Block::LeafBlock::CodeBlock {
                                     variant: CodeVariant::Code(None),
                                     value: "line a\nline b".to_string(),
                                 },
@@ -989,7 +960,7 @@ pub mod tests {
         #[test]
         fn simple() {
             check_render(
-                mdq_nodes![Table {
+                mdq_nodes![Block::LeafBlock::Table {
                     alignments: vec![
                         mdast::AlignKind::Left,
                         mdast::AlignKind::Right,
@@ -1026,7 +997,7 @@ pub mod tests {
         fn single_char_cells() {
             // This checks the minimum padding aspects
             check_render(
-                mdq_nodes![Table {
+                mdq_nodes![Block::LeafBlock::Table {
                     alignments: vec![
                         mdast::AlignKind::Left,
                         mdast::AlignKind::Right,
@@ -1063,7 +1034,7 @@ pub mod tests {
         fn empty_cells() {
             // This checks the minimum padding aspects
             check_render(
-                mdq_nodes![Table {
+                mdq_nodes![Block::LeafBlock::Table {
                     alignments: vec![
                         mdast::AlignKind::Left,
                         mdast::AlignKind::Right,
@@ -1100,7 +1071,7 @@ pub mod tests {
         fn row_counts_inconsistent() {
             // This is an invalid table, but we should still support it
             check_render(
-                mdq_nodes![Table {
+                mdq_nodes![Block::LeafBlock::Table {
                     alignments: vec![mdast::AlignKind::None, mdast::AlignKind::None,],
                     rows: vec![
                         // Header row: two values
@@ -1133,14 +1104,12 @@ pub mod tests {
     }
 
     mod thematic_break {
-        use crate::mdq_node;
-
         use super::*;
 
         #[test]
         fn by_itself() {
             check_render(
-                vec![MdqNode::ThematicBreak],
+                vec![m_node!(MdqNode::Block::LeafBlock::ThematicBreak)],
                 indoc! {r#"
                 ***"#},
             );
@@ -1149,7 +1118,11 @@ pub mod tests {
         #[test]
         fn with_paragraphs() {
             check_render(
-                vec![mdq_node!("before"), MdqNode::ThematicBreak, mdq_node!("after")],
+                vec![
+                    mdq_node!("before"),
+                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
+                    mdq_node!("after"),
+                ],
                 indoc! {r#"
                 before
 
@@ -1166,7 +1139,7 @@ pub mod tests {
         #[test]
         fn code_no_lang() {
             check_render(
-                mdq_nodes![CodeBlock {
+                mdq_nodes![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Code(None),
                     value: "one\ntwo".to_string(),
                 }],
@@ -1181,7 +1154,7 @@ pub mod tests {
         #[test]
         fn code_with_lang() {
             check_render(
-                mdq_nodes![CodeBlock {
+                mdq_nodes![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Code(Some(CodeOpts {
                         language: "rust".to_string(),
                         metadata: None
@@ -1199,7 +1172,7 @@ pub mod tests {
         #[test]
         fn code_with_lang_and_title() {
             check_render(
-                mdq_nodes![CodeBlock {
+                mdq_nodes![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Code(Some(CodeOpts {
                         language: "rust".to_string(),
                         metadata: Some(r#"title="my code""#.to_string())
@@ -1217,7 +1190,7 @@ pub mod tests {
         #[test]
         fn math_no_metadata() {
             check_render(
-                mdq_nodes![CodeBlock {
+                mdq_nodes![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Math { metadata: None },
                     value: "one\ntwo".to_string(),
                 }],
@@ -1232,7 +1205,7 @@ pub mod tests {
         #[test]
         fn math_with_metadata() {
             check_render(
-                mdq_nodes![CodeBlock {
+                mdq_nodes![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Math {
                         metadata: Some("metadata".to_string())
                     },
@@ -1249,7 +1222,7 @@ pub mod tests {
         #[test]
         fn toml() {
             check_render(
-                mdq_nodes![CodeBlock {
+                mdq_nodes![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Toml,
                     value: "one\ntwo".to_string(),
                 }],
@@ -1264,7 +1237,7 @@ pub mod tests {
         #[test]
         fn yaml() {
             check_render(
-                mdq_nodes![CodeBlock {
+                mdq_nodes![Block::LeafBlock::CodeBlock {
                     variant: CodeVariant::Yaml,
                     value: "one\ntwo".to_string(),
                 }],
@@ -1519,7 +1492,7 @@ pub mod tests {
                         ],
                         link_definition: link,
                     }),
-                    MdqNode::ThematicBreak,
+                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
                 ];
                 check_render(nodes, expect);
             }
@@ -1668,7 +1641,7 @@ pub mod tests {
                         alt: "hello _world_!".to_string(),
                         link,
                     }),
-                    MdqNode::ThematicBreak,
+                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
                 ];
                 check_render(nodes, expect);
             }
@@ -1684,11 +1657,9 @@ pub mod tests {
                 vec![
                     MdqNode::Inline(Inline::Footnote(Footnote {
                         label: "a".to_string(),
-                        text: mdq_nodes![Paragraph {
-                            body: vec![mdq_inline!("Hello, world.")]
-                        }],
+                        text: mdq_nodes!["Hello, world."],
                     })),
-                    MdqNode::ThematicBreak,
+                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
                 ],
                 indoc! {r#"
                     [^a]
@@ -1705,11 +1676,9 @@ pub mod tests {
                 vec![
                     MdqNode::Inline(Inline::Footnote(Footnote {
                         label: "a".to_string(),
-                        text: mdq_nodes![Paragraph {
-                            body: vec![mdq_inline!("Hello,\nworld.")]
-                        }],
+                        text: mdq_nodes!["Hello,\nworld."],
                     })),
-                    MdqNode::ThematicBreak,
+                    m_node!(MdqNode::Block::LeafBlock::ThematicBreak),
                 ],
                 indoc! {r#"
                     [^a]
@@ -1729,7 +1698,7 @@ pub mod tests {
         #[test]
         fn link_and_footnote() {
             check_render(
-                mdq_nodes![Paragraph {
+                mdq_nodes![Block::LeafBlock::Paragraph {
                     body: vec![
                         mdq_inline!("Hello, "),
                         Inline::Link {
@@ -1743,9 +1712,7 @@ pub mod tests {
                         mdq_inline!("! This is interesting"),
                         Inline::Footnote(Footnote {
                             label: "a".to_string(),
-                            text: mdq_nodes![Paragraph {
-                                body: vec![mdq_inline!("this is my note")]
-                            }],
+                            text: mdq_nodes!["this is my note"],
                         }),
                         mdq_inline!("."),
                     ],
@@ -1856,7 +1823,7 @@ pub mod tests {
                     footnote_reference_options: ReferencePlacement::BottomOfDoc,
                 },
                 // Define them in the opposite order that we'd expect them
-                mdq_nodes![Paragraph {
+                mdq_nodes![Block::LeafBlock::Paragraph {
                     body: vec![
                         Inline::Footnote(Footnote {
                             label: "d".to_string(),
@@ -1896,10 +1863,10 @@ pub mod tests {
 
         fn link_and_footnote_markdown() -> Vec<MdqNode> {
             mdq_nodes![
-                Section {
+                Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("First section")],
-                    body: mdq_nodes![Paragraph {
+                    body: mdq_nodes![Block::LeafBlock::Paragraph {
                         body: vec![
                             Inline::Link {
                                 text: vec![mdq_inline!("link description")],
@@ -1912,20 +1879,16 @@ pub mod tests {
                             mdq_inline!(" and then a thought"),
                             Inline::Footnote(Footnote {
                                 label: "a".to_string(),
-                                text: mdq_nodes![Paragraph {
-                                    body: vec![mdq_inline!("the footnote")]
-                                }],
+                                text: mdq_nodes!["the footnote"],
                             }),
                             mdq_inline!("."),
                         ],
                     }],
                 },
-                Section {
+                Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("Second section")],
-                    body: mdq_nodes![Paragraph {
-                        body: vec![mdq_inline!("Second section contents.")]
-                    }],
+                    body: mdq_nodes!["Second section contents."],
                 },
             ]
         }
