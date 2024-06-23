@@ -105,29 +105,28 @@ macro_rules! selectors {
 }
 
 selectors![
-    // TODO rust-doc-ify these; I'm just commenting them out for now to remove noise while debugging a macro
-    // Selects the content of a section identified by its heading.
-    //
-    // Format: `# <string_matcher>`
-    //
-    // In bareword form, the string matcher terminates with the
-    // [selector delimiter character](parse_common::SELECTOR_SEPARATOR).
+    /// Selects the content of a section identified by its heading.
+    ///
+    /// Format: `# <string_matcher>`
+    ///
+    /// In bareword form, the string matcher terminates with the
+    /// [selector delimiter character](parse_common::SELECTOR_SEPARATOR).
     {'#'} Section,
 
-    // Selects a list item.
-    //
-    // Format: `<type> [checkbox] <string_matcher>` where:
-    // - _type_ is either `-` for unordered lists or `1.` for ordered lists. Note that ordered lists are _only_
-    //   identified by `1.`. Other digits are invalid.
-    // - _checkbox_, if provided, must be one of:
-    //   - `[ ]` for an unchecked box
-    //   - `[x]` for a checked box
-    //   - `[?]` for a box that may be checked or unchecked
-    //
-    // If the checkbox specifier is provided, the selector will only select list items with a checkbox. If the
-    // checkbox specifier is omitted, the selector will only select list items without a checkbox.
-    //
-    // In bareword form, the string matcher terminates with the [selector delimiter character](SELECTOR_SEPARATOR).
+    /// Selects a list item.
+    ///
+    /// Format: `<type> [checkbox] <string_matcher>` where:
+    /// - _type_ is either `-` for unordered lists or `1.` for ordered lists. Note that ordered lists are _only_
+    ///   identified by `1.`. Other digits are invalid.
+    /// - _checkbox_, if provided, must be one of:
+    ///   - `[ ]` for an unchecked box
+    ///   - `[x]` for a checked box
+    ///   - `[?]` for a box that may be checked or unchecked
+    ///
+    /// If the checkbox specifier is provided, the selector will only select list items with a checkbox. If the
+    /// checkbox specifier is omitted, the selector will only select list items without a checkbox.
+    ///
+    /// In bareword form, the string matcher terminates with the [selector delimiter character](SELECTOR_SEPARATOR).
     {'1'::ListItemType::Ordered,'-'::ListItemType::Unordered} ListItem,
 
     {'['} Link,
