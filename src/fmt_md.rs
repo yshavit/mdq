@@ -71,6 +71,7 @@ where
 
     let mut writer_state = MdWriterState {
         opts: options,
+        prev_was_thematic_break: false,
         seen_links: HashSet::with_capacity(pending_refs_capacity),
         seen_footnotes: HashSet::with_capacity(pending_refs_capacity),
         pending_references: PendingReferences {
@@ -78,16 +79,17 @@ where
             footnotes: HashMap::with_capacity(pending_refs_capacity),
         },
     };
-    writer_state.write_md(out, nodes);
+    writer_state.write_md(out, nodes, true);
 
     // Always write the pending definitions at the end of the doc. If there were no sections, then BottomOfSection
     // won't have been triggered, but we still want to write them
     // TODO test this specific case
-    writer_state.write_definitions(out, DefinitionsToWrite::Both);
+    writer_state.write_definitions(out, DefinitionsToWrite::Both, true);
 }
 
 struct MdWriterState<'a> {
     opts: &'a MdOptions,
+    prev_was_thematic_break: bool,
     seen_links: HashSet<LinkLabel<'a>>,
     seen_footnotes: HashSet<&'a String>,
     pending_references: PendingReferences<'a>,
@@ -132,13 +134,17 @@ impl<'a> Display for LinkLabel<'a> {
 }
 
 impl<'a> MdWriterState<'a> {
-    fn write_md<I, W>(&mut self, out: &mut Output<W>, nodes: I)
+    fn write_md<I, W>(&mut self, out: &mut Output<W>, nodes: I, add_break: bool)
     where
         I: Iterator<Item = MdElemRef<'a>>,
         W: SimpleWrite,
     {
-        for node in nodes {
+        let mut iter = nodes.into_iter().peekable();
+        while let Some(node) = iter.next() {
             self.write_one_md(out, node);
+            if add_break && iter.peek().is_some() {
+                self.write_one_md(out, MdElemRef::ThematicBreak);
+            }
         }
     }
 
@@ -146,6 +152,9 @@ impl<'a> MdWriterState<'a> {
     where
         W: SimpleWrite,
     {
+        let prev_was_thematic_break = self.prev_was_thematic_break;
+        self.prev_was_thematic_break = false;
+
         match node_ref {
             MdElemRef::Section(Section { depth, title, body }) => {
                 out.with_block(Block::Plain, |out| {
@@ -157,7 +166,7 @@ impl<'a> MdWriterState<'a> {
                         self.write_line(out, title);
                     }
                 });
-                self.write_md(out, MdElemRef::wrap_vec(body).into_iter());
+                self.write_md(out, MdElemRef::wrap_vec(body).into_iter(), false);
                 let which_defs_to_write =
                     match (&self.opts.link_reference_options, &self.opts.footnote_reference_options) {
                         (ReferencePlacement::BottomOfSection, ReferencePlacement::BottomOfSection) => {
@@ -167,13 +176,16 @@ impl<'a> MdWriterState<'a> {
                         (ReferencePlacement::BottomOfSection, _) => DefinitionsToWrite::Links,
                         (_, _) => DefinitionsToWrite::Neither,
                     };
-                self.write_definitions(out, which_defs_to_write);
+                self.write_definitions(out, which_defs_to_write, false);
             }
             MdElemRef::ListItem(ListItemRef(idx, item)) => {
                 self.write_list_item(out, &idx, item);
             }
             MdElemRef::ThematicBreak => {
-                out.with_block(Block::Plain, |out| out.write_str("***"));
+                if !prev_was_thematic_break {
+                    out.with_block(Block::Plain, |out| out.write_str("   -----"));
+                }
+                self.prev_was_thematic_break = true;
             }
             MdElemRef::CodeBlock(block) => {
                 self.write_code_block(out, block);
@@ -203,7 +215,7 @@ impl<'a> MdWriterState<'a> {
 
     fn write_block_quote<W: SimpleWrite>(&mut self, out: &mut Output<W>, block: &'a BlockQuote) {
         out.with_block(Block::Quote, |out| {
-            self.write_md(out, MdElemRef::wrap_vec(&block.body).into_iter());
+            self.write_md(out, MdElemRef::wrap_vec(&block.body).into_iter(), false);
         });
     }
 
@@ -390,7 +402,7 @@ impl<'a> MdWriterState<'a> {
         }
         let count = counting_writer.count();
         out.with_block(Block::Inlined(count), |out| {
-            self.write_md(out, MdElemRef::wrap_vec(&item.item).into_iter());
+            self.write_md(out, MdElemRef::wrap_vec(&item.item).into_iter(), false);
         });
     }
 
@@ -499,7 +511,7 @@ impl<'a> MdWriterState<'a> {
         }
     }
 
-    fn write_definitions<W>(&mut self, out: &mut Output<W>, which: DefinitionsToWrite)
+    fn write_definitions<W>(&mut self, out: &mut Output<W>, which: DefinitionsToWrite, add_break: bool)
     where
         W: SimpleWrite,
     {
@@ -513,6 +525,9 @@ impl<'a> MdWriterState<'a> {
         };
         if is_empty {
             return;
+        }
+        if add_break {
+            self.write_one_md(out, MdElemRef::ThematicBreak);
         }
         out.with_block(Block::Plain, move |out| {
             let mut remaining_defs = 0;
@@ -554,7 +569,7 @@ impl<'a> MdWriterState<'a> {
                     out.write_str(link_ref);
                     out.write_str("]: ");
                     out.with_block(Block::Inlined(2), |out| {
-                        self.write_md(out, MdElemRef::wrap_vec(text).into_iter());
+                        self.write_md(out, MdElemRef::wrap_vec(text).into_iter(), false);
                     });
                 }
             }
@@ -683,6 +698,8 @@ pub mod tests {
                 md_elems!["First", "Second",],
                 indoc! {r#"
                 First
+
+                   -----
 
                 Second"#},
             )
@@ -1117,11 +1134,7 @@ pub mod tests {
 
         #[test]
         fn by_itself() {
-            check_render(
-                vec![m_node!(MdElem::Block::LeafBlock::ThematicBreak)],
-                indoc! {r#"
-                ***"#},
-            );
+            check_render(vec![m_node!(MdElem::Block::LeafBlock::ThematicBreak)], "   -----");
         }
 
         #[test]
@@ -1135,7 +1148,7 @@ pub mod tests {
                 indoc! {r#"
                 before
 
-                ***
+                   -----
 
                 after"#},
             );
@@ -1370,7 +1383,7 @@ pub mod tests {
                     indoc! {r#"
                         [hello _world_!](https://example.com)
 
-                        ***"#},
+                           -----"#},
                 );
             }
 
@@ -1385,7 +1398,7 @@ pub mod tests {
                     indoc! {r#"
                         [hello _world_!][1]
 
-                        ***
+                           -----
 
                         [1]: https://example.com"#},
                 );
@@ -1402,7 +1415,7 @@ pub mod tests {
                     indoc! {r#"
                         [hello _world_!][]
 
-                        ***
+                           -----
 
                         [hello _world_!]: https://example.com"#},
                 );
@@ -1419,7 +1432,7 @@ pub mod tests {
                     indoc! {r#"
                         [hello _world_!]
 
-                        ***
+                           -----
 
                         [hello _world_!]: https://example.com"#},
                 );
@@ -1436,7 +1449,7 @@ pub mod tests {
                     indoc! {r#"
                         [hello _world_!](https://example.com "my title")
 
-                        ***"#},
+                           -----"#},
                 );
             }
 
@@ -1451,7 +1464,7 @@ pub mod tests {
                     indoc! {r#"
                         [hello _world_!][1]
 
-                        ***
+                           -----
 
                         [1]: https://example.com "my title""#},
                 );
@@ -1468,7 +1481,7 @@ pub mod tests {
                     indoc! {r#"
                         [hello _world_!][]
 
-                        ***
+                           -----
 
                         [hello _world_!]: https://example.com "my title""#},
                 );
@@ -1485,7 +1498,7 @@ pub mod tests {
                     indoc! {r#"
                         [hello _world_!]
 
-                        ***
+                           -----
 
                         [hello _world_!]: https://example.com "my title""#},
                 );
@@ -1523,7 +1536,7 @@ pub mod tests {
                     indoc! {r#"
                         ![hello _world_!](https://example.com)
 
-                        ***"#},
+                           -----"#},
                 );
             }
 
@@ -1538,7 +1551,7 @@ pub mod tests {
                     indoc! {r#"
                         ![hello _world_!][1]
 
-                        ***
+                           -----
 
                         [1]: https://example.com"#},
                 );
@@ -1555,7 +1568,7 @@ pub mod tests {
                     indoc! {r#"
                         ![hello _world_!][]
 
-                        ***
+                           -----
 
                         [hello _world_!]: https://example.com"#},
                 );
@@ -1572,7 +1585,7 @@ pub mod tests {
                     indoc! {r#"
                         ![hello _world_!]
 
-                        ***
+                           -----
 
                         [hello _world_!]: https://example.com"#},
                 );
@@ -1589,7 +1602,7 @@ pub mod tests {
                     indoc! {r#"
                         ![hello _world_!](https://example.com "my title")
 
-                        ***"#},
+                           -----"#},
                 );
             }
 
@@ -1604,7 +1617,7 @@ pub mod tests {
                     indoc! {r#"
                         ![hello _world_!][1]
 
-                        ***
+                           -----
 
                         [1]: https://example.com "my title""#},
                 );
@@ -1621,7 +1634,7 @@ pub mod tests {
                     indoc! {r#"
                         ![hello _world_!][]
 
-                        ***
+                           -----
 
                         [hello _world_!]: https://example.com "my title""#},
                 );
@@ -1638,7 +1651,7 @@ pub mod tests {
                     indoc! {r#"
                         ![hello _world_!]
 
-                        ***
+                           -----
 
                         [hello _world_!]: https://example.com "my title""#},
                 );
@@ -1674,6 +1687,8 @@ pub mod tests {
                 indoc! {r#"
                     [link text][1]
 
+                       -----
+
                     [1]: https://example.com"#},
             );
         }
@@ -1700,7 +1715,13 @@ pub mod tests {
                     }),
                 ],
                 indoc! {r#"
-                    [link text one][1][link text two][2]
+                    [link text one][1]
+
+                       -----
+
+                    [link text two][2]
+
+                       -----
 
                     [1]: https://example.com/1
                     [2]: https://example.com/2"#},
@@ -1729,7 +1750,11 @@ pub mod tests {
                     }),
                 ],
                 indoc! {r#"
-                [link text one](https://example.com/1)[link text two](https://example.com/2)"#},
+                [link text one](https://example.com/1)
+
+                   -----
+
+                [link text two](https://example.com/2)"#},
             );
         }
     }
@@ -1750,6 +1775,8 @@ pub mod tests {
                 })],
                 indoc! {r#"
                     ![alt text][1]
+
+                       -----
 
                     [1]: https://example.com"#},
             );
@@ -1777,7 +1804,13 @@ pub mod tests {
                     }),
                 ],
                 indoc! {r#"
-                    ![alt text one][1]![alt text two][2]
+                    ![alt text one][1]
+
+                       -----
+
+                    ![alt text two][2]
+
+                       -----
 
                     [1]: https://example.com/1.png
                     [2]: https://example.com/2.png"#},
@@ -1801,7 +1834,7 @@ pub mod tests {
                 indoc! {r#"
                     [^a]
 
-                    ***
+                       -----
 
                     [^a]: Hello, world."#},
             )
@@ -1820,7 +1853,7 @@ pub mod tests {
                 indoc! {r#"
                     [^a]
 
-                    ***
+                       -----
 
                     [^a]: Hello,
                       world."#},
@@ -1857,6 +1890,8 @@ pub mod tests {
                 indoc! {r#"
                     Hello, [world][1]! This is interesting[^a].
 
+                       -----
+
                     [1]: https://example.com
                     [^a]: this is my note"#},
             );
@@ -1875,8 +1910,10 @@ pub mod tests {
 
                     [link description][1] and then a thought[^a].
 
-                    [1]: https://exampl.com
+                    [1]: https://example.com
                     [^a]: the footnote
+
+                       -----
 
                     # Second section
 
@@ -1897,11 +1934,15 @@ pub mod tests {
 
                     [link description][1] and then a thought[^a].
 
-                    [1]: https://exampl.com
+                    [1]: https://example.com
+
+                       -----
 
                     # Second section
 
                     Second section contents.
+
+                       -----
 
                     [^a]: the footnote"#},
             );
@@ -1922,11 +1963,15 @@ pub mod tests {
 
                     [^a]: the footnote
 
+                       -----
+
                     # Second section
 
                     Second section contents.
 
-                    [1]: https://exampl.com"#},
+                       -----
+
+                    [1]: https://example.com"#},
             );
         }
 
@@ -1943,11 +1988,15 @@ pub mod tests {
 
                     [link description][1] and then a thought[^a].
 
+                       -----
+
                     # Second section
 
                     Second section contents.
 
-                    [1]: https://exampl.com
+                       -----
+
+                    [1]: https://example.com
                     [^a]: the footnote"#},
             );
         }
@@ -1991,6 +2040,8 @@ pub mod tests {
                 indoc! {r#"
                     [^d][^c][b-text][b][a-text][a]
 
+                       -----
+
                     [a]: https://example.com/a
                     [b]: https://example.com/b
                     [^c]: footnote 2
@@ -2008,7 +2059,7 @@ pub mod tests {
                             m_node!(Inline::Link {
                                 text: vec![mdq_inline!("link description")],
                                 link_definition: LinkDefinition {
-                                    url: "https://exampl.com".to_string(),
+                                    url: "https://example.com".to_string(),
                                     title: None,
                                     reference: LinkReference::Full("1".to_string()),
                                 },
