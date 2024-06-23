@@ -7,7 +7,7 @@ use std::vec::IntoIter;
 use markdown::mdast;
 
 #[derive(Debug, PartialEq)]
-pub enum MdqElem {
+pub enum MdElem {
     Block(Block),
     Inline(Inline),
 }
@@ -37,7 +37,7 @@ pub enum Container {
 pub struct Section {
     pub depth: u8,
     pub title: Vec<Inline>,
-    pub body: Vec<MdqElem>,
+    pub body: Vec<MdElem>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -47,7 +47,7 @@ pub struct Paragraph {
 
 #[derive(Debug, PartialEq)]
 pub struct BlockQuote {
-    pub body: Vec<MdqElem>,
+    pub body: Vec<MdElem>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -144,7 +144,7 @@ pub enum Inline {
 #[derive(Debug)]
 pub struct Footnote {
     pub label: String,
-    pub text: Vec<MdqElem>,
+    pub text: Vec<MdElem>,
 }
 
 /// Note that [Footnote]'s [Eq] and [Hash] only key off of its label, _not_ its text content.
@@ -176,7 +176,7 @@ pub struct LinkDefinition {
 #[derive(Debug, PartialEq)]
 pub struct ListItem {
     pub checked: Option<bool>,
-    pub item: Vec<MdqElem>,
+    pub item: Vec<MdElem>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -255,7 +255,7 @@ macro_rules! m_node {
     };
 }
 
-impl MdqElem {
+impl MdElem {
     pub fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Vec<Self>, InvalidMd> {
         let lookups = Lookups::new(&node, opts)?;
         Self::from_mdast_0(node, &lookups)
@@ -263,9 +263,9 @@ impl MdqElem {
 
     fn from_mdast_0(node: mdast::Node, lookups: &Lookups) -> Result<Vec<Self>, InvalidMd> {
         let result = match node {
-            mdast::Node::Root(node) => return MdqElem::all(node.children, lookups),
-            mdast::Node::BlockQuote(node) => m_node!(MdqElem::Block::Container::BlockQuote {
-                body: MdqElem::all(node.children, lookups)?,
+            mdast::Node::Root(node) => return MdElem::all(node.children, lookups),
+            mdast::Node::BlockQuote(node) => m_node!(MdElem::Block::Container::BlockQuote {
+                body: MdElem::all(node.children, lookups)?,
             }),
             mdast::Node::FootnoteDefinition(_) => return Ok(Vec::new()),
             mdast::Node::List(node) => {
@@ -276,36 +276,36 @@ impl MdqElem {
                     };
                     let li_mdq = ListItem {
                         checked: li_node.checked,
-                        item: MdqElem::all(li_node.children, lookups)?,
+                        item: MdElem::all(li_node.children, lookups)?,
                     };
                     li_nodes.push(li_mdq);
                 }
-                m_node!(MdqElem::Block::Container::List {
+                m_node!(MdElem::Block::Container::List {
                     starting_index: node.start,
                     items: li_nodes,
                 })
             }
-            mdast::Node::Break(_) => MdqElem::Inline(Inline::Text {
+            mdast::Node::Break(_) => MdElem::Inline(Inline::Text {
                 variant: TextVariant::Plain,
                 value: "\n".to_string(),
             }),
-            mdast::Node::InlineCode(node) => MdqElem::Inline(Inline::Text {
+            mdast::Node::InlineCode(node) => MdElem::Inline(Inline::Text {
                 variant: TextVariant::Code,
                 value: node.value,
             }),
-            mdast::Node::InlineMath(node) => MdqElem::Inline(Inline::Text {
+            mdast::Node::InlineMath(node) => MdElem::Inline(Inline::Text {
                 variant: TextVariant::Math,
                 value: node.value,
             }),
-            mdast::Node::Delete(node) => MdqElem::Inline(Inline::Span {
+            mdast::Node::Delete(node) => MdElem::Inline(Inline::Span {
                 variant: SpanVariant::Delete,
-                children: MdqElem::inlines(node.children, lookups)?,
+                children: MdElem::inlines(node.children, lookups)?,
             }),
-            mdast::Node::Emphasis(node) => MdqElem::Inline(Inline::Span {
+            mdast::Node::Emphasis(node) => MdElem::Inline(Inline::Span {
                 variant: SpanVariant::Emphasis,
-                children: MdqElem::inlines(node.children, lookups)?,
+                children: MdElem::inlines(node.children, lookups)?,
             }),
-            mdast::Node::Image(node) => MdqElem::Inline(Inline::Image {
+            mdast::Node::Image(node) => MdElem::Inline(Inline::Image {
                 alt: node.alt,
                 link: LinkDefinition {
                     url: node.url,
@@ -313,40 +313,40 @@ impl MdqElem {
                     reference: LinkReference::Inline,
                 },
             }),
-            mdast::Node::ImageReference(node) => MdqElem::Inline(Inline::Image {
+            mdast::Node::ImageReference(node) => MdElem::Inline(Inline::Image {
                 alt: node.alt,
                 link: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
             }),
-            mdast::Node::Link(node) => MdqElem::Inline(Inline::Link {
-                text: MdqElem::inlines(node.children, lookups)?,
+            mdast::Node::Link(node) => MdElem::Inline(Inline::Link {
+                text: MdElem::inlines(node.children, lookups)?,
                 link_definition: LinkDefinition {
                     url: node.url,
                     title: node.title,
                     reference: LinkReference::Inline,
                 },
             }),
-            mdast::Node::LinkReference(node) => MdqElem::Inline(Inline::Link {
-                text: MdqElem::inlines(node.children, lookups)?,
+            mdast::Node::LinkReference(node) => MdElem::Inline(Inline::Link {
+                text: MdElem::inlines(node.children, lookups)?,
                 link_definition: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
             }),
             mdast::Node::FootnoteReference(node) => {
                 let definition = lookups.resolve_footnote(&node.identifier, &node.label)?;
-                MdqElem::Inline(Inline::Footnote(Footnote {
+                MdElem::Inline(Inline::Footnote(Footnote {
                     label: node.label.unwrap_or(node.identifier),
-                    text: MdqElem::all(definition.children.clone(), lookups)?,
+                    text: MdElem::all(definition.children.clone(), lookups)?,
                 }))
             }
-            mdast::Node::Strong(node) => MdqElem::Inline(Inline::Span {
+            mdast::Node::Strong(node) => MdElem::Inline(Inline::Span {
                 variant: SpanVariant::Strong,
-                children: MdqElem::inlines(node.children, lookups)?,
+                children: MdElem::inlines(node.children, lookups)?,
             }),
-            mdast::Node::Text(node) => MdqElem::Inline(Inline::Text {
+            mdast::Node::Text(node) => MdElem::Inline(Inline::Text {
                 variant: TextVariant::Plain,
                 value: node.value,
             }),
             mdast::Node::Code(node) => {
                 let mdast::Code { value, lang, meta, .. } = node;
-                m_node!(MdqElem::Block::LeafBlock::CodeBlock {
+                m_node!(MdElem::Block::LeafBlock::CodeBlock {
                     value,
                     variant: CodeVariant::Code(match lang {
                         None => None,
@@ -359,12 +359,12 @@ impl MdqElem {
             }
             mdast::Node::Math(node) => {
                 let mdast::Math { value, meta, .. } = node;
-                m_node!(MdqElem::Block::LeafBlock::CodeBlock {
+                m_node!(MdElem::Block::LeafBlock::CodeBlock {
                     value,
                     variant: CodeVariant::Math { metadata: meta },
                 })
             }
-            mdast::Node::Heading(node) => m_node!(MdqElem::Block::Container::Section {
+            mdast::Node::Heading(node) => m_node!(MdElem::Block::Container::Section {
                 depth: node.depth,
                 title: Self::inlines(node.children, lookups)?,
                 body: Vec::new(),
@@ -389,28 +389,28 @@ impl MdqElem {
                     }
                     rows.push(column);
                 }
-                m_node!(MdqElem::Block::LeafBlock::Table {
+                m_node!(MdElem::Block::LeafBlock::Table {
                     alignments: align,
                     rows,
                 })
             }
-            mdast::Node::ThematicBreak(_) => m_node!(MdqElem::Block::LeafBlock::ThematicBreak),
+            mdast::Node::ThematicBreak(_) => m_node!(MdElem::Block::LeafBlock::ThematicBreak),
             mdast::Node::TableRow(_) | mdast::Node::TableCell(_) | mdast::Node::ListItem(_) => {
                 return Err(InvalidMd::InternalError); // should have been handled by Node::Table
             }
             mdast::Node::Definition(_) => return Ok(Vec::new()),
-            mdast::Node::Paragraph(node) => m_node!(MdqElem::Block::LeafBlock::Paragraph {
+            mdast::Node::Paragraph(node) => m_node!(MdElem::Block::LeafBlock::Paragraph {
                 body: Self::inlines(node.children, lookups)?,
             }),
-            mdast::Node::Toml(node) => m_node!(MdqElem::Block::LeafBlock::CodeBlock {
+            mdast::Node::Toml(node) => m_node!(MdElem::Block::LeafBlock::CodeBlock {
                 variant: CodeVariant::Toml,
                 value: node.value,
             }),
-            mdast::Node::Yaml(node) => m_node!(MdqElem::Block::LeafBlock::CodeBlock {
+            mdast::Node::Yaml(node) => m_node!(MdElem::Block::LeafBlock::CodeBlock {
                 variant: CodeVariant::Yaml,
                 value: node.value,
             }),
-            mdast::Node::Html(node) => MdqElem::Inline(Inline::Text {
+            mdast::Node::Html(node) => MdElem::Inline(Inline::Text {
                 variant: TextVariant::Html,
                 value: node.value,
             }),
@@ -434,7 +434,7 @@ impl MdqElem {
 
     fn all_from_iter<I>(iter: I) -> Result<Vec<Self>, InvalidMd>
     where
-        I: Iterator<Item = Result<MdqElem, InvalidMd>>,
+        I: Iterator<Item = Result<MdElem, InvalidMd>>,
     {
         // This is just a struct that reflects the struct-variant of MdqNode::Header. If that
         // enum variant used the tuple-style with an explicitly defined struct, we wouldn't need
@@ -442,14 +442,14 @@ impl MdqElem {
         struct HContainer {
             depth: u8,
             title: Vec<Inline>,
-            children: Vec<MdqElem>,
+            children: Vec<MdElem>,
         }
 
         let mut result = Vec::with_capacity(16); // arbitrary capacity guess
         let mut headers: Vec<HContainer> = Vec::with_capacity(result.capacity());
         for child_mdq in iter {
             let child_mdq = child_mdq?;
-            if let m_node!(MdqElem::Block::Container::Section {
+            if let m_node!(MdElem::Block::Container::Section {
                 depth,
                 title,
                 body: children,
@@ -473,7 +473,7 @@ impl MdqElem {
                         // to the new previous, or else to the top-level results if there is no new
                         // previous. Then, we'll just loop back around.
                         let HContainer { depth, title, children } = headers.pop().unwrap(); // "let Some(prev)" above guarantees that this works
-                        let prev = m_node!(MdqElem::Block::Container::Section {
+                        let prev = m_node!(MdElem::Block::Container::Section {
                             depth,
                             title,
                             body: children,
@@ -499,7 +499,7 @@ impl MdqElem {
 
         // At this point, we still have our last tree branch of headers. Fold it up into the results.
         while let Some(HContainer { depth, title, children }) = headers.pop() {
-            let mdq_header = m_node!(MdqElem::Block::Container::Section {
+            let mdq_header = m_node!(MdElem::Block::Container::Section {
                 depth,
                 title,
                 body: children,
@@ -514,7 +514,7 @@ impl MdqElem {
         headers
             .drain(..)
             .map(|HContainer { depth, title, children }| {
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth,
                     title,
                     body: children,
@@ -530,7 +530,7 @@ impl MdqElem {
         let mdq_children = Self::all(children, lookups)?;
         let mut result = Vec::with_capacity(mdq_children.len());
         for child in mdq_children {
-            let MdqElem::Inline(inline) = child else {
+            let MdElem::Inline(inline) = child else {
                 return Err(InvalidMd::NonInlineWhereInlineExpected);
             };
             // If both this and the previous were plain text, then just combine the texts. This can happen if there was
@@ -560,7 +560,7 @@ where
     I: Iterator<Item = mdast::Node>,
 {
     children: I,
-    pending: IntoIter<MdqElem>,
+    pending: IntoIter<MdElem>,
     lookups: &'a Lookups,
 }
 
@@ -568,7 +568,7 @@ impl<'a, I> Iterator for NodeToMdqIter<'a, I>
 where
     I: Iterator<Item = mdast::Node>,
 {
-    type Item = Result<MdqElem, InvalidMd>;
+    type Item = Result<MdElem, InvalidMd>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -578,7 +578,7 @@ where
             let Some(next_node) = self.children.next() else {
                 return None;
             };
-            match MdqElem::from_mdast_0(next_node, self.lookups) {
+            match MdElem::from_mdast_0(next_node, self.lookups) {
                 Ok(mdq_node) => {
                     self.pending = mdq_node.into_iter();
                 }
@@ -722,7 +722,7 @@ mod tests {
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mdq_err = MdqElem::from_mdast_0(node_clone, &$lookups).err().expect("expected no MdqNode");
+                let mdq_err = MdElem::from_mdast_0(node_clone, &$lookups).err().expect("expected no MdqNode");
                 assert_eq!(mdq_err, $err);
                 $($body)?
             }};
@@ -732,7 +732,7 @@ mod tests {
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mdqs = MdqElem::from_mdast_0(node_clone, &$lookups).unwrap();
+                let mdqs = MdElem::from_mdast_0(node_clone, &$lookups).unwrap();
                 assert_eq!(mdqs, Vec::new());
             }};
 
@@ -741,7 +741,7 @@ mod tests {
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mut mdqs = MdqElem::from_mdast_0(node_clone, &$lookups).unwrap();
+                let mut mdqs = MdElem::from_mdast_0(node_clone, &$lookups).unwrap();
                 assert_eq!(mdqs.len(), 1, "expected exactly one element, but found: {:?}", mdqs);
                 let mdq = mdqs.pop().unwrap();
                 if let $mdq_pat = mdq $mdq_body else {
@@ -760,7 +760,7 @@ mod tests {
         fn block_quote() {
             let (root, lookups) = parse("> hello");
             let child = &root.children[0];
-            check!(child, Node::BlockQuote(_), lookups => m_node!(MdqElem::Block::Container::BlockQuote{body}) = {
+            check!(child, Node::BlockQuote(_), lookups => m_node!(MdElem::Block::Container::BlockQuote{body}) = {
                 assert_eq!(body, md_elems!["hello"]);
             });
         }
@@ -777,7 +777,7 @@ mod tests {
                       with two lines."#},
                 );
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[1], Node::FootnoteReference(_), lookups => MdqElem::Inline(footnote) = {
+                check!(&p.children[1], Node::FootnoteReference(_), lookups => MdElem::Inline(footnote) = {
                     assert_eq!(footnote, Inline::Footnote(Footnote{
                         label: "a".to_string(),
                         text: md_elems!["My footnote\nwith two lines."],
@@ -795,11 +795,11 @@ mod tests {
                 );
                 unwrap!(&root.children[0], Node::Paragraph(p));
 
-                check!(&p.children[1], Node::FootnoteReference(_), lookups => MdqElem::Inline(footnote) = {
+                check!(&p.children[1], Node::FootnoteReference(_), lookups => MdElem::Inline(footnote) = {
                     assert_eq!(footnote, Inline::Footnote(Footnote{
                         label: "a".to_string(),
                         text: vec![
-                            m_node!(MdqElem::Block::Container::List{
+                            m_node!(MdElem::Block::Container::List{
                                 starting_index: None,
                                 items: vec![
                                     ListItem{
@@ -833,7 +833,7 @@ mod tests {
             );
             assert_eq!(root.children.len(), 2); // unordered list, then ordered
 
-            check!(&root.children[0], Node::List(ul), lookups => m_node!(MdqElem::Block::Container::List{starting_index, items}) = {
+            check!(&root.children[0], Node::List(ul), lookups => m_node!(MdElem::Block::Container::List{starting_index, items}) = {
                 for child in &ul.children {
                     check!(error: child, Node::ListItem(_), lookups => InvalidMd::InternalError);
                 }
@@ -853,7 +853,7 @@ mod tests {
                     },
                 ]);
             });
-            check!(&root.children[1], Node::List(ol), lookups => m_node!(MdqElem::Block::Container::List{starting_index, items}) = {
+            check!(&root.children[1], Node::List(ol), lookups => m_node!(MdElem::Block::Container::List{starting_index, items}) = {
                 for child in &ol.children {
                     check!(error: child, Node::ListItem(_), lookups => InvalidMd::InternalError);
                 }
@@ -888,15 +888,15 @@ mod tests {
                 "#},
             );
 
-            check!(&root.children[0], Node::Paragraph(p), lookups => m_node!(MdqElem::Block::LeafBlock::Paragraph{body}) = {
+            check!(&root.children[0], Node::Paragraph(p), lookups => m_node!(MdElem::Block::LeafBlock::Paragraph{body}) = {
                 assert_eq!(p.children.len(), 3);
-                check!(&p.children[0], Node::Text(_), lookups => MdqElem::Inline(text) = {
+                check!(&p.children[0], Node::Text(_), lookups => MdElem::Inline(text) = {
                     assert_eq!(text, Inline::Text {variant: TextVariant::Plain, value: "hello ".to_string()});
                 });
-                check!(&p.children[1], Node::Break(_), lookups => MdqElem::Inline(text) = {
+                check!(&p.children[1], Node::Break(_), lookups => MdElem::Inline(text) = {
                     assert_eq!(text, Inline::Text {variant: TextVariant::Plain, value: "\n".to_string()});
                 });
-                check!(&p.children[2], Node::Text(_), lookups => MdqElem::Inline(text) = {
+                check!(&p.children[2], Node::Text(_), lookups => MdElem::Inline(text) = {
                     assert_eq!(text, Inline::Text {variant: TextVariant::Plain, value: "world".to_string()});
                 });
                 assert_eq!(body, vec![
@@ -911,7 +911,7 @@ mod tests {
             let (root, lookups) = parse("`foo`");
 
             unwrap!(&root.children[0], Node::Paragraph(p));
-            check!(&p.children[0], Node::InlineCode(_), lookups => MdqElem::Inline(inline) = {
+            check!(&p.children[0], Node::InlineCode(_), lookups => MdElem::Inline(inline) = {
                 assert_eq!(inline, Inline::Text { variant: TextVariant::Code, value: "foo".to_string() });
             });
         }
@@ -923,7 +923,7 @@ mod tests {
             let (root, lookups) = parse_with(&opts, r#"$ 0 \ne 1 $"#);
 
             unwrap!(&root.children[0], Node::Paragraph(p));
-            check!(&p.children[0], Node::InlineMath(_), lookups => MdqElem::Inline(inline) = {
+            check!(&p.children[0], Node::InlineMath(_), lookups => MdElem::Inline(inline) = {
                 assert_eq!(inline, Inline::Text { variant: TextVariant::Math, value: r#" 0 \ne 1 "#.to_string() });
             });
         }
@@ -933,7 +933,7 @@ mod tests {
             let (root, lookups) = parse_with(&ParseOptions::gfm(), "~~86 me~~");
 
             unwrap!(&root.children[0], Node::Paragraph(p));
-            check!(&p.children[0], Node::Delete(_), lookups => MdqElem::Inline(inline) = {
+            check!(&p.children[0], Node::Delete(_), lookups => MdElem::Inline(inline) = {
                 assert_eq!(inline, Inline::Span {
                     variant: SpanVariant::Delete,
                     children: vec![
@@ -948,7 +948,7 @@ mod tests {
             let (root, lookups) = parse("_86 me_");
 
             unwrap!(&root.children[0], Node::Paragraph(p));
-            check!(&p.children[0], Node::Emphasis(_), lookups => MdqElem::Inline(inline) = {
+            check!(&p.children[0], Node::Emphasis(_), lookups => MdElem::Inline(inline) = {
                 assert_eq!(inline, Inline::Span {
                     variant: SpanVariant::Emphasis,
                     children: vec![
@@ -963,7 +963,7 @@ mod tests {
             let (root, lookups) = parse("**strongman**");
 
             unwrap!(&root.children[0], Node::Paragraph(p));
-            check!(&p.children[0], Node::Strong(_), lookups => MdqElem::Inline(inline) = {
+            check!(&p.children[0], Node::Strong(_), lookups => MdElem::Inline(inline) = {
                 assert_eq!(inline, Inline::Span {
                     variant: SpanVariant::Strong,
                     children: vec![
@@ -978,7 +978,7 @@ mod tests {
             {
                 let (root, lookups) = parse("<a href>");
 
-                check!(&root.children[0], Node::Html(_), lookups => MdqElem::Inline(inline) = {
+                check!(&root.children[0], Node::Html(_), lookups => MdElem::Inline(inline) = {
                     assert_eq!(inline, Inline::Text {
                         variant: TextVariant::Html,
                         value: "<a href>".to_string(),
@@ -990,7 +990,7 @@ mod tests {
                 let (root, lookups) = parse(indoc! {r#"
                 In <em>a paragraph.</em>
                 "#});
-                check!(&root.children[0], Node::Paragraph(_), lookups => m_node!(MdqElem::Block::LeafBlock::Paragraph{body}) = {
+                check!(&root.children[0], Node::Paragraph(_), lookups => m_node!(MdElem::Block::LeafBlock::Paragraph{body}) = {
                     assert_eq!(body.len(), 4);
                     assert_eq!(body, vec![
                         mdq_inline!("In "),
@@ -1010,7 +1010,7 @@ mod tests {
                 In <em
                 newline  >a paragraph.</em>
                 "#});
-                check!(&root.children[0], Node::Paragraph(_), lookups => m_node!(MdqElem::Block::LeafBlock::Paragraph{body}) = {
+                check!(&root.children[0], Node::Paragraph(_), lookups => m_node!(MdElem::Block::LeafBlock::Paragraph{body}) = {
                     assert_eq!(body.len(), 4);
                     assert_eq!(body, vec![
                         mdq_inline!("In "),
@@ -1031,7 +1031,7 @@ mod tests {
             {
                 let (root, lookups) = parse("![]()");
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::Image(_), lookups => MdqElem::Inline(img) = {
+                check!(&p.children[0], Node::Image(_), lookups => MdElem::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "".to_string(),
                         link: LinkDefinition{
@@ -1045,7 +1045,7 @@ mod tests {
             {
                 let (root, lookups) = parse("![](https://example.com/foo.png)");
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::Image(_), lookups => MdqElem::Inline(img) = {
+                check!(&p.children[0], Node::Image(_), lookups => MdElem::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "".to_string(),
                         link: LinkDefinition{
@@ -1059,7 +1059,7 @@ mod tests {
             {
                 let (root, lookups) = parse("![alt text]()");
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::Image(_), lookups => MdqElem::Inline(img) = {
+                check!(&p.children[0], Node::Image(_), lookups => MdElem::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "alt text".to_string(),
                         link: LinkDefinition{
@@ -1073,7 +1073,7 @@ mod tests {
             {
                 let (root, lookups) = parse(r#"![](https://example.com/foo.png "my tooltip")"#);
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::Image(_), lookups => MdqElem::Inline(img) = {
+                check!(&p.children[0], Node::Image(_), lookups => MdElem::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "".to_string(),
                         link: LinkDefinition{
@@ -1087,7 +1087,7 @@ mod tests {
             {
                 // This isn't an image, though it almost looks like one
                 let (root, lookups) = parse(r#"![]("only a tooltip")"#);
-                check!(&root.children[0], Node::Paragraph(_), lookups => p @ m_node!(MdqElem::Block::LeafBlock::Paragraph{ .. }) = {
+                check!(&root.children[0], Node::Paragraph(_), lookups => p @ m_node!(MdElem::Block::LeafBlock::Paragraph{ .. }) = {
                     assert_eq!(p, md_elem!(r#"![]("only a tooltip")"#));
                 });
             }
@@ -1100,7 +1100,7 @@ mod tests {
                 let (root, lookups) = parse("[hello _world_](https://example.com)");
                 assert_eq!(root.children.len(), 1);
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::Link(_), lookups => MdqElem::Inline(link) = {
+                check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![
                             mdq_inline!("hello "),
@@ -1122,7 +1122,7 @@ mod tests {
                 let (root, lookups) = parse(r#"[hello _world_](https://example.com "the title")"#);
                 assert_eq!(root.children.len(), 1);
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::Link(_), lookups => MdqElem::Inline(link) = {
+                check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![
                             mdq_inline!("hello "),
@@ -1151,7 +1151,7 @@ mod tests {
                 );
                 assert_eq!(root.children.len(), 2);
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::LinkReference(_), lookups => MdqElem::Inline(link) = {
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![
                             mdq_inline!("hello "),
@@ -1181,7 +1181,7 @@ mod tests {
                 );
                 assert_eq!(root.children.len(), 2);
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::LinkReference(_), lookups => MdqElem::Inline(link) = {
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![
                             mdq_inline!("hello "),
@@ -1211,7 +1211,7 @@ mod tests {
                 );
                 assert_eq!(root.children.len(), 2);
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::LinkReference(_), lookups => MdqElem::Inline(link) = {
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![
                             mdq_inline!("hello "),
@@ -1237,7 +1237,7 @@ mod tests {
                 let (root, lookups) = parse("<https://example.com>");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
-                check!(&p.children[0], Node::Link(_), lookups => MdqElem::Inline(Inline::Link{text, link_definition}) = {
+                check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link{text, link_definition}) = {
                     assert_eq!(text, vec![mdq_inline!("https://example.com")]);
                     assert_eq!(link_definition, LinkDefinition{
                         url: "https://example.com".to_string(),
@@ -1249,7 +1249,7 @@ mod tests {
                 let (root, lookups) = parse("<mailto:md@example.com>");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
-                check!(&p.children[0], Node::Link(_), lookups => MdqElem::Inline(Inline::Link{text, link_definition}) = {
+                check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link{text, link_definition}) = {
                     assert_eq!(text, vec![mdq_inline!("mailto:md@example.com")]);
                     assert_eq!(link_definition, LinkDefinition{
                         url: "mailto:md@example.com".to_string(),
@@ -1262,7 +1262,7 @@ mod tests {
                 let (root, lookups) = parse_with(&ParseOptions::default(), "https://example.com");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
-                check!(&p.children[0], Node::Text(_), lookups => MdqElem::Inline(Inline::Text{variant: TextVariant::Plain, value}) = {
+                check!(&p.children[0], Node::Text(_), lookups => MdElem::Inline(Inline::Text{variant: TextVariant::Plain, value}) = {
                     assert_eq!(value, "https://example.com".to_string());
                 });
             }
@@ -1271,7 +1271,7 @@ mod tests {
                 let (root, lookups) = parse_with(&ParseOptions::gfm(), "https://example.com");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
-                check!(&p.children[0], Node::Link(_), lookups => MdqElem::Inline(Inline::Link{text, link_definition}) = {
+                check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link{text, link_definition}) = {
                     assert_eq!(text, vec![mdq_inline!("https://example.com")]);
                     assert_eq!(link_definition, LinkDefinition{
                         url: "https://example.com".to_string(),
@@ -1290,7 +1290,7 @@ mod tests {
 
                     [1]: https://example.com/image.png"#});
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::ImageReference(_), lookups => MdqElem::Inline(img) = {
+                check!(&p.children[0], Node::ImageReference(_), lookups => MdElem::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "".to_string(),
                         link: LinkDefinition {
@@ -1308,7 +1308,7 @@ mod tests {
 
                     [1]: https://example.com/image.png "my title""#});
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::ImageReference(_), lookups => MdqElem::Inline(img) = {
+                check!(&p.children[0], Node::ImageReference(_), lookups => MdElem::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "".to_string(),
                         link: LinkDefinition {
@@ -1329,7 +1329,7 @@ mod tests {
                     [my alt]: https://example.com/image.png "my title""#},
                 );
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::ImageReference(_), lookups => MdqElem::Inline(img) = {
+                check!(&p.children[0], Node::ImageReference(_), lookups => MdElem::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "my alt".to_string(),
                         link: LinkDefinition {
@@ -1350,7 +1350,7 @@ mod tests {
                     [my alt]: https://example.com/image.png"#},
                 );
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::ImageReference(_), lookups => MdqElem::Inline(img) = {
+                check!(&p.children[0], Node::ImageReference(_), lookups => MdElem::Inline(img) = {
                     assert_eq!(img, Inline::Image {
                         alt: "my alt".to_string(),
                         link: LinkDefinition {
@@ -1373,7 +1373,7 @@ mod tests {
 
                     [1]: https://example.com/image.png"#});
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::LinkReference(_), lookups => MdqElem::Inline(link) = {
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![],
                         link_definition: LinkDefinition {
@@ -1391,7 +1391,7 @@ mod tests {
 
                     [1]: https://example.com/image.png "my title""#});
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::LinkReference(_), lookups => MdqElem::Inline(link) = {
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![],
                         link_definition: LinkDefinition {
@@ -1412,7 +1412,7 @@ mod tests {
                     [_my_ text]: https://example.com/image.png "my title""#},
                 );
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::LinkReference(_), lookups => MdqElem::Inline(link) = {
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![
                             Inline::Span{
@@ -1442,7 +1442,7 @@ mod tests {
                     [my text]: https://example.com/image.png"#},
                 );
                 unwrap!(&root.children[0], Node::Paragraph(p));
-                check!(&p.children[0], Node::LinkReference(_), lookups => MdqElem::Inline(link) = {
+                check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
                     assert_eq!(link, Inline::Link {
                         text: vec![
                             Inline::Text {variant: TextVariant::Plain,value: "my text".to_string()},
@@ -1468,7 +1468,7 @@ mod tests {
                     plain code block
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdqElem::Block::LeafBlock::CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdElem::Block::LeafBlock::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Code(None));
                     assert_eq!(value, "plain code block");
                 })
@@ -1481,7 +1481,7 @@ mod tests {
                     code block with language
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdqElem::Block::LeafBlock::CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdElem::Block::LeafBlock::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
                         language: "rust".to_string(),
                         metadata: None})));
@@ -1496,7 +1496,7 @@ mod tests {
                     code block with language and title
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdqElem::Block::LeafBlock::CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdElem::Block::LeafBlock::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
                         language: "rust".to_string(),
                         metadata: Some(r#"title="example.rs""#.to_string())})));
@@ -1511,7 +1511,7 @@ mod tests {
                     code block with only title
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdqElem::Block::LeafBlock::CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdElem::Block::LeafBlock::CodeBlock{variant, value}) = {
                     // It's actually just a bogus language!
                     assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
                         language: r#"title="example.rs""#.to_string(),
@@ -1533,7 +1533,7 @@ mod tests {
                     x = {-b \pm \sqrt{b^2-4ac} \over 2a}
                     $$"#},
                 );
-                check!(&root.children[0], Node::Math(_), lookups => m_node!(MdqElem::Block::LeafBlock::CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Math(_), lookups => m_node!(MdElem::Block::LeafBlock::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Math{metadata: None});
                     assert_eq!(value, r#"x = {-b \pm \sqrt{b^2-4ac} \over 2a}"#);
                 })
@@ -1546,7 +1546,7 @@ mod tests {
                     x = {-b \pm \sqrt{b^2-4ac} \over 2a}
                     $$"#},
                 );
-                check!(&root.children[0], Node::Math(_), lookups => m_node!(MdqElem::Block::LeafBlock::CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Math(_), lookups => m_node!(MdElem::Block::LeafBlock::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Math{metadata: Some("my metadata".to_string())});
                     assert_eq!(value, r#"x = {-b \pm \sqrt{b^2-4ac} \over 2a}"#);
                 })
@@ -1564,7 +1564,7 @@ mod tests {
                 my: toml
                 +++"#},
             );
-            check!(&root.children[0], Node::Toml(_), lookups => m_node!(MdqElem::Block::LeafBlock::CodeBlock{variant, value}) = {
+            check!(&root.children[0], Node::Toml(_), lookups => m_node!(MdElem::Block::LeafBlock::CodeBlock{variant, value}) = {
                 assert_eq!(variant, CodeVariant::Toml);
                 assert_eq!(value, r#"my: toml"#);
             })
@@ -1581,7 +1581,7 @@ mod tests {
                 my: toml
                 ---"#},
             );
-            check!(&root.children[0], Node::Yaml(_), lookups => m_node!(MdqElem::Block::LeafBlock::CodeBlock{variant, value}) = {
+            check!(&root.children[0], Node::Yaml(_), lookups => m_node!(MdElem::Block::LeafBlock::CodeBlock{variant, value}) = {
                 assert_eq!(variant, CodeVariant::Yaml);
                 assert_eq!(value, r#"my: toml"#);
             })
@@ -1596,7 +1596,7 @@ mod tests {
                     And some text below it."#},
             );
 
-            let (header_depth, header_title) = check!(&root.children[0], Node::Heading(_), lookups => m_node!(MdqElem::Block::Container::Section{depth, title, body}) = {
+            let (header_depth, header_title) = check!(&root.children[0], Node::Heading(_), lookups => m_node!(MdElem::Block::Container::Section{depth, title, body}) = {
                 assert_eq!(depth, 2);
                 assert_eq!(title, vec![
                     Inline::Text { variant: TextVariant::Plain, value: "Header with ".to_string()},
@@ -1615,11 +1615,11 @@ mod tests {
 
             let mdast_root = Node::Root(root); // reconstruct it, since parse_with unwrapped it
             NODES_CHECKER.see(&mdast_root);
-            let mdqs = MdqElem::from_mdast_0(mdast_root, &lookups).unwrap();
+            let mdqs = MdElem::from_mdast_0(mdast_root, &lookups).unwrap();
 
             assert_eq!(
                 mdqs,
-                vec![m_node!(MdqElem::Block::Container::Section {
+                vec![m_node!(MdElem::Block::Container::Section {
                     depth: header_depth,
                     title: header_title,
                     body: md_elems!["And some text below it."],
@@ -1641,7 +1641,7 @@ mod tests {
             );
 
             assert_eq!(root.children.len(), 3);
-            check!(&root.children[1], Node::ThematicBreak(_), lookups => m_node!(MdqElem::Block::LeafBlock::ThematicBreak) = {
+            check!(&root.children[1], Node::ThematicBreak(_), lookups => m_node!(MdElem::Block::LeafBlock::ThematicBreak) = {
                 // nothing to check
             });
         }
@@ -1660,7 +1660,7 @@ mod tests {
                     "#},
             );
             assert_eq!(root.children.len(), 1);
-            check!(&root.children[0], Node::Table(table_node), lookups => m_node!(MdqElem::Block::LeafBlock::Table{alignments, rows}) = {
+            check!(&root.children[0], Node::Table(table_node), lookups => m_node!(MdElem::Block::LeafBlock::Table{alignments, rows}) = {
                 assert_eq!(alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Center, mdast::AlignKind::Right, mdast::AlignKind::None]);
                 assert_eq!(rows,
                     vec![ // rows
@@ -1909,31 +1909,31 @@ mod tests {
         #[test]
         fn h1_with_two_paragraphs() -> Result<(), InvalidMd> {
             let linear = vec![
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("first")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::LeafBlock::Paragraph {
+                m_node!(MdElem::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("aaa")],
                 }),
-                m_node!(MdqElem::Block::LeafBlock::Paragraph {
+                m_node!(MdElem::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("bbb")],
                 }),
             ];
-            let expect = vec![m_node!(MdqElem::Block::Container::Section {
+            let expect = vec![m_node!(MdElem::Block::Container::Section {
                 depth: 1,
                 title: vec![mdq_inline!("first")],
                 body: vec![
-                    m_node!(MdqElem::Block::LeafBlock::Paragraph {
+                    m_node!(MdElem::Block::LeafBlock::Paragraph {
                         body: vec![mdq_inline!("aaa")],
                     }),
-                    m_node!(MdqElem::Block::LeafBlock::Paragraph {
+                    m_node!(MdElem::Block::LeafBlock::Paragraph {
                         body: vec![mdq_inline!("bbb")],
                     }),
                 ],
             })];
-            let actual = MdqElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -1941,32 +1941,32 @@ mod tests {
         #[test]
         fn simple_nesting() -> Result<(), InvalidMd> {
             let linear = vec![
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("first")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 2,
                     title: vec![mdq_inline!("aaa")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::LeafBlock::Paragraph {
+                m_node!(MdElem::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("bbb")],
                 }),
             ];
-            let expect = vec![m_node!(MdqElem::Block::Container::Section {
+            let expect = vec![m_node!(MdElem::Block::Container::Section {
                 depth: 1,
                 title: vec![mdq_inline!("first")],
-                body: vec![m_node!(MdqElem::Block::Container::Section {
+                body: vec![m_node!(MdElem::Block::Container::Section {
                     depth: 2,
                     title: vec![mdq_inline!("aaa")],
-                    body: vec![m_node!(MdqElem::Block::LeafBlock::Paragraph {
+                    body: vec![m_node!(MdElem::Block::LeafBlock::Paragraph {
                         body: vec![mdq_inline!("bbb")],
                     })],
                 })],
             })];
-            let actual = MdqElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -1974,60 +1974,60 @@ mod tests {
         #[test]
         fn only_headers() -> Result<(), InvalidMd> {
             let linear = vec![
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("first")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 2,
                     title: vec![mdq_inline!("second")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 3,
                     title: vec![mdq_inline!("third")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 3,
                     title: vec![mdq_inline!("fourth")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 2,
                     title: vec![mdq_inline!("fifth")],
                     body: vec![],
                 }),
             ];
-            let expect = vec![m_node!(MdqElem::Block::Container::Section {
+            let expect = vec![m_node!(MdElem::Block::Container::Section {
                 depth: 1,
                 title: vec![mdq_inline!("first")],
                 body: vec![
-                    m_node!(MdqElem::Block::Container::Section {
+                    m_node!(MdElem::Block::Container::Section {
                         depth: 2,
                         title: vec![mdq_inline!("second")],
                         body: vec![
-                            m_node!(MdqElem::Block::Container::Section {
+                            m_node!(MdElem::Block::Container::Section {
                                 depth: 3,
                                 title: vec![mdq_inline!("third")],
                                 body: vec![],
                             }),
-                            m_node!(MdqElem::Block::Container::Section {
+                            m_node!(MdElem::Block::Container::Section {
                                 depth: 3,
                                 title: vec![mdq_inline!("fourth")],
                                 body: vec![],
                             }),
                         ],
                     }),
-                    m_node!(MdqElem::Block::Container::Section {
+                    m_node!(MdElem::Block::Container::Section {
                         depth: 2,
                         title: vec![mdq_inline!("fifth")],
                         body: vec![],
                     }),
                 ],
             })];
-            let actual = MdqElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -2035,22 +2035,22 @@ mod tests {
         #[test]
         fn no_headers() -> Result<(), InvalidMd> {
             let linear = vec![
-                m_node!(MdqElem::Block::LeafBlock::Paragraph {
+                m_node!(MdElem::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("one")],
                 }),
-                m_node!(MdqElem::Block::LeafBlock::Paragraph {
+                m_node!(MdElem::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("two")],
                 }),
             ];
             let expect = vec![
-                m_node!(MdqElem::Block::LeafBlock::Paragraph {
+                m_node!(MdElem::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("one")],
                 }),
-                m_node!(MdqElem::Block::LeafBlock::Paragraph {
+                m_node!(MdElem::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("two")],
                 }),
             ];
-            let actual = MdqElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -2058,40 +2058,40 @@ mod tests {
         #[test]
         fn header_skips() -> Result<(), InvalidMd> {
             let linear = vec![
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("one")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 5,
                     title: vec![mdq_inline!("five")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 2,
                     title: vec![mdq_inline!("two")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 3,
                     title: vec![mdq_inline!("three")],
                     body: vec![],
                 }),
             ];
-            let expect = vec![m_node!(MdqElem::Block::Container::Section {
+            let expect = vec![m_node!(MdElem::Block::Container::Section {
                 depth: 1,
                 title: vec![mdq_inline!("one")],
                 body: vec![
-                    m_node!(MdqElem::Block::Container::Section {
+                    m_node!(MdElem::Block::Container::Section {
                         depth: 5,
                         title: vec![mdq_inline!("five")],
                         body: vec![],
                     }),
-                    m_node!(MdqElem::Block::Container::Section {
+                    m_node!(MdElem::Block::Container::Section {
                         depth: 2,
                         title: vec![mdq_inline!("two")],
-                        body: vec![m_node!(MdqElem::Block::Container::Section {
+                        body: vec![m_node!(MdElem::Block::Container::Section {
                             depth: 3,
                             title: vec![mdq_inline!("three")],
                             body: vec![],
@@ -2099,7 +2099,7 @@ mod tests {
                     }),
                 ],
             })];
-            let actual = MdqElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -2107,40 +2107,40 @@ mod tests {
         #[test]
         fn backwards_order() -> Result<(), InvalidMd> {
             let linear = vec![
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 3,
                     title: vec![mdq_inline!("three")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 2,
                     title: vec![mdq_inline!("two")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("one")],
                     body: vec![],
                 }),
             ];
             let expect = vec![
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 3,
                     title: vec![mdq_inline!("three")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 2,
                     title: vec![mdq_inline!("two")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("one")],
                     body: vec![],
                 }),
             ];
-            let actual = MdqElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -2148,31 +2148,31 @@ mod tests {
         #[test]
         fn paragraph_before_and_after_header() -> Result<(), InvalidMd> {
             let linear = vec![
-                m_node!(MdqElem::Block::LeafBlock::Paragraph {
+                m_node!(MdElem::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("before")],
                 }),
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 3,
                     title: vec![mdq_inline!("the header")],
                     body: vec![],
                 }),
-                m_node!(MdqElem::Block::LeafBlock::Paragraph {
+                m_node!(MdElem::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("after")],
                 }),
             ];
             let expect = vec![
-                m_node!(MdqElem::Block::LeafBlock::Paragraph {
+                m_node!(MdElem::Block::LeafBlock::Paragraph {
                     body: vec![mdq_inline!("before")],
                 }),
-                m_node!(MdqElem::Block::Container::Section {
+                m_node!(MdElem::Block::Container::Section {
                     depth: 3,
                     title: vec![mdq_inline!("the header")],
-                    body: vec![m_node!(MdqElem::Block::LeafBlock::Paragraph {
+                    body: vec![m_node!(MdElem::Block::LeafBlock::Paragraph {
                         body: vec![mdq_inline!("after")],
                     })],
                 }),
             ];
-            let actual = MdqElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
             Ok(())
         }

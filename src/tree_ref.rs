@@ -1,5 +1,5 @@
 use crate::tree::{
-    Block, BlockQuote, CodeBlock, Container, Inline, LeafBlock, List, ListItem, MdqElem, Paragraph, Section, Table,
+    Block, BlockQuote, CodeBlock, Container, Inline, LeafBlock, List, ListItem, MdElem, Paragraph, Section, Table,
 };
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
@@ -26,10 +26,10 @@ pub enum NonSelectable<'a> {
 #[derive(Debug, Clone, Copy)]
 pub struct ListItemRef<'a>(pub Option<u32>, pub &'a ListItem);
 
-impl<'a> From<&'a MdqElem> for MdElemRef<'a> {
-    fn from(value: &'a MdqElem) -> Self {
+impl<'a> From<&'a MdElem> for MdElemRef<'a> {
+    fn from(value: &'a MdElem) -> Self {
         match value {
-            MdqElem::Block(block) => match block {
+            MdElem::Block(block) => match block {
                 Block::LeafBlock(leaf) => match leaf {
                     LeafBlock::ThematicBreak => Self::NonSelectable(NonSelectable::ThematicBreak),
                     LeafBlock::Paragraph(p) => Self::NonSelectable(NonSelectable::Paragraph(p)),
@@ -42,7 +42,7 @@ impl<'a> From<&'a MdqElem> for MdElemRef<'a> {
                     Container::Section(section) => Self::Section(section),
                 },
             },
-            MdqElem::Inline(v) => Self::Inline(v),
+            MdElem::Inline(v) => Self::Inline(v),
         }
     }
 }
@@ -60,7 +60,7 @@ macro_rules! wrap_mdq_refs {
 }
 
 impl<'a> MdElemRef<'a> {
-    pub fn wrap_vec(source: &'a Vec<MdqElem>) -> Vec<Self> {
+    pub fn wrap_vec(source: &'a Vec<MdElem>) -> Vec<Self> {
         let mut result: Vec<Self> = Vec::with_capacity(source.len());
         for elem in source {
             result.push(elem.into());

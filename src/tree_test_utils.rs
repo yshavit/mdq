@@ -4,10 +4,10 @@ mod test_utils {
     #[macro_export]
     macro_rules! md_elem {
         ( $($node_names:ident)::* {$($attr:ident: $val:expr),*}) => {
-            crate::m_node!(MdqElem::$($node_names)::* {$($attr: $val),*})
+            crate::m_node!(MdElem::$($node_names)::* {$($attr: $val),*})
         };
         ($paragraph_text:literal) => {
-            crate::m_node!(MdqElem::Block::LeafBlock::Paragraph{body: vec![crate::mdq_inline!($paragraph_text)]})
+            crate::m_node!(MdElem::Block::LeafBlock::Paragraph{body: vec![crate::mdq_inline!($paragraph_text)]})
         };
     }
 
@@ -15,7 +15,7 @@ mod test_utils {
     macro_rules! md_elems {
         [$($first:tt $( $(:: $($rest:ident)::* )? {$($attr:ident: $val:expr),*$(,)?})? ),*$(,)?] => {
             vec![$(
-                crate::mdq_node!($first$( $(:: $($rest)::*)? { $($attr: $val),* })?)
+                crate::md_elem!($first$( $(:: $($rest)::*)? { $($attr: $val),* })?)
                 ),*
             ]
         };

@@ -4,7 +4,7 @@ use std::{env, io};
 use crate::fmt_md::MdOptions;
 use crate::output::Stream;
 use crate::select::selector::MdqRefSelector;
-use crate::tree::{MdqElem, ReadOptions};
+use crate::tree::{MdElem, ReadOptions};
 use crate::tree_ref::MdElemRef;
 
 mod fmt_md;
@@ -24,7 +24,7 @@ fn main() {
     let mut contents = String::new();
     stdin().read_to_string(&mut contents).expect("invalid input (not utf8)");
     let ast = markdown::to_mdast(&mut contents, &markdown::ParseOptions::gfm()).unwrap();
-    let mdqs = MdqElem::read(ast, &ReadOptions::default()).unwrap();
+    let mdqs = MdElem::read(ast, &ReadOptions::default()).unwrap();
     let mut out = output::Output::new(Stream(io::stdout()));
 
     let selectors_str = env::args().nth(1).unwrap_or("".to_string());
