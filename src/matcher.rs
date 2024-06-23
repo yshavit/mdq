@@ -187,7 +187,7 @@ mod test {
             r#"/unclosed"#,
             ParseErrorReason::UnexpectedEndOfInput,
             Position {
-                line: 1,
+                line: 0,
                 column: "/unclosed".len(),
             },
         );
@@ -203,7 +203,7 @@ mod test {
                 .to_string(),
             ),
             Position {
-                line: 1,
+                line: 0,
                 column: "/(unclosed paren/".len(),
             },
         );

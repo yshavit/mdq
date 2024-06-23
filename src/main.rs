@@ -56,6 +56,8 @@ fn print_select_parse_error(original_string: &str, err: ParseError) {
         if line_num == err.position.line {
             eprintln!("┃ {}", line);
             eprint!("┃ ");
+            // Parsers typically throw errors after chars.next(), which advances the stream such that it's looking at
+            // the char after the failure. So, subtract 1 so that we're pointing at the right one.
             for _ in 0..(err.position.column - 1) {
                 eprint!(" ");
             }
