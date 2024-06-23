@@ -1,4 +1,4 @@
-use crate::tree::{Inline, TextVariant};
+use crate::tree::{Formatting, Image, Inline, Link, Text, TextVariant};
 use std::borrow::Borrow;
 
 pub fn inlines_to_plain_string<N: Borrow<Inline>>(inlines: &[N]) -> String {
@@ -15,14 +15,14 @@ fn build_inlines<N: Borrow<Inline>>(out: &mut String, inlines: &[N]) {
 
 fn build_inline(out: &mut String, elem: &Inline) {
     match elem {
-        Inline::Span { children, .. } => build_inlines(out, children),
-        Inline::Text { variant, value, .. } => {
+        Inline::Formatting(Formatting { children, .. }) => build_inlines(out, children),
+        Inline::Text(Text { variant, value, .. }) => {
             if !matches!(variant, TextVariant::Html) {
                 out.push_str(value)
             }
         }
-        Inline::Link { text, .. } => build_inlines(out, text),
-        Inline::Image { alt, .. } => out.push_str(alt),
+        Inline::Link(Link { text, .. }) => build_inlines(out, text),
+        Inline::Image(Image { alt, .. }) => out.push_str(alt),
         Inline::Footnote(footnote) => {
             out.push_str("[^");
             out.push_str(&footnote.label);
@@ -36,18 +36,18 @@ mod tests {
     use super::*;
     use indoc::indoc;
 
-    use crate::tree::{Block, Inline, LeafBlock, MdElem, ReadOptions, SpanVariant, TextVariant};
+    use crate::tree::{Block, FormattingVariant, Inline, LeafBlock, MdElem, ReadOptions, TextVariant};
     use crate::unwrap;
     use markdown::ParseOptions;
 
     crate::variants_checker!(VARIANTS_CHECKER = Inline {
-        Span { variant: SpanVariant::Delete, .. },
-        Span { variant: SpanVariant::Emphasis, .. },
-        Span { variant: SpanVariant::Strong, .. },
-        Text { variant: TextVariant::Plain, .. },
-        Text { variant: TextVariant::Code, .. },
-        Text { variant: TextVariant::Math, .. },
-        Text { variant: TextVariant::Html, .. },
+        Formatting(Formatting{ variant: FormattingVariant::Delete, .. }),
+        Formatting(Formatting{ variant: FormattingVariant::Emphasis, .. }),
+        Formatting(Formatting{ variant: FormattingVariant::Strong, .. }),
+        Text(Text { variant: TextVariant::Plain, .. }),
+        Text(Text { variant: TextVariant::Code, .. }),
+        Text(Text { variant: TextVariant::Math, .. }),
+        Text(Text { variant: TextVariant::Html, .. }),
         Link { .. },
         Image { .. },
         Footnote(_),

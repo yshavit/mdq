@@ -8,7 +8,6 @@ use crate::tree::{
 pub enum MdElemRef<'a> {
     Section(&'a Section),
     ListItem(ListItemRef<'a>),
-    Inline(&'a Inline),
 
     NonSelectable(NonSelectable<'a>),
 }
@@ -21,10 +20,20 @@ pub enum NonSelectable<'a> {
     BlockQuote(&'a BlockQuote),
     List(&'a List),
     Table(&'a Table),
+    Inline(&'a Inline),
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct ListItemRef<'a>(pub Option<u32>, pub &'a ListItem);
+
+/// We implement this one specifically because it's non-trivial: some Inlines are selectable, and some aren't.
+impl<'a> From<&'a Inline> for MdElemRef<'a> {
+    fn from(value: &'a Inline) -> Self {
+        // TODO actually make this be non-trivial, as the doc says it will be. :-) Specifically, make Link and Image
+        // selectable.
+        MdElemRef::NonSelectable(NonSelectable::Inline(value))
+    }
+}
 
 impl<'a> From<&'a MdElem> for MdElemRef<'a> {
     fn from(value: &'a MdElem) -> Self {
@@ -42,7 +51,7 @@ impl<'a> From<&'a MdElem> for MdElemRef<'a> {
                     Container::Section(section) => Self::Section(section),
                 },
             },
-            MdElem::Inline(v) => Self::Inline(v),
+            MdElem::Inline(v) => v.into(),
         }
     }
 }

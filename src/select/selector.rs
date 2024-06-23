@@ -3,9 +3,8 @@ use crate::select::base::Selector;
 use crate::select::interface::{ParseError, ParseErrorReason, ParseResult, SelectResult};
 use crate::select::list_item::{ListItemSelector, ListItemType};
 use crate::select::section::SectionSelector;
-use crate::tree::Inline;
+use crate::tree::{Formatting, Image, Inline, Link, Text};
 use crate::tree_ref::{ListItemRef, MdElemRef, NonSelectable};
-use crate::wrap_mdq_refs;
 
 #[derive(Debug, PartialEq)]
 pub enum MdqRefSelector {
@@ -91,17 +90,8 @@ impl MdqRefSelector {
         match node {
             MdElemRef::Section(s) => MdElemRef::wrap_vec(&s.body),
             MdElemRef::ListItem(ListItemRef(_, item)) => MdElemRef::wrap_vec(&item.item),
-            MdElemRef::Inline(inline) => match inline {
-                Inline::Span { children, .. } => children.iter().map(|child| MdElemRef::Inline(child)).collect(),
-                Inline::Footnote(footnote) => MdElemRef::wrap_vec(&footnote.text),
-                Inline::Link { .. } => {
-                    // TODO need to return an MdqNodeRef::Link
-                    Vec::new()
-                }
-                Inline::Text { .. } | Inline::Image { .. } => Vec::new(),
-            },
             MdElemRef::NonSelectable(elem) => match elem {
-                NonSelectable::Paragraph(p) => wrap_mdq_refs!(Inline: &p.body),
+                NonSelectable::Paragraph(p) => p.body.iter().map(|child| child.into()).collect(),
                 NonSelectable::BlockQuote(b) => MdElemRef::wrap_vec(&b.body),
                 NonSelectable::List(list) => {
                     let mut idx = list.starting_index;
@@ -120,13 +110,24 @@ impl MdqRefSelector {
                     for row in &table.rows {
                         for col in row {
                             for cell in col {
-                                result.push(MdElemRef::Inline(cell));
+                                result.push(MdElemRef::NonSelectable(NonSelectable::Inline(cell)));
                             }
                         }
                     }
                     result
                 }
                 NonSelectable::ThematicBreak | NonSelectable::CodeBlock(_) => Vec::new(),
+                NonSelectable::Inline(inline) => match inline {
+                    Inline::Formatting(Formatting { children, .. }) => {
+                        children.iter().map(|child| child.into()).collect()
+                    }
+                    Inline::Footnote(footnote) => MdElemRef::wrap_vec(&footnote.text),
+                    Inline::Link(Link { .. }) => {
+                        // TODO need to return an MdqNodeRef::Link
+                        Vec::new()
+                    }
+                    Inline::Text(Text { .. }) | Inline::Image(Image { .. }) => Vec::new(),
+                },
             },
         }
     }
