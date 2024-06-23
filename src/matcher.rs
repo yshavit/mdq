@@ -1,6 +1,6 @@
 use crate::fmt_str::inlines_to_plain_string;
 use crate::parsing_iter::ParsingIterator;
-use crate::select::{ParseErrorReason, ParseResult, SELECTOR_SEPARATOR};
+use crate::select::{ParseErrorReason, ParseResult};
 use crate::tree::{Block, Container, Inline, LeafBlock, MdElem};
 use regex::Regex;
 use std::borrow::Borrow;
@@ -75,24 +75,27 @@ impl StringMatcher {
         }
     }
 
-    pub fn read(chars: &mut ParsingIterator) -> ParseResult<StringMatcher> {
+    pub fn read(chars: &mut ParsingIterator, bareword_end: char) -> ParseResult<StringMatcher> {
         chars.drop_while(|ch| ch.is_whitespace());
         let peek_ch = match chars.peek() {
             None => return Ok(StringMatcher::Any),
             Some(ch) => ch,
         };
         if peek_ch.is_alphanumeric() {
-            return Ok(Self::parse_matcher_bare(chars));
+            return Ok(Self::parse_matcher_bare(chars, bareword_end));
         }
         let _ = chars.next(); // drop the char we peeked
         match peek_ch {
-            '*' | SELECTOR_SEPARATOR => Ok(StringMatcher::Any),
+            '*' => Ok(StringMatcher::Any),
             '/' => Self::parse_regex_matcher(chars),
-            _ => Err(ParseErrorReason::UnexpectedCharacter(peek_ch)),
+            other if other == bareword_end => Ok(StringMatcher::Any),
+            _ => Err(ParseErrorReason::InvalidSyntax(
+                "invalid string specifier (must be quoted or a bareword that starts with a letter)".to_string(),
+            )),
         }
     }
 
-    fn parse_matcher_bare(chars: &mut ParsingIterator) -> StringMatcher {
+    fn parse_matcher_bare(chars: &mut ParsingIterator, bareword_end: char) -> StringMatcher {
         let mut result = String::with_capacity(20); // just a guess
         let mut dropped = String::with_capacity(8); // also a guess
 
@@ -101,7 +104,7 @@ impl StringMatcher {
             let Some(ch) = chars.next() else {
                 break;
             };
-            if ch == SELECTOR_SEPARATOR {
+            if ch == bareword_end {
                 break;
             }
             result.push_str(&dropped);
@@ -141,6 +144,7 @@ impl StringMatcher {
 mod test {
     use super::*;
     use crate::parse_common::Position;
+    use crate::select::SELECTOR_SEPARATOR;
     use indoc::indoc;
 
     #[test]
@@ -162,6 +166,7 @@ mod test {
             StringMatcher::Substring("hello".to_string()),
             " goodbye",
         );
+        parse_and_check_with(']', "foo] rest", StringMatcher::Substring("foo".to_string()), " rest");
     }
 
     #[test]
@@ -182,7 +187,7 @@ mod test {
             r#"/unclosed"#,
             ParseErrorReason::UnexpectedEndOfInput,
             Position {
-                line: 1,
+                line: 0,
                 column: "/unclosed".len(),
             },
         );
@@ -198,23 +203,34 @@ mod test {
                 .to_string(),
             ),
             Position {
-                line: 1,
+                line: 0,
                 column: "/(unclosed paren/".len(),
             },
         );
     }
 
-    fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) {
+    #[test]
+    fn any() {
+        parse_and_check("| rest", StringMatcher::Any, " rest");
+        parse_and_check(" | rest", StringMatcher::Any, " rest");
+        parse_and_check_with(']', "] rest", StringMatcher::Any, " rest");
+    }
+
+    fn parse_and_check_with(bareword_end: char, text: &str, expect: StringMatcher, expect_remaining: &str) {
         let mut iter = ParsingIterator::new(text);
-        let matcher = StringMatcher::read(&mut iter).unwrap();
+        let matcher = StringMatcher::read(&mut iter, bareword_end).unwrap();
         assert_eq!(matcher, expect);
         let remaining: String = iter.collect();
         assert_eq!(&remaining, expect_remaining);
     }
 
+    fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) {
+        parse_and_check_with(SELECTOR_SEPARATOR, text, expect, expect_remaining)
+    }
+
     fn expect_err(text: &str, expect: ParseErrorReason, at: Position) {
         let mut iter = ParsingIterator::new(text);
-        let err = StringMatcher::read(&mut iter).expect_err("expected to fail parsing");
+        let err = StringMatcher::read(&mut iter, SELECTOR_SEPARATOR).expect_err("expected to fail parsing");
         assert_eq!(iter.input_position(), at);
         assert_eq!(err, expect);
     }

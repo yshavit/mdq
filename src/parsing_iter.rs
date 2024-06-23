@@ -13,7 +13,7 @@ impl<'a> ParsingIterator<'a> {
     pub fn new(from: &'a str) -> Self {
         Self {
             iter: from.chars(),
-            position: Position { line: 1, column: 0 },
+            position: Position { line: 0, column: 0 },
             pending: None,
         }
     }
@@ -75,7 +75,11 @@ impl<'a> ParsingIterator<'a> {
         }
     }
 
-    pub fn require_char<F>(&mut self, ch: char, or_else: F) -> ParseResult<()>
+    pub fn require_char(&mut self, ch: char) -> ParseResult<()> {
+        self.require_char_or_else(ch, || ParseErrorReason::Expected(ch))
+    }
+
+    pub fn require_char_or_else<F>(&mut self, ch: char, or_else: F) -> ParseResult<()>
     where
         F: FnOnce() -> ParseErrorReason,
     {
@@ -130,44 +134,44 @@ mod tests {
     #[test]
     fn basic() {
         let mut iter = ParsingIterator::new("AB\nC");
-        assert_eq!(iter.position, Position { line: 1, column: 0 });
-        next_and_check(&mut iter, Some('A'), Position { line: 1, column: 1 });
-        next_and_check(&mut iter, Some('B'), Position { line: 1, column: 2 });
-        next_and_check(&mut iter, Some('\n'), Position { line: 2, column: 0 });
-        next_and_check(&mut iter, Some('C'), Position { line: 2, column: 1 });
+        assert_eq!(iter.position, Position { line: 0, column: 0 });
+        next_and_check(&mut iter, Some('A'), Position { line: 0, column: 1 });
+        next_and_check(&mut iter, Some('B'), Position { line: 0, column: 2 });
+        next_and_check(&mut iter, Some('\n'), Position { line: 1, column: 0 });
+        next_and_check(&mut iter, Some('C'), Position { line: 1, column: 1 });
 
-        next_and_check(&mut iter, None, Position { line: 2, column: 1 });
+        next_and_check(&mut iter, None, Position { line: 1, column: 1 });
         // and it's unchanged if I call it again
-        next_and_check(&mut iter, None, Position { line: 2, column: 1 });
+        next_and_check(&mut iter, None, Position { line: 1, column: 1 });
     }
 
     #[test]
     fn empty() {
         let mut iter = ParsingIterator::new("");
-        next_and_check(&mut iter, None, Position { line: 1, column: 0 });
+        next_and_check(&mut iter, None, Position { line: 0, column: 0 });
     }
 
     #[test]
     fn peek_after_read() {
         let mut iter = ParsingIterator::new("AB");
-        next_and_check(&mut iter, Some('A'), Position { line: 1, column: 1 });
-        peek_and_check(&mut iter, Some('B'), Position { line: 1, column: 1 }); // position unchanged!
-        next_and_check(&mut iter, Some('B'), Position { line: 1, column: 2 });
-        peek_and_check(&mut iter, None, Position { line: 1, column: 2 });
-        next_and_check(&mut iter, None, Position { line: 1, column: 2 });
+        next_and_check(&mut iter, Some('A'), Position { line: 0, column: 1 });
+        peek_and_check(&mut iter, Some('B'), Position { line: 0, column: 1 }); // position unchanged!
+        next_and_check(&mut iter, Some('B'), Position { line: 0, column: 2 });
+        peek_and_check(&mut iter, None, Position { line: 0, column: 2 });
+        next_and_check(&mut iter, None, Position { line: 0, column: 2 });
 
         // no-ops
-        peek_and_check(&mut iter, None, Position { line: 1, column: 2 });
-        peek_and_check(&mut iter, None, Position { line: 1, column: 2 });
-        next_and_check(&mut iter, None, Position { line: 1, column: 2 });
-        next_and_check(&mut iter, None, Position { line: 1, column: 2 });
+        peek_and_check(&mut iter, None, Position { line: 0, column: 2 });
+        peek_and_check(&mut iter, None, Position { line: 0, column: 2 });
+        next_and_check(&mut iter, None, Position { line: 0, column: 2 });
+        next_and_check(&mut iter, None, Position { line: 0, column: 2 });
     }
 
     #[test]
     fn peek_initial() {
         let mut iter = ParsingIterator::new("A");
-        peek_and_check(&mut iter, Some('A'), Position { line: 1, column: 0 });
-        next_and_check(&mut iter, Some('A'), Position { line: 1, column: 1 });
+        peek_and_check(&mut iter, Some('A'), Position { line: 0, column: 0 });
+        next_and_check(&mut iter, Some('A'), Position { line: 0, column: 1 });
     }
 
     #[test]
@@ -175,15 +179,15 @@ mod tests {
         let mut iter = ParsingIterator::new("A \t B");
 
         assert_eq!("", iter.drop_while(|ch| ch.is_whitespace()));
-        next_and_check(&mut iter, Some('A'), Position { line: 1, column: 1 });
+        next_and_check(&mut iter, Some('A'), Position { line: 0, column: 1 });
 
         assert_eq!(" \t ", iter.drop_while(|ch| ch.is_whitespace()));
-        peek_and_check(&mut iter, Some('B'), Position { line: 1, column: 4 });
-        next_and_check(&mut iter, Some('B'), Position { line: 1, column: 5 });
+        peek_and_check(&mut iter, Some('B'), Position { line: 0, column: 4 });
+        next_and_check(&mut iter, Some('B'), Position { line: 0, column: 5 });
 
         assert_eq!("", iter.drop_while(|ch| ch.is_whitespace()));
-        peek_and_check(&mut iter, None, Position { line: 1, column: 5 });
-        next_and_check(&mut iter, None, Position { line: 1, column: 5 });
+        peek_and_check(&mut iter, None, Position { line: 0, column: 5 });
+        next_and_check(&mut iter, None, Position { line: 0, column: 5 });
     }
 
     fn next_and_check(iter: &mut ParsingIterator, expect_ch: Option<char>, expect_pos: Position) {

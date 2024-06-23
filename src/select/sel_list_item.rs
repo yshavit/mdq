@@ -1,7 +1,7 @@
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
-use crate::select::{ParseErrorReason, ParseResult, SelectResult};
+use crate::select::{ParseErrorReason, ParseResult, SelectResult, SELECTOR_SEPARATOR};
 use crate::tree_ref::{ListItemRef, MdElemRef};
 
 #[derive(Debug, PartialEq)]
@@ -33,16 +33,20 @@ impl ListItemType {
                     Some(' ') => CheckboxSpecifier::CheckboxUnchecked,
                     Some('x') => CheckboxSpecifier::CheckboxChecked,
                     Some('?') => CheckboxSpecifier::CheckboxEither,
-                    Some(other) => return Err(ParseErrorReason::UnexpectedCharacter(other)),
+                    Some(_) => {
+                        return Err(ParseErrorReason::InvalidSyntax(
+                            "checkbox specifier must be one of: [ ], [x], or [?]".to_string(),
+                        ))
+                    }
                     None => return Err(ParseErrorReason::UnexpectedEndOfInput),
                 };
-                chars.require_char(']', || ParseErrorReason::UnexpectedEndOfInput)?;
+                chars.require_char(']')?;
                 checkbox
             }
         };
 
         // item string matcher
-        let string_matcher = StringMatcher::read(chars)?;
+        let string_matcher = StringMatcher::read(chars, SELECTOR_SEPARATOR)?;
 
         Ok(ListItemSelector {
             li_type: self,
@@ -92,7 +96,7 @@ impl ListItemType {
 
     fn read_type(&self, chars: &mut ParsingIterator) -> ParseResult<()> {
         if matches!(self, ListItemType::Ordered) {
-            chars.require_char('.', || {
+            chars.require_char_or_else('.', || {
                 ParseErrorReason::InvalidSyntax("Ordered list item specifier must start with \"1.\"".to_string())
             })
         } else {
