@@ -3,7 +3,7 @@ use crate::select::base::Selector;
 use crate::select::interface::{ParseError, ParseErrorReason, ParseResult, SelectResult};
 use crate::select::list_item::{ListItemSelector, ListItemType};
 use crate::select::section::SectionSelector;
-use crate::tree::{Formatting, Inline, Text};
+use crate::tree::{Formatting, Image, Inline, Link, Text};
 use crate::tree_ref::{ListItemRef, MdElemRef, NonSelectable};
 use crate::wrap_mdq_refs;
 
@@ -96,11 +96,11 @@ impl MdqRefSelector {
                     children.iter().map(|child| MdElemRef::Inline(child)).collect()
                 }
                 Inline::Footnote(footnote) => MdElemRef::wrap_vec(&footnote.text),
-                Inline::Link { .. } => {
+                Inline::Link(Link { .. }) => {
                     // TODO need to return an MdqNodeRef::Link
                     Vec::new()
                 }
-                Inline::Text(Text { .. }) | Inline::Image { .. } => Vec::new(),
+                Inline::Text(Text { .. }) | Inline::Image(Image { .. }) => Vec::new(),
             },
             MdElemRef::NonSelectable(elem) => match elem {
                 NonSelectable::Paragraph(p) => wrap_mdq_refs!(Inline: &p.body),

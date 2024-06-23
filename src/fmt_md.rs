@@ -416,12 +416,12 @@ impl<'a> MdWriterState<'a> {
                 out.write_str(value);
                 out.write_str(surround);
             }
-            Inline::Link { text, link_definition } => {
+            Inline::Link(Link { text, link_definition }) => {
                 self.write_link_inline(out, ReifiedLabel::Inline(text), link_definition, |me, out| {
                     me.write_line(out, text)
                 });
             }
-            Inline::Image { alt, link } => {
+            Inline::Image(Image { alt, link }) => {
                 out.write_char('!');
                 self.write_link_inline(out, ReifiedLabel::Identifier(alt), link, |_, out| out.write_str(alt));
             }
@@ -623,23 +623,23 @@ pub mod tests {
         Inline(Inline::Text(Text{variant: TextVariant::Math, ..})),
         Inline(Inline::Text(Text{variant: TextVariant::Html, ..})),
 
-        Inline(Inline::Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..}),
-        Inline(Inline::Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..}),
-        Inline(Inline::Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..}),
-        Inline(Inline::Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..}),
-        Inline(Inline::Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..}),
-        Inline(Inline::Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..}),
-        Inline(Inline::Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}),
-        Inline(Inline::Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..})),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..})),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..})),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..})),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..})),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..})),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..})),
+        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..})),
 
-        Inline(Inline::Image{link: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..}),
-        Inline(Inline::Image{link: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..}),
-        Inline(Inline::Image{link: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..}),
-        Inline(Inline::Image{link: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..}),
-        Inline(Inline::Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..}),
-        Inline(Inline::Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..}),
-        Inline(Inline::Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}),
-        Inline(Inline::Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..})),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..})),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..})),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..})),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..})),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..})),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..})),
+        Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..})),
 
         Inline(Inline::Footnote{..}),
 
@@ -1494,14 +1494,14 @@ pub mod tests {
 
             fn check_link(link: LinkDefinition, expect: &str) {
                 let nodes = vec![
-                    MdElem::Inline(Inline::Link {
+                    MdElem::Inline(Inline::Link(Link {
                         text: vec![
                             mdq_inline!("hello "),
                             mdq_inline!(span Emphasis [mdq_inline!("world")]),
                             mdq_inline!("!"),
                         ],
                         link_definition: link,
-                    }),
+                    })),
                     m_node!(MdElem::Block::LeafBlock::ThematicBreak),
                 ];
                 check_render(nodes, expect);
@@ -1647,10 +1647,10 @@ pub mod tests {
 
             fn check_image(link: LinkDefinition, expect: &str) {
                 let nodes = vec![
-                    MdElem::Inline(Inline::Image {
+                    MdElem::Inline(Inline::Image(Image {
                         alt: "hello _world_!".to_string(),
                         link,
-                    }),
+                    })),
                     m_node!(MdElem::Block::LeafBlock::ThematicBreak),
                 ];
                 check_render(nodes, expect);
@@ -1711,14 +1711,14 @@ pub mod tests {
                 md_elems![Block::LeafBlock::Paragraph {
                     body: vec![
                         mdq_inline!("Hello, "),
-                        Inline::Link {
+                        m_node!(Inline::Link {
                             text: vec![mdq_inline!("world"),],
                             link_definition: LinkDefinition {
                                 url: "https://example.com".to_string(),
                                 title: None,
                                 reference: LinkReference::Full("1".to_string()),
                             }
-                        },
+                        }),
                         mdq_inline!("! This is interesting"),
                         Inline::Footnote(Footnote {
                             label: "a".to_string(),
@@ -1843,22 +1843,22 @@ pub mod tests {
                             label: "c".to_string(),
                             text: md_elems!["footnote 2"]
                         }),
-                        Inline::Link {
+                        m_node!(Inline::Link {
                             text: vec![mdq_inline!("b-text")],
                             link_definition: LinkDefinition {
                                 url: "https://example.com/b".to_string(),
                                 title: None,
                                 reference: LinkReference::Full("b".to_string()),
                             },
-                        },
-                        Inline::Link {
+                        }),
+                        m_node!(Inline::Link {
                             text: vec![mdq_inline!("a-text")],
                             link_definition: LinkDefinition {
                                 url: "https://example.com/a".to_string(),
                                 title: None,
                                 reference: LinkReference::Full("a".to_string()),
                             },
-                        },
+                        }),
                     ]
                 }],
                 indoc! {r#"
@@ -1878,14 +1878,14 @@ pub mod tests {
                     title: vec![mdq_inline!("First section")],
                     body: md_elems![Block::LeafBlock::Paragraph {
                         body: vec![
-                            Inline::Link {
+                            m_node!(Inline::Link {
                                 text: vec![mdq_inline!("link description")],
                                 link_definition: LinkDefinition {
                                     url: "https://exampl.com".to_string(),
                                     title: None,
                                     reference: LinkReference::Full("1".to_string()),
                                 },
-                            },
+                            }),
                             mdq_inline!(" and then a thought"),
                             Inline::Footnote(Footnote {
                                 label: "a".to_string(),
