@@ -4,7 +4,7 @@ use crate::select::interface::{ParseError, ParseErrorReason, ParseResult, Select
 use crate::select::list_item::{ListItemSelector, ListItemType};
 use crate::select::section::SectionSelector;
 use crate::tree::Inline;
-use crate::tree_ref::{ListItemRef, MdqNodeRef};
+use crate::tree_ref::{ListItemRef, MdqNodeRef, NonSelectable};
 use crate::wrap_mdq_refs;
 
 #[derive(Debug, PartialEq)]
@@ -90,31 +90,6 @@ impl MdqRefSelector {
     fn find_children<'a>(node: MdqNodeRef) -> Vec<MdqNodeRef> {
         match node {
             MdqNodeRef::Section(s) => MdqNodeRef::wrap_vec(&s.body),
-            MdqNodeRef::Paragraph(p) => wrap_mdq_refs!(Inline: &p.body),
-            MdqNodeRef::BlockQuote(b) => MdqNodeRef::wrap_vec(&b.body),
-            MdqNodeRef::List(list) => {
-                let mut idx = list.starting_index;
-                let mut result = Vec::with_capacity(list.items.len());
-                for item in &list.items {
-                    result.push(MdqNodeRef::ListItem(ListItemRef(idx.clone(), item)));
-                    if let Some(idx) = idx.as_mut() {
-                        *idx += 1;
-                    }
-                }
-                result
-            }
-            MdqNodeRef::Table(table) => {
-                let count_estimate = table.rows.len() * table.rows.first().map(|tr| tr.len()).unwrap_or(0);
-                let mut result = Vec::with_capacity(count_estimate);
-                for row in &table.rows {
-                    for col in row {
-                        for cell in col {
-                            result.push(MdqNodeRef::Inline(cell));
-                        }
-                    }
-                }
-                result
-            }
             MdqNodeRef::ListItem(ListItemRef(_, item)) => MdqNodeRef::wrap_vec(&item.item),
             MdqNodeRef::Inline(inline) => match inline {
                 Inline::Span { children, .. } => children.iter().map(|child| MdqNodeRef::Inline(child)).collect(),
@@ -125,7 +100,34 @@ impl MdqRefSelector {
                 }
                 Inline::Text { .. } | Inline::Image { .. } => Vec::new(),
             },
-            MdqNodeRef::NonSelectable(_) => Vec::new(),
+            MdqNodeRef::NonSelectable(elem) => match elem {
+                NonSelectable::Paragraph(p) => wrap_mdq_refs!(Inline: &p.body),
+                NonSelectable::BlockQuote(b) => MdqNodeRef::wrap_vec(&b.body),
+                NonSelectable::List(list) => {
+                    let mut idx = list.starting_index;
+                    let mut result = Vec::with_capacity(list.items.len());
+                    for item in &list.items {
+                        result.push(MdqNodeRef::ListItem(ListItemRef(idx.clone(), item)));
+                        if let Some(idx) = idx.as_mut() {
+                            *idx += 1;
+                        }
+                    }
+                    result
+                }
+                NonSelectable::Table(table) => {
+                    let count_estimate = table.rows.len() * table.rows.first().map(|tr| tr.len()).unwrap_or(0);
+                    let mut result = Vec::with_capacity(count_estimate);
+                    for row in &table.rows {
+                        for col in row {
+                            for cell in col {
+                                result.push(MdqNodeRef::Inline(cell));
+                            }
+                        }
+                    }
+                    result
+                }
+                NonSelectable::ThematicBreak | NonSelectable::CodeBlock(_) => Vec::new(),
+            },
         }
     }
 
