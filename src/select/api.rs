@@ -81,8 +81,22 @@ impl MdqRefSelector {
 
         loop {
             iter.drop_whitespace();
-            if iter.peek().is_none() {
-                break;
+            match iter.peek() {
+                None => break,
+                Some(SELECTOR_SEPARATOR) => {
+                    // This is usually just the separator between selectors: "# foo | # bar" comes through in this loop
+                    // as "#f foo", then "|", then "#bar" -- so this condition is that middle bar.
+                    // The reason we want this here, as opposed to after the Self::parse_selector, is that if we did it
+                    // there, we'd also have to guard against end-of-input -- and we'd need to appropriately drop
+                    // whitespace. With this approach, we just march on.
+                    //
+                    // This block can also happen if you have multiple bars in a row: "#foo | | | #bar". Those are all
+                    // valid Any selectors, which we can just elide away (not for performance reasons, but because it's
+                    // more convenient to).
+                    let _ = iter.next(); // consume the separator
+                    continue;
+                }
+                _ => {}
             }
             let selector = Self::parse_selector(&mut iter).map_err(|reason| ParseError {
                 reason,
