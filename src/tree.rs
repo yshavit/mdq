@@ -9,17 +9,15 @@ use markdown::mdast;
 #[derive(Debug, PartialEq)]
 pub enum MdqNode {
     Block(Block),
-    // paragraphs with child nodes
     Section(Section),
     BlockQuote(BlockQuote),
-    List(List),
     Inline(Inline),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Block {
     LeafBlock(LeafBlock),
-    // TODO #53 container blocks
+    Container(Container),
 }
 
 #[derive(Debug, PartialEq)]
@@ -28,6 +26,11 @@ pub enum LeafBlock {
     Paragraph(Paragraph),
     CodeBlock(CodeBlock),
     Table(Table),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Container {
+    List(List),
 }
 
 #[derive(Debug, PartialEq)]
@@ -282,7 +285,7 @@ impl MdqNode {
                     };
                     li_nodes.push(li_mdq);
                 }
-                MdqNode::List(List {
+                m_node!(MdqNode::Block::Container::List {
                     starting_index: node.start,
                     items: li_nodes,
                 })
@@ -801,7 +804,7 @@ mod tests {
                     assert_eq!(footnote, Inline::Footnote(Footnote{
                         label: "a".to_string(),
                         text: vec![
-                            MdqNode::List(List{
+                            m_node!(MdqNode::Block::Container::List{
                                 starting_index: None,
                                 items: vec![
                                     ListItem{
@@ -835,7 +838,7 @@ mod tests {
             );
             assert_eq!(root.children.len(), 2); // unordered list, then ordered
 
-            check!(&root.children[0], Node::List(ul), lookups => MdqNode::List(List{starting_index, items}) = {
+            check!(&root.children[0], Node::List(ul), lookups => m_node!(MdqNode::Block::Container::List{starting_index, items}) = {
                 for child in &ul.children {
                     check!(error: child, Node::ListItem(_), lookups => InvalidMd::InternalError);
                 }
@@ -855,7 +858,7 @@ mod tests {
                     },
                 ]);
             });
-            check!(&root.children[1], Node::List(ol), lookups => MdqNode::List(List{starting_index, items}) = {
+            check!(&root.children[1], Node::List(ol), lookups => m_node!(MdqNode::Block::Container::List{starting_index, items}) = {
                 for child in &ol.children {
                     check!(error: child, Node::ListItem(_), lookups => InvalidMd::InternalError);
                 }

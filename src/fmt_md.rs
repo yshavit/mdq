@@ -795,7 +795,7 @@ pub mod tests {
         #[test]
         fn ordered() {
             check_render(
-                mdq_nodes![List {
+                mdq_nodes![Block::Container::List {
                     starting_index: Some(3),
                     items: vec![
                         ListItem {
@@ -822,7 +822,7 @@ pub mod tests {
         #[test]
         fn unordered() {
             check_render(
-                mdq_nodes![List {
+                mdq_nodes![Block::Container::List {
                     starting_index: None,
                     items: vec![
                         ListItem {
@@ -849,7 +849,7 @@ pub mod tests {
         #[test]
         fn block_alignments() {
             check_render(
-                mdq_nodes![List {
+                mdq_nodes![Block::Container::List {
                     starting_index: None,
                     items: vec![
                         ListItem {

@@ -1,5 +1,5 @@
 use crate::tree::{
-    Block, BlockQuote, CodeBlock, Inline, LeafBlock, List, ListItem, MdqNode, Paragraph, Section, Table,
+    Block, BlockQuote, CodeBlock, Container, Inline, LeafBlock, List, ListItem, MdqNode, Paragraph, Section, Table,
 };
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
@@ -40,10 +40,12 @@ impl<'a> From<&'a MdqNode> for MdqNodeRef<'a> {
                     LeafBlock::CodeBlock(c) => Self::NonSelectable(NonSelectable::CodeBlock(c)),
                     LeafBlock::Table(t) => Self::Table(t),
                 },
+                Block::Container(container) => match container {
+                    Container::List(list) => Self::List(list),
+                },
             },
             MdqNode::Section(v) => Self::Section(v),
             MdqNode::BlockQuote(v) => Self::BlockQuote(v),
-            MdqNode::List(v) => Self::List(v),
             MdqNode::Inline(v) => Self::Inline(v),
         }
     }
