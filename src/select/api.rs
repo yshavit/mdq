@@ -5,6 +5,7 @@ use crate::select::sel_list_item::{ListItemSelector, ListItemType};
 use crate::select::sel_section::SectionSelector;
 use crate::tree::{Formatting, Image, Inline, Link, MdElem, Text};
 use crate::tree_ref::{ListItemRef, MdElemRef};
+use std::fmt::{Display, Formatter};
 
 pub enum SelectResult<'a> {
     One(MdElemRef<'a>),
@@ -23,9 +24,21 @@ pub struct ParseError {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParseErrorReason {
+    Expected(char),
     UnexpectedCharacter(char),
     UnexpectedEndOfInput,
     InvalidSyntax(String),
+}
+
+impl Display for ParseErrorReason {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseErrorReason::Expected(ch) => write!(f, "expected \"{}\"", ch),
+            ParseErrorReason::UnexpectedCharacter(ch) => write!(f, "unexpected character \"{}\"", ch),
+            ParseErrorReason::UnexpectedEndOfInput => write!(f, "unexpected end of input"),
+            ParseErrorReason::InvalidSyntax(s) => write!(f, "{}", s),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]

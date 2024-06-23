@@ -1,6 +1,6 @@
 use crate::fmt_str::inlines_to_plain_string;
 use crate::parsing_iter::ParsingIterator;
-use crate::select::{ParseErrorReason, ParseResult, SELECTOR_SEPARATOR};
+use crate::select::{ParseErrorReason, ParseResult};
 use crate::tree::{Block, Container, Inline, LeafBlock, MdElem};
 use regex::Regex;
 use std::borrow::Borrow;
@@ -89,7 +89,9 @@ impl StringMatcher {
             '*' => Ok(StringMatcher::Any),
             '/' => Self::parse_regex_matcher(chars),
             other if other == bareword_end => Ok(StringMatcher::Any),
-            _ => Err(ParseErrorReason::UnexpectedCharacter(peek_ch)),
+            _ => Err(ParseErrorReason::InvalidSyntax(
+                "invalid string specifier (must be quoted or a bareword that starts with a letter)".to_string(),
+            )),
         }
     }
 
@@ -142,6 +144,7 @@ impl StringMatcher {
 mod test {
     use super::*;
     use crate::parse_common::Position;
+    use crate::select::SELECTOR_SEPARATOR;
     use indoc::indoc;
 
     #[test]

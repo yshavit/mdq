@@ -33,10 +33,14 @@ impl ListItemType {
                     Some(' ') => CheckboxSpecifier::CheckboxUnchecked,
                     Some('x') => CheckboxSpecifier::CheckboxChecked,
                     Some('?') => CheckboxSpecifier::CheckboxEither,
-                    Some(other) => return Err(ParseErrorReason::UnexpectedCharacter(other)),
+                    Some(_) => {
+                        return Err(ParseErrorReason::InvalidSyntax(
+                            "checkbox specifier must be one of: [ ], [x], or [?]".to_string(),
+                        ))
+                    }
                     None => return Err(ParseErrorReason::UnexpectedEndOfInput),
                 };
-                chars.require_char(']', || ParseErrorReason::UnexpectedEndOfInput)?;
+                chars.require_char(']')?;
                 checkbox
             }
         };
@@ -92,7 +96,7 @@ impl ListItemType {
 
     fn read_type(&self, chars: &mut ParsingIterator) -> ParseResult<()> {
         if matches!(self, ListItemType::Ordered) {
-            chars.require_char('.', || {
+            chars.require_char_or_else('.', || {
                 ParseErrorReason::InvalidSyntax("Ordered list item specifier must start with \"1.\"".to_string())
             })
         } else {
