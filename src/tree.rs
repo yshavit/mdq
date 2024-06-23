@@ -122,11 +122,11 @@ pub enum CodeVariant {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Inline {
-    Formatting(Formatting),
-    Text(Text),
-    Link(Link),
-    Image(Image),
     Footnote(Footnote),
+    Formatting(Formatting),
+    Image(Image),
+    Link(Link),
+    Text(Text),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]

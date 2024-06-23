@@ -163,9 +163,6 @@ impl<'a> MdWriterState<'a> {
             MdElemRef::ListItem(ListItemRef(idx, item)) => {
                 self.write_list_item(out, &idx, item);
             }
-            MdElemRef::Inline(inline) => {
-                self.write_inline_element(out, inline);
-            }
             MdElemRef::NonSelectable(node) => match node {
                 NonSelectable::ThematicBreak => {
                     out.with_block(Block::Plain, |out| out.write_str("***"));
@@ -177,6 +174,9 @@ impl<'a> MdWriterState<'a> {
                 NonSelectable::BlockQuote(block) => self.write_block_quote(out, block),
                 NonSelectable::List(list) => self.write_list(out, list),
                 NonSelectable::Table(table) => self.write_table(out, table),
+                NonSelectable::Inline(inline) => {
+                    self.write_inline_element(out, inline);
+                }
             },
         }
     }
@@ -614,34 +614,34 @@ pub mod tests {
         Section(_),
         ListItem(..),
 
-        Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Delete, ..})),
-        Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Emphasis, ..})),
-        Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Strong, ..})),
+        NonSelectable(NonSelectable::Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Delete, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Emphasis, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Strong, ..}))),
 
-        Inline(Inline::Text(Text{variant: TextVariant::Plain, ..})),
-        Inline(Inline::Text(Text{variant: TextVariant::Code, ..})),
-        Inline(Inline::Text(Text{variant: TextVariant::Math, ..})),
-        Inline(Inline::Text(Text{variant: TextVariant::Html, ..})),
+        NonSelectable(NonSelectable::Inline(Inline::Text(Text{variant: TextVariant::Plain, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Text(Text{variant: TextVariant::Code, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Text(Text{variant: TextVariant::Math, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Text(Text{variant: TextVariant::Html, ..}))),
 
-        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..})),
-        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..})),
-        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..})),
-        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..})),
-        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..})),
-        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..})),
-        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..})),
-        Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..})),
+        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Link(Link{link_definition: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}))),
 
-        Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..})),
-        Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..})),
-        Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..})),
-        Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..})),
-        Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..})),
-        Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..})),
-        Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..})),
-        Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..})),
+        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..}))),
+        NonSelectable(NonSelectable::Inline(Inline::Image(Image{link: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..}))),
 
-        Inline(Inline::Footnote{..}),
+        NonSelectable(NonSelectable::Inline(Inline::Footnote{..})),
 
         NonSelectable(NonSelectable::ThematicBreak),
         NonSelectable(NonSelectable::CodeBlock(CodeBlock{variant: CodeVariant::Code(None), ..})),
