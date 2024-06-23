@@ -15,7 +15,6 @@ pub struct MdOptions {
     footnote_reference_options: ReferencePlacement,
 }
 
-#[allow(dead_code)]
 pub enum ReferencePlacement {
     /// Show links as references defined in the first section that uses the link.
     ///
@@ -87,22 +86,19 @@ where
 }
 
 struct MdWriterState<'a> {
-    #[allow(dead_code)]
     opts: &'a MdOptions,
     seen_links: HashSet<LinkLabel<'a>>,
-    #[allow(dead_code)]
     seen_footnotes: HashSet<&'a String>,
     pending_references: PendingReferences<'a>,
 }
 
 struct PendingReferences<'a> {
-    links: HashMap<LinkLabel<'a>, ReifiedLink<'a>>,
-    #[allow(dead_code)]
+    links: HashMap<LinkLabel<'a>, UrlAndTitle<'a>>,
     footnotes: HashMap<&'a String, &'a Vec<MdElem>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
-struct ReifiedLink<'a> {
+struct UrlAndTitle<'a> {
     url: &'a String,
     title: &'a Option<String>,
 }
@@ -492,7 +488,7 @@ impl<'a> MdWriterState<'a> {
             if self.seen_links.insert(reference_label.clone()) {
                 self.pending_references.links.insert(
                     reference_label,
-                    ReifiedLink {
+                    UrlAndTitle {
                         url: &link.url,
                         title: &link.title,
                     },
