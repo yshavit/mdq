@@ -38,12 +38,12 @@ impl<'a> From<&'a MdqNode> for MdqNodeRef<'a> {
                     LeafBlock::ThematicBreak => Self::NonSelectable(NonSelectable::ThematicBreak),
                     LeafBlock::Paragraph(p) => Self::Paragraph(p),
                     LeafBlock::CodeBlock(c) => Self::NonSelectable(NonSelectable::CodeBlock(c)),
+                    LeafBlock::Table(t) => Self::Table(t),
                 },
             },
             MdqNode::Section(v) => Self::Section(v),
             MdqNode::BlockQuote(v) => Self::BlockQuote(v),
             MdqNode::List(v) => Self::List(v),
-            MdqNode::Table(v) => Self::Table(v),
             MdqNode::Inline(v) => Self::Inline(v),
         }
     }

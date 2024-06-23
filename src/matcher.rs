@@ -47,6 +47,16 @@ impl StringMatcher {
         match block {
             Block::LeafBlock(LeafBlock::Paragraph(p)) => self.matches_inlines(&p.body),
             Block::LeafBlock(LeafBlock::ThematicBreak | LeafBlock::CodeBlock(_)) => false,
+            Block::LeafBlock(LeafBlock::Table(table)) => {
+                for row in &table.rows {
+                    for cell in row {
+                        if self.matches_inlines(cell) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
         }
     }
 
@@ -62,16 +72,6 @@ impl StringMatcher {
             }
             MdqNode::BlockQuote(block) => self.matches_any(&block.body),
             MdqNode::List(list) => list.items.iter().any(|li| self.matches_any(&li.item)),
-            MdqNode::Table(table) => {
-                for row in &table.rows {
-                    for cell in row {
-                        if self.matches_inlines(cell) {
-                            return true;
-                        }
-                    }
-                }
-                false
-            }
             MdqNode::Inline(inline) => self.matches_inlines(&[inline]),
         }
     }

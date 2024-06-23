@@ -960,7 +960,7 @@ pub mod tests {
         #[test]
         fn simple() {
             check_render(
-                mdq_nodes![Table {
+                mdq_nodes![Block::LeafBlock::Table {
                     alignments: vec![
                         mdast::AlignKind::Left,
                         mdast::AlignKind::Right,
@@ -997,7 +997,7 @@ pub mod tests {
         fn single_char_cells() {
             // This checks the minimum padding aspects
             check_render(
-                mdq_nodes![Table {
+                mdq_nodes![Block::LeafBlock::Table {
                     alignments: vec![
                         mdast::AlignKind::Left,
                         mdast::AlignKind::Right,
@@ -1034,7 +1034,7 @@ pub mod tests {
         fn empty_cells() {
             // This checks the minimum padding aspects
             check_render(
-                mdq_nodes![Table {
+                mdq_nodes![Block::LeafBlock::Table {
                     alignments: vec![
                         mdast::AlignKind::Left,
                         mdast::AlignKind::Right,
@@ -1071,7 +1071,7 @@ pub mod tests {
         fn row_counts_inconsistent() {
             // This is an invalid table, but we should still support it
             check_render(
-                mdq_nodes![Table {
+                mdq_nodes![Block::LeafBlock::Table {
                     alignments: vec![mdast::AlignKind::None, mdast::AlignKind::None,],
                     rows: vec![
                         // Header row: two values

@@ -13,18 +13,13 @@ pub enum MdqNode {
     Section(Section),
     BlockQuote(BlockQuote),
     List(List),
-    Table(Table),
-
-    // blocks that contain strings (as opposed to nodes)
-
-    // inline spans
     Inline(Inline),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Block {
     LeafBlock(LeafBlock),
-    // TODO #53 leaf blocks
+    // TODO #53 container blocks
 }
 
 #[derive(Debug, PartialEq)]
@@ -32,7 +27,7 @@ pub enum LeafBlock {
     ThematicBreak,
     Paragraph(Paragraph),
     CodeBlock(CodeBlock),
-    // TODO #53
+    Table(Table),
 }
 
 #[derive(Debug, PartialEq)]
@@ -396,7 +391,7 @@ impl MdqNode {
                     }
                     rows.push(column);
                 }
-                MdqNode::Table(Table {
+                m_node!(MdqNode::Block::LeafBlock::Table {
                     alignments: align,
                     rows,
                 })
@@ -1667,7 +1662,7 @@ mod tests {
                     "#},
             );
             assert_eq!(root.children.len(), 1);
-            check!(&root.children[0], Node::Table(table_node), lookups => MdqNode::Table(Table{alignments, rows}) = {
+            check!(&root.children[0], Node::Table(table_node), lookups => m_node!(MdqNode::Block::LeafBlock::Table{alignments, rows}) = {
                 assert_eq!(alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Center, mdast::AlignKind::Right, mdast::AlignKind::None]);
                 assert_eq!(rows,
                     vec![ // rows
