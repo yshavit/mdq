@@ -1,6 +1,4 @@
-use crate::tree::{
-    Block, BlockQuote, CodeBlock, Container, Inline, LeafBlock, List, ListItem, MdElem, Paragraph, Section, Table,
-};
+use crate::tree::{Block, BlockQuote, CodeBlock, Container, Inline, LeafBlock, List, ListItem, MdElem, Section, Table};
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
 /// selected.
@@ -17,7 +15,7 @@ pub enum MdElemRef<'a> {
 pub enum NonSelectable<'a> {
     ThematicBreak,
     CodeBlock(&'a CodeBlock),
-    Paragraph(&'a Paragraph),
+    Paragraph(&'a Vec<Inline>),
     BlockQuote(&'a BlockQuote),
     List(&'a List),
     Table(&'a Table),

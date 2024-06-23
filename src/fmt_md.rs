@@ -181,9 +181,9 @@ impl<'a> MdWriterState<'a> {
         }
     }
 
-    fn write_paragraph<W: SimpleWrite>(&mut self, out: &mut Output<W>, paragraph: &'a Paragraph) {
+    fn write_paragraph<W: SimpleWrite>(&mut self, out: &mut Output<W>, body: &'a Vec<Inline>) {
         out.with_block(Block::Plain, |out| {
-            self.write_line(out, &paragraph.body);
+            self.write_line(out, body);
         });
     }
 
@@ -1708,25 +1708,23 @@ pub mod tests {
         #[test]
         fn link_and_footnote() {
             check_render(
-                md_elems![Block::LeafBlock::Paragraph {
-                    body: vec![
-                        mdq_inline!("Hello, "),
-                        Inline::Link {
-                            text: vec![mdq_inline!("world"),],
-                            link_definition: LinkDefinition {
-                                url: "https://example.com".to_string(),
-                                title: None,
-                                reference: LinkReference::Full("1".to_string()),
-                            }
-                        },
-                        mdq_inline!("! This is interesting"),
-                        Inline::Footnote(Footnote {
-                            label: "a".to_string(),
-                            text: md_elems!["this is my note"],
-                        }),
-                        mdq_inline!("."),
-                    ],
-                }],
+                md_elems![Block::LeafBlock::Paragraph(vec![
+                    mdq_inline!("Hello, "),
+                    Inline::Link {
+                        text: vec![mdq_inline!("world"),],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Full("1".to_string()),
+                        }
+                    },
+                    mdq_inline!("! This is interesting"),
+                    Inline::Footnote(Footnote {
+                        label: "a".to_string(),
+                        text: md_elems!["this is my note"],
+                    }),
+                    mdq_inline!("."),
+                ])],
                 indoc! {r#"
                     Hello, [world][1]! This is interesting[^a].
 
@@ -1833,34 +1831,32 @@ pub mod tests {
                     footnote_reference_options: ReferencePlacement::BottomOfDoc,
                 },
                 // Define them in the opposite order that we'd expect them
-                md_elems![Block::LeafBlock::Paragraph {
-                    body: vec![
-                        Inline::Footnote(Footnote {
-                            label: "d".to_string(),
-                            text: md_elems!["footnote 1"]
-                        }),
-                        Inline::Footnote(Footnote {
-                            label: "c".to_string(),
-                            text: md_elems!["footnote 2"]
-                        }),
-                        Inline::Link {
-                            text: vec![mdq_inline!("b-text")],
-                            link_definition: LinkDefinition {
-                                url: "https://example.com/b".to_string(),
-                                title: None,
-                                reference: LinkReference::Full("b".to_string()),
-                            },
+                md_elems![Block::LeafBlock::Paragraph(vec![
+                    Inline::Footnote(Footnote {
+                        label: "d".to_string(),
+                        text: md_elems!["footnote 1"]
+                    }),
+                    Inline::Footnote(Footnote {
+                        label: "c".to_string(),
+                        text: md_elems!["footnote 2"]
+                    }),
+                    Inline::Link {
+                        text: vec![mdq_inline!("b-text")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com/b".to_string(),
+                            title: None,
+                            reference: LinkReference::Full("b".to_string()),
                         },
-                        Inline::Link {
-                            text: vec![mdq_inline!("a-text")],
-                            link_definition: LinkDefinition {
-                                url: "https://example.com/a".to_string(),
-                                title: None,
-                                reference: LinkReference::Full("a".to_string()),
-                            },
+                    },
+                    Inline::Link {
+                        text: vec![mdq_inline!("a-text")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com/a".to_string(),
+                            title: None,
+                            reference: LinkReference::Full("a".to_string()),
                         },
-                    ]
-                }],
+                    },
+                ])],
                 indoc! {r#"
                     [^d][^c][b-text][b][a-text][a]
 
@@ -1876,24 +1872,22 @@ pub mod tests {
                 Block::Container::Section {
                     depth: 1,
                     title: vec![mdq_inline!("First section")],
-                    body: md_elems![Block::LeafBlock::Paragraph {
-                        body: vec![
-                            Inline::Link {
-                                text: vec![mdq_inline!("link description")],
-                                link_definition: LinkDefinition {
-                                    url: "https://exampl.com".to_string(),
-                                    title: None,
-                                    reference: LinkReference::Full("1".to_string()),
-                                },
+                    body: md_elems![Block::LeafBlock::Paragraph(vec![
+                        Inline::Link {
+                            text: vec![mdq_inline!("link description")],
+                            link_definition: LinkDefinition {
+                                url: "https://exampl.com".to_string(),
+                                title: None,
+                                reference: LinkReference::Full("1".to_string()),
                             },
-                            mdq_inline!(" and then a thought"),
-                            Inline::Footnote(Footnote {
-                                label: "a".to_string(),
-                                text: md_elems!["the footnote"],
-                            }),
-                            mdq_inline!("."),
-                        ],
-                    }],
+                        },
+                        mdq_inline!(" and then a thought"),
+                        Inline::Footnote(Footnote {
+                            label: "a".to_string(),
+                            text: md_elems!["the footnote"],
+                        }),
+                        mdq_inline!("."),
+                    ])],
                 },
                 Block::Container::Section {
                     depth: 1,

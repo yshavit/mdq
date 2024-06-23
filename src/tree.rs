@@ -21,7 +21,7 @@ pub enum Block {
 #[derive(Debug, PartialEq)]
 pub enum LeafBlock {
     CodeBlock(CodeBlock),
-    Paragraph(Paragraph),
+    Paragraph(Vec<Inline>),
     Table(Table),
     ThematicBreak,
 }
@@ -38,11 +38,6 @@ pub struct Section {
     pub depth: u8,
     pub title: Vec<Inline>,
     pub body: Vec<MdElem>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Paragraph {
-    pub body: Vec<Inline>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -243,6 +238,11 @@ macro_rules! m_node {
             $($args)*
         }
     };
+    ($last:ident :: $next:ident ( $($args:tt)* )) => {
+        $last::$next (
+            $($args)*
+        )
+    };
 
     // Terminal empty struct: Foo::Bar
     ($last:ident :: $next:ident) => {
@@ -250,8 +250,8 @@ macro_rules! m_node {
     };
 
     // Recursive case: A::B<tail> -> A::B(B<tail>)
-    ($head:ident :: $next:ident $(:: $($tail:ident)::*)? $({ $($args:tt)* })? ) => {
-        $head::$next( m_node!($next $(:: $($tail)::*)? $({ $($args)* })?) )
+    ($head:ident :: $next:ident $(:: $($tail:ident)::*)? $({ $($args:tt)* })? $(( $($p_args:tt)* ))? ) => {
+        $head::$next( m_node!($next $(:: $($tail)::*)? $({ $($args)* })? $(( $($p_args)* ))? ) )
     };
 }
 
@@ -399,9 +399,10 @@ impl MdElem {
                 return Err(InvalidMd::InternalError); // should have been handled by Node::Table
             }
             mdast::Node::Definition(_) => return Ok(Vec::new()),
-            mdast::Node::Paragraph(node) => m_node!(MdElem::Block::LeafBlock::Paragraph {
-                body: Self::inlines(node.children, lookups)?,
-            }),
+            mdast::Node::Paragraph(node) => m_node!(MdElem::Block::LeafBlock::Paragraph(Self::inlines(
+                node.children,
+                lookups
+            )?,)),
             mdast::Node::Toml(node) => m_node!(MdElem::Block::LeafBlock::CodeBlock {
                 variant: CodeVariant::Toml,
                 value: node.value,
@@ -888,7 +889,7 @@ mod tests {
                 "#},
             );
 
-            check!(&root.children[0], Node::Paragraph(p), lookups => m_node!(MdElem::Block::LeafBlock::Paragraph{body}) = {
+            check!(&root.children[0], Node::Paragraph(p), lookups => m_node!(MdElem::Block::LeafBlock::Paragraph(body)) = {
                 assert_eq!(p.children.len(), 3);
                 check!(&p.children[0], Node::Text(_), lookups => MdElem::Inline(text) = {
                     assert_eq!(text, Inline::Text {variant: TextVariant::Plain, value: "hello ".to_string()});
@@ -990,7 +991,7 @@ mod tests {
                 let (root, lookups) = parse(indoc! {r#"
                 In <em>a paragraph.</em>
                 "#});
-                check!(&root.children[0], Node::Paragraph(_), lookups => m_node!(MdElem::Block::LeafBlock::Paragraph{body}) = {
+                check!(&root.children[0], Node::Paragraph(_), lookups => m_node!(MdElem::Block::LeafBlock::Paragraph(body)) = {
                     assert_eq!(body.len(), 4);
                     assert_eq!(body, vec![
                         mdq_inline!("In "),
@@ -1010,7 +1011,7 @@ mod tests {
                 In <em
                 newline  >a paragraph.</em>
                 "#});
-                check!(&root.children[0], Node::Paragraph(_), lookups => m_node!(MdElem::Block::LeafBlock::Paragraph{body}) = {
+                check!(&root.children[0], Node::Paragraph(_), lookups => m_node!(MdElem::Block::LeafBlock::Paragraph(body)) = {
                     assert_eq!(body.len(), 4);
                     assert_eq!(body, vec![
                         mdq_inline!("In "),
@@ -1087,7 +1088,7 @@ mod tests {
             {
                 // This isn't an image, though it almost looks like one
                 let (root, lookups) = parse(r#"![]("only a tooltip")"#);
-                check!(&root.children[0], Node::Paragraph(_), lookups => p @ m_node!(MdElem::Block::LeafBlock::Paragraph{ .. }) = {
+                check!(&root.children[0], Node::Paragraph(_), lookups => p @ m_node!(MdElem::Block::LeafBlock::Paragraph(_)) = {
                     assert_eq!(p, md_elem!(r#"![]("only a tooltip")"#));
                 });
             }
@@ -1905,6 +1906,7 @@ mod tests {
 
     mod nesting {
         use super::*;
+        use crate::mdq_inline;
 
         #[test]
         fn h1_with_two_paragraphs() -> Result<(), InvalidMd> {
@@ -1914,23 +1916,15 @@ mod tests {
                     title: vec![mdq_inline!("first")],
                     body: vec![],
                 }),
-                m_node!(MdElem::Block::LeafBlock::Paragraph {
-                    body: vec![mdq_inline!("aaa")],
-                }),
-                m_node!(MdElem::Block::LeafBlock::Paragraph {
-                    body: vec![mdq_inline!("bbb")],
-                }),
+                m_node!(MdElem::Block::LeafBlock::Paragraph(vec![mdq_inline!("aaa")],)),
+                m_node!(MdElem::Block::LeafBlock::Paragraph(vec![mdq_inline!("bbb")],)),
             ];
             let expect = vec![m_node!(MdElem::Block::Container::Section {
                 depth: 1,
                 title: vec![mdq_inline!("first")],
                 body: vec![
-                    m_node!(MdElem::Block::LeafBlock::Paragraph {
-                        body: vec![mdq_inline!("aaa")],
-                    }),
-                    m_node!(MdElem::Block::LeafBlock::Paragraph {
-                        body: vec![mdq_inline!("bbb")],
-                    }),
+                    m_node!(MdElem::Block::LeafBlock::Paragraph(vec![mdq_inline!("aaa")],)),
+                    m_node!(MdElem::Block::LeafBlock::Paragraph(vec![mdq_inline!("bbb")],)),
                 ],
             })];
             let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
