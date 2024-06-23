@@ -75,24 +75,25 @@ impl StringMatcher {
         }
     }
 
-    pub fn read(chars: &mut ParsingIterator) -> ParseResult<StringMatcher> {
+    pub fn read(chars: &mut ParsingIterator, bareword_end: char) -> ParseResult<StringMatcher> {
         chars.drop_while(|ch| ch.is_whitespace());
         let peek_ch = match chars.peek() {
             None => return Ok(StringMatcher::Any),
             Some(ch) => ch,
         };
         if peek_ch.is_alphanumeric() {
-            return Ok(Self::parse_matcher_bare(chars));
+            return Ok(Self::parse_matcher_bare(chars, bareword_end));
         }
         let _ = chars.next(); // drop the char we peeked
         match peek_ch {
-            '*' | SELECTOR_SEPARATOR => Ok(StringMatcher::Any),
+            '*' => Ok(StringMatcher::Any),
             '/' => Self::parse_regex_matcher(chars),
+            other if other == bareword_end => Ok(StringMatcher::Any),
             _ => Err(ParseErrorReason::UnexpectedCharacter(peek_ch)),
         }
     }
 
-    fn parse_matcher_bare(chars: &mut ParsingIterator) -> StringMatcher {
+    fn parse_matcher_bare(chars: &mut ParsingIterator, bareword_end: char) -> StringMatcher {
         let mut result = String::with_capacity(20); // just a guess
         let mut dropped = String::with_capacity(8); // also a guess
 
@@ -101,7 +102,7 @@ impl StringMatcher {
             let Some(ch) = chars.next() else {
                 break;
             };
-            if ch == SELECTOR_SEPARATOR {
+            if ch == bareword_end {
                 break;
             }
             result.push_str(&dropped);
@@ -162,6 +163,7 @@ mod test {
             StringMatcher::Substring("hello".to_string()),
             " goodbye",
         );
+        parse_and_check_with(']', "foo] rest", StringMatcher::Substring("foo".to_string()), " rest");
     }
 
     #[test]
@@ -204,17 +206,28 @@ mod test {
         );
     }
 
-    fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) {
+    #[test]
+    fn any() {
+        parse_and_check("| rest", StringMatcher::Any, " rest");
+        parse_and_check(" | rest", StringMatcher::Any, " rest");
+        parse_and_check_with(']', "] rest", StringMatcher::Any, " rest");
+    }
+
+    fn parse_and_check_with(bareword_end: char, text: &str, expect: StringMatcher, expect_remaining: &str) {
         let mut iter = ParsingIterator::new(text);
-        let matcher = StringMatcher::read(&mut iter).unwrap();
+        let matcher = StringMatcher::read(&mut iter, bareword_end).unwrap();
         assert_eq!(matcher, expect);
         let remaining: String = iter.collect();
         assert_eq!(&remaining, expect_remaining);
     }
 
+    fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) {
+        parse_and_check_with(SELECTOR_SEPARATOR, text, expect, expect_remaining)
+    }
+
     fn expect_err(text: &str, expect: ParseErrorReason, at: Position) {
         let mut iter = ParsingIterator::new(text);
-        let err = StringMatcher::read(&mut iter).expect_err("expected to fail parsing");
+        let err = StringMatcher::read(&mut iter, SELECTOR_SEPARATOR).expect_err("expected to fail parsing");
         assert_eq!(iter.input_position(), at);
         assert_eq!(err, expect);
     }

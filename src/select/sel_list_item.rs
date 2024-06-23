@@ -1,7 +1,7 @@
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
-use crate::select::{ParseErrorReason, ParseResult, SelectResult};
+use crate::select::{ParseErrorReason, ParseResult, SelectResult, SELECTOR_SEPARATOR};
 use crate::tree_ref::{ListItemRef, MdElemRef};
 
 #[derive(Debug, PartialEq)]
@@ -42,7 +42,7 @@ impl ListItemType {
         };
 
         // item string matcher
-        let string_matcher = StringMatcher::read(chars)?;
+        let string_matcher = StringMatcher::read(chars, SELECTOR_SEPARATOR)?;
 
         Ok(ListItemSelector {
             li_type: self,
