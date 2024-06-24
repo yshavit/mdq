@@ -45,11 +45,10 @@ impl Display for ParseErrorReason {
 }
 
 macro_rules! selectors {
-    // TODO can I replace $bang:literal with literally just a "!"?
     [
         $($(#[$meta:meta])*
-        $({$($char:literal $(::$($read_variant:ident)::+)? ),+})?
-        $(! {$($bang_char:literal $(::$($bang_read_variant:ident)::+)? ),+})?
+        $({$($char:literal $(=>$($read_variant:ident)::+)? ),+})?
+        $(! {$($bang_char:literal $(=>$($bang_read_variant:ident)::+)? ),+})?
         $name:ident),* $(,)?
     ] => {
         #[derive(Debug, PartialEq)]
@@ -127,7 +126,10 @@ selectors![
     /// checkbox specifier is omitted, the selector will only select list items without a checkbox.
     ///
     /// In bareword form, the string matcher terminates with the [selector delimiter character](SELECTOR_SEPARATOR).
-    {'1'::ListItemType::Ordered,'-'::ListItemType::Unordered} ListItem,
+    {
+        '1' => ListItemType::Ordered,
+        '-' => ListItemType::Unordered
+    } ListItem,
 
     {'['} Link,
     ! {'['} Image,
