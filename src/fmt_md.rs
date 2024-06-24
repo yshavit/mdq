@@ -583,15 +583,7 @@ impl<'a> MdWriterState<'a> {
     {
         let Some(title) = title else { return };
         out.write_char(' ');
-        // TODO pick which quoting char to use (single, double, or paren) depending on title
-        out.write_char('"');
-        for ch in title.chars() {
-            if ch == '"' {
-                out.write_char('\\');
-            }
-            out.write_char(ch);
-        }
-        out.write_char('"');
+        TitleQuote::find_best_strategy(title).escape_to(title, out);
     }
 
     fn line_to_string<E>(&mut self, line: &'a [E]) -> String
@@ -601,6 +593,53 @@ impl<'a> MdWriterState<'a> {
         let mut out = Output::new(String::with_capacity(line.len() * 10)); // rough guess
         self.write_line(&mut out, line);
         out.take_underlying().unwrap()
+    }
+}
+
+enum TitleQuote {
+    Double,
+    Single,
+    Paren,
+}
+
+impl TitleQuote {
+    pub fn find_best_strategy(text: &str) -> Self {
+        [Self::Double, Self::Single, Self::Paren]
+            .into_iter()
+            .find(|strategy| !strategy.has_conflicts(text))
+            .unwrap_or(TitleQuote::Double)
+    }
+
+    fn get_surround_chars(&self) -> (char, char) {
+        match self {
+            TitleQuote::Double => ('"', '"'),
+            TitleQuote::Single => ('\'', '\''),
+            TitleQuote::Paren => ('(', ')'),
+        }
+    }
+
+    fn get_conflict_char_fn(surrounds: (char, char)) -> impl Fn(char) -> bool {
+        let (open, close) = surrounds;
+        move |ch| ch == open || ch == close
+    }
+
+    fn has_conflicts(&self, text: &str) -> bool {
+        text.chars().any(Self::get_conflict_char_fn(self.get_surround_chars()))
+    }
+
+    fn escape_to<W: SimpleWrite>(&self, text: &str, out: &mut Output<W>) {
+        let surrounds = self.get_surround_chars();
+        let conflict_char_fn = Self::get_conflict_char_fn(surrounds);
+        let (open, close) = surrounds;
+
+        out.write_char(open);
+        for ch in text.chars() {
+            if conflict_char_fn(ch) {
+                out.write_char('\\');
+            }
+            out.write_char(ch);
+        }
+        out.write_char(close);
     }
 }
 
@@ -675,6 +714,49 @@ pub mod tests {
         List(_),
         Table(_),
     });
+
+    mod title_quoting {
+        use super::*;
+        use crate::fmt_md::TitleQuote;
+
+        crate::variants_checker!(TITLE_QUOTING_CHECKER = TitleQuote { Double, Single, Paren });
+
+        #[test]
+        fn bareword_uses_double() {
+            check("foo", "\"foo\"");
+        }
+
+        #[test]
+        fn has_double_quotes() {
+            check("foo\"bar", "'foo\"bar'");
+        }
+
+        #[test]
+        fn has_double_quotes_and_singles() {
+            check("foo'\"bar", "(foo'\"bar)");
+        }
+
+        #[test]
+        fn has_only_single_quotes() {
+            check("foo'bar", "\"foo'bar\"");
+        }
+
+        #[test]
+        fn has_all_delimiters() {
+            check("foo('\")bar", "\"foo('\\\")bar\"");
+        }
+
+        fn check(input: &str, expected: &str) {
+            let strategy = TitleQuote::find_best_strategy(input);
+            TITLE_QUOTING_CHECKER.see(&strategy);
+
+            // +1 to give room for some quotes
+            let mut writer = Output::new(String::with_capacity(input.len() + 4));
+            strategy.escape_to(input, &mut writer);
+            let actual = writer.take_underlying().unwrap();
+            assert_eq!(&actual, expected);
+        }
+    }
 
     #[test]
     fn empty() {

@@ -242,7 +242,3 @@ impl MdqRefSelector {
         }
     }
 }
-
-/*
-
-*/
