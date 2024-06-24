@@ -1,3 +1,4 @@
+use clap::ValueEnum;
 use std::borrow::Borrow;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
@@ -11,12 +12,13 @@ use crate::tree_ref::{ListItemRef, MdElemRef};
 
 #[derive(Default)]
 pub struct MdOptions {
-    link_reference_options: ReferencePlacement,
-    footnote_reference_options: ReferencePlacement,
+    pub link_reference_placement: ReferencePlacement,
+    pub footnote_reference_placement: ReferencePlacement,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum ReferencePlacement {
-    /// Show links as references defined in the first section that uses the link.
+    /// Show link definitions in the first section that uses the link.
     ///
     /// ```
     /// # Top Header
@@ -33,9 +35,9 @@ pub enum ReferencePlacement {
     ///
     /// Lorem ipsum in the second sub-section.
     /// ```
-    BottomOfSection,
+    Section,
 
-    /// Show links as references defined at the bottom of the document.
+    /// Show link definitions at the bottom of the document.
     ///
     /// ```
     /// # Top Header
@@ -52,13 +54,12 @@ pub enum ReferencePlacement {
     /// [1]: https://example.com
     /// ^^^^^^^^^^^^^^^^^^^^^^^^
     /// ```
-    #[allow(dead_code)]
-    BottomOfDoc,
+    Doc,
 }
 
 impl Default for ReferencePlacement {
     fn default() -> Self {
-        Self::BottomOfSection
+        Self::Section
     }
 }
 
@@ -167,15 +168,15 @@ impl<'a> MdWriterState<'a> {
                     }
                 });
                 self.write_md(out, MdElemRef::wrap_vec(body).into_iter(), false);
-                let which_defs_to_write =
-                    match (&self.opts.link_reference_options, &self.opts.footnote_reference_options) {
-                        (ReferencePlacement::BottomOfSection, ReferencePlacement::BottomOfSection) => {
-                            DefinitionsToWrite::Both
-                        }
-                        (_, ReferencePlacement::BottomOfSection) => DefinitionsToWrite::Footnotes,
-                        (ReferencePlacement::BottomOfSection, _) => DefinitionsToWrite::Links,
-                        (_, _) => DefinitionsToWrite::Neither,
-                    };
+                let which_defs_to_write = match (
+                    &self.opts.link_reference_placement,
+                    &self.opts.footnote_reference_placement,
+                ) {
+                    (ReferencePlacement::Section, ReferencePlacement::Section) => DefinitionsToWrite::Both,
+                    (_, ReferencePlacement::Section) => DefinitionsToWrite::Footnotes,
+                    (ReferencePlacement::Section, _) => DefinitionsToWrite::Links,
+                    (_, _) => DefinitionsToWrite::Neither,
+                };
                 self.write_definitions(out, which_defs_to_write, false);
             }
             MdElemRef::ListItem(ListItemRef(idx, item)) => {
@@ -1901,8 +1902,8 @@ pub mod tests {
         fn both_in_sections() {
             check_render_with(
                 &MdOptions {
-                    link_reference_options: ReferencePlacement::BottomOfSection,
-                    footnote_reference_options: ReferencePlacement::BottomOfSection,
+                    link_reference_placement: ReferencePlacement::Section,
+                    footnote_reference_placement: ReferencePlacement::Section,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -1925,8 +1926,8 @@ pub mod tests {
         fn only_link_in_section() {
             check_render_with(
                 &MdOptions {
-                    link_reference_options: ReferencePlacement::BottomOfSection,
-                    footnote_reference_options: ReferencePlacement::BottomOfDoc,
+                    link_reference_placement: ReferencePlacement::Section,
+                    footnote_reference_placement: ReferencePlacement::Doc,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -1952,8 +1953,8 @@ pub mod tests {
         fn only_footnote_in_section() {
             check_render_with(
                 &MdOptions {
-                    link_reference_options: ReferencePlacement::BottomOfDoc,
-                    footnote_reference_options: ReferencePlacement::BottomOfSection,
+                    link_reference_placement: ReferencePlacement::Doc,
+                    footnote_reference_placement: ReferencePlacement::Section,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -1979,8 +1980,8 @@ pub mod tests {
         fn both_bottom_of_doc() {
             check_render_with(
                 &MdOptions {
-                    link_reference_options: ReferencePlacement::BottomOfDoc,
-                    footnote_reference_options: ReferencePlacement::BottomOfDoc,
+                    link_reference_placement: ReferencePlacement::Doc,
+                    footnote_reference_placement: ReferencePlacement::Doc,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -2005,8 +2006,8 @@ pub mod tests {
         fn ordering() {
             check_render_with(
                 &MdOptions {
-                    link_reference_options: ReferencePlacement::BottomOfDoc,
-                    footnote_reference_options: ReferencePlacement::BottomOfDoc,
+                    link_reference_placement: ReferencePlacement::Doc,
+                    footnote_reference_placement: ReferencePlacement::Doc,
                 },
                 // Define them in the opposite order that we'd expect them
                 md_elems![Block::LeafBlock::Paragraph {

@@ -1,8 +1,9 @@
+use clap::Parser;
+use std::io;
 use std::io::{stdin, Read};
 use std::process::ExitCode;
-use std::{env, io};
 
-use crate::fmt_md::MdOptions;
+use crate::fmt_md::{MdOptions, ReferencePlacement};
 use crate::output::Stream;
 use crate::select::ParseError;
 use crate::tree::{MdElem, ReadOptions};
@@ -22,18 +23,38 @@ mod tree_ref;
 mod tree_test_utils;
 mod utils_for_test;
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// Where to put link references.
+    ///
+    /// For links and images of style `[description][1]`, this flag controls where to put the `[1]: https://example.com`
+    /// definition.
+    #[arg(long, value_enum, default_value_t=ReferencePlacement::Section)]
+    link_pos: ReferencePlacement,
+
+    /// Where to put footnote references. Defaults to be same as --link-pos
+    #[arg(long, value_enum)]
+    footnote_pos: Option<ReferencePlacement>,
+
+    /// The selector string
+    selectors: Option<String>,
+}
+
 fn main() -> ExitCode {
+    let cli = Cli::parse();
+
     let mut contents = String::new();
     stdin().read_to_string(&mut contents).expect("invalid input (not utf8)");
     let ast = markdown::to_mdast(&mut contents, &markdown::ParseOptions::gfm()).unwrap();
     let mdqs = MdElem::read(ast, &ReadOptions::default()).unwrap();
     let mut out = output::Output::new(Stream(io::stdout()));
 
-    let selectors_str = env::args().nth(1).unwrap_or("".to_string());
-    let selectors = match MdqRefSelector::parse(&selectors_str) {
+    let selectors_str = &cli.selectors.unwrap_or_default();
+    let selectors = match MdqRefSelector::parse(selectors_str) {
         Ok(selectors) => selectors,
         Err(err) => {
-            print_select_parse_error(&selectors_str, err);
+            print_select_parse_error(selectors_str, err);
             return ExitCode::FAILURE;
         }
     };
@@ -44,7 +65,11 @@ fn main() -> ExitCode {
         pipeline_nodes = new_pipeline;
     }
 
-    fmt_md::write_md(&MdOptions::default(), &mut out, pipeline_nodes.into_iter());
+    let mut md_options = MdOptions::default();
+    md_options.link_reference_placement = cli.link_pos;
+    md_options.footnote_reference_placement = cli.footnote_pos.unwrap_or(md_options.link_reference_placement);
+
+    fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
     out.write_str("\n");
 
     ExitCode::SUCCESS
@@ -66,5 +91,16 @@ fn print_select_parse_error(original_string: &str, err: ParseError) {
         } else {
             eprintln!("⸾ {}", line)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_cli() {
+        use clap::CommandFactory;
+        Cli::command().debug_assert();
     }
 }
