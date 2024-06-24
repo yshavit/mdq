@@ -3,7 +3,8 @@ use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
 use crate::select::sel_image::ImageSelector;
 use crate::select::sel_link::LinkSelector;
-use crate::select::sel_list_item::{ListItemSelector, ListItemType};
+use crate::select::sel_list_item::ListItemSelector;
+use crate::select::sel_list_item::ListItemType;
 use crate::select::sel_section::SectionSelector;
 use crate::tree::{Formatting, Inline, Link, MdElem, Text};
 use crate::tree_ref::{ListItemRef, MdElemRef};
@@ -43,17 +44,74 @@ impl Display for ParseErrorReason {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum MdqRefSelector {
-    Any,
+macro_rules! selectors {
+    // TODO can I replace $bang:literal with literally just a "!"?
+    [
+        $($(#[$meta:meta])*
+        $({$($char:literal $(::$($read_variant:ident)::+)? ),+})?
+        $(! {$($bang_char:literal $(::$($bang_read_variant:ident)::+)? ),+})?
+        $name:ident),* $(,)?
+    ] => {
+        #[derive(Debug, PartialEq)]
+        pub enum MdqRefSelector {
+            $(
+                $(#[$meta])*
+                $name ( paste::paste!{[<$name Selector >]}),
+            )*
+        }
 
+        impl MdqRefSelector {
+            fn try_select_node<'a>(&self, node: MdElemRef<'a>) -> Option<SelectResult<'a>> {
+                match (self, node) {
+                    $(
+                    (Self::$name(selector), MdElemRef::$name(elem)) => selector.try_select(elem),
+                    )*
+                    _ => None
+                }
+            }
+
+            fn parse_selector(chars: &mut ParsingIterator) -> ParseResult<Self> {
+                chars.drop_whitespace(); // should already be the case, but this is cheap and future-proof
+                match chars.next() {
+                    None => Err(ParseErrorReason::UnexpectedEndOfInput),
+                    $(
+                        $(
+                            $(
+                                Some($char) => paste::paste!{ Ok(Self::$name([<$name Selector>]::read($( $($read_variant)::+ ,)?chars)?))},
+                            )+
+                        )?
+                    )*
+                    Some('!') => {
+                        match chars.peek() {
+                            $(
+                                $(
+                                    $(
+                                        Some($bang_char) => {
+                                            let _ = chars.next(); // drop the peeked char
+                                            paste::paste!{ Ok(Self::$name([<$name Selector>]::read($( $($bang_read_variant)::+ ,)?chars)?))}
+                                        }
+                                    )+
+                                )?
+                            )*
+                            Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // reserved for functions
+                            None => Err(ParseErrorReason::UnexpectedEndOfInput),
+                        }
+                    }
+                    Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // TODO should be Any w/ bareword if first char is a letter
+                }
+            }
+        }
+    };
+}
+
+selectors![
     /// Selects the content of a section identified by its heading.
     ///
     /// Format: `# <string_matcher>`
     ///
     /// In bareword form, the string matcher terminates with the
     /// [selector delimiter character](parse_common::SELECTOR_SEPARATOR).
-    Section(SectionSelector),
+    {'#'} Section,
 
     /// Selects a list item.
     ///
@@ -69,14 +127,11 @@ pub enum MdqRefSelector {
     /// checkbox specifier is omitted, the selector will only select list items without a checkbox.
     ///
     /// In bareword form, the string matcher terminates with the [selector delimiter character](SELECTOR_SEPARATOR).
-    ListItem(ListItemSelector),
+    {'1'::ListItemType::Ordered,'-'::ListItemType::Unordered} ListItem,
 
-    // TODO docs
-    Link(LinkSelector),
-
-    // TODO docs
-    Image(ImageSelector),
-}
+    {'['} Link,
+    ! {'['} Image,
+];
 
 impl MdqRefSelector {
     pub fn parse(text: &str) -> Result<Vec<Self>, ParseError> {
@@ -102,6 +157,7 @@ impl MdqRefSelector {
                 }
                 _ => {}
             }
+            // parse_selector  is defined in macro_helpers::selectors!
             let selector = Self::parse_selector(&mut iter).map_err(|reason| ParseError {
                 reason,
                 position: iter.input_position(),
@@ -121,14 +177,8 @@ impl MdqRefSelector {
     }
 
     fn build_output<'a>(&self, out: &mut Vec<MdElemRef<'a>>, node: MdElemRef<'a>) {
-        let result = match (self, node.clone()) {
-            (MdqRefSelector::Section(selector), MdElemRef::Section(header)) => selector.try_select(header),
-            (MdqRefSelector::ListItem(selector), MdElemRef::ListItem(item)) => selector.try_select(item),
-            (MdqRefSelector::Link(selector), MdElemRef::Link(item)) => selector.try_select(item),
-            (MdqRefSelector::Image(selector), MdElemRef::Image(item)) => selector.try_select(item),
-            _ => None,
-        };
-        match result {
+        // try_select_node is defined in macro_helpers::selectors!
+        match self.try_select_node(node) {
             Some(SelectResult::One(found)) => out.push(found),
             Some(SelectResult::Multi(found)) => found.iter().for_each(|item| out.push(item.into())),
             None => {
@@ -189,27 +239,8 @@ impl MdqRefSelector {
             MdElemRef::Image(_) => Vec::new(),
         }
     }
-
-    fn parse_selector(chars: &mut ParsingIterator) -> ParseResult<Self> {
-        chars.drop_whitespace(); // should already be the case, but this is cheap and future-proof
-        match chars.next() {
-            None => Ok(MdqRefSelector::Any), // unexpected, but future-proof
-            Some('#') => Ok(Self::Section(SectionSelector::read(chars)?)),
-            Some('1') => Ok(Self::ListItem(ListItemType::Ordered.read(chars)?)),
-            Some('-') => Ok(Self::ListItem(ListItemType::Unordered.read(chars)?)),
-            Some('[') => Ok(Self::Link(LinkSelector::read(chars)?)),
-            Some('!') => {
-                match chars.peek() {
-                    Some('[') => {
-                        let _ = chars.next();
-                        Ok(Self::Image(ImageSelector::read(chars)?))
-                    }
-                    Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // reserved for functions
-                    None => Err(ParseErrorReason::UnexpectedEndOfInput),
-                }
-            }
-
-            Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // TODO should be Any w/ bareword if first char is a letter
-        }
-    }
 }
+
+/*
+
+*/

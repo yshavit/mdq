@@ -75,6 +75,12 @@ impl CheckboxSpecifier {
     }
 }
 
+impl ListItemSelector {
+    pub fn read(variant: ListItemType, chars: &mut ParsingIterator) -> ParseResult<Self> {
+        variant.read(chars)
+    }
+}
+
 impl<'a> Selector<'a, ListItemRef<'a>> for ListItemSelector {
     fn matches(&self, item: ListItemRef<'a>) -> bool {
         let ListItemRef(idx, li) = item;
