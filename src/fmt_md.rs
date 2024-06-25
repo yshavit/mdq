@@ -84,7 +84,6 @@ where
 
     // Always write the pending definitions at the end of the doc. If there were no sections, then BottomOfSection
     // won't have been triggered, but we still want to write them
-    // TODO test this specific case
     writer_state.write_definitions(out, DefinitionsToWrite::Both, true);
 }
 
@@ -2029,6 +2028,32 @@ pub mod tests {
 
                     [^a]: the footnote"#},
             );
+        }
+
+        #[test]
+        fn no_sections_but_writing_to_sections() {
+            check_render_with(
+                &MdOptions {
+                    link_reference_placement: ReferencePlacement::Section,
+                    footnote_reference_placement: ReferencePlacement::Section,
+                },
+                md_elems![Block::LeafBlock::Paragraph {
+                    body: vec![m_node!(Inline::Link {
+                        text: vec![mdq_inline!("link description")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Full("1".to_string()),
+                        },
+                    }),]
+                }],
+                indoc! {r#"
+                    [link description][1]
+
+                       -----
+
+                    [1]: https://example.com"#},
+            )
         }
 
         #[test]
