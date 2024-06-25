@@ -1,7 +1,7 @@
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
-use crate::select::{ParseErrorReason, ParseResult, SelectResult, SELECTOR_SEPARATOR};
+use crate::select::{ParseErrorReason, ParseResult, SELECTOR_SEPARATOR};
 use crate::tree_ref::{ListItemRef, MdElemRef};
 
 #[derive(Debug, PartialEq)]
@@ -87,8 +87,8 @@ impl<'a> Selector<'a, ListItemRef<'a>> for ListItemSelector {
         self.li_type.matches(&idx) && self.checkbox.matches(&li.checked) && self.string_matcher.matches_any(&li.item)
     }
 
-    fn pick(&self, item: ListItemRef<'a>) -> SelectResult<'a> {
-        SelectResult::One(MdElemRef::ListItem(item))
+    fn pick(&self, item: ListItemRef<'a>) -> MdElemRef<'a> {
+        MdElemRef::ListItem(item)
     }
 }
 

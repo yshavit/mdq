@@ -7,6 +7,9 @@ use crate::tree::{
 /// selected.
 #[derive(Debug, Clone, Copy)]
 pub enum MdElemRef<'a> {
+    // Multiple elements that form a single area
+    Doc(&'a Vec<MdElem>),
+
     // main elements
     BlockQuote(&'a BlockQuote),
     CodeBlock(&'a CodeBlock),
@@ -60,11 +63,8 @@ macro_rules! wrap_mdq_refs {
 }
 
 impl<'a> MdElemRef<'a> {
-    pub fn wrap_vec(source: &'a Vec<MdElem>) -> Vec<Self> {
-        let mut result: Vec<Self> = Vec::with_capacity(source.len());
-        for elem in source {
-            result.push(elem.into());
-        }
-        result
+    pub fn wrap_vec(source: &'a Vec<MdElem>) -> Self {
+        // TODO inline this func
+        Self::Doc(source)
     }
 }

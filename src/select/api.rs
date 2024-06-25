@@ -6,14 +6,9 @@ use crate::select::sel_link::LinkSelector;
 use crate::select::sel_list_item::ListItemSelector;
 use crate::select::sel_list_item::ListItemType;
 use crate::select::sel_section::SectionSelector;
-use crate::tree::{Formatting, Inline, Link, MdElem, Text};
+use crate::tree::{Formatting, Inline, Link, Text};
 use crate::tree_ref::{ListItemRef, MdElemRef};
 use std::fmt::{Display, Formatter};
-
-pub enum SelectResult<'a> {
-    One(MdElemRef<'a>),
-    Multi(&'a Vec<MdElem>),
-}
 
 pub type ParseResult<T> = Result<T, ParseErrorReason>;
 
@@ -60,7 +55,7 @@ macro_rules! selectors {
         }
 
         impl MdqRefSelector {
-            fn try_select_node<'a>(&self, node: MdElemRef<'a>) -> Option<SelectResult<'a>> {
+            fn try_select_node<'a>(&self, node: MdElemRef<'a>) -> Option<MdElemRef<'a>> {
                 match (self, node) {
                     $(
                     (Self::$name(selector), MdElemRef::$name(elem)) => selector.try_select(elem),
@@ -181,8 +176,7 @@ impl MdqRefSelector {
     fn build_output<'a>(&self, out: &mut Vec<MdElemRef<'a>>, node: MdElemRef<'a>) {
         // try_select_node is defined in macro_helpers::selectors!
         match self.try_select_node(node) {
-            Some(SelectResult::One(found)) => out.push(found),
-            Some(SelectResult::Multi(found)) => found.iter().for_each(|item| out.push(item.into())),
+            Some(found) => out.push(found),
             None => {
                 for child in Self::find_children(node) {
                     self.build_output(out, child);
@@ -199,10 +193,17 @@ impl MdqRefSelector {
     /// belongs here.
     fn find_children<'a>(node: MdElemRef) -> Vec<MdElemRef> {
         match node {
-            MdElemRef::Section(s) => MdElemRef::wrap_vec(&s.body),
-            MdElemRef::ListItem(ListItemRef(_, item)) => MdElemRef::wrap_vec(&item.item),
+            MdElemRef::Doc(body) => {
+                let mut wrapped = Vec::with_capacity(body.len());
+                for elem in body {
+                    wrapped.push(elem.into());
+                }
+                wrapped
+            }
+            MdElemRef::Section(s) => vec![MdElemRef::wrap_vec(&s.body)],
+            MdElemRef::ListItem(ListItemRef(_, item)) => vec![MdElemRef::wrap_vec(&item.item)],
             MdElemRef::Paragraph(p) => p.body.iter().map(|child| MdElemRef::Inline(child)).collect(),
-            MdElemRef::BlockQuote(b) => MdElemRef::wrap_vec(&b.body),
+            MdElemRef::BlockQuote(b) => vec![MdElemRef::wrap_vec(&b.body)],
             MdElemRef::List(list) => {
                 let mut idx = list.starting_index;
                 let mut result = Vec::with_capacity(list.items.len());
@@ -231,7 +232,7 @@ impl MdqRefSelector {
                 Inline::Formatting(Formatting { children, .. }) => {
                     children.iter().map(|child| MdElemRef::Inline(child)).collect()
                 }
-                Inline::Footnote(footnote) => MdElemRef::wrap_vec(&footnote.text),
+                Inline::Footnote(footnote) => vec![MdElemRef::wrap_vec(&footnote.text)],
                 Inline::Link(link) => vec![MdElemRef::Link(link)], // TODO find a test case that hits this to make sure it doesn't infinite-loop!
                 Inline::Image(image) => vec![MdElemRef::Image(image)],
                 Inline::Text(Text { .. }) => Vec::new(),
