@@ -200,10 +200,10 @@ impl MdqRefSelector {
                 }
                 wrapped
             }
-            MdElemRef::Section(s) => vec![MdElemRef::wrap_vec(&s.body)],
-            MdElemRef::ListItem(ListItemRef(_, item)) => vec![MdElemRef::wrap_vec(&item.item)],
+            MdElemRef::Section(s) => vec![MdElemRef::Doc(&s.body)],
+            MdElemRef::ListItem(ListItemRef(_, item)) => vec![MdElemRef::Doc(&item.item)],
             MdElemRef::Paragraph(p) => p.body.iter().map(|child| MdElemRef::Inline(child)).collect(),
-            MdElemRef::BlockQuote(b) => vec![MdElemRef::wrap_vec(&b.body)],
+            MdElemRef::BlockQuote(b) => vec![MdElemRef::Doc(&b.body)],
             MdElemRef::List(list) => {
                 let mut idx = list.starting_index;
                 let mut result = Vec::with_capacity(list.items.len());
@@ -232,7 +232,7 @@ impl MdqRefSelector {
                 Inline::Formatting(Formatting { children, .. }) => {
                     children.iter().map(|child| MdElemRef::Inline(child)).collect()
                 }
-                Inline::Footnote(footnote) => vec![MdElemRef::wrap_vec(&footnote.text)],
+                Inline::Footnote(footnote) => vec![MdElemRef::Doc(&footnote.text)],
                 Inline::Link(link) => vec![MdElemRef::Link(link)], // TODO find a test case that hits this to make sure it doesn't infinite-loop!
                 Inline::Image(image) => vec![MdElemRef::Image(image)],
                 Inline::Text(Text { .. }) => Vec::new(),

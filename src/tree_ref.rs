@@ -61,10 +61,3 @@ macro_rules! wrap_mdq_refs {
         result
     }};
 }
-
-impl<'a> MdElemRef<'a> {
-    pub fn wrap_vec(source: &'a Vec<MdElem>) -> Self {
-        // TODO inline this func
-        Self::Doc(source)
-    }
-}
