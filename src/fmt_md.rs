@@ -792,6 +792,17 @@ pub mod tests {
                 Second"#},
             )
         }
+
+        #[test]
+        fn two_paragraphs_in_one_doc() {
+            check_render_refs(
+                vec![MdElemRef::Doc(&md_elems!["First", "Second"])],
+                indoc! {r#"
+                First
+
+                Second"#},
+            )
+        }
     }
 
     mod header {
