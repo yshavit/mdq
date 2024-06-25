@@ -156,6 +156,7 @@ impl<'a> MdWriterState<'a> {
         self.prev_was_thematic_break = false;
 
         match node_ref {
+            MdElemRef::Doc(items) => self.write_md(out, items.iter().map(|elem| elem.into()), false),
             MdElemRef::Section(Section { depth, title, body }) => {
                 out.with_block(Block::Plain, |out| {
                     for _ in 0..*depth {
@@ -166,7 +167,7 @@ impl<'a> MdWriterState<'a> {
                         self.write_line(out, title);
                     }
                 });
-                self.write_md(out, MdElemRef::wrap_vec(body).into_iter(), false);
+                self.write_md(out, Self::doc_iter(body), false);
                 let which_defs_to_write = match (
                     &self.opts.link_reference_placement,
                     &self.opts.footnote_reference_placement,
@@ -215,7 +216,7 @@ impl<'a> MdWriterState<'a> {
 
     fn write_block_quote<W: SimpleWrite>(&mut self, out: &mut Output<W>, block: &'a BlockQuote) {
         out.with_block(Block::Quote, |out| {
-            self.write_md(out, MdElemRef::wrap_vec(&block.body).into_iter(), false);
+            self.write_md(out, Self::doc_iter(&block.body), false);
         });
     }
 
@@ -402,7 +403,7 @@ impl<'a> MdWriterState<'a> {
         }
         let count = counting_writer.count();
         out.with_block(Block::Inlined(count), |out| {
-            self.write_md(out, MdElemRef::wrap_vec(&item.item).into_iter(), false);
+            self.write_md(out, Self::doc_iter(&item.item), false);
         });
     }
 
@@ -569,7 +570,7 @@ impl<'a> MdWriterState<'a> {
                     out.write_str(link_ref);
                     out.write_str("]: ");
                     out.with_block(Block::Inlined(2), |out| {
-                        self.write_md(out, MdElemRef::wrap_vec(text).into_iter(), false);
+                        self.write_md(out, Self::doc_iter(text), false);
                     });
                 }
             }
@@ -592,6 +593,10 @@ impl<'a> MdWriterState<'a> {
         let mut out = Output::new(String::with_capacity(line.len() * 10)); // rough guess
         self.write_line(&mut out, line);
         out.take_underlying().unwrap()
+    }
+
+    fn doc_iter(body: &'a Vec<MdElem>) -> impl Iterator<Item = MdElemRef<'a>> {
+        [MdElemRef::Doc(body)].into_iter()
     }
 }
 
@@ -666,6 +671,7 @@ pub mod tests {
     use super::write_md;
 
     crate::variants_checker!(VARIANTS_CHECKER = MdElemRef {
+        Doc(..),
         Section(_),
         ListItem(..),
         Link(..),
@@ -782,6 +788,17 @@ pub mod tests {
                 First
 
                    -----
+
+                Second"#},
+            )
+        }
+
+        #[test]
+        fn two_paragraphs_in_one_doc() {
+            check_render_refs(
+                vec![MdElemRef::Doc(&md_elems!["First", "Second"])],
+                indoc! {r#"
+                First
 
                 Second"#},
             )
@@ -2195,7 +2212,11 @@ pub mod tests {
     }
 
     fn check_render_with(options: &MdOptions, nodes: Vec<MdElem>, expect: &str) {
-        check_render_refs_with(options, MdElemRef::wrap_vec(&nodes), expect)
+        let mut wrapped = Vec::with_capacity(nodes.len());
+        for node in &nodes {
+            wrapped.push(node.into());
+        }
+        check_render_refs_with(options, wrapped, expect)
     }
 
     fn check_render_refs(nodes: Vec<MdElemRef>, expect: &str) {

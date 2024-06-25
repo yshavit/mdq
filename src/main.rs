@@ -59,7 +59,7 @@ fn main() -> ExitCode {
         }
     };
 
-    let mut pipeline_nodes = MdElemRef::wrap_vec(&mdqs);
+    let mut pipeline_nodes = vec![MdElemRef::Doc(&mdqs)];
     for selector in selectors {
         let new_pipeline = selector.find_nodes(pipeline_nodes);
         pipeline_nodes = new_pipeline;

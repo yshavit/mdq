@@ -1,8 +1,9 @@
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
-use crate::select::{ParseResult, SelectResult, SELECTOR_SEPARATOR};
+use crate::select::{ParseResult, SELECTOR_SEPARATOR};
 use crate::tree::Section;
+use crate::tree_ref::MdElemRef;
 
 #[derive(Debug, PartialEq)]
 pub struct SectionSelector {
@@ -21,7 +22,7 @@ impl<'a> Selector<'a, &'a Section> for SectionSelector {
         self.matcher.matches_inlines(&section.title)
     }
 
-    fn pick(&self, item: &'a Section) -> SelectResult<'a> {
-        SelectResult::Multi(&item.body)
+    fn pick(&self, item: &'a Section) -> MdElemRef<'a> {
+        MdElemRef::Doc(&item.body)
     }
 }

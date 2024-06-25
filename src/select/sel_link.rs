@@ -1,7 +1,7 @@
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
-use crate::select::{ParseResult, SelectResult};
+use crate::select::ParseResult;
 use crate::tree::Link;
 use crate::tree_ref::MdElemRef;
 
@@ -23,8 +23,8 @@ impl<'a> Selector<'a, &'a Link> for LinkSelector {
             && self.matchers.url_matcher.matches(&item.link_definition.url)
     }
 
-    fn pick(&self, item: &'a Link) -> SelectResult<'a> {
-        SelectResult::One(MdElemRef::Link(item))
+    fn pick(&self, item: &'a Link) -> MdElemRef<'a> {
+        MdElemRef::Link(item)
     }
 }
 
