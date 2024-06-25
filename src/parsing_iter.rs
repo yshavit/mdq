@@ -139,8 +139,7 @@ impl Iterator for ParsingIterator<'_> {
 #[cfg(test)]
 mod tests {
     use crate::parsing_iter::{ParsingIterator, Position};
-
-    // TODO need more test coverage: run just this file w/ test coverage to find out what's lacking
+    use crate::select::ParseErrorReason;
 
     #[test]
     fn basic() {
@@ -189,16 +188,61 @@ mod tests {
     fn drop_while() {
         let mut iter = ParsingIterator::new("A \t B");
 
-        assert_eq!("", iter.drop_while(|ch| ch.is_whitespace()));
+        assert_eq!(iter.drop_while(|ch| ch.is_whitespace()), "",);
         next_and_check(&mut iter, Some('A'), Position { line: 0, column: 1 });
 
-        assert_eq!(" \t ", iter.drop_while(|ch| ch.is_whitespace()));
+        assert_eq!(iter.drop_while(|ch| ch.is_whitespace()), " \t ");
         peek_and_check(&mut iter, Some('B'), Position { line: 0, column: 4 });
         next_and_check(&mut iter, Some('B'), Position { line: 0, column: 5 });
 
-        assert_eq!("", iter.drop_while(|ch| ch.is_whitespace()));
+        assert_eq!(iter.drop_while(|ch| ch.is_whitespace()), "");
         peek_and_check(&mut iter, None, Position { line: 0, column: 5 });
         next_and_check(&mut iter, None, Position { line: 0, column: 5 });
+    }
+
+    #[test]
+    fn drop_whitespace() {
+        let mut iter = ParsingIterator::new("  \t\r\n\t  B");
+        assert_eq!(iter.drop_whitespace(), "  \t\r\n\t  ");
+        assert_eq!(iter.next(), Some('B'));
+    }
+
+    #[test]
+    fn require_whitespace() {
+        let mut iter = ParsingIterator::new("  BC");
+        assert_eq!(iter.require_whitespace("foo"), Ok(()));
+        assert_eq!(iter.next(), Some('B'));
+        assert_eq!(
+            iter.require_whitespace("bar"),
+            Err(ParseErrorReason::InvalidSyntax(
+                "bar must be followed by whitespace".to_string()
+            ))
+        );
+        assert_eq!(iter.next(), Some('C'));
+        assert_eq!(iter.require_whitespace("foo"), Ok(()),); // EOL counts as whitespace
+    }
+
+    #[test]
+    fn require_char() {
+        let mut iter = ParsingIterator::new("AB");
+        assert_eq!(iter.require_char('A'), Ok(()));
+        assert_eq!(iter.require_char('F'), Err(ParseErrorReason::Expected('F')));
+    }
+
+    #[test]
+    fn require_str() {
+        let mut iter = ParsingIterator::new("ABCD");
+        assert_eq!(iter.require_str("ABC"), Ok(()));
+        assert_eq!(iter.require_str("FGH"), Err(ParseErrorReason::Expected('F')));
+    }
+
+    #[test]
+    fn consume_if() {
+        let mut iter = ParsingIterator::new("ABC");
+        assert_eq!(iter.consume_if('A'), true);
+        assert_eq!(iter.position, Position { line: 0, column: 1 });
+        assert_eq!(iter.consume_if('F'), false);
+        assert_eq!(iter.position, Position { line: 0, column: 1 });
     }
 
     fn next_and_check(iter: &mut ParsingIterator, expect_ch: Option<char>, expect_pos: Position) {

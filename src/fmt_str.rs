@@ -122,7 +122,7 @@ mod tests {
         options.constructs.math_text = true;
         let node = markdown::to_mdast(md, &options).unwrap();
         let md_elems = MdElem::read(node, &ReadOptions::default()).unwrap();
-        unwrap!(&md_elems[0], MdElem::Block(Block::LeafBlock(LeafBlock::Paragraph(p)))); // TODO can I use m_node here?
+        unwrap!(&md_elems[0], MdElem::Block(Block::LeafBlock(LeafBlock::Paragraph(p))));
         p.body.iter().for_each(|inline| VARIANTS_CHECKER.see(inline));
         let actual = inlines_to_plain_string(&p.body);
         assert_eq!(&actual, expect);
