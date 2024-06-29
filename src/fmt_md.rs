@@ -2,11 +2,10 @@ use clap::ValueEnum;
 use std::borrow::{Borrow, Cow};
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
-use std::fmt::{Alignment, Display};
+use std::fmt::Alignment;
 use std::ops::Deref;
 
-use crate::fmt_str::inlines_to_plain_string;
-use crate::link_transform::{LinkTransform, LinkTransformer};
+use crate::link_transform::{LinkLabel, LinkTransform, LinkTransformer};
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
@@ -15,6 +14,7 @@ use crate::tree_ref::{ListItemRef, MdElemRef};
 pub struct MdOptions {
     pub link_reference_placement: ReferencePlacement,
     pub footnote_reference_placement: ReferencePlacement,
+    pub link_canonicalization: LinkTransform,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -80,7 +80,7 @@ where
             links: HashMap::with_capacity(pending_refs_capacity),
             footnotes: HashMap::with_capacity(pending_refs_capacity),
         },
-        link_transformer: LinkTransformer::from(LinkTransform::Reference), // TODO add CLI switch
+        link_transformer: LinkTransformer::from(&options.link_canonicalization),
     };
     writer_state.write_md(out, nodes, true);
 
@@ -107,24 +107,6 @@ struct PendingReferences<'a> {
 struct UrlAndTitle<'a> {
     url: &'a String,
     title: &'a Option<String>,
-}
-
-// TODO move this to a common area?
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum LinkLabel<'a> {
-    Identifier(Cow<'a, str>), // TODO rename to Text
-    Inline(&'a Vec<Inline>),
-}
-
-impl<'a> LinkLabel<'a> {}
-
-impl<'a> Display for LinkLabel<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LinkLabel::Identifier(s) => f.write_str(s),
-            LinkLabel::Inline(inlines) => f.write_str(&inlines_to_plain_string(*inlines)),
-        }
-    }
 }
 
 impl<'a> MdWriterState<'a> {
@@ -198,7 +180,7 @@ impl<'a> MdWriterState<'a> {
             MdElemRef::Image(image) => {
                 out.write_char('!');
                 let alt_text = &image.alt;
-                self.write_link_inline_portion(out, LinkLabel::Identifier(Cow::from(alt_text)), &image.link);
+                self.write_link_inline_portion(out, LinkLabel::Text(Cow::from(alt_text)), &image.link);
             }
         }
     }
@@ -468,7 +450,7 @@ impl<'a> MdWriterState<'a> {
     {
         out.write_char('[');
         match &label {
-            LinkLabel::Identifier(text) => out.write_str(text),
+            LinkLabel::Text(text) => out.write_str(text),
             LinkLabel::Inline(text) => self.write_line(out, text),
         }
         out.write_char(']');
@@ -489,7 +471,7 @@ impl<'a> MdWriterState<'a> {
                 out.write_str(&identifier);
                 out.write_char(']');
                 // let identifier_ref = self.generated_link_texts.store(identifier);
-                Some(LinkLabel::Identifier(Cow::from(identifier)))
+                Some(LinkLabel::Text(Cow::from(identifier)))
             }
             LinkReference::Collapsed => {
                 out.write_str("[]");
@@ -554,7 +536,7 @@ impl<'a> MdWriterState<'a> {
                 for (link_ref, link_def) in defs_to_write {
                     out.write_char('[');
                     match link_ref {
-                        LinkLabel::Identifier(identifier) => out.write_str(identifier.deref()),
+                        LinkLabel::Text(identifier) => out.write_str(identifier.deref()),
                         LinkLabel::Inline(text) => self.write_line(out, text),
                     }
                     out.write_str("]: ");
@@ -1965,6 +1947,7 @@ pub mod tests {
     mod annotation_and_footnote_layouts {
         use super::*;
         use crate::fmt_md::ReferencePlacement;
+        use crate::link_transform::LinkTransform;
 
         #[test]
         fn link_and_footnote() {
@@ -2004,6 +1987,7 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Section,
+                    link_canonicalization: LinkTransform::Keep,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -2028,6 +2012,7 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Doc,
+                    link_canonicalization: LinkTransform::Keep,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -2055,6 +2040,7 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Section,
+                    link_canonicalization: LinkTransform::Keep,
                 },
                 md_elems![Block::LeafBlock::Paragraph {
                     body: vec![m_node!(Inline::Link {
@@ -2081,6 +2067,7 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Section,
+                    link_canonicalization: LinkTransform::Keep,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -2108,6 +2095,7 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Doc,
+                    link_canonicalization: LinkTransform::Keep,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -2134,6 +2122,7 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Doc,
+                    link_canonicalization: LinkTransform::Keep,
                 },
                 // Define them in the opposite order that we'd expect them
                 md_elems![Block::LeafBlock::Paragraph {

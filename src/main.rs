@@ -15,7 +15,6 @@ mod fmt_md;
 mod fmt_str;
 mod link_transform;
 mod matcher;
-mod misc_util;
 mod output;
 mod parse_common;
 mod parsing_iter;
@@ -24,7 +23,6 @@ mod str_utils;
 mod tree;
 mod tree_ref;
 mod tree_test_utils;
-mod tree_visitor;
 mod utils_for_test;
 
 #[derive(Parser, Debug)]
@@ -75,10 +73,8 @@ fn main() -> ExitCode {
     let md_options = MdOptions {
         link_reference_placement: cli.link_pos,
         footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
+        link_canonicalization: cli.link_canonicalization,
     };
-    // TODO where should these go???
-    // link_canonicalization: cli.link_canonicalization,
-    // cli.link_canonicalization.transform(&mut mdqs);
 
     fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
     out.write_str("\n");

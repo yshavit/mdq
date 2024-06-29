@@ -1,11 +1,10 @@
-use crate::fmt_md::LinkLabel;
 use crate::fmt_str::inlines_to_plain_string;
-use crate::tree::{Inline, LinkDefinition, LinkReference, MdElem};
-use crate::tree_visitor::{traverse_all, MutTreeVisitor};
+use crate::tree::{Inline, LinkDefinition, LinkReference};
 use clap::ValueEnum;
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::ops::Deref;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -23,18 +22,27 @@ pub enum LinkTransform {
     Reference,
 }
 
-enum LinkTransformState {
-    Keep,
-    Inline,
-    Reference(ReferenceAssigner),
-}
-
 pub struct LinkTransformer {
     delegate: LinkTransformState,
 }
 
-impl From<LinkTransform> for LinkTransformer {
-    fn from(value: LinkTransform) -> Self {
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub enum LinkLabel<'a> {
+    Text(Cow<'a, str>),
+    Inline(&'a Vec<Inline>),
+}
+
+impl<'a> Display for LinkLabel<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LinkLabel::Text(s) => f.write_str(s),
+            LinkLabel::Inline(inlines) => f.write_str(&inlines_to_plain_string(*inlines)),
+        }
+    }
+}
+
+impl From<&LinkTransform> for LinkTransformer {
+    fn from(value: &LinkTransform) -> Self {
         let delegate = match value {
             LinkTransform::Keep => LinkTransformState::Keep,
             LinkTransform::Inline => LinkTransformState::Inline,
@@ -42,6 +50,12 @@ impl From<LinkTransform> for LinkTransformer {
         };
         Self { delegate }
     }
+}
+
+enum LinkTransformState {
+    Keep,
+    Inline,
+    Reference(ReferenceAssigner),
 }
 
 impl LinkTransformer {
@@ -53,22 +67,6 @@ impl LinkTransformer {
         }
     }
 }
-
-// TODO rm
-// impl LinkTransform {
-//     pub fn transform(&self, elems: &mut Vec<MdElem>) {
-//         match self {
-//             LinkTransform::Keep => {}
-//             LinkTransform::Inline => {
-//                 for_each_link(elems, |link, _| link.reference = LinkReference::Inline);
-//             }
-//             LinkTransform::Reference => {
-//                 let mut assigner = ReferenceAssigner::new();
-//                 for_each_link(elems, |link, label| assigner.assign(link, label));
-//             }
-//         }
-//     }
-// }
 
 struct ReferenceAssigner {
     /// Let's not worry about overflow. The minimum size for each link is 5 bytes (`[][1]`), so u64 of those is about
@@ -93,7 +91,7 @@ impl ReferenceAssigner {
             LinkReference::Inline => Some(self.assign_new()),
             LinkReference::Full(prev) => self.maybe_assign(prev),
             LinkReference::Collapsed | LinkReference::Shortcut => match label {
-                LinkLabel::Identifier(text) => self.maybe_assign(text.deref()),
+                LinkLabel::Text(text) => self.maybe_assign(text.deref()),
                 LinkLabel::Inline(text) => self.maybe_assign(&inlines_to_plain_string(text)),
             },
         };
@@ -121,33 +119,5 @@ impl ReferenceAssigner {
         let idx_str = self.next_index.to_string();
         self.next_index += 1;
         LinkReference::Full(idx_str)
-    }
-}
-
-struct LinkFinder<F>(F)
-where
-    F: FnMut(&mut LinkDefinition, LinkLabel);
-
-fn for_each_link<F>(elems: &mut Vec<MdElem>, action: F)
-where
-    F: FnMut(&mut LinkDefinition, LinkLabel),
-{
-    traverse_all(elems, &mut LinkFinder(action))
-}
-
-impl<F> MutTreeVisitor for LinkFinder<F>
-where
-    F: FnMut(&mut LinkDefinition, LinkLabel),
-{
-    fn visit(&mut self, elem: &mut MdElem) {
-        match elem {
-            MdElem::Inline(Inline::Link(link)) => {
-                self.0(&mut link.link_definition, LinkLabel::Inline(&link.text));
-            }
-            MdElem::Inline(Inline::Image(image)) => {
-                self.0(&mut image.link, LinkLabel::Identifier(Cow::from(&image.alt)));
-            }
-            _ => {}
-        }
     }
 }
