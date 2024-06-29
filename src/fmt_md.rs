@@ -10,7 +10,6 @@ use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
 use crate::tree_ref::{ListItemRef, MdElemRef};
 
-#[derive(Default)]
 pub struct MdOptions {
     pub link_reference_placement: ReferencePlacement,
     pub footnote_reference_placement: ReferencePlacement,
@@ -106,9 +105,10 @@ struct UrlAndTitle<'a> {
     title: &'a Option<String>,
 }
 
+// TODO move this to a common area
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
-enum LinkLabel<'a> {
-    Identifier(&'a String),
+pub enum LinkLabel<'a> {
+    Identifier(&'a String), // TODO rename to Text
     Inline(&'a Vec<Inline>),
 }
 
@@ -474,6 +474,7 @@ impl<'a> MdWriterState<'a> {
         out.write_char('[');
         label.write_to(self, out);
         out.write_char(']');
+
         let reference_to_add = match &link.reference {
             LinkReference::Inline => {
                 out.write_char('(');

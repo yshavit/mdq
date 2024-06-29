@@ -4,6 +4,7 @@ use std::io::{stdin, Read};
 use std::process::ExitCode;
 
 use crate::fmt_md::{MdOptions, ReferencePlacement};
+use crate::link_transform::LinkTransform;
 use crate::output::Stream;
 use crate::select::ParseError;
 use crate::tree::{MdElem, ReadOptions};
@@ -12,6 +13,7 @@ use select::MdqRefSelector;
 
 mod fmt_md;
 mod fmt_str;
+mod link_transform;
 mod matcher;
 mod output;
 mod parse_common;
@@ -21,6 +23,7 @@ mod str_utils;
 mod tree;
 mod tree_ref;
 mod tree_test_utils;
+mod tree_visitor;
 mod utils_for_test;
 
 #[derive(Parser, Debug)]
@@ -37,6 +40,9 @@ struct Cli {
     #[arg(long, value_enum)]
     footnote_pos: Option<ReferencePlacement>,
 
+    #[arg(long, short, value_enum, default_value_t=LinkTransform::Reference)]
+    link_canonicalization: LinkTransform,
+
     /// The selector string
     selectors: Option<String>,
 }
@@ -47,7 +53,7 @@ fn main() -> ExitCode {
     let mut contents = String::new();
     stdin().read_to_string(&mut contents).expect("invalid input (not utf8)");
     let ast = markdown::to_mdast(&mut contents, &markdown::ParseOptions::gfm()).unwrap();
-    let mdqs = MdElem::read(ast, &ReadOptions::default()).unwrap();
+    let mut mdqs = MdElem::read(ast, &ReadOptions::default()).unwrap();
     let mut out = output::Output::new(Stream(io::stdout()));
 
     let selectors_str = &cli.selectors.unwrap_or_default();
@@ -65,9 +71,13 @@ fn main() -> ExitCode {
         pipeline_nodes = new_pipeline;
     }
 
-    let mut md_options = MdOptions::default();
-    md_options.link_reference_placement = cli.link_pos;
-    md_options.footnote_reference_placement = cli.footnote_pos.unwrap_or(md_options.link_reference_placement);
+    let md_options = MdOptions {
+        link_reference_placement: cli.link_pos,
+        footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
+    };
+    // TODO where should these go???
+    // link_canonicalization: cli.link_canonicalization,
+    // cli.link_canonicalization.transform(&mut mdqs);
 
     fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
     out.write_str("\n");
