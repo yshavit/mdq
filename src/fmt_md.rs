@@ -470,7 +470,6 @@ impl<'a> MdWriterState<'a> {
                 out.write_char('[');
                 out.write_str(&identifier);
                 out.write_char(']');
-                // let identifier_ref = self.generated_link_texts.store(identifier);
                 Some(LinkLabel::Text(Cow::from(identifier)))
             }
             LinkReference::Collapsed => {
@@ -479,8 +478,6 @@ impl<'a> MdWriterState<'a> {
             }
             LinkReference::Shortcut => Some(label),
         };
-
-        let _ = reference_to_add; // tmp
 
         if let Some(reference_label) = reference_to_add {
             if self.seen_links.insert(reference_label.clone()) {
@@ -644,6 +641,7 @@ pub mod tests {
     use indoc::indoc;
 
     use crate::fmt_md::MdOptions;
+    use crate::link_transform::LinkTransform;
     use crate::m_node;
     use crate::md_elem;
     use crate::md_elems;
@@ -2199,7 +2197,7 @@ pub mod tests {
     }
 
     fn check_render(nodes: Vec<MdElem>, expect: &str) {
-        check_render_with(&MdOptions::default(), nodes, expect);
+        check_render_with(&default_opts(), nodes, expect);
     }
 
     fn check_render_with(options: &MdOptions, nodes: Vec<MdElem>, expect: &str) {
@@ -2211,7 +2209,7 @@ pub mod tests {
     }
 
     fn check_render_refs(nodes: Vec<MdElemRef>, expect: &str) {
-        check_render_refs_with(&MdOptions::default(), nodes, expect)
+        check_render_refs_with(&default_opts(), nodes, expect)
     }
 
     fn check_render_refs_with<'a>(options: &MdOptions, nodes: Vec<MdElemRef<'a>>, expect: &str) {
@@ -2221,5 +2219,13 @@ pub mod tests {
         write_md(options, &mut out, nodes.into_iter());
         let actual = out.take_underlying().unwrap();
         assert_eq!(&actual, expect);
+    }
+
+    fn default_opts() -> MdOptions {
+        MdOptions {
+            link_reference_placement: Default::default(),
+            footnote_reference_placement: Default::default(),
+            link_canonicalization: LinkTransform::Keep,
+        }
     }
 }
