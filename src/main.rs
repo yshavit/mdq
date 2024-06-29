@@ -15,6 +15,7 @@ mod fmt_md;
 mod fmt_str;
 mod link_transform;
 mod matcher;
+mod misc_util;
 mod output;
 mod parse_common;
 mod parsing_iter;
@@ -53,7 +54,7 @@ fn main() -> ExitCode {
     let mut contents = String::new();
     stdin().read_to_string(&mut contents).expect("invalid input (not utf8)");
     let ast = markdown::to_mdast(&mut contents, &markdown::ParseOptions::gfm()).unwrap();
-    let mut mdqs = MdElem::read(ast, &ReadOptions::default()).unwrap();
+    let mdqs = MdElem::read(ast, &ReadOptions::default()).unwrap();
     let mut out = output::Output::new(Stream(io::stdout()));
 
     let selectors_str = &cli.selectors.unwrap_or_default();

@@ -3,8 +3,10 @@ use crate::fmt_str::inlines_to_plain_string;
 use crate::tree::{Inline, LinkDefinition, LinkReference, MdElem};
 use crate::tree_visitor::{traverse_all, MutTreeVisitor};
 use clap::ValueEnum;
+use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::ops::Deref;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum LinkTransform {
@@ -21,20 +23,52 @@ pub enum LinkTransform {
     Reference,
 }
 
-impl LinkTransform {
-    pub fn transform(&self, elems: &mut Vec<MdElem>) {
-        match self {
-            LinkTransform::Keep => {}
-            LinkTransform::Inline => {
-                for_each_link(elems, |link, _| link.reference = LinkReference::Inline);
-            }
-            LinkTransform::Reference => {
-                let mut assigner = ReferenceAssigner::new();
-                for_each_link(elems, |link, label| assigner.assign(link, label));
-            }
+enum LinkTransformState {
+    Keep,
+    Inline,
+    Reference(ReferenceAssigner),
+}
+
+pub struct LinkTransformer {
+    delegate: LinkTransformState,
+}
+
+impl From<LinkTransform> for LinkTransformer {
+    fn from(value: LinkTransform) -> Self {
+        let delegate = match value {
+            LinkTransform::Keep => LinkTransformState::Keep,
+            LinkTransform::Inline => LinkTransformState::Inline,
+            LinkTransform::Reference => LinkTransformState::Reference(ReferenceAssigner::new()),
+        };
+        Self { delegate }
+    }
+}
+
+impl LinkTransformer {
+    pub fn transform<'a>(&mut self, link: &'a LinkDefinition, label: &LinkLabel<'a>) -> Cow<'a, LinkReference> {
+        match &mut self.delegate {
+            LinkTransformState::Keep => Cow::Borrowed(&link.reference),
+            LinkTransformState::Inline => Cow::Owned(LinkReference::Inline),
+            LinkTransformState::Reference(assigner) => assigner.assign(link, label),
         }
     }
 }
+
+// TODO rm
+// impl LinkTransform {
+//     pub fn transform(&self, elems: &mut Vec<MdElem>) {
+//         match self {
+//             LinkTransform::Keep => {}
+//             LinkTransform::Inline => {
+//                 for_each_link(elems, |link, _| link.reference = LinkReference::Inline);
+//             }
+//             LinkTransform::Reference => {
+//                 let mut assigner = ReferenceAssigner::new();
+//                 for_each_link(elems, |link, label| assigner.assign(link, label));
+//             }
+//         }
+//     }
+// }
 
 struct ReferenceAssigner {
     /// Let's not worry about overflow. The minimum size for each link is 5 bytes (`[][1]`), so u64 of those is about
@@ -54,23 +88,24 @@ impl ReferenceAssigner {
         }
     }
 
-    fn assign(&mut self, link: &mut LinkDefinition, label: LinkLabel) {
+    fn assign<'a>(&mut self, link: &'a LinkDefinition, label: &LinkLabel<'a>) -> Cow<'a, LinkReference> {
         let replacement = match &link.reference {
             LinkReference::Inline => Some(self.assign_new()),
             LinkReference::Full(prev) => self.maybe_assign(prev),
             LinkReference::Collapsed | LinkReference::Shortcut => match label {
-                LinkLabel::Identifier(text) => self.maybe_assign(text),
+                LinkLabel::Identifier(text) => self.maybe_assign(text.deref()),
                 LinkLabel::Inline(text) => self.maybe_assign(&inlines_to_plain_string(text)),
             },
         };
-        if let Some(replacement) = replacement {
-            link.reference = replacement;
+        match replacement {
+            None => Cow::Borrowed(&link.reference),
+            Some(replacement) => Cow::Owned(replacement),
         }
     }
 
-    fn maybe_assign(&mut self, prev: &String) -> Option<LinkReference> {
+    fn maybe_assign(&mut self, prev: &str) -> Option<LinkReference> {
         if prev.chars().all(|ch| ch.is_numeric()) {
-            match self.reorderings.entry(prev.clone()) {
+            match self.reorderings.entry(String::from(prev)) {
                 Entry::Occupied(map_to) => Some(LinkReference::Full(map_to.get().to_string())),
                 Entry::Vacant(e) => {
                     e.insert(self.next_index);
@@ -110,7 +145,7 @@ where
                 self.0(&mut link.link_definition, LinkLabel::Inline(&link.text));
             }
             MdElem::Inline(Inline::Image(image)) => {
-                self.0(&mut image.link, LinkLabel::Identifier(&image.alt));
+                self.0(&mut image.link, LinkLabel::Identifier(Cow::from(&image.alt)));
             }
             _ => {}
         }

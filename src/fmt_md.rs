@@ -1,10 +1,12 @@
 use clap::ValueEnum;
-use std::borrow::Borrow;
+use std::borrow::{Borrow, Cow};
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Alignment, Display};
+use std::ops::Deref;
 
 use crate::fmt_str::inlines_to_plain_string;
+use crate::link_transform::{LinkTransform, LinkTransformer};
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
@@ -78,6 +80,7 @@ where
             links: HashMap::with_capacity(pending_refs_capacity),
             footnotes: HashMap::with_capacity(pending_refs_capacity),
         },
+        link_transformer: LinkTransformer::from(LinkTransform::Reference), // TODO add CLI switch
     };
     writer_state.write_md(out, nodes, true);
 
@@ -92,6 +95,7 @@ struct MdWriterState<'a> {
     seen_links: HashSet<LinkLabel<'a>>,
     seen_footnotes: HashSet<&'a String>,
     pending_references: PendingReferences<'a>,
+    link_transformer: LinkTransformer,
 }
 
 struct PendingReferences<'a> {
@@ -105,29 +109,19 @@ struct UrlAndTitle<'a> {
     title: &'a Option<String>,
 }
 
-// TODO move this to a common area
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+// TODO move this to a common area?
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum LinkLabel<'a> {
-    Identifier(&'a String), // TODO rename to Text
+    Identifier(Cow<'a, str>), // TODO rename to Text
     Inline(&'a Vec<Inline>),
 }
 
-impl<'a> LinkLabel<'a> {
-    fn write_to<'b, W: SimpleWrite>(&self, writer: &mut MdWriterState<'b>, out: &mut Output<W>)
-    where
-        'a: 'b,
-    {
-        match self {
-            LinkLabel::Identifier(text) => out.write_str(text),
-            LinkLabel::Inline(text) => writer.write_line(out, text),
-        }
-    }
-}
+impl<'a> LinkLabel<'a> {}
 
 impl<'a> Display for LinkLabel<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LinkLabel::Identifier(s) => f.write_str(*s),
+            LinkLabel::Identifier(s) => f.write_str(s),
             LinkLabel::Inline(inlines) => f.write_str(&inlines_to_plain_string(*inlines)),
         }
     }
@@ -199,11 +193,12 @@ impl<'a> MdWriterState<'a> {
                 self.write_inline_element(out, inline);
             }
             MdElemRef::Link(link) => {
-                self.write_link_inline_portion(out, LinkLabel::Inline(&link.text), &link.link_definition);
+                self.write_link_inline_portion(out, LinkLabel::Inline(&link.text), &link.link_definition)
             }
             MdElemRef::Image(image) => {
                 out.write_char('!');
-                self.write_link_inline_portion(out, LinkLabel::Identifier(&image.alt), &image.link);
+                let alt_text = &image.alt;
+                self.write_link_inline_portion(out, LinkLabel::Identifier(Cow::from(alt_text)), &image.link);
             }
         }
     }
@@ -472,10 +467,16 @@ impl<'a> MdWriterState<'a> {
         W: SimpleWrite,
     {
         out.write_char('[');
-        label.write_to(self, out);
+        match &label {
+            LinkLabel::Identifier(text) => out.write_str(text),
+            LinkLabel::Inline(text) => self.write_line(out, text),
+        }
         out.write_char(']');
 
-        let reference_to_add = match &link.reference {
+        let transformed = self.link_transformer.transform(link, &label);
+        let link_ref_owned = transformed.into_owned();
+
+        let reference_to_add = match link_ref_owned {
             LinkReference::Inline => {
                 out.write_char('(');
                 out.write_str(&link.url);
@@ -485,19 +486,19 @@ impl<'a> MdWriterState<'a> {
             }
             LinkReference::Full(identifier) => {
                 out.write_char('[');
-                out.write_str(identifier);
+                out.write_str(&identifier);
                 out.write_char(']');
-                Some(LinkLabel::Identifier(identifier))
+                // let identifier_ref = self.generated_link_texts.store(identifier);
+                Some(LinkLabel::Identifier(Cow::from(identifier)))
             }
             LinkReference::Collapsed => {
                 out.write_str("[]");
                 Some(label)
             }
-            LinkReference::Shortcut => {
-                // no write
-                Some(label)
-            }
+            LinkReference::Shortcut => Some(label),
         };
+
+        let _ = reference_to_add; // tmp
 
         if let Some(reference_label) = reference_to_add {
             if self.seen_links.insert(reference_label.clone()) {
@@ -553,7 +554,7 @@ impl<'a> MdWriterState<'a> {
                 for (link_ref, link_def) in defs_to_write {
                     out.write_char('[');
                     match link_ref {
-                        LinkLabel::Identifier(identifier) => out.write_str(identifier),
+                        LinkLabel::Identifier(identifier) => out.write_str(identifier.deref()),
                         LinkLabel::Inline(text) => self.write_line(out, text),
                     }
                     out.write_str("]: ");
