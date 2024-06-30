@@ -24,10 +24,16 @@ impl PartialEq for StringMatcher {
 }
 
 impl StringMatcher {
+    const BAREWORD_ANCHOR_END: char = '$';
+
     pub fn matches(&self, haystack: &str) -> bool {
         match self {
             StringMatcher::Any => true,
-            StringMatcher::Substring(look_for) => haystack.contains(look_for),
+            StringMatcher::Substring(look_for) => {
+                let pattern = format!("(?i){}", regex::escape(look_for));
+                let re = Regex::new(&pattern).expect("internal error");
+                re.is_match(haystack)
+            }
             StringMatcher::Regex(re) => re.is_match(haystack),
         }
     }
@@ -112,6 +118,10 @@ impl StringMatcher {
             let Some(ch) = chars.peek() else {
                 break;
             };
+            if ch == Self::BAREWORD_ANCHOR_END {
+                let _ = chars.next();
+                break;
+            }
             if ch == bareword_end {
                 break;
             }
@@ -178,6 +188,38 @@ mod test {
         parse_and_check_with(']', "foo] rest", StringMatcher::Substring("foo".to_string()), "] rest");
     }
 
+    #[test]
+    fn bareword_case_sensitivity() {
+        let m = parse_and_check("hello", StringMatcher::Substring("hello".to_string()), "");
+        assert_eq!(true, m.matches("hello"));
+        assert_eq!(true, m.matches("HELLO"));
+    }
+
+    #[test]
+    fn bareword_regex_char() {
+        let m = parse_and_check("hello.world", StringMatcher::Substring("hello.world".to_string()), "");
+        assert_eq!(true, m.matches("hello.world"));
+        assert_eq!(false, m.matches("hello world")); // the period is _not_ a regex any
+    }
+
+    #[test]
+    fn bareword_end_delimiters() {
+        parse_and_check_with(
+            '@',
+            "hello@world",
+            StringMatcher::Substring("hello".to_string()),
+            "@world",
+        );
+
+        // "$" is always an end delimiter
+        parse_and_check_with(
+            '@',
+            "hello$world",
+            StringMatcher::Substring("hello".to_string()),
+            "world", // note: the dollar sign got consumed!
+        );
+    }
+
     //noinspection RegExpSingleCharAlternation (for the "(a|b)" case)
     #[test]
     fn regex() {
@@ -228,15 +270,21 @@ mod test {
         parse_and_check_with(']', "] rest", StringMatcher::Any, "] rest");
     }
 
-    fn parse_and_check_with(bareword_end: char, text: &str, expect: StringMatcher, expect_remaining: &str) {
+    fn parse_and_check_with(
+        bareword_end: char,
+        text: &str,
+        expect: StringMatcher,
+        expect_remaining: &str,
+    ) -> StringMatcher {
         let mut iter = ParsingIterator::new(text);
         let matcher = StringMatcher::read(&mut iter, bareword_end).unwrap();
         assert_eq!(matcher, expect);
         let remaining: String = iter.collect();
         assert_eq!(&remaining, expect_remaining);
+        expect
     }
 
-    fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) {
+    fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) -> StringMatcher {
         parse_and_check_with(SELECTOR_SEPARATOR, text, expect, expect_remaining)
     }
 
