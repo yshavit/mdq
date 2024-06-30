@@ -22,6 +22,7 @@ mod select;
 mod str_utils;
 mod tree;
 mod tree_ref;
+mod tree_ref_serde;
 mod tree_test_utils;
 mod utils_for_test;
 
@@ -44,6 +45,9 @@ struct Cli {
 
     /// The selector string
     selectors: Option<String>,
+
+    #[arg(long, short, default_value_t = false)]
+    json: bool,
 }
 
 fn main() -> ExitCode {
@@ -53,7 +57,6 @@ fn main() -> ExitCode {
     stdin().read_to_string(&mut contents).expect("invalid input (not utf8)");
     let ast = markdown::to_mdast(&mut contents, &markdown::ParseOptions::gfm()).unwrap();
     let mdqs = MdElem::read(ast, &ReadOptions::default()).unwrap();
-    let mut out = output::Output::new(Stream(io::stdout()));
 
     let selectors_str = &cli.selectors.unwrap_or_default();
     let selectors = match MdqRefSelector::parse(selectors_str) {
@@ -77,8 +80,13 @@ fn main() -> ExitCode {
         add_thematic_breaks: true,
     };
 
-    fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
-    out.write_str("\n");
+    if cli.json {
+        serde_json::to_writer(io::stdout(), &pipeline_nodes).unwrap();
+    } else {
+        let mut out = output::Output::new(Stream(io::stdout()));
+        fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
+        out.write_str("\n");
+    }
 
     ExitCode::SUCCESS
 }
