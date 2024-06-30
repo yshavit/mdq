@@ -129,12 +129,7 @@ impl ReferenceAssigner {
 /// Turns the inlines into a String. Unlike [crate::fmt_str::inlines_to_plain_string], this respects formatting spans
 /// like emphasis, strong, etc.
 fn inlines_to_string(inlines: &Vec<Inline>) -> String {
-    // TODO we don't actually need a full write_md, with all its internal state (reference holders, etc).
-    // write_md holds a bunch of state to handle links, but this is used to stringify the text of a shortcut/collapsed
-    // link, and that text can't itself contain links (per the GFM spec).
-    // We could do some refactoring here, e.g. to factor all the inlines-writing into an InlineWriter<L> where L
-    // is a LinkWriter. For the full md case, that would include all the state it has today; for this case, it would
-    // just panic on inlines (or maybe to be safe, just write the inline portion only: "[foo][1]" but not "[1]: url").
+    // see: https://github.com/yshavit/mdq/issues/87
     let mut string_writer = Output::new(String::with_capacity(32)); // guess at capacity
     write_md(
         &MdOptions {
