@@ -4,6 +4,7 @@ use std::io::{stdin, Read};
 use std::process::ExitCode;
 
 use crate::fmt_md::{MdOptions, ReferencePlacement};
+use crate::link_transform::LinkTransform;
 use crate::output::Stream;
 use crate::select::ParseError;
 use crate::tree::{MdElem, ReadOptions};
@@ -12,6 +13,7 @@ use select::MdqRefSelector;
 
 mod fmt_md;
 mod fmt_str;
+mod link_transform;
 mod matcher;
 mod output;
 mod parse_common;
@@ -36,6 +38,9 @@ struct Cli {
     /// Where to put footnote references. Defaults to be same as --link-pos
     #[arg(long, value_enum)]
     footnote_pos: Option<ReferencePlacement>,
+
+    #[arg(long, short, value_enum, default_value_t=LinkTransform::Reference)]
+    link_canonicalization: LinkTransform,
 
     /// The selector string
     selectors: Option<String>,
@@ -65,9 +70,12 @@ fn main() -> ExitCode {
         pipeline_nodes = new_pipeline;
     }
 
-    let mut md_options = MdOptions::default();
-    md_options.link_reference_placement = cli.link_pos;
-    md_options.footnote_reference_placement = cli.footnote_pos.unwrap_or(md_options.link_reference_placement);
+    let md_options = MdOptions {
+        link_reference_placement: cli.link_pos,
+        footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
+        link_canonicalization: cli.link_canonicalization,
+        add_thematic_breaks: true,
+    };
 
     fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
     out.write_str("\n");

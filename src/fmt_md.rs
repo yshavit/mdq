@@ -1,19 +1,23 @@
 use clap::ValueEnum;
-use std::borrow::Borrow;
+use std::borrow::{Borrow, Cow};
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
-use std::fmt::{Alignment, Display};
+use std::fmt::Alignment;
+use std::ops::Deref;
 
-use crate::fmt_str::inlines_to_plain_string;
+use crate::link_transform::{LinkLabel, LinkTransform, LinkTransformer};
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
 use crate::tree_ref::{ListItemRef, MdElemRef};
 
-#[derive(Default)]
 pub struct MdOptions {
     pub link_reference_placement: ReferencePlacement,
     pub footnote_reference_placement: ReferencePlacement,
+    pub link_canonicalization: LinkTransform,
+    /// note: this is not exposed through the CLI, but is used in [crate::link_transform::inlines_to_string] to
+    /// suppress the thematic breaks between inlines that are otherwise usually present.
+    pub add_thematic_breaks: bool,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -79,8 +83,9 @@ where
             links: HashMap::with_capacity(pending_refs_capacity),
             footnotes: HashMap::with_capacity(pending_refs_capacity),
         },
+        link_transformer: LinkTransformer::from(options.link_canonicalization),
     };
-    writer_state.write_md(out, nodes, true);
+    writer_state.write_md(out, nodes, options.add_thematic_breaks);
 
     // Always write the pending definitions at the end of the doc. If there were no sections, then BottomOfSection
     // won't have been triggered, but we still want to write them
@@ -93,6 +98,7 @@ struct MdWriterState<'a> {
     seen_links: HashSet<LinkLabel<'a>>,
     seen_footnotes: HashSet<&'a String>,
     pending_references: PendingReferences<'a>,
+    link_transformer: LinkTransformer,
 }
 
 struct PendingReferences<'a> {
@@ -104,33 +110,6 @@ struct PendingReferences<'a> {
 struct UrlAndTitle<'a> {
     url: &'a String,
     title: &'a Option<String>,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
-enum LinkLabel<'a> {
-    Identifier(&'a String),
-    Inline(&'a Vec<Inline>),
-}
-
-impl<'a> LinkLabel<'a> {
-    fn write_to<'b, W: SimpleWrite>(&self, writer: &mut MdWriterState<'b>, out: &mut Output<W>)
-    where
-        'a: 'b,
-    {
-        match self {
-            LinkLabel::Identifier(text) => out.write_str(text),
-            LinkLabel::Inline(text) => writer.write_line(out, text),
-        }
-    }
-}
-
-impl<'a> Display for LinkLabel<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LinkLabel::Identifier(s) => f.write_str(*s),
-            LinkLabel::Inline(inlines) => f.write_str(&inlines_to_plain_string(*inlines)),
-        }
-    }
 }
 
 impl<'a> MdWriterState<'a> {
@@ -199,11 +178,12 @@ impl<'a> MdWriterState<'a> {
                 self.write_inline_element(out, inline);
             }
             MdElemRef::Link(link) => {
-                self.write_link_inline_portion(out, LinkLabel::Inline(&link.text), &link.link_definition);
+                self.write_link_inline_portion(out, LinkLabel::Inline(&link.text), &link.link_definition)
             }
             MdElemRef::Image(image) => {
                 out.write_char('!');
-                self.write_link_inline_portion(out, LinkLabel::Identifier(&image.alt), &image.link);
+                let alt_text = &image.alt;
+                self.write_link_inline_portion(out, LinkLabel::Text(Cow::from(alt_text)), &image.link);
             }
         }
     }
@@ -472,9 +452,16 @@ impl<'a> MdWriterState<'a> {
         W: SimpleWrite,
     {
         out.write_char('[');
-        label.write_to(self, out);
+        match &label {
+            LinkLabel::Text(text) => out.write_str(text),
+            LinkLabel::Inline(text) => self.write_line(out, text),
+        }
         out.write_char(']');
-        let reference_to_add = match &link.reference {
+
+        let transformed = self.link_transformer.transform(&link.reference, &label);
+        let link_ref_owned = transformed.into_owned();
+
+        let reference_to_add = match link_ref_owned {
             LinkReference::Inline => {
                 out.write_char('(');
                 out.write_str(&link.url);
@@ -484,18 +471,15 @@ impl<'a> MdWriterState<'a> {
             }
             LinkReference::Full(identifier) => {
                 out.write_char('[');
-                out.write_str(identifier);
+                out.write_str(&identifier);
                 out.write_char(']');
-                Some(LinkLabel::Identifier(identifier))
+                Some(LinkLabel::Text(Cow::from(identifier)))
             }
             LinkReference::Collapsed => {
                 out.write_str("[]");
                 Some(label)
             }
-            LinkReference::Shortcut => {
-                // no write
-                Some(label)
-            }
+            LinkReference::Shortcut => Some(label),
         };
 
         if let Some(reference_label) = reference_to_add {
@@ -552,7 +536,7 @@ impl<'a> MdWriterState<'a> {
                 for (link_ref, link_def) in defs_to_write {
                     out.write_char('[');
                     match link_ref {
-                        LinkLabel::Identifier(identifier) => out.write_str(identifier),
+                        LinkLabel::Text(identifier) => out.write_str(identifier.deref()),
                         LinkLabel::Inline(text) => self.write_line(out, text),
                     }
                     out.write_str("]: ");
@@ -660,6 +644,7 @@ pub mod tests {
     use indoc::indoc;
 
     use crate::fmt_md::MdOptions;
+    use crate::link_transform::LinkTransform;
     use crate::m_node;
     use crate::md_elem;
     use crate::md_elems;
@@ -668,7 +653,7 @@ pub mod tests {
     use crate::tree::*;
     use crate::tree_ref::MdElemRef;
 
-    use super::write_md;
+    use super::{write_md, ReferencePlacement};
 
     crate::variants_checker!(VARIANTS_CHECKER = MdElemRef {
         Doc(..),
@@ -1856,6 +1841,33 @@ pub mod tests {
                 [link text two](https://example.com/2)"#},
             );
         }
+
+        /// see [crate::link_transform::tests] for more extensive tests
+        #[test]
+        fn reference_transform_smoke_test() {
+            check_render_refs_with(
+                &MdOptions {
+                    link_reference_placement: ReferencePlacement::Section,
+                    footnote_reference_placement: ReferencePlacement::Section,
+                    link_canonicalization: LinkTransform::Reference,
+                    add_thematic_breaks: true,
+                },
+                vec![MdElemRef::Link(&Link {
+                    text: vec![mdq_inline!("link text")],
+                    link_definition: LinkDefinition {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline, // note! inline, but will be transformed to full
+                    },
+                })],
+                indoc! {r#"
+                    [link text][1]
+
+                       -----
+
+                    [1]: https://example.com"#},
+            );
+        }
     }
 
     mod image {
@@ -1915,6 +1927,33 @@ pub mod tests {
                     [2]: https://example.com/2.png"#},
             );
         }
+
+        /// see [crate::link_transform::tests] for more extensive tests
+        #[test]
+        fn reference_transform_smoke_test() {
+            check_render_refs_with(
+                &MdOptions {
+                    link_reference_placement: ReferencePlacement::Section,
+                    footnote_reference_placement: ReferencePlacement::Section,
+                    link_canonicalization: LinkTransform::Reference,
+                    add_thematic_breaks: true,
+                },
+                vec![MdElemRef::Image(&Image {
+                    alt: "alt text".to_string(),
+                    link: LinkDefinition {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline, // note! inline, but will be transformed to full
+                    },
+                })],
+                indoc! {r#"
+                    ![alt text][1]
+
+                       -----
+
+                    [1]: https://example.com"#},
+            );
+        }
     }
 
     mod footnote {
@@ -1962,7 +2001,7 @@ pub mod tests {
 
     mod annotation_and_footnote_layouts {
         use super::*;
-        use crate::fmt_md::ReferencePlacement;
+        use crate::link_transform::LinkTransform;
 
         #[test]
         fn link_and_footnote() {
@@ -2002,6 +2041,8 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Section,
+                    link_canonicalization: LinkTransform::Keep,
+                    add_thematic_breaks: true,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -2026,6 +2067,8 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Doc,
+                    link_canonicalization: LinkTransform::Keep,
+                    add_thematic_breaks: true,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -2053,6 +2096,8 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Section,
+                    link_canonicalization: LinkTransform::Keep,
+                    add_thematic_breaks: true,
                 },
                 md_elems![Block::LeafBlock::Paragraph {
                     body: vec![m_node!(Inline::Link {
@@ -2079,6 +2124,8 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Section,
+                    link_canonicalization: LinkTransform::Keep,
+                    add_thematic_breaks: true,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -2106,6 +2153,8 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Doc,
+                    link_canonicalization: LinkTransform::Keep,
+                    add_thematic_breaks: true,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -2132,6 +2181,8 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Doc,
+                    link_canonicalization: LinkTransform::Keep,
+                    add_thematic_breaks: true,
                 },
                 // Define them in the opposite order that we'd expect them
                 md_elems![Block::LeafBlock::Paragraph {
@@ -2208,7 +2259,7 @@ pub mod tests {
     }
 
     fn check_render(nodes: Vec<MdElem>, expect: &str) {
-        check_render_with(&MdOptions::default(), nodes, expect);
+        check_render_with(&default_opts(), nodes, expect);
     }
 
     fn check_render_with(options: &MdOptions, nodes: Vec<MdElem>, expect: &str) {
@@ -2220,7 +2271,7 @@ pub mod tests {
     }
 
     fn check_render_refs(nodes: Vec<MdElemRef>, expect: &str) {
-        check_render_refs_with(&MdOptions::default(), nodes, expect)
+        check_render_refs_with(&default_opts(), nodes, expect)
     }
 
     fn check_render_refs_with<'a>(options: &MdOptions, nodes: Vec<MdElemRef<'a>>, expect: &str) {
@@ -2230,5 +2281,14 @@ pub mod tests {
         write_md(options, &mut out, nodes.into_iter());
         let actual = out.take_underlying().unwrap();
         assert_eq!(&actual, expect);
+    }
+
+    fn default_opts() -> MdOptions {
+        MdOptions {
+            link_reference_placement: Default::default(),
+            footnote_reference_placement: Default::default(),
+            link_canonicalization: LinkTransform::Keep,
+            add_thematic_breaks: true,
+        }
     }
 }
