@@ -12,6 +12,7 @@ use crate::tree_ref::MdElemRef;
 use select::MdqRefSelector;
 
 mod fmt_md;
+mod fmt_md_inlines;
 mod fmt_str;
 mod link_transform;
 mod matcher;

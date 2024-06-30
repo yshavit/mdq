@@ -1,11 +1,11 @@
+use crate::fmt_md_inlines::MdInlinesWriter;
 use clap::ValueEnum;
 use std::borrow::{Borrow, Cow};
 use std::cmp::max;
-use std::collections::{HashMap, HashSet};
 use std::fmt::Alignment;
 use std::ops::Deref;
 
-use crate::link_transform::{LinkLabel, LinkTransform, LinkTransformer};
+use crate::link_transform::{LinkLabel, LinkTransform};
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
@@ -67,23 +67,15 @@ impl Default for ReferencePlacement {
     }
 }
 
-pub fn write_md<'a, I, W>(options: &'a MdOptions, out: &mut Output<W>, nodes: I)
+pub fn write_md<'a, I, W>(options: &'_ MdOptions, out: &mut Output<W>, nodes: I)
 where
     I: Iterator<Item = MdElemRef<'a>>,
     W: SimpleWrite,
 {
-    let pending_refs_capacity = 8; // arbitrary guess
-
     let mut writer_state = MdWriterState {
         opts: options,
         prev_was_thematic_break: false,
-        seen_links: HashSet::with_capacity(pending_refs_capacity),
-        seen_footnotes: HashSet::with_capacity(pending_refs_capacity),
-        pending_references: PendingReferences {
-            links: HashMap::with_capacity(pending_refs_capacity),
-            footnotes: HashMap::with_capacity(pending_refs_capacity),
-        },
-        link_transformer: LinkTransformer::from(options.link_canonicalization),
+        inlines_writer: MdInlinesWriter::new(&options),
     };
     writer_state.write_md(out, nodes, options.add_thematic_breaks);
 
@@ -95,21 +87,7 @@ where
 struct MdWriterState<'a> {
     opts: &'a MdOptions,
     prev_was_thematic_break: bool,
-    seen_links: HashSet<LinkLabel<'a>>,
-    seen_footnotes: HashSet<&'a String>,
-    pending_references: PendingReferences<'a>,
-    link_transformer: LinkTransformer,
-}
-
-struct PendingReferences<'a> {
-    links: HashMap<LinkLabel<'a>, UrlAndTitle<'a>>,
-    footnotes: HashMap<&'a String, &'a Vec<MdElem>>,
-}
-
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
-struct UrlAndTitle<'a> {
-    url: &'a String,
-    title: &'a Option<String>,
+    inlines_writer: MdInlinesWriter<'a>,
 }
 
 impl<'a> MdWriterState<'a> {
@@ -143,7 +121,7 @@ impl<'a> MdWriterState<'a> {
                     }
                     if !title.is_empty() {
                         out.write_str(" ");
-                        self.write_line(out, title);
+                        self.inlines_writer.write_line(out, title);
                     }
                 });
                 self.write_md(out, Self::doc_iter(body), false);
@@ -175,22 +153,24 @@ impl<'a> MdWriterState<'a> {
             MdElemRef::List(list) => self.write_list(out, list),
             MdElemRef::Table(table) => self.write_table(out, table),
             MdElemRef::Inline(inline) => {
-                self.write_inline_element(out, inline);
+                self.inlines_writer.write_inline_element(out, inline);
             }
             MdElemRef::Link(link) => {
-                self.write_link_inline_portion(out, LinkLabel::Inline(&link.text), &link.link_definition)
+                self.inlines_writer
+                    .write_link_inline_portion(out, LinkLabel::Inline(&link.text), &link.link_definition)
             }
             MdElemRef::Image(image) => {
                 out.write_char('!');
                 let alt_text = &image.alt;
-                self.write_link_inline_portion(out, LinkLabel::Text(Cow::from(alt_text)), &image.link);
+                self.inlines_writer
+                    .write_link_inline_portion(out, LinkLabel::Text(Cow::from(alt_text)), &image.link);
             }
         }
     }
 
     fn write_paragraph<W: SimpleWrite>(&mut self, out: &mut Output<W>, paragraph: &'a Paragraph) {
         out.with_block(Block::Plain, |out| {
-            self.write_line(out, &paragraph.body);
+            self.inlines_writer.write_line(out, &paragraph.body);
         });
     }
 
@@ -387,125 +367,15 @@ impl<'a> MdWriterState<'a> {
         });
     }
 
-    pub fn write_line<E, W>(&mut self, out: &mut Output<W>, elems: &'a [E])
-    where
-        E: Borrow<Inline>,
-        W: SimpleWrite,
-    {
-        for elem in elems {
-            self.write_inline_element(out, elem.borrow());
-        }
-    }
-
-    pub fn write_inline_element<W>(&mut self, out: &mut Output<W>, elem: &'a Inline)
-    where
-        W: SimpleWrite,
-    {
-        match elem {
-            Inline::Formatting(Formatting { variant, children }) => {
-                let surround = match variant {
-                    FormattingVariant::Delete => "~~",
-                    FormattingVariant::Emphasis => "_",
-                    FormattingVariant::Strong => "**",
-                };
-                out.write_str(surround);
-                self.write_line(out, children);
-                out.write_str(surround);
-            }
-            Inline::Text(Text { variant, value }) => {
-                let surround = match variant {
-                    TextVariant::Plain => "",
-                    TextVariant::Code => "`",
-                    TextVariant::Math => "$",
-                    TextVariant::Html => "",
-                };
-                out.write_str(surround);
-                out.write_str(value);
-                out.write_str(surround);
-            }
-            Inline::Link(link) => self.write_one_md(out, MdElemRef::Link(link)),
-            Inline::Image(image) => self.write_one_md(out, MdElemRef::Image(image)),
-            Inline::Footnote(Footnote { label, text }) => {
-                out.write_str("[^");
-                out.write_str(label);
-                out.write_char(']');
-                if self.seen_footnotes.insert(label) {
-                    self.pending_references.footnotes.insert(label, text);
-                }
-            }
-        }
-    }
-
-    /// Writes the inline portion of the link, which may be the full link if it was originally inlined.
-    ///
-    /// Examples:
-    ///
-    /// ```
-    /// [an inline link](https://example.com)
-    /// [a referenced link][1]
-    /// ```
-    ///
-    /// The `contents` function is what writes e.g. `an inline link` above. It's a function because it may be a recursive
-    /// call into [write_line] (for links) or just simple text (for image alts).
-    fn write_link_inline_portion<W>(&mut self, out: &mut Output<W>, label: LinkLabel<'a>, link: &'a LinkDefinition)
-    where
-        W: SimpleWrite,
-    {
-        out.write_char('[');
-        match &label {
-            LinkLabel::Text(text) => out.write_str(text),
-            LinkLabel::Inline(text) => self.write_line(out, text),
-        }
-        out.write_char(']');
-
-        let transformed = self.link_transformer.transform(&link.reference, &label);
-        let link_ref_owned = transformed.into_owned();
-
-        let reference_to_add = match link_ref_owned {
-            LinkReference::Inline => {
-                out.write_char('(');
-                out.write_str(&link.url);
-                self.write_url_title(out, &link.title);
-                out.write_char(')');
-                None
-            }
-            LinkReference::Full(identifier) => {
-                out.write_char('[');
-                out.write_str(&identifier);
-                out.write_char(']');
-                Some(LinkLabel::Text(Cow::from(identifier)))
-            }
-            LinkReference::Collapsed => {
-                out.write_str("[]");
-                Some(label)
-            }
-            LinkReference::Shortcut => Some(label),
-        };
-
-        if let Some(reference_label) = reference_to_add {
-            if self.seen_links.insert(reference_label.clone()) {
-                self.pending_references.links.insert(
-                    reference_label,
-                    UrlAndTitle {
-                        url: &link.url,
-                        title: &link.title,
-                    },
-                );
-                // else warn?
-            }
-        }
-    }
-
     fn write_definitions<W>(&mut self, out: &mut Output<W>, which: DefinitionsToWrite, add_break: bool)
     where
         W: SimpleWrite,
     {
+        let pending_references = self.inlines_writer.pending_references();
         let is_empty = match which {
-            DefinitionsToWrite::Links => self.pending_references.links.is_empty(),
-            DefinitionsToWrite::Footnotes => self.pending_references.footnotes.is_empty(),
-            DefinitionsToWrite::Both => {
-                self.pending_references.links.is_empty() && self.pending_references.footnotes.is_empty()
-            }
+            DefinitionsToWrite::Links => pending_references.links.is_empty(),
+            DefinitionsToWrite::Footnotes => pending_references.footnotes.is_empty(),
+            DefinitionsToWrite::Both => pending_references.links.is_empty() && pending_references.footnotes.is_empty(),
             DefinitionsToWrite::Neither => true,
         };
         if is_empty {
@@ -517,10 +387,10 @@ impl<'a> MdWriterState<'a> {
         out.with_block(Block::Plain, move |out| {
             let mut remaining_defs = 0;
             if matches!(which, DefinitionsToWrite::Links | DefinitionsToWrite::Both) {
-                remaining_defs += self.pending_references.links.len()
+                remaining_defs += pending_references.links.len()
             }
             if matches!(which, DefinitionsToWrite::Footnotes | DefinitionsToWrite::Both) {
-                remaining_defs += self.pending_references.footnotes.len()
+                remaining_defs += pending_references.footnotes.len()
             }
             let mut newline = |out: &mut Output<W>| {
                 if remaining_defs > 1 {
@@ -530,14 +400,14 @@ impl<'a> MdWriterState<'a> {
             };
 
             if matches!(which, DefinitionsToWrite::Links | DefinitionsToWrite::Both) {
-                let mut defs_to_write: Vec<_> = self.pending_references.links.drain().collect();
+                let mut defs_to_write: Vec<_> = pending_references.links.drain().collect();
                 defs_to_write.sort_by_key(|(k, _)| k.to_string());
 
                 for (link_ref, link_def) in defs_to_write {
                     out.write_char('[');
                     match link_ref {
                         LinkLabel::Text(identifier) => out.write_str(identifier.deref()),
-                        LinkLabel::Inline(text) => self.write_line(out, text),
+                        LinkLabel::Inline(text) => self.inlines_writer.write_line(out, text),
                     }
                     out.write_str("]: ");
                     out.write_str(&link_def.url);
@@ -546,7 +416,7 @@ impl<'a> MdWriterState<'a> {
                 }
             }
             if matches!(which, DefinitionsToWrite::Footnotes | DefinitionsToWrite::Both) {
-                let mut defs_to_write: Vec<_> = self.pending_references.footnotes.drain().collect();
+                let mut defs_to_write: Vec<_> = pending_references.footnotes.drain().collect();
                 defs_to_write.sort_by_key(|&kv| kv.0);
 
                 for (link_ref, text) in defs_to_write {
@@ -575,7 +445,7 @@ impl<'a> MdWriterState<'a> {
         E: Borrow<Inline>,
     {
         let mut out = Output::new(String::with_capacity(line.len() * 10)); // rough guess
-        self.write_line(&mut out, line);
+        self.inlines_writer.write_line(&mut out, line);
         out.take_underlying().unwrap()
     }
 
