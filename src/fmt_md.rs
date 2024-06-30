@@ -653,7 +653,7 @@ pub mod tests {
     use crate::tree::*;
     use crate::tree_ref::MdElemRef;
 
-    use super::write_md;
+    use super::{write_md, ReferencePlacement};
 
     crate::variants_checker!(VARIANTS_CHECKER = MdElemRef {
         Doc(..),
@@ -1841,6 +1841,33 @@ pub mod tests {
                 [link text two](https://example.com/2)"#},
             );
         }
+
+        /// see [crate::link_transform::tests] for more extensive tests
+        #[test]
+        fn reference_transform_smoke_test() {
+            check_render_refs_with(
+                &MdOptions {
+                    link_reference_placement: ReferencePlacement::Section,
+                    footnote_reference_placement: ReferencePlacement::Section,
+                    link_canonicalization: LinkTransform::Reference,
+                    add_thematic_breaks: true,
+                },
+                vec![MdElemRef::Link(&Link {
+                    text: vec![mdq_inline!("link text")],
+                    link_definition: LinkDefinition {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline, // note! inline, but will be transformed to full
+                    },
+                })],
+                indoc! {r#"
+                    [link text][1]
+
+                       -----
+
+                    [1]: https://example.com"#},
+            );
+        }
     }
 
     mod image {
@@ -1900,6 +1927,33 @@ pub mod tests {
                     [2]: https://example.com/2.png"#},
             );
         }
+
+        /// see [crate::link_transform::tests] for more extensive tests
+        #[test]
+        fn reference_transform_smoke_test() {
+            check_render_refs_with(
+                &MdOptions {
+                    link_reference_placement: ReferencePlacement::Section,
+                    footnote_reference_placement: ReferencePlacement::Section,
+                    link_canonicalization: LinkTransform::Reference,
+                    add_thematic_breaks: true,
+                },
+                vec![MdElemRef::Image(&Image {
+                    alt: "alt text".to_string(),
+                    link: LinkDefinition {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline, // note! inline, but will be transformed to full
+                    },
+                })],
+                indoc! {r#"
+                    ![alt text][1]
+
+                       -----
+
+                    [1]: https://example.com"#},
+            );
+        }
     }
 
     mod footnote {
@@ -1947,7 +2001,6 @@ pub mod tests {
 
     mod annotation_and_footnote_layouts {
         use super::*;
-        use crate::fmt_md::ReferencePlacement;
         use crate::link_transform::LinkTransform;
 
         #[test]
