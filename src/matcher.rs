@@ -29,7 +29,11 @@ impl StringMatcher {
     pub fn matches(&self, haystack: &str) -> bool {
         match self {
             StringMatcher::Any => true,
-            StringMatcher::Substring(look_for) => haystack.contains(look_for),
+            StringMatcher::Substring(look_for) => {
+                let pattern = format!("(?i){}", regex::escape(look_for));
+                let re = Regex::new(&pattern).expect("internal error");
+                re.is_match(haystack)
+            }
             StringMatcher::Regex(re) => re.is_match(haystack),
         }
     }
