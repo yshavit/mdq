@@ -24,6 +24,8 @@ impl PartialEq for StringMatcher {
 }
 
 impl StringMatcher {
+    const BAREWORD_ANCHOR_END: char = '$';
+
     pub fn matches(&self, haystack: &str) -> bool {
         match self {
             StringMatcher::Any => true,
@@ -112,7 +114,7 @@ impl StringMatcher {
             let Some(ch) = chars.peek() else {
                 break;
             };
-            if ch == bareword_end {
+            if ch == Self::BAREWORD_ANCHOR_END || ch == bareword_end {
                 break;
             }
             let _ = chars.next();
