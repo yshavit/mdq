@@ -9,6 +9,7 @@ use crate::output::Stream;
 use crate::select::ParseError;
 use crate::tree::{MdElem, ReadOptions};
 use crate::tree_ref::MdElemRef;
+use crate::tree_ref_serde::MdElemsStream;
 use select::MdqRefSelector;
 
 mod fmt_md;
@@ -81,7 +82,7 @@ fn main() -> ExitCode {
     };
 
     if cli.json {
-        serde_json::to_writer(io::stdout(), &pipeline_nodes).unwrap();
+        serde_json::to_writer(io::stdout(), &MdElemsStream::from(&pipeline_nodes)).unwrap();
     } else {
         let mut out = output::Output::new(Stream(io::stdout()));
         fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
