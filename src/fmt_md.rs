@@ -1,11 +1,11 @@
-use crate::fmt_md_inlines::MdInlinesWriter;
+use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
 use clap::ValueEnum;
 use std::borrow::Borrow;
 use std::cmp::max;
 use std::fmt::Alignment;
 use std::ops::Deref;
 
-use crate::link_transform::{LinkLabel, LinkTransform};
+use crate::link_transform::LinkLabel;
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
@@ -14,10 +14,7 @@ use crate::tree_ref::{ListItemRef, MdElemRef};
 pub struct MdOptions {
     pub link_reference_placement: ReferencePlacement,
     pub footnote_reference_placement: ReferencePlacement,
-    pub link_canonicalization: LinkTransform,
-    /// note: this is not exposed through the CLI, but is used in [crate::link_transform::inlines_to_string] to
-    /// suppress the thematic breaks between inlines that are otherwise usually present.
-    pub add_thematic_breaks: bool,
+    pub inline_options: MdInlinesWriterOptions,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -75,9 +72,9 @@ where
     let mut writer_state = MdWriterState {
         opts: options,
         prev_was_thematic_break: false,
-        inlines_writer: MdInlinesWriter::new(&options),
+        inlines_writer: MdInlinesWriter::new(options.inline_options),
     };
-    writer_state.write_md(out, nodes, options.add_thematic_breaks);
+    writer_state.write_md(out, nodes, false);
 
     // Always write the pending definitions at the end of the doc. If there were no sections, then BottomOfSection
     // won't have been triggered, but we still want to write them
@@ -451,6 +448,7 @@ pub mod tests {
     use indoc::indoc;
 
     use crate::fmt_md::MdOptions;
+    use crate::fmt_md_inlines::MdInlinesWriterOptions;
     use crate::link_transform::LinkTransform;
     use crate::m_node;
     use crate::md_elem;
@@ -1520,6 +1518,7 @@ pub mod tests {
 
     mod link {
         use super::*;
+        use crate::fmt_md_inlines::MdInlinesWriterOptions;
 
         #[test]
         fn single_link() {
@@ -1613,8 +1612,9 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Section,
-                    link_canonicalization: LinkTransform::Reference,
-                    add_thematic_breaks: true,
+                    inline_options: MdInlinesWriterOptions {
+                        link_canonicalization: LinkTransform::Reference,
+                    },
                 },
                 vec![MdElemRef::Link(&Link {
                     text: vec![mdq_inline!("link text")],
@@ -1636,6 +1636,7 @@ pub mod tests {
 
     mod image {
         use super::*;
+        use crate::fmt_md_inlines::MdInlinesWriterOptions;
 
         #[test]
         fn single_image() {
@@ -1699,8 +1700,9 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Section,
-                    link_canonicalization: LinkTransform::Reference,
-                    add_thematic_breaks: true,
+                    inline_options: MdInlinesWriterOptions {
+                        link_canonicalization: LinkTransform::Reference,
+                    },
                 },
                 vec![MdElemRef::Image(&Image {
                     alt: "alt text".to_string(),
@@ -1765,6 +1767,7 @@ pub mod tests {
 
     mod annotation_and_footnote_layouts {
         use super::*;
+        use crate::fmt_md_inlines::MdInlinesWriterOptions;
         use crate::link_transform::LinkTransform;
 
         #[test]
@@ -1805,8 +1808,9 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Section,
-                    link_canonicalization: LinkTransform::Keep,
-                    add_thematic_breaks: true,
+                    inline_options: MdInlinesWriterOptions {
+                        link_canonicalization: LinkTransform::Keep,
+                    },
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -1831,8 +1835,9 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Doc,
-                    link_canonicalization: LinkTransform::Keep,
-                    add_thematic_breaks: true,
+                    inline_options: MdInlinesWriterOptions {
+                        link_canonicalization: LinkTransform::Keep,
+                    },
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -1860,8 +1865,9 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Section,
-                    link_canonicalization: LinkTransform::Keep,
-                    add_thematic_breaks: true,
+                    inline_options: MdInlinesWriterOptions {
+                        link_canonicalization: LinkTransform::Keep,
+                    },
                 },
                 md_elems![Block::LeafBlock::Paragraph {
                     body: vec![m_node!(Inline::Link {
@@ -1888,8 +1894,9 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Section,
-                    link_canonicalization: LinkTransform::Keep,
-                    add_thematic_breaks: true,
+                    inline_options: MdInlinesWriterOptions {
+                        link_canonicalization: LinkTransform::Keep,
+                    },
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -1917,8 +1924,9 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Doc,
-                    link_canonicalization: LinkTransform::Keep,
-                    add_thematic_breaks: true,
+                    inline_options: MdInlinesWriterOptions {
+                        link_canonicalization: LinkTransform::Keep,
+                    },
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -1945,8 +1953,9 @@ pub mod tests {
                 &MdOptions {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Doc,
-                    link_canonicalization: LinkTransform::Keep,
-                    add_thematic_breaks: true,
+                    inline_options: MdInlinesWriterOptions {
+                        link_canonicalization: LinkTransform::Keep,
+                    },
                 },
                 // Define them in the opposite order that we'd expect them
                 md_elems![Block::LeafBlock::Paragraph {
@@ -2051,8 +2060,9 @@ pub mod tests {
         MdOptions {
             link_reference_placement: Default::default(),
             footnote_reference_placement: Default::default(),
-            link_canonicalization: LinkTransform::Keep,
-            add_thematic_breaks: true,
+            inline_options: MdInlinesWriterOptions {
+                link_canonicalization: LinkTransform::Keep,
+            },
         }
     }
 }

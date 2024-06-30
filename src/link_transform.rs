@@ -1,7 +1,6 @@
-use crate::fmt_md::{write_md, MdOptions, ReferencePlacement};
+use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
 use crate::output::Output;
 use crate::tree::{Inline, LinkReference};
-use crate::tree_ref::MdElemRef;
 use clap::ValueEnum;
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
@@ -38,7 +37,12 @@ impl<'a> Display for LinkLabel<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LinkLabel::Text(s) => f.write_str(s),
-            LinkLabel::Inline(inlines) => f.write_str(&inlines_to_string(*inlines)),
+            LinkLabel::Inline(inlines) => {
+                let mut inline_writer = MdInlinesWriter::new(MdInlinesWriterOptions {
+                    link_canonicalization: LinkTransform::Keep,
+                });
+                f.write_str(&inlines_to_string(&mut inline_writer, *inlines))
+            }
         }
     }
 }
@@ -61,11 +65,16 @@ enum LinkTransformState {
 }
 
 impl LinkTransformer {
-    pub fn transform<'a>(&mut self, link: &'a LinkReference, label: &LinkLabel<'a>) -> Cow<'a, LinkReference> {
+    pub fn transform<'a>(
+        &mut self,
+        inline_writer: &mut MdInlinesWriter<'a>,
+        link: &'a LinkReference,
+        label: &LinkLabel<'a>,
+    ) -> Cow<'a, LinkReference> {
         match &mut self.delegate {
             LinkTransformState::Keep => Cow::Borrowed(&link),
             LinkTransformState::Inline => Cow::Owned(LinkReference::Inline),
-            LinkTransformState::Reference(assigner) => assigner.assign(link, label),
+            LinkTransformState::Reference(assigner) => assigner.assign(inline_writer, link, label),
         }
     }
 }
@@ -88,14 +97,19 @@ impl ReferenceAssigner {
         }
     }
 
-    fn assign<'a>(&mut self, link: &'a LinkReference, label: &LinkLabel<'a>) -> Cow<'a, LinkReference> {
+    fn assign<'a>(
+        &mut self,
+        inline_writer: &mut MdInlinesWriter<'a>,
+        link: &'a LinkReference,
+        label: &LinkLabel<'a>,
+    ) -> Cow<'a, LinkReference> {
         match &link {
             LinkReference::Inline => self.assign_new(),
             LinkReference::Full(prev) => self.assign_if_numeric(prev).unwrap_or_else(|| Cow::Borrowed(link)),
             LinkReference::Collapsed | LinkReference::Shortcut => {
                 let text_cow = match label {
                     LinkLabel::Text(text) => Cow::from(text.deref()),
-                    LinkLabel::Inline(text) => Cow::Owned(inlines_to_string(text)),
+                    LinkLabel::Inline(text) => Cow::Owned(inlines_to_string(inline_writer, text)),
                 };
                 self.assign_if_numeric(text_cow.deref()).unwrap_or_else(|| {
                     let ref_text_owned = String::from(text_cow.deref());
@@ -128,19 +142,9 @@ impl ReferenceAssigner {
 
 /// Turns the inlines into a String. Unlike [crate::fmt_str::inlines_to_plain_string], this respects formatting spans
 /// like emphasis, strong, etc.
-fn inlines_to_string(inlines: &Vec<Inline>) -> String {
-    // see: https://github.com/yshavit/mdq/issues/87
+fn inlines_to_string<'a>(inline_writer: &mut MdInlinesWriter<'a>, inlines: &'a Vec<Inline>) -> String {
     let mut string_writer = Output::new(String::with_capacity(32)); // guess at capacity
-    write_md(
-        &MdOptions {
-            link_reference_placement: ReferencePlacement::Section,
-            footnote_reference_placement: ReferencePlacement::Section,
-            link_canonicalization: LinkTransform::Keep,
-            add_thematic_breaks: false,
-        },
-        &mut string_writer,
-        inlines.iter().map(|inline| MdElemRef::Inline(inline)),
-    );
+    inline_writer.write_line(&mut string_writer, inlines);
     string_writer
         .take_underlying()
         .expect("internal error while parsing collapsed- or shortcut-style link")

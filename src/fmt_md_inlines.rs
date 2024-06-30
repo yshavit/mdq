@@ -1,5 +1,4 @@
-use crate::fmt_md::MdOptions;
-use crate::link_transform::{LinkLabel, LinkTransformer};
+use crate::link_transform::{LinkLabel, LinkTransform, LinkTransformer};
 use crate::output::{Output, SimpleWrite};
 use crate::tree::{
     Footnote, Formatting, FormattingVariant, Image, Inline, Link, LinkDefinition, LinkReference, MdElem, Text,
@@ -7,6 +6,11 @@ use crate::tree::{
 };
 use std::borrow::{Borrow, Cow};
 use std::collections::{HashMap, HashSet};
+
+#[derive(Debug, Copy, Clone)]
+pub struct MdInlinesWriterOptions {
+    pub link_canonicalization: LinkTransform,
+}
 
 pub struct MdInlinesWriter<'a> {
     seen_links: HashSet<LinkLabel<'a>>,
@@ -62,7 +66,7 @@ impl<'a> LinkLike<'a> for &'a Image {
 }
 
 impl<'a> MdInlinesWriter<'a> {
-    pub fn new(options: &MdOptions) -> Self {
+    pub fn new(options: MdInlinesWriterOptions) -> Self {
         let pending_refs_capacity = 8; // arbitrary guess
         Self {
             seen_links: HashSet::with_capacity(pending_refs_capacity),
@@ -172,7 +176,7 @@ impl<'a> MdInlinesWriter<'a> {
         }
         out.write_char(']');
 
-        let transformed = self.link_transformer.transform(&link.reference, &label);
+        let transformed = self.link_transformer.transform(self, &link.reference, &label);
         let link_ref_owned = transformed.into_owned();
 
         let reference_to_add = match link_ref_owned {
