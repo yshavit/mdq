@@ -178,6 +178,38 @@ mod test {
         parse_and_check_with(']', "foo] rest", StringMatcher::Substring("foo".to_string()), "] rest");
     }
 
+    #[test]
+    fn bareword_case_sensitivity() {
+        let m = parse_and_check("hello", StringMatcher::Substring("hello".to_string()), "");
+        assert_eq!(true, m.matches("hello"));
+        assert_eq!(true, m.matches("HELLO"));
+    }
+
+    #[test]
+    fn bareword_regex_char() {
+        let m = parse_and_check("hello.world", StringMatcher::Substring("hello.world".to_string()), "");
+        assert_eq!(true, m.matches("hello.world"));
+        assert_eq!(false, m.matches("hello world")); // the period is _not_ a regex any
+    }
+
+    #[test]
+    fn bareword_end_delimiters() {
+        parse_and_check_with(
+            '@',
+            "hello@world",
+            StringMatcher::Substring("hello".to_string()),
+            "@world",
+        );
+
+        // "$" is always an end delimiter
+        parse_and_check_with(
+            '@',
+            "hello$world",
+            StringMatcher::Substring("hello".to_string()),
+            "$world",
+        );
+    }
+
     //noinspection RegExpSingleCharAlternation (for the "(a|b)" case)
     #[test]
     fn regex() {
@@ -228,15 +260,21 @@ mod test {
         parse_and_check_with(']', "] rest", StringMatcher::Any, "] rest");
     }
 
-    fn parse_and_check_with(bareword_end: char, text: &str, expect: StringMatcher, expect_remaining: &str) {
+    fn parse_and_check_with(
+        bareword_end: char,
+        text: &str,
+        expect: StringMatcher,
+        expect_remaining: &str,
+    ) -> StringMatcher {
         let mut iter = ParsingIterator::new(text);
         let matcher = StringMatcher::read(&mut iter, bareword_end).unwrap();
         assert_eq!(matcher, expect);
         let remaining: String = iter.collect();
         assert_eq!(&remaining, expect_remaining);
+        expect
     }
 
-    fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) {
+    fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) -> StringMatcher {
         parse_and_check_with(SELECTOR_SEPARATOR, text, expect, expect_remaining)
     }
 
