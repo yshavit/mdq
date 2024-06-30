@@ -118,7 +118,11 @@ impl StringMatcher {
             let Some(ch) = chars.peek() else {
                 break;
             };
-            if ch == Self::BAREWORD_ANCHOR_END || ch == bareword_end {
+            if ch == Self::BAREWORD_ANCHOR_END {
+                let _ = chars.next();
+                break;
+            }
+            if ch == bareword_end {
                 break;
             }
             let _ = chars.next();
@@ -212,7 +216,7 @@ mod test {
             '@',
             "hello$world",
             StringMatcher::Substring("hello".to_string()),
-            "$world",
+            "world", // note: the dollar sign got consumed!
         );
     }
 
