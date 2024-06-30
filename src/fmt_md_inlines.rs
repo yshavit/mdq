@@ -2,9 +2,9 @@ use crate::fmt_md::MdOptions;
 use crate::link_transform::{LinkLabel, LinkTransformer};
 use crate::output::{Output, SimpleWrite};
 use crate::tree::{
-    Footnote, Formatting, FormattingVariant, Inline, LinkDefinition, LinkReference, MdElem, Text, TextVariant,
+    Footnote, Formatting, FormattingVariant, Image, Inline, Link, LinkDefinition, LinkReference, MdElem, Text,
+    TextVariant,
 };
-use crate::tree_ref::MdElemRef;
 use std::borrow::{Borrow, Cow};
 use std::collections::{HashMap, HashSet};
 
@@ -15,9 +15,18 @@ pub struct MdInlinesWriter<'a> {
     link_transformer: LinkTransformer,
 }
 
-pub struct PendingReferences<'a> {
+struct PendingReferences<'a> {
     pub links: HashMap<LinkLabel<'a>, UrlAndTitle<'a>>,
     pub footnotes: HashMap<&'a String, &'a Vec<MdElem>>,
+}
+
+impl<'a> PendingReferences<'a> {
+    fn with_capacity(capacity: usize) -> Self {
+        Self {
+            links: HashMap::with_capacity(capacity),
+            footnotes: HashMap::with_capacity(capacity),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
@@ -26,22 +35,65 @@ pub struct UrlAndTitle<'a> {
     pub title: &'a Option<String>,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum LinkLikeType {
+    Link,
+    Image,
+}
+
+pub trait LinkLike<'a> {
+    fn link_info(&self) -> (LinkLikeType, LinkLabel<'a>, &'a LinkDefinition);
+}
+
+impl<'a> LinkLike<'a> for &'a Link {
+    fn link_info(&self) -> (LinkLikeType, LinkLabel<'a>, &'a LinkDefinition) {
+        (LinkLikeType::Link, LinkLabel::Inline(&self.text), &self.link_definition)
+    }
+}
+
+impl<'a> LinkLike<'a> for &'a Image {
+    fn link_info(&self) -> (LinkLikeType, LinkLabel<'a>, &'a LinkDefinition) {
+        (
+            LinkLikeType::Image,
+            LinkLabel::Text(Cow::Borrowed(&self.alt)),
+            &self.link,
+        )
+    }
+}
+
 impl<'a> MdInlinesWriter<'a> {
     pub fn new(options: &MdOptions) -> Self {
         let pending_refs_capacity = 8; // arbitrary guess
         Self {
             seen_links: HashSet::with_capacity(pending_refs_capacity),
             seen_footnotes: HashSet::with_capacity(pending_refs_capacity),
-            pending_references: PendingReferences {
-                links: HashMap::with_capacity(pending_refs_capacity),
-                footnotes: HashMap::with_capacity(pending_refs_capacity),
-            },
+            pending_references: PendingReferences::with_capacity(pending_refs_capacity),
             link_transformer: LinkTransformer::from(options.link_canonicalization),
         }
     }
 
-    pub fn pending_references(&mut self) -> &mut PendingReferences<'a> {
-        &mut self.pending_references
+    pub fn has_pending_links(&self) -> bool {
+        !self.pending_references.links.is_empty()
+    }
+
+    pub fn has_pending_footnotes(&self) -> bool {
+        !self.pending_references.footnotes.is_empty()
+    }
+
+    pub fn count_pending_links(&self) -> usize {
+        self.pending_references.links.len()
+    }
+
+    pub fn count_pending_footnotes(&self) -> usize {
+        self.pending_references.footnotes.len()
+    }
+
+    pub fn drain_pending_links(&mut self) -> Vec<(LinkLabel<'a>, UrlAndTitle<'a>)> {
+        self.pending_references.links.drain().collect()
+    }
+
+    pub fn drain_pending_footnotes(&mut self) -> Vec<(&'a String, &'a Vec<MdElem>)> {
+        self.pending_references.footnotes.drain().collect()
     }
 
     pub fn write_line<E, W>(&mut self, out: &mut Output<W>, elems: &'a [E])
@@ -80,8 +132,8 @@ impl<'a> MdInlinesWriter<'a> {
                 out.write_str(value);
                 out.write_str(surround);
             }
-            Inline::Link(link) => self.write_one_md(out, MdElemRef::Link(link)),
-            Inline::Image(image) => self.write_one_md(out, MdElemRef::Image(image)),
+            Inline::Link(link) => self.write_linklike(out, link),
+            Inline::Image(image) => self.write_linklike(out, image),
             Inline::Footnote(Footnote { label, text }) => {
                 out.write_str("[^");
                 out.write_str(label);
@@ -104,10 +156,15 @@ impl<'a> MdInlinesWriter<'a> {
     ///
     /// The `contents` function is what writes e.g. `an inline link` above. It's a function because it may be a recursive
     /// call into [write_line] (for links) or just simple text (for image alts).
-    pub fn write_link_inline_portion<W>(&mut self, out: &mut Output<W>, label: LinkLabel<'a>, link: &'a LinkDefinition)
+    pub fn write_linklike<W, L>(&mut self, out: &mut Output<W>, link_like: L)
     where
         W: SimpleWrite,
+        L: LinkLike<'a>,
     {
+        let (link_type, label, link) = link_like.link_info();
+        if matches!(link_type, LinkLikeType::Image) {
+            out.write_char('!');
+        }
         out.write_char('[');
         match &label {
             LinkLabel::Text(text) => out.write_str(text),
@@ -150,6 +207,110 @@ impl<'a> MdInlinesWriter<'a> {
                 );
                 // else warn?
             }
+        }
+    }
+
+    pub fn write_url_title<W>(&mut self, out: &mut Output<W>, title: &Option<String>)
+    where
+        W: SimpleWrite,
+    {
+        let Some(title) = title else { return };
+        out.write_char(' ');
+        TitleQuote::find_best_strategy(title).escape_to(title, out);
+    }
+}
+
+enum TitleQuote {
+    Double,
+    Single,
+    Paren,
+}
+
+impl TitleQuote {
+    pub fn find_best_strategy(text: &str) -> Self {
+        [Self::Double, Self::Single, Self::Paren]
+            .into_iter()
+            .find(|strategy| !strategy.has_conflicts(text))
+            .unwrap_or(TitleQuote::Double)
+    }
+
+    fn get_surround_chars(&self) -> (char, char) {
+        match self {
+            TitleQuote::Double => ('"', '"'),
+            TitleQuote::Single => ('\'', '\''),
+            TitleQuote::Paren => ('(', ')'),
+        }
+    }
+
+    fn get_conflict_char_fn(surrounds: (char, char)) -> impl Fn(char) -> bool {
+        let (open, close) = surrounds;
+        move |ch| ch == open || ch == close
+    }
+
+    fn has_conflicts(&self, text: &str) -> bool {
+        text.chars().any(Self::get_conflict_char_fn(self.get_surround_chars()))
+    }
+
+    fn escape_to<W: SimpleWrite>(&self, text: &str, out: &mut Output<W>) {
+        let surrounds = self.get_surround_chars();
+        let conflict_char_fn = Self::get_conflict_char_fn(surrounds);
+        let (open, close) = surrounds;
+
+        out.write_char(open);
+        for ch in text.chars() {
+            if conflict_char_fn(ch) {
+                out.write_char('\\');
+            }
+            out.write_char(ch);
+        }
+        out.write_char(close);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::output::Output;
+
+    mod title_quoting {
+        use super::*;
+
+        crate::variants_checker!(TITLE_QUOTING_CHECKER = TitleQuote { Double, Single, Paren });
+
+        #[test]
+        fn bareword_uses_double() {
+            check("foo", "\"foo\"");
+        }
+
+        #[test]
+        fn has_double_quotes() {
+            check("foo\"bar", "'foo\"bar'");
+        }
+
+        #[test]
+        fn has_double_quotes_and_singles() {
+            check("foo'\"bar", "(foo'\"bar)");
+        }
+
+        #[test]
+        fn has_only_single_quotes() {
+            check("foo'bar", "\"foo'bar\"");
+        }
+
+        #[test]
+        fn has_all_delimiters() {
+            check("foo('\")bar", "\"foo('\\\")bar\"");
+        }
+
+        fn check(input: &str, expected: &str) {
+            let strategy = TitleQuote::find_best_strategy(input);
+            TITLE_QUOTING_CHECKER.see(&strategy);
+
+            // +1 to give room for some quotes
+            let mut writer = Output::new(String::with_capacity(input.len() + 4));
+            strategy.escape_to(input, &mut writer);
+            let actual = writer.take_underlying().unwrap();
+            assert_eq!(&actual, expected);
         }
     }
 }

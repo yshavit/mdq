@@ -1,6 +1,6 @@
 use crate::fmt_md_inlines::MdInlinesWriter;
 use clap::ValueEnum;
-use std::borrow::{Borrow, Cow};
+use std::borrow::Borrow;
 use std::cmp::max;
 use std::fmt::Alignment;
 use std::ops::Deref;
@@ -67,7 +67,7 @@ impl Default for ReferencePlacement {
     }
 }
 
-pub fn write_md<'a, I, W>(options: &'_ MdOptions, out: &mut Output<W>, nodes: I)
+pub fn write_md<'a, I, W>(options: &'a MdOptions, out: &mut Output<W>, nodes: I)
 where
     I: Iterator<Item = MdElemRef<'a>>,
     W: SimpleWrite,
@@ -155,16 +155,8 @@ impl<'a> MdWriterState<'a> {
             MdElemRef::Inline(inline) => {
                 self.inlines_writer.write_inline_element(out, inline);
             }
-            MdElemRef::Link(link) => {
-                self.inlines_writer
-                    .write_link_inline_portion(out, LinkLabel::Inline(&link.text), &link.link_definition)
-            }
-            MdElemRef::Image(image) => {
-                out.write_char('!');
-                let alt_text = &image.alt;
-                self.inlines_writer
-                    .write_link_inline_portion(out, LinkLabel::Text(Cow::from(alt_text)), &image.link);
-            }
+            MdElemRef::Link(link) => self.inlines_writer.write_linklike(out, link),
+            MdElemRef::Image(image) => self.inlines_writer.write_linklike(out, image),
         }
     }
 
@@ -371,14 +363,15 @@ impl<'a> MdWriterState<'a> {
     where
         W: SimpleWrite,
     {
-        let pending_references = self.inlines_writer.pending_references();
-        let is_empty = match which {
-            DefinitionsToWrite::Links => pending_references.links.is_empty(),
-            DefinitionsToWrite::Footnotes => pending_references.footnotes.is_empty(),
-            DefinitionsToWrite::Both => pending_references.links.is_empty() && pending_references.footnotes.is_empty(),
+        let any_pending = match which {
+            DefinitionsToWrite::Links => self.inlines_writer.has_pending_links(),
+            DefinitionsToWrite::Footnotes => self.inlines_writer.has_pending_footnotes(),
+            DefinitionsToWrite::Both => {
+                self.inlines_writer.has_pending_links() || self.inlines_writer.has_pending_footnotes()
+            }
             DefinitionsToWrite::Neither => true,
         };
-        if is_empty {
+        if !any_pending {
             return;
         }
         if add_break {
@@ -387,10 +380,10 @@ impl<'a> MdWriterState<'a> {
         out.with_block(Block::Plain, move |out| {
             let mut remaining_defs = 0;
             if matches!(which, DefinitionsToWrite::Links | DefinitionsToWrite::Both) {
-                remaining_defs += pending_references.links.len()
+                remaining_defs += self.inlines_writer.count_pending_links();
             }
             if matches!(which, DefinitionsToWrite::Footnotes | DefinitionsToWrite::Both) {
-                remaining_defs += pending_references.footnotes.len()
+                remaining_defs += self.inlines_writer.count_pending_footnotes();
             }
             let mut newline = |out: &mut Output<W>| {
                 if remaining_defs > 1 {
@@ -400,7 +393,7 @@ impl<'a> MdWriterState<'a> {
             };
 
             if matches!(which, DefinitionsToWrite::Links | DefinitionsToWrite::Both) {
-                let mut defs_to_write: Vec<_> = pending_references.links.drain().collect();
+                let mut defs_to_write: Vec<_> = self.inlines_writer.drain_pending_links();
                 defs_to_write.sort_by_key(|(k, _)| k.to_string());
 
                 for (link_ref, link_def) in defs_to_write {
@@ -411,12 +404,12 @@ impl<'a> MdWriterState<'a> {
                     }
                     out.write_str("]: ");
                     out.write_str(&link_def.url);
-                    self.write_url_title(out, &link_def.title);
+                    self.inlines_writer.write_url_title(out, &link_def.title);
                     newline(out);
                 }
             }
             if matches!(which, DefinitionsToWrite::Footnotes | DefinitionsToWrite::Both) {
-                let mut defs_to_write: Vec<_> = pending_references.footnotes.drain().collect();
+                let mut defs_to_write: Vec<_> = self.inlines_writer.drain_pending_footnotes();
                 defs_to_write.sort_by_key(|&kv| kv.0);
 
                 for (link_ref, text) in defs_to_write {
@@ -431,15 +424,6 @@ impl<'a> MdWriterState<'a> {
         });
     }
 
-    fn write_url_title<W>(&mut self, out: &mut Output<W>, title: &Option<String>)
-    where
-        W: SimpleWrite,
-    {
-        let Some(title) = title else { return };
-        out.write_char(' ');
-        TitleQuote::find_best_strategy(title).escape_to(title, out);
-    }
-
     fn line_to_string<E>(&mut self, line: &'a [E]) -> String
     where
         E: Borrow<Inline>,
@@ -451,53 +435,6 @@ impl<'a> MdWriterState<'a> {
 
     fn doc_iter(body: &'a Vec<MdElem>) -> impl Iterator<Item = MdElemRef<'a>> {
         [MdElemRef::Doc(body)].into_iter()
-    }
-}
-
-enum TitleQuote {
-    Double,
-    Single,
-    Paren,
-}
-
-impl TitleQuote {
-    pub fn find_best_strategy(text: &str) -> Self {
-        [Self::Double, Self::Single, Self::Paren]
-            .into_iter()
-            .find(|strategy| !strategy.has_conflicts(text))
-            .unwrap_or(TitleQuote::Double)
-    }
-
-    fn get_surround_chars(&self) -> (char, char) {
-        match self {
-            TitleQuote::Double => ('"', '"'),
-            TitleQuote::Single => ('\'', '\''),
-            TitleQuote::Paren => ('(', ')'),
-        }
-    }
-
-    fn get_conflict_char_fn(surrounds: (char, char)) -> impl Fn(char) -> bool {
-        let (open, close) = surrounds;
-        move |ch| ch == open || ch == close
-    }
-
-    fn has_conflicts(&self, text: &str) -> bool {
-        text.chars().any(Self::get_conflict_char_fn(self.get_surround_chars()))
-    }
-
-    fn escape_to<W: SimpleWrite>(&self, text: &str, out: &mut Output<W>) {
-        let surrounds = self.get_surround_chars();
-        let conflict_char_fn = Self::get_conflict_char_fn(surrounds);
-        let (open, close) = surrounds;
-
-        out.write_char(open);
-        for ch in text.chars() {
-            if conflict_char_fn(ch) {
-                out.write_char('\\');
-            }
-            out.write_char(ch);
-        }
-        out.write_char(close);
     }
 }
 
@@ -574,49 +511,6 @@ pub mod tests {
         List(_),
         Table(_),
     });
-
-    mod title_quoting {
-        use super::*;
-        use crate::fmt_md::TitleQuote;
-
-        crate::variants_checker!(TITLE_QUOTING_CHECKER = TitleQuote { Double, Single, Paren });
-
-        #[test]
-        fn bareword_uses_double() {
-            check("foo", "\"foo\"");
-        }
-
-        #[test]
-        fn has_double_quotes() {
-            check("foo\"bar", "'foo\"bar'");
-        }
-
-        #[test]
-        fn has_double_quotes_and_singles() {
-            check("foo'\"bar", "(foo'\"bar)");
-        }
-
-        #[test]
-        fn has_only_single_quotes() {
-            check("foo'bar", "\"foo'bar\"");
-        }
-
-        #[test]
-        fn has_all_delimiters() {
-            check("foo('\")bar", "\"foo('\\\")bar\"");
-        }
-
-        fn check(input: &str, expected: &str) {
-            let strategy = TitleQuote::find_best_strategy(input);
-            TITLE_QUOTING_CHECKER.see(&strategy);
-
-            // +1 to give room for some quotes
-            let mut writer = Output::new(String::with_capacity(input.len() + 4));
-            strategy.escape_to(input, &mut writer);
-            let actual = writer.take_underlying().unwrap();
-            assert_eq!(&actual, expected);
-        }
-    }
 
     #[test]
     fn empty() {
