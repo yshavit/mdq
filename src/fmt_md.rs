@@ -15,6 +15,9 @@ pub struct MdOptions {
     pub link_reference_placement: ReferencePlacement,
     pub footnote_reference_placement: ReferencePlacement,
     pub link_canonicalization: LinkTransform,
+    /// note: this is not exposed through the CLI, but is used in [crate::link_transform::inlines_to_string] to
+    /// suppress the thematic breaks between inlines that are otherwise usually present.
+    pub add_thematic_breaks: bool,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -80,9 +83,9 @@ where
             links: HashMap::with_capacity(pending_refs_capacity),
             footnotes: HashMap::with_capacity(pending_refs_capacity),
         },
-        link_transformer: LinkTransformer::from(&options.link_canonicalization),
+        link_transformer: LinkTransformer::from(options.link_canonicalization),
     };
-    writer_state.write_md(out, nodes, true);
+    writer_state.write_md(out, nodes, options.add_thematic_breaks);
 
     // Always write the pending definitions at the end of the doc. If there were no sections, then BottomOfSection
     // won't have been triggered, but we still want to write them
@@ -455,7 +458,7 @@ impl<'a> MdWriterState<'a> {
         }
         out.write_char(']');
 
-        let transformed = self.link_transformer.transform(link, &label);
+        let transformed = self.link_transformer.transform(&link.reference, &label);
         let link_ref_owned = transformed.into_owned();
 
         let reference_to_add = match link_ref_owned {
@@ -1986,6 +1989,7 @@ pub mod tests {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Section,
                     link_canonicalization: LinkTransform::Keep,
+                    add_thematic_breaks: true,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -2011,6 +2015,7 @@ pub mod tests {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Doc,
                     link_canonicalization: LinkTransform::Keep,
+                    add_thematic_breaks: true,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -2039,6 +2044,7 @@ pub mod tests {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Section,
                     link_canonicalization: LinkTransform::Keep,
+                    add_thematic_breaks: true,
                 },
                 md_elems![Block::LeafBlock::Paragraph {
                     body: vec![m_node!(Inline::Link {
@@ -2066,6 +2072,7 @@ pub mod tests {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Section,
                     link_canonicalization: LinkTransform::Keep,
+                    add_thematic_breaks: true,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -2094,6 +2101,7 @@ pub mod tests {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Doc,
                     link_canonicalization: LinkTransform::Keep,
+                    add_thematic_breaks: true,
                 },
                 link_and_footnote_markdown(),
                 indoc! {r#"
@@ -2121,6 +2129,7 @@ pub mod tests {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Doc,
                     link_canonicalization: LinkTransform::Keep,
+                    add_thematic_breaks: true,
                 },
                 // Define them in the opposite order that we'd expect them
                 md_elems![Block::LeafBlock::Paragraph {
@@ -2226,6 +2235,7 @@ pub mod tests {
             link_reference_placement: Default::default(),
             footnote_reference_placement: Default::default(),
             link_canonicalization: LinkTransform::Keep,
+            add_thematic_breaks: true,
         }
     }
 }

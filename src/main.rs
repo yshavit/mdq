@@ -74,6 +74,7 @@ fn main() -> ExitCode {
         link_reference_placement: cli.link_pos,
         footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
         link_canonicalization: cli.link_canonicalization,
+        add_thematic_breaks: true,
     };
 
     fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
