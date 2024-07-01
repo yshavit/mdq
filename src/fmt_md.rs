@@ -74,7 +74,7 @@ where
         prev_was_thematic_break: false,
         inlines_writer: MdInlinesWriter::new(options.inline_options),
     };
-    writer_state.write_md(out, nodes, false);
+    writer_state.write_md(out, nodes, true);
 
     // Always write the pending definitions at the end of the doc. If there were no sections, then BottomOfSection
     // won't have been triggered, but we still want to write them

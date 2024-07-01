@@ -176,7 +176,8 @@ impl<'a> MdInlinesWriter<'a> {
         }
         out.write_char(']');
 
-        let transformed = self.link_transformer.transform(self, &link.reference, &label);
+        let state = LinkTransformer::prepare_transformation(self.link_transformer.transform_variant(), self, link_like);
+        let transformed = self.link_transformer.transform(state, &link.reference);
         let link_ref_owned = transformed.into_owned();
 
         let reference_to_add = match link_ref_owned {

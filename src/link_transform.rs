@@ -1,4 +1,4 @@
-use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
+use crate::fmt_md_inlines::{LinkLike, MdInlinesWriter, MdInlinesWriterOptions};
 use crate::output::Output;
 use crate::tree::{Inline, LinkReference};
 use clap::ValueEnum;
@@ -33,6 +33,10 @@ pub enum LinkLabel<'a> {
     Inline(&'a Vec<Inline>),
 }
 
+// TODO keep this logic, but not in display -- it should just be a method "link_text_as_string". We need this for
+// sorting references, but in that context it's always a LinkTransform::Keep where we don't care about the reference
+// definition. This method does that, but by overloading it to Display it's just a bit confusing what it's semantically
+// trying to do.
 impl<'a> Display for LinkLabel<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -64,17 +68,61 @@ enum LinkTransformState {
     Reference(ReferenceAssigner),
 }
 
+pub struct SingleTransformationState<'a> {
+    link_text: Option<Cow<'a, str>>,
+}
+
+impl<'a> SingleTransformationState<'a> {
+    fn empty() -> Self {
+        Self { link_text: None }
+    }
+
+    fn with_link_text(text: Cow<'a, str>) -> Self {
+        Self { link_text: Some(text) }
+    }
+}
+
 impl LinkTransformer {
+    pub fn transform_variant(&self) -> LinkTransform {
+        match self.delegate {
+            LinkTransformState::Keep => LinkTransform::Keep,
+            LinkTransformState::Inline => LinkTransform::Inline,
+            LinkTransformState::Reference(_) => LinkTransform::Reference,
+        }
+    }
+
+    pub fn prepare_transformation<'a, L: LinkLike<'a>>(
+        transform: LinkTransform,
+        inline_writer: &mut MdInlinesWriter<'a>,
+        item: L,
+    ) -> SingleTransformationState<'a> {
+        match transform {
+            LinkTransform::Keep | LinkTransform::Inline => SingleTransformationState::empty(),
+            LinkTransform::Reference => {
+                let (_, label, definition) = item.link_info();
+                match &definition.reference {
+                    LinkReference::Inline | LinkReference::Full(_) => SingleTransformationState::empty(),
+                    LinkReference::Collapsed | LinkReference::Shortcut => {
+                        let text = match label {
+                            LinkLabel::Text(text) => Cow::from(text),
+                            LinkLabel::Inline(text) => Cow::Owned(inlines_to_string(inline_writer, text)),
+                        };
+                        SingleTransformationState::with_link_text(text)
+                    }
+                }
+            }
+        }
+    }
+
     pub fn transform<'a>(
         &mut self,
-        inline_writer: &mut MdInlinesWriter<'a>,
+        state: SingleTransformationState<'a>,
         link: &'a LinkReference,
-        label: &LinkLabel<'a>,
     ) -> Cow<'a, LinkReference> {
         match &mut self.delegate {
             LinkTransformState::Keep => Cow::Borrowed(&link),
             LinkTransformState::Inline => Cow::Owned(LinkReference::Inline),
-            LinkTransformState::Reference(assigner) => assigner.assign(inline_writer, link, label),
+            LinkTransformState::Reference(assigner) => assigner.assign(state, link),
         }
     }
 }
@@ -97,20 +145,12 @@ impl ReferenceAssigner {
         }
     }
 
-    fn assign<'a>(
-        &mut self,
-        inline_writer: &mut MdInlinesWriter<'a>,
-        link: &'a LinkReference,
-        label: &LinkLabel<'a>,
-    ) -> Cow<'a, LinkReference> {
+    fn assign<'a>(&mut self, state: SingleTransformationState<'a>, link: &'a LinkReference) -> Cow<'a, LinkReference> {
         match &link {
             LinkReference::Inline => self.assign_new(),
             LinkReference::Full(prev) => self.assign_if_numeric(prev).unwrap_or_else(|| Cow::Borrowed(link)),
             LinkReference::Collapsed | LinkReference::Shortcut => {
-                let text_cow = match label {
-                    LinkLabel::Text(text) => Cow::from(text.deref()),
-                    LinkLabel::Inline(text) => Cow::Owned(inlines_to_string(inline_writer, text)),
-                };
+                let text_cow = state.link_text.unwrap();
                 self.assign_if_numeric(text_cow.deref()).unwrap_or_else(|| {
                     let ref_text_owned = String::from(text_cow.deref());
                     Cow::Owned(LinkReference::Full(ref_text_owned))
