@@ -366,7 +366,7 @@ impl<'a> MdWriterState<'a> {
             DefinitionsToWrite::Both => {
                 self.inlines_writer.has_pending_links() || self.inlines_writer.has_pending_footnotes()
             }
-            DefinitionsToWrite::Neither => true,
+            DefinitionsToWrite::Neither => false,
         };
         if !any_pending {
             return;
