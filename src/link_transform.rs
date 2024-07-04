@@ -72,6 +72,19 @@ pub struct LinkTransformation<'a> {
     link_text: Option<Cow<'a, str>>,
 }
 
+/// A temporary holder to perform link transformations.
+///
+///     // self: MdInlinesWriter
+///     let link_ref = LinkTransformation::new(self.link_transformer.transform_variant(), self, link_like)
+///         .apply(&mut self.link_transformer, &link.reference);
+///
+/// We need this because ownership prohibits:
+///
+///     let link_ref = self.link_transformer.transform(self, link_like)
+///                    ^^^^^^^^^^^^^^^^^^^^^           ^^^^
+///                    first borrow                    second borrow
+///
+/// This lets us use the `transform_variant()`'s Copy-ability to release the borrow.
 impl<'a> LinkTransformation<'a> {
     pub fn new<L>(transform: LinkTransform, inline_writer: &mut MdInlinesWriter<'a>, item: L) -> Self
     where
@@ -96,6 +109,9 @@ impl<'a> LinkTransformation<'a> {
         Self { link_text }
     }
 
+    // TODO we could in principle return a Cow<'a, LinkReference>, and save some clones in the assigner.
+    // To do that, fmt_md_inlines.rs would need to adjust to hold Cows instead of LinkLabels directly. For now, not
+    // a high priority.
     pub fn apply(self, transformer: &mut LinkTransformer, link: &'a LinkReference) -> LinkReference {
         match &mut transformer.delegate {
             LinkTransformState::Keep => Cow::Borrowed(link),
