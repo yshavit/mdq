@@ -73,34 +73,27 @@ pub struct SingleTransformationState<'a> {
 }
 
 impl<'a> SingleTransformationState<'a> {
-    fn empty() -> Self {
-        Self { link_text: None }
-    }
-
-    fn with_link_text(text: Cow<'a, str>) -> Self {
-        Self { link_text: Some(text) }
-    }
-
     pub fn new<L>(transform: LinkTransform, inline_writer: &mut MdInlinesWriter<'a>, item: L) -> Self
     where
         L: LinkLike<'a> + Copy,
     {
-        match transform {
-            LinkTransform::Keep | LinkTransform::Inline => SingleTransformationState::empty(),
+        let link_text = match transform {
+            LinkTransform::Keep | LinkTransform::Inline => None,
             LinkTransform::Reference => {
                 let (_, label, definition) = item.link_info();
                 match &definition.reference {
-                    LinkReference::Inline | LinkReference::Full(_) => SingleTransformationState::empty(),
+                    LinkReference::Inline | LinkReference::Full(_) => None,
                     LinkReference::Collapsed | LinkReference::Shortcut => {
                         let text = match label {
                             LinkLabel::Text(text) => Cow::from(text),
                             LinkLabel::Inline(text) => Cow::Owned(inlines_to_string(inline_writer, text)),
                         };
-                        SingleTransformationState::with_link_text(text)
+                        Some(text)
                     }
                 }
             }
-        }
+        };
+        Self { link_text }
     }
 
     pub fn apply(self, transformer: &mut LinkTransformer, link: &'a LinkReference) -> LinkReference {
