@@ -1,7 +1,6 @@
-use crate::fmt_md::{write_md, MdOptions, ReferencePlacement};
+use crate::fmt_md_inlines::{LinkLike, MdInlinesWriter, MdInlinesWriterOptions};
 use crate::output::Output;
 use crate::tree::{Inline, LinkReference};
-use crate::tree_ref::MdElemRef;
 use clap::ValueEnum;
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
@@ -34,11 +33,20 @@ pub enum LinkLabel<'a> {
     Inline(&'a Vec<Inline>),
 }
 
+// TODO keep this logic, but not in display -- it should just be a method "link_text_as_string". We need this for
+// sorting references, but in that context it's always a LinkTransform::Keep where we don't care about the reference
+// definition. This method does that, but by overloading it to Display it's just a bit confusing what it's semantically
+// trying to do.
 impl<'a> Display for LinkLabel<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LinkLabel::Text(s) => f.write_str(s),
-            LinkLabel::Inline(inlines) => f.write_str(&inlines_to_string(*inlines)),
+            LinkLabel::Inline(inlines) => {
+                let mut inline_writer = MdInlinesWriter::new(MdInlinesWriterOptions {
+                    link_canonicalization: LinkTransform::Keep,
+                });
+                f.write_str(&inlines_to_string(&mut inline_writer, *inlines))
+            }
         }
     }
 }
@@ -60,12 +68,66 @@ enum LinkTransformState {
     Reference(ReferenceAssigner),
 }
 
-impl LinkTransformer {
-    pub fn transform<'a>(&mut self, link: &'a LinkReference, label: &LinkLabel<'a>) -> Cow<'a, LinkReference> {
-        match &mut self.delegate {
-            LinkTransformState::Keep => Cow::Borrowed(&link),
+pub struct LinkTransformation<'a> {
+    link_text: Option<Cow<'a, str>>,
+}
+
+/// A temporary holder to perform link transformations.
+///
+///     // self: MdInlinesWriter
+///     let link_ref = LinkTransformation::new(self.link_transformer.transform_variant(), self, link_like)
+///         .apply(&mut self.link_transformer, &link.reference);
+///
+/// We need this because ownership prohibits:
+///
+///     let link_ref = self.link_transformer.transform(self, link_like)
+///                    ^^^^^^^^^^^^^^^^^^^^^           ^^^^
+///                    first borrow                    second borrow
+///
+/// This lets us use the `transform_variant()`'s Copy-ability to release the borrow.
+impl<'a> LinkTransformation<'a> {
+    pub fn new<L>(transform: LinkTransform, inline_writer: &mut MdInlinesWriter<'a>, item: L) -> Self
+    where
+        L: LinkLike<'a> + Copy,
+    {
+        let link_text = match transform {
+            LinkTransform::Keep | LinkTransform::Inline => None,
+            LinkTransform::Reference => {
+                let (_, label, definition) = item.link_info();
+                match &definition.reference {
+                    LinkReference::Inline | LinkReference::Full(_) => None,
+                    LinkReference::Collapsed | LinkReference::Shortcut => {
+                        let text = match label {
+                            LinkLabel::Text(text) => Cow::from(text),
+                            LinkLabel::Inline(text) => Cow::Owned(inlines_to_string(inline_writer, text)),
+                        };
+                        Some(text)
+                    }
+                }
+            }
+        };
+        Self { link_text }
+    }
+
+    // TODO we could in principle return a Cow<'a, LinkReference>, and save some clones in the assigner.
+    // To do that, fmt_md_inlines.rs would need to adjust to hold Cows instead of LinkLabels directly. For now, not
+    // a high priority.
+    pub fn apply(self, transformer: &mut LinkTransformer, link: &'a LinkReference) -> LinkReference {
+        match &mut transformer.delegate {
+            LinkTransformState::Keep => Cow::Borrowed(link),
             LinkTransformState::Inline => Cow::Owned(LinkReference::Inline),
-            LinkTransformState::Reference(assigner) => assigner.assign(link, label),
+            LinkTransformState::Reference(assigner) => assigner.assign(self, link),
+        }
+        .into_owned()
+    }
+}
+
+impl LinkTransformer {
+    pub fn transform_variant(&self) -> LinkTransform {
+        match self.delegate {
+            LinkTransformState::Keep => LinkTransform::Keep,
+            LinkTransformState::Inline => LinkTransform::Inline,
+            LinkTransformState::Reference(_) => LinkTransform::Reference,
         }
     }
 }
@@ -88,15 +150,12 @@ impl ReferenceAssigner {
         }
     }
 
-    fn assign<'a>(&mut self, link: &'a LinkReference, label: &LinkLabel<'a>) -> Cow<'a, LinkReference> {
+    fn assign<'a>(&mut self, state: LinkTransformation<'a>, link: &'a LinkReference) -> Cow<'a, LinkReference> {
         match &link {
             LinkReference::Inline => self.assign_new(),
             LinkReference::Full(prev) => self.assign_if_numeric(prev).unwrap_or_else(|| Cow::Borrowed(link)),
             LinkReference::Collapsed | LinkReference::Shortcut => {
-                let text_cow = match label {
-                    LinkLabel::Text(text) => Cow::from(text.deref()),
-                    LinkLabel::Inline(text) => Cow::Owned(inlines_to_string(text)),
-                };
+                let text_cow = state.link_text.unwrap();
                 self.assign_if_numeric(text_cow.deref()).unwrap_or_else(|| {
                     let ref_text_owned = String::from(text_cow.deref());
                     Cow::Owned(LinkReference::Full(ref_text_owned))
@@ -128,19 +187,9 @@ impl ReferenceAssigner {
 
 /// Turns the inlines into a String. Unlike [crate::fmt_str::inlines_to_plain_string], this respects formatting spans
 /// like emphasis, strong, etc.
-fn inlines_to_string(inlines: &Vec<Inline>) -> String {
-    // see: https://github.com/yshavit/mdq/issues/87
+fn inlines_to_string<'a>(inline_writer: &mut MdInlinesWriter<'a>, inlines: &'a Vec<Inline>) -> String {
     let mut string_writer = Output::new(String::with_capacity(32)); // guess at capacity
-    write_md(
-        &MdOptions {
-            link_reference_placement: ReferencePlacement::Section,
-            footnote_reference_placement: ReferencePlacement::Section,
-            link_canonicalization: LinkTransform::Keep,
-            add_thematic_breaks: false,
-        },
-        &mut string_writer,
-        inlines.iter().map(|inline| MdElemRef::Inline(inline)),
-    );
+    inline_writer.write_line(&mut string_writer, inlines);
     string_writer
         .take_underlying()
         .expect("internal error while parsing collapsed- or shortcut-style link")
@@ -149,7 +198,8 @@ fn inlines_to_string(inlines: &Vec<Inline>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils_for_test::*;
+    use crate::mdq_inline;
+    use crate::tree::{Link, LinkDefinition, Text, TextVariant};
     use crate::variants_checker;
 
     enum Combo {
@@ -178,31 +228,31 @@ mod tests {
 
         #[test]
         fn inline() {
-            check_keep(&LinkReference::Inline);
+            check_keep(LinkReference::Inline);
         }
 
         #[test]
         fn collapsed() {
-            check_keep(&LinkReference::Collapsed);
+            check_keep(LinkReference::Collapsed);
         }
 
         #[test]
         fn full() {
-            check_keep(&LinkReference::Full("5".to_string()));
+            check_keep(LinkReference::Full("5".to_string()));
         }
 
         #[test]
         fn shortcut() {
-            check_keep(&LinkReference::Shortcut);
+            check_keep(LinkReference::Shortcut);
         }
 
-        fn check_keep(link_ref: &LinkReference) {
-            check_one(
-                LinkTransform::Keep,
-                link_ref,
-                &LinkLabel::Text(Cow::Borrowed("text label")),
-                &Cow::Borrowed(link_ref),
-            );
+        fn check_keep(link_ref: LinkReference) {
+            Given {
+                transform: LinkTransform::Keep,
+                label: mdq_inline!("doesn't matter"),
+                orig_reference: link_ref.clone(),
+            }
+            .expect(link_ref);
         }
     }
 
@@ -214,120 +264,117 @@ mod tests {
             // We could in principle have this return a Borrowed Cow, since the input and output are both Inline.
             // But it's not really worth it, given that Inline is just a stateless enum variant and thus as cheap
             // (or potentially even cheaper!) than a pointer.
-            check_inline(&LinkReference::Inline);
+            check_inline(LinkReference::Inline);
         }
 
         #[test]
         fn collapsed() {
-            check_inline(&LinkReference::Collapsed);
+            check_inline(LinkReference::Collapsed);
         }
 
         #[test]
         fn full() {
-            check_inline(&LinkReference::Full("5".to_string()));
+            check_inline(LinkReference::Full("5".to_string()));
         }
 
         #[test]
         fn shortcut() {
-            check_inline(&LinkReference::Shortcut);
+            check_inline(LinkReference::Shortcut);
         }
 
-        fn check_inline(link_ref: &LinkReference) {
-            check_one(
-                LinkTransform::Inline,
-                link_ref,
-                &LinkLabel::Text(Cow::Borrowed("text label")),
-                &Cow::Owned(LinkReference::Inline),
-            );
+        fn check_inline(link_ref: LinkReference) {
+            Given {
+                transform: LinkTransform::Inline,
+                label: mdq_inline!("doesn't matter"),
+                orig_reference: link_ref,
+            }
+            .expect(LinkReference::Inline);
         }
     }
 
     mod reference {
         use super::*;
-        use crate::tree::{Formatting, FormattingVariant, Text, TextVariant};
+        use crate::tree::{Formatting, FormattingVariant};
 
         #[test]
         fn inline() {
-            check_one(
-                LinkTransform::Reference,
-                &LinkReference::Inline,
-                &LinkLabel::Text(Cow::Borrowed("doesn't matter")),
-                &Cow::Owned(LinkReference::Full("1".to_string())),
-            )
+            Given {
+                transform: LinkTransform::Reference,
+                label: mdq_inline!("doesn't matter"),
+                orig_reference: LinkReference::Inline,
+            }
+            .expect(LinkReference::Full("1".to_string()));
         }
 
         #[test]
         fn collapsed_label_not_number() {
-            check_one(
-                LinkTransform::Reference,
-                &LinkReference::Collapsed,
-                &LinkLabel::Text(Cow::Borrowed("not a number")),
-                &Cow::Owned(LinkReference::Full("not a number".to_string())),
-            )
+            Given {
+                transform: LinkTransform::Reference,
+                label: mdq_inline!("not a number"),
+                orig_reference: LinkReference::Collapsed,
+            }
+            .expect(LinkReference::Full("not a number".to_string()));
         }
 
         #[test]
         fn collapsed_label_is_number() {
-            check_one(
-                LinkTransform::Reference,
-                &LinkReference::Collapsed,
-                &LinkLabel::Text(Cow::Borrowed("5")),
-                &Cow::Owned(LinkReference::Full("1".to_string())), // always count from 1
-            )
+            Given {
+                transform: LinkTransform::Reference,
+                label: mdq_inline!("321"),
+                orig_reference: LinkReference::Collapsed,
+            }
+            .expect(LinkReference::Full("1".to_string()));
         }
 
         #[test]
         fn full_ref_id_not_number() {
-            let reference = LinkReference::Full("non-number".to_string());
-            let reference_cow: Cow<LinkReference> = Cow::Borrowed(&reference);
-
-            check_one(
-                LinkTransform::Reference,
-                &reference,
-                &LinkLabel::Text(Cow::Borrowed("doesn't matter")),
-                &reference_cow,
-            )
+            Given {
+                transform: LinkTransform::Reference,
+                label: mdq_inline!("doesn't matter"),
+                orig_reference: LinkReference::Full("non-number".to_string()),
+            }
+            .expect(LinkReference::Full("non-number".to_string()));
         }
 
         #[test]
         fn full_ref_id_is_number() {
-            check_one(
-                LinkTransform::Reference,
-                &LinkReference::Full("321".to_string()), // what number it is doesn't matter
-                &LinkLabel::Text(Cow::Borrowed("doesn't matter")),
-                &Cow::Owned(LinkReference::Full("1".to_string())),
-            )
+            Given {
+                transform: LinkTransform::Reference,
+                label: mdq_inline!("doesn't matter"),
+                orig_reference: LinkReference::Full("non-number".to_string()),
+            }
+            .expect(LinkReference::Full("non-number".to_string()));
         }
 
         #[test]
         fn full_ref_id_is_huge_number() {
             let huge_num_str = format!("{}00000", u128::MAX);
-            check_one(
-                LinkTransform::Reference,
-                &LinkReference::Full(huge_num_str), // what number it is doesn't matter
-                &LinkLabel::Text(Cow::Borrowed("doesn't matter")),
-                &Cow::Owned(LinkReference::Full("1".to_string())), // always count from 1
-            )
+            Given {
+                transform: LinkTransform::Reference,
+                label: mdq_inline!("doesn't matter"),
+                orig_reference: LinkReference::Full(huge_num_str),
+            }
+            .expect(LinkReference::Full("1".to_string()));
         }
 
         #[test]
         fn shortcut_label_not_number() {
-            check_one(
-                LinkTransform::Reference,
-                &LinkReference::Shortcut,
-                &LinkLabel::Text(Cow::Borrowed("not a number")),
-                &Cow::Owned(LinkReference::Full("not a number".to_string())),
-            )
+            Given {
+                transform: LinkTransform::Reference,
+                label: mdq_inline!("not a number"),
+                orig_reference: LinkReference::Shortcut,
+            }
+            .expect(LinkReference::Full("not a number".to_string()));
         }
 
         #[test]
         fn shortcut_label_is_number() {
-            check_one(
-                LinkTransform::Reference,
-                &LinkReference::Shortcut,
-                &LinkLabel::Text(Cow::Borrowed("5")),
-                &Cow::Owned(LinkReference::Full("1".to_string())), // always count from 1
-            )
+            Given {
+                transform: LinkTransform::Reference,
+                label: mdq_inline!("321"),
+                orig_reference: LinkReference::Shortcut,
+            }
+            .expect(LinkReference::Full("1".to_string()));
         }
 
         /// The label isn't even close to a number.
@@ -335,15 +382,12 @@ mod tests {
         /// _c.f._ [shortcut_label_inlines_are_emphasized_number]
         #[test]
         fn shortcut_label_inlines_not_number_like() {
-            check_one(
-                LinkTransform::Reference,
-                &LinkReference::Shortcut,
-                &LinkLabel::Inline(&vec![Inline::Text(Text {
-                    variant: TextVariant::Plain,
-                    value: "hello world".to_string(),
-                })]),
-                &Cow::Owned(LinkReference::Full("hello world".to_string())),
-            )
+            Given {
+                transform: LinkTransform::Reference,
+                label: mdq_inline!("hello world"),
+                orig_reference: LinkReference::Shortcut,
+            }
+            .expect(LinkReference::Full("hello world".to_string()));
         }
 
         /// The label is kind of like a number, except that it's emphasized: `_123_`. This makes it not a number.
@@ -351,31 +395,18 @@ mod tests {
         /// _c.f._ [shortcut_label_inlines_not_number_like]
         #[test]
         fn shortcut_label_inlines_are_emphasized_number() {
-            check_one(
-                LinkTransform::Reference,
-                &LinkReference::Shortcut,
-                &LinkLabel::Inline(&vec![Inline::Formatting(Formatting {
+            Given {
+                transform: LinkTransform::Reference,
+                label: Inline::Formatting(Formatting {
                     variant: FormattingVariant::Emphasis,
                     children: vec![Inline::Text(Text {
                         variant: TextVariant::Plain,
                         value: "123".to_string(),
                     })],
-                })]),
-                &Cow::Owned(LinkReference::Full("_123_".to_string())), // note: the emphasis makes it not a number!
-            )
-        }
-
-        #[test]
-        fn shortcut_label_inlines_are_number() {
-            check_one(
-                LinkTransform::Reference,
-                &LinkReference::Shortcut,
-                &LinkLabel::Inline(&vec![Inline::Text(Text {
-                    variant: TextVariant::Plain,
-                    value: "123".to_string(),
-                })]),
-                &Cow::Owned(LinkReference::Full("1".to_string())),
-            )
+                }),
+                orig_reference: LinkReference::Shortcut,
+            }
+            .expect(LinkReference::Full("_123_".to_string()));
         }
     }
 
@@ -384,46 +415,109 @@ mod tests {
     #[test]
     fn smoke_test_multi() {
         let mut transformer = LinkTransformer::from(LinkTransform::Reference);
+        let mut iw = MdInlinesWriter::new(MdInlinesWriterOptions {
+            link_canonicalization: LinkTransform::Keep,
+        });
 
         // [alpha](https://example.com) ==> [alpha][1]
-        assert_eq_cow(
-            &transformer.transform(&LinkReference::Inline, &LinkLabel::Text(Cow::Borrowed("alpha"))),
-            &Cow::Owned(LinkReference::Full("1".to_string())),
+        let alpha = make_link("alpha", LinkReference::Inline);
+        assert_eq!(
+            transform(&mut transformer, &mut iw, &alpha),
+            LinkReference::Full("1".to_string())
         );
 
         // [bravo][1] ==> [bravo][2]
-        assert_eq_cow(
-            &transformer.transform(
-                &LinkReference::Full("1".to_string()),
-                &LinkLabel::Text(Cow::Borrowed("bravo")),
-            ),
-            &Cow::Owned(LinkReference::Full("2".to_string())),
+        let bravo = make_link("bravo", LinkReference::Full("1".to_string()));
+        assert_eq!(
+            transform(&mut transformer, &mut iw, &bravo),
+            LinkReference::Full("2".to_string())
         );
 
-        // [charlie][3] ==> [charlie][3]
-        // Note that in this case, we could return a Borrowed cow, but we return a new Owned one anyway for simplicity
-        assert_eq_cow(
-            &transformer.transform(
-                &LinkReference::Full("3".to_string()),
-                &LinkLabel::Text(Cow::Borrowed("charlie")),
-            ),
-            &Cow::Owned(LinkReference::Full("3".to_string())),
+        // [charlie][] ==> [charlie][charlie]
+        let charlie = make_link("charlie", LinkReference::Shortcut);
+        assert_eq!(
+            transform(&mut transformer, &mut iw, &charlie),
+            LinkReference::Full("charlie".to_string())
         );
 
-        // [delta][] ==> [delta][delta]
-        // Note that in this case, we could return a Borrowed cow, but we return a new Owned one anyway for simplicity
-        assert_eq_cow(
-            &transformer.transform(&LinkReference::Collapsed, &LinkLabel::Text(Cow::Borrowed("delta"))),
-            &Cow::Owned(LinkReference::Full("delta".to_string())),
+        // [delta][delta] ==> [delta][delta]
+        let delta = make_link("delta", LinkReference::Full("delta".to_string()));
+        assert_eq!(
+            transform(&mut transformer, &mut iw, &delta),
+            LinkReference::Full("delta".to_string())
+        );
+
+        // [789] ==> [789][3]
+        let echo = make_link("789", LinkReference::Collapsed);
+        assert_eq!(
+            transform(&mut transformer, &mut iw, &echo),
+            LinkReference::Full("3".to_string())
+        );
+
+        // [echo] ==> [echo][echo]
+        let echo = make_link("echo", LinkReference::Collapsed);
+        assert_eq!(
+            transform(&mut transformer, &mut iw, &echo),
+            LinkReference::Full("echo".to_string())
         );
     }
 
-    fn check_one(transform: LinkTransform, link_ref: &LinkReference, label: &LinkLabel, expected: &Cow<LinkReference>) {
-        let mut transformer = LinkTransformer::from(transform);
-        let actual = transformer.transform(&link_ref, &label);
+    fn transform<'a>(
+        mut transformer: &mut LinkTransformer,
+        mut iw: &mut MdInlinesWriter<'a>,
+        link: &'a Link,
+    ) -> LinkReference {
+        let actual = LinkTransformation::new(transformer.transform_variant(), &mut iw, link)
+            .apply(&mut transformer, &link.link_definition.reference);
+        actual
+    }
 
-        VARIANTS_CHECKER.see(&Combo::Of(transform, link_ref.clone()));
+    fn make_link(label: &str, link_ref: LinkReference) -> Link {
+        let link = Link {
+            text: vec![Inline::Text(Text {
+                variant: TextVariant::Plain,
+                value: label.to_string(),
+            })],
+            link_definition: LinkDefinition {
+                url: "https://example.com".to_string(),
+                title: None,
+                reference: link_ref,
+            },
+        };
+        link
+    }
 
-        assert_eq_cow(&actual, &expected);
+    struct Given {
+        transform: LinkTransform,
+        label: Inline,
+        orig_reference: LinkReference,
+    }
+
+    impl Given {
+        fn expect(self, expected: LinkReference) {
+            let Given {
+                transform,
+                label,
+                orig_reference: reference,
+            } = self;
+            let mut transformer = LinkTransformer::from(transform);
+            let mut iw = MdInlinesWriter::new(MdInlinesWriterOptions {
+                link_canonicalization: LinkTransform::Keep,
+            });
+            let link = Link {
+                text: vec![label],
+                link_definition: LinkDefinition {
+                    url: "https://example.com".to_string(),
+                    title: None,
+                    reference: reference.clone(),
+                },
+            };
+
+            let actual = self::transform(&mut transformer, &mut iw, &link);
+
+            VARIANTS_CHECKER.see(&Combo::Of(transform, reference.clone()));
+
+            assert_eq!(actual, expected);
+        }
     }
 }

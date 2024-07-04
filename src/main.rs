@@ -4,6 +4,7 @@ use std::io::{stdin, Read};
 use std::process::ExitCode;
 
 use crate::fmt_md::{MdOptions, ReferencePlacement};
+use crate::fmt_md_inlines::MdInlinesWriterOptions;
 use crate::link_transform::LinkTransform;
 use crate::output::Stream;
 use crate::select::ParseError;
@@ -12,6 +13,7 @@ use crate::tree_ref::MdElemRef;
 use select::MdqRefSelector;
 
 mod fmt_md;
+mod fmt_md_inlines;
 mod fmt_str;
 mod link_transform;
 mod matcher;
@@ -73,8 +75,9 @@ fn main() -> ExitCode {
     let md_options = MdOptions {
         link_reference_placement: cli.link_pos,
         footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
-        link_canonicalization: cli.link_canonicalization,
-        add_thematic_breaks: true,
+        inline_options: MdInlinesWriterOptions {
+            link_canonicalization: cli.link_canonicalization,
+        },
     };
 
     fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
