@@ -1,12 +1,7 @@
-#[cfg(test)]
-pub use test_utils::*;
-
 // We this file's contents from prod by putting them in a submodule guarded by cfg(test), but then "pub use" it to
 // export its contents.
 #[cfg(test)]
 mod test_utils {
-    use std::borrow::Cow;
-    use std::fmt::Debug;
     /// Turn a pattern match into an `if let ... { else panic! }`.
     #[macro_export]
     macro_rules! unwrap {
@@ -105,17 +100,5 @@ mod test_utils {
                 }
             }
         };
-    }
-
-    pub fn assert_eq_cow<T>(actual: &Cow<T>, expected: &Cow<T>)
-    where
-        T: Clone + PartialEq + Debug,
-    {
-        assert_eq!(actual, expected);
-        match (actual, expected) {
-            (Cow::Borrowed(_), Cow::Owned(_)) => panic!("expected Cow::Owned({:?}) but saw Borrowed", expected),
-            (Cow::Owned(_), Cow::Borrowed(_)) => panic!("expected Cow::Borrowed({:?}) but saw Owned", expected),
-            (Cow::Borrowed(_), Cow::Borrowed(_)) | (Cow::Owned(_), Cow::Owned(_)) => {}
-        }
     }
 }
