@@ -1,4 +1,4 @@
-use crate::link_transform::{LinkLabel, LinkTransform, LinkTransformer};
+use crate::link_transform::{LinkLabel, LinkTransform, LinkTransformer, SingleTransformationState};
 use crate::output::{Output, SimpleWrite};
 use crate::tree::{
     Footnote, Formatting, FormattingVariant, Image, Inline, Link, LinkDefinition, LinkReference, MdElem, Text,
@@ -163,7 +163,7 @@ impl<'a> MdInlinesWriter<'a> {
     pub fn write_linklike<W, L>(&mut self, out: &mut Output<W>, link_like: L)
     where
         W: SimpleWrite,
-        L: LinkLike<'a>,
+        L: LinkLike<'a> + Copy,
     {
         let (link_type, label, link) = link_like.link_info();
         if matches!(link_type, LinkLikeType::Image) {
@@ -176,9 +176,8 @@ impl<'a> MdInlinesWriter<'a> {
         }
         out.write_char(']');
 
-        let state = LinkTransformer::prepare_transformation(self.link_transformer.transform_variant(), self, link_like);
-        let transformed = self.link_transformer.transform(state, &link.reference);
-        let link_ref_owned = transformed.into_owned();
+        let state = SingleTransformationState::new(self.link_transformer.transform_variant(), self, link_like);
+        let link_ref_owned = state.apply(&mut self.link_transformer, &link.reference);
 
         let reference_to_add = match link_ref_owned {
             LinkReference::Inline => {

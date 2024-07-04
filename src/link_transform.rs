@@ -80,22 +80,11 @@ impl<'a> SingleTransformationState<'a> {
     fn with_link_text(text: Cow<'a, str>) -> Self {
         Self { link_text: Some(text) }
     }
-}
 
-impl LinkTransformer {
-    pub fn transform_variant(&self) -> LinkTransform {
-        match self.delegate {
-            LinkTransformState::Keep => LinkTransform::Keep,
-            LinkTransformState::Inline => LinkTransform::Inline,
-            LinkTransformState::Reference(_) => LinkTransform::Reference,
-        }
-    }
-
-    pub fn prepare_transformation<'a, L: LinkLike<'a>>(
-        transform: LinkTransform,
-        inline_writer: &mut MdInlinesWriter<'a>,
-        item: L,
-    ) -> SingleTransformationState<'a> {
+    pub fn new<L>(transform: LinkTransform, inline_writer: &mut MdInlinesWriter<'a>, item: L) -> Self
+    where
+        L: LinkLike<'a> + Copy,
+    {
         match transform {
             LinkTransform::Keep | LinkTransform::Inline => SingleTransformationState::empty(),
             LinkTransform::Reference => {
@@ -111,6 +100,20 @@ impl LinkTransformer {
                     }
                 }
             }
+        }
+    }
+
+    pub fn apply(self, transformer: &mut LinkTransformer, link: &'a LinkReference) -> LinkReference {
+        transformer.transform(self, link).into_owned()
+    }
+}
+
+impl LinkTransformer {
+    pub fn transform_variant(&self) -> LinkTransform {
+        match self.delegate {
+            LinkTransformState::Keep => LinkTransform::Keep,
+            LinkTransformState::Inline => LinkTransform::Inline,
+            LinkTransformState::Reference(_) => LinkTransform::Reference,
         }
     }
 
