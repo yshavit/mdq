@@ -97,7 +97,12 @@ impl<'a> LinkTransformation<'a> {
     }
 
     pub fn apply(self, transformer: &mut LinkTransformer, link: &'a LinkReference) -> LinkReference {
-        transformer.transform(self, link).into_owned()
+        match &mut transformer.delegate {
+            LinkTransformState::Keep => Cow::Borrowed(link),
+            LinkTransformState::Inline => Cow::Owned(LinkReference::Inline),
+            LinkTransformState::Reference(assigner) => assigner.assign(self, link),
+        }
+        .into_owned()
     }
 }
 
@@ -107,14 +112,6 @@ impl LinkTransformer {
             LinkTransformState::Keep => LinkTransform::Keep,
             LinkTransformState::Inline => LinkTransform::Inline,
             LinkTransformState::Reference(_) => LinkTransform::Reference,
-        }
-    }
-
-    pub fn transform<'a>(&mut self, state: LinkTransformation<'a>, link: &'a LinkReference) -> Cow<'a, LinkReference> {
-        match &mut self.delegate {
-            LinkTransformState::Keep => Cow::Borrowed(&link),
-            LinkTransformState::Inline => Cow::Owned(LinkReference::Inline),
-            LinkTransformState::Reference(assigner) => assigner.assign(state, link),
         }
     }
 }
