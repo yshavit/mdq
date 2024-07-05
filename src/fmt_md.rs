@@ -560,7 +560,7 @@ pub mod tests {
         #[test]
         fn totally_empty() {
             check_render(
-                md_elems![Container::Section {
+                md_elems![Section {
                     depth: 3,
                     title: vec![],
                     body: vec![],
@@ -573,7 +573,7 @@ pub mod tests {
         #[test]
         fn only_title() {
             check_render(
-                md_elems![Container::Section {
+                md_elems![Section {
                     depth: 3,
                     title: vec![mdq_inline!("My header")],
                     body: vec![],
@@ -586,7 +586,7 @@ pub mod tests {
         #[test]
         fn only_body() {
             check_render(
-                md_elems![Container::Section {
+                md_elems![Section {
                     depth: 3,
                     title: vec![],
                     body: md_elems!["Hello, world."],
@@ -601,10 +601,10 @@ pub mod tests {
         #[test]
         fn title_and_body() {
             check_render(
-                md_elems![Container::Section {
+                md_elems![Section {
                     depth: 1,
                     title: vec![mdq_inline!("My title")],
-                    body: md_elems![Container::BlockQuote {
+                    body: md_elems![BlockQuote {
                         body: md_elems!["Hello, world."],
                     },],
                 }],
@@ -636,7 +636,7 @@ pub mod tests {
         #[test]
         fn single_level() {
             check_render(
-                md_elems![Container::BlockQuote {
+                md_elems![BlockQuote {
                     body: md_elems!["Hello, world"]
                 }],
                 indoc! {
@@ -648,10 +648,10 @@ pub mod tests {
         #[test]
         fn two_levels() {
             check_render(
-                md_elems![Container::BlockQuote {
+                md_elems![BlockQuote {
                     body: md_elems![
                         "Outer",
-                        Container::BlockQuote {
+                        BlockQuote {
                             body: md_elems!["Inner"],
                         },
                     ]
@@ -671,7 +671,7 @@ pub mod tests {
         #[test]
         fn ordered() {
             check_render(
-                md_elems![Container::List {
+                md_elems![List {
                     starting_index: Some(3),
                     items: vec![
                         ListItem {
@@ -698,7 +698,7 @@ pub mod tests {
         #[test]
         fn unordered() {
             check_render(
-                md_elems![Container::List {
+                md_elems![List {
                     starting_index: None,
                     items: vec![
                         ListItem {
@@ -725,7 +725,7 @@ pub mod tests {
         #[test]
         fn block_alignments() {
             check_render(
-                md_elems![Container::List {
+                md_elems![List {
                     starting_index: None,
                     items: vec![
                         ListItem {
@@ -734,7 +734,7 @@ pub mod tests {
                         },
                         ListItem {
                             checked: None,
-                            item: md_elems!(Container::BlockQuote {
+                            item: md_elems!(BlockQuote {
                                 body: md_elems!["quoted block one", "quoted block two"]
                             })
                         },
@@ -749,7 +749,7 @@ pub mod tests {
                             checked: Some(false),
                             item: md_elems![
                                 "closing argument",
-                                Container::BlockQuote {
+                                BlockQuote {
                                     body: md_elems!["supporting evidence"]
                                 },
                                 LeafBlock::CodeBlock {
@@ -2000,7 +2000,7 @@ pub mod tests {
 
         fn link_and_footnote_markdown() -> Vec<MdElem> {
             md_elems![
-                Container::Section {
+                Section {
                     depth: 1,
                     title: vec![mdq_inline!("First section")],
                     body: md_elems![LeafBlock::Paragraph {
@@ -2022,7 +2022,7 @@ pub mod tests {
                         ],
                     }],
                 },
-                Container::Section {
+                Section {
                     depth: 1,
                     title: vec![mdq_inline!("Second section")],
                     body: md_elems!["Second section contents."],

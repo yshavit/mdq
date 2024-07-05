@@ -1,7 +1,7 @@
 use crate::fmt_str::inlines_to_plain_string;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::{ParseErrorReason, ParseResult};
-use crate::tree::{Container, Inline, LeafBlock, MdElem};
+use crate::tree::{Inline, LeafBlock, MdElem};
 use regex::Regex;
 use std::borrow::Borrow;
 
@@ -63,9 +63,9 @@ impl StringMatcher {
                 }
                 false
             }
-            MdElem::Container(Container::List(list)) => list.items.iter().any(|li| self.matches_any(&li.item)),
-            MdElem::Container(Container::BlockQuote(block)) => self.matches_any(&block.body),
-            MdElem::Container(Container::Section(section)) => {
+            MdElem::List(list) => list.items.iter().any(|li| self.matches_any(&li.item)),
+            MdElem::BlockQuote(block) => self.matches_any(&block.body),
+            MdElem::Section(section) => {
                 if self.matches_inlines(&section.title) {
                     return true;
                 }

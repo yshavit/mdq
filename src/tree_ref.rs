@@ -1,5 +1,5 @@
 use crate::tree::{
-    BlockQuote, CodeBlock, Container, Image, Inline, LeafBlock, Link, List, ListItem, MdElem, Paragraph, Section, Table,
+    BlockQuote, CodeBlock, Image, Inline, LeafBlock, Link, List, ListItem, MdElem, Paragraph, Section, Table,
 };
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
@@ -37,11 +37,9 @@ impl<'a> From<&'a MdElem> for MdElemRef<'a> {
                 LeafBlock::CodeBlock(c) => Self::CodeBlock(c),
                 LeafBlock::Table(t) => Self::Table(t),
             },
-            MdElem::Container(container) => match container {
-                Container::List(list) => Self::List(list),
-                Container::BlockQuote(block) => Self::BlockQuote(block),
-                Container::Section(section) => Self::Section(section),
-            },
+            MdElem::List(list) => Self::List(list),
+            MdElem::BlockQuote(block) => Self::BlockQuote(block),
+            MdElem::Section(section) => Self::Section(section),
             MdElem::Inline(child) => MdElemRef::Inline(child),
         }
     }
