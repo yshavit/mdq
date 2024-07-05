@@ -1,6 +1,5 @@
 use crate::tree::{
-    Block, BlockQuote, CodeBlock, Container, Image, Inline, LeafBlock, Link, List, ListItem, MdElem, Paragraph,
-    Section, Table,
+    BlockQuote, CodeBlock, Container, Image, Inline, LeafBlock, Link, List, ListItem, MdElem, Paragraph, Section, Table,
 };
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
@@ -32,18 +31,16 @@ pub struct ListItemRef<'a>(pub Option<u32>, pub &'a ListItem);
 impl<'a> From<&'a MdElem> for MdElemRef<'a> {
     fn from(value: &'a MdElem) -> Self {
         match value {
-            MdElem::Block(block) => match block {
-                Block::LeafBlock(leaf) => match leaf {
-                    LeafBlock::ThematicBreak => Self::ThematicBreak,
-                    LeafBlock::Paragraph(p) => Self::Paragraph(p),
-                    LeafBlock::CodeBlock(c) => Self::CodeBlock(c),
-                    LeafBlock::Table(t) => Self::Table(t),
-                },
-                Block::Container(container) => match container {
-                    Container::List(list) => Self::List(list),
-                    Container::BlockQuote(block) => Self::BlockQuote(block),
-                    Container::Section(section) => Self::Section(section),
-                },
+            MdElem::LeafBlock(leaf) => match leaf {
+                LeafBlock::ThematicBreak => Self::ThematicBreak,
+                LeafBlock::Paragraph(p) => Self::Paragraph(p),
+                LeafBlock::CodeBlock(c) => Self::CodeBlock(c),
+                LeafBlock::Table(t) => Self::Table(t),
+            },
+            MdElem::Container(container) => match container {
+                Container::List(list) => Self::List(list),
+                Container::BlockQuote(block) => Self::BlockQuote(block),
+                Container::Section(section) => Self::Section(section),
             },
             MdElem::Inline(child) => MdElemRef::Inline(child),
         }
