@@ -13,16 +13,13 @@ pub enum MdElem {
     List(List),
     Section(Section),
 
-    LeafBlock(LeafBlock),
-    Inline(Inline),
-}
-
-#[derive(Debug, PartialEq)]
-pub enum LeafBlock {
+    // Leaf blocks
     CodeBlock(CodeBlock),
     Paragraph(Paragraph),
     Table(Table),
     ThematicBreak,
+
+    Inline(Inline),
 }
 
 #[derive(Debug, PartialEq)]
@@ -350,7 +347,7 @@ impl MdElem {
             })),
             mdast::Node::Code(node) => {
                 let mdast::Code { value, lang, meta, .. } = node;
-                m_node!(MdElem::LeafBlock::CodeBlock {
+                m_node!(MdElem::CodeBlock {
                     value,
                     variant: CodeVariant::Code(match lang {
                         None => None,
@@ -363,7 +360,7 @@ impl MdElem {
             }
             mdast::Node::Math(node) => {
                 let mdast::Math { value, meta, .. } = node;
-                m_node!(MdElem::LeafBlock::CodeBlock {
+                m_node!(MdElem::CodeBlock {
                     value,
                     variant: CodeVariant::Math { metadata: meta },
                 })
@@ -393,24 +390,24 @@ impl MdElem {
                     }
                     rows.push(column);
                 }
-                m_node!(MdElem::LeafBlock::Table {
+                m_node!(MdElem::Table {
                     alignments: align,
                     rows,
                 })
             }
-            mdast::Node::ThematicBreak(_) => m_node!(MdElem::LeafBlock::ThematicBreak),
+            mdast::Node::ThematicBreak(_) => m_node!(MdElem::ThematicBreak),
             mdast::Node::TableRow(_) | mdast::Node::TableCell(_) | mdast::Node::ListItem(_) => {
                 return Err(InvalidMd::InternalError); // should have been handled by Node::Table
             }
             mdast::Node::Definition(_) => return Ok(Vec::new()),
-            mdast::Node::Paragraph(node) => m_node!(MdElem::LeafBlock::Paragraph {
+            mdast::Node::Paragraph(node) => m_node!(MdElem::Paragraph {
                 body: Self::inlines(node.children, lookups)?,
             }),
-            mdast::Node::Toml(node) => m_node!(MdElem::LeafBlock::CodeBlock {
+            mdast::Node::Toml(node) => m_node!(MdElem::CodeBlock {
                 variant: CodeVariant::Toml,
                 value: node.value,
             }),
-            mdast::Node::Yaml(node) => m_node!(MdElem::LeafBlock::CodeBlock {
+            mdast::Node::Yaml(node) => m_node!(MdElem::CodeBlock {
                 variant: CodeVariant::Yaml,
                 value: node.value,
             }),
@@ -892,7 +889,7 @@ mod tests {
                 "#},
             );
 
-            check!(&root.children[0], Node::Paragraph(p), lookups => m_node!(MdElem::LeafBlock::Paragraph{body}) = {
+            check!(&root.children[0], Node::Paragraph(p), lookups => m_node!(MdElem::Paragraph{body}) = {
                 assert_eq!(p.children.len(), 3);
                 check!(&p.children[0], Node::Text(_), lookups => MdElem::Inline(text) = {
                     assert_eq!(text, Inline::Text(Text{variant: TextVariant::Plain, value: "hello ".to_string()}));
@@ -994,7 +991,7 @@ mod tests {
                 let (root, lookups) = parse(indoc! {r#"
                 In <em>a paragraph.</em>
                 "#});
-                check!(&root.children[0], Node::Paragraph(_), lookups => m_node!(MdElem::LeafBlock::Paragraph{body}) = {
+                check!(&root.children[0], Node::Paragraph(_), lookups => m_node!(MdElem::Paragraph{body}) = {
                     assert_eq!(body.len(), 4);
                     assert_eq!(body, vec![
                         mdq_inline!("In "),
@@ -1014,7 +1011,7 @@ mod tests {
                 In <em
                 newline  >a paragraph.</em>
                 "#});
-                check!(&root.children[0], Node::Paragraph(_), lookups => m_node!(MdElem::LeafBlock::Paragraph{body}) = {
+                check!(&root.children[0], Node::Paragraph(_), lookups => m_node!(MdElem::Paragraph{body}) = {
                     assert_eq!(body.len(), 4);
                     assert_eq!(body, vec![
                         mdq_inline!("In "),
@@ -1091,7 +1088,7 @@ mod tests {
             {
                 // This isn't an image, though it almost looks like one
                 let (root, lookups) = parse(r#"![]("only a tooltip")"#);
-                check!(&root.children[0], Node::Paragraph(_), lookups => p @ m_node!(MdElem::LeafBlock::Paragraph{ .. }) = {
+                check!(&root.children[0], Node::Paragraph(_), lookups => p @ m_node!(MdElem::Paragraph{ .. }) = {
                     assert_eq!(p, md_elem!(r#"![]("only a tooltip")"#));
                 });
             }
@@ -1472,7 +1469,7 @@ mod tests {
                     plain code block
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdElem::LeafBlock::CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdElem::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Code(None));
                     assert_eq!(value, "plain code block");
                 })
@@ -1485,7 +1482,7 @@ mod tests {
                     code block with language
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdElem::LeafBlock::CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdElem::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
                         language: "rust".to_string(),
                         metadata: None})));
@@ -1500,7 +1497,7 @@ mod tests {
                     code block with language and title
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdElem::LeafBlock::CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdElem::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
                         language: "rust".to_string(),
                         metadata: Some(r#"title="example.rs""#.to_string())})));
@@ -1515,7 +1512,7 @@ mod tests {
                     code block with only title
                     ```"#},
                 );
-                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdElem::LeafBlock::CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Code(_), lookups => m_node!(MdElem::CodeBlock{variant, value}) = {
                     // It's actually just a bogus language!
                     assert_eq!(variant, CodeVariant::Code(Some(CodeOpts{
                         language: r#"title="example.rs""#.to_string(),
@@ -1537,7 +1534,7 @@ mod tests {
                     x = {-b \pm \sqrt{b^2-4ac} \over 2a}
                     $$"#},
                 );
-                check!(&root.children[0], Node::Math(_), lookups => m_node!(MdElem::LeafBlock::CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Math(_), lookups => m_node!(MdElem::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Math{metadata: None});
                     assert_eq!(value, r#"x = {-b \pm \sqrt{b^2-4ac} \over 2a}"#);
                 })
@@ -1550,7 +1547,7 @@ mod tests {
                     x = {-b \pm \sqrt{b^2-4ac} \over 2a}
                     $$"#},
                 );
-                check!(&root.children[0], Node::Math(_), lookups => m_node!(MdElem::LeafBlock::CodeBlock{variant, value}) = {
+                check!(&root.children[0], Node::Math(_), lookups => m_node!(MdElem::CodeBlock{variant, value}) = {
                     assert_eq!(variant, CodeVariant::Math{metadata: Some("my metadata".to_string())});
                     assert_eq!(value, r#"x = {-b \pm \sqrt{b^2-4ac} \over 2a}"#);
                 })
@@ -1568,7 +1565,7 @@ mod tests {
                 my: toml
                 +++"#},
             );
-            check!(&root.children[0], Node::Toml(_), lookups => m_node!(MdElem::LeafBlock::CodeBlock{variant, value}) = {
+            check!(&root.children[0], Node::Toml(_), lookups => m_node!(MdElem::CodeBlock{variant, value}) = {
                 assert_eq!(variant, CodeVariant::Toml);
                 assert_eq!(value, r#"my: toml"#);
             })
@@ -1585,7 +1582,7 @@ mod tests {
                 my: toml
                 ---"#},
             );
-            check!(&root.children[0], Node::Yaml(_), lookups => m_node!(MdElem::LeafBlock::CodeBlock{variant, value}) = {
+            check!(&root.children[0], Node::Yaml(_), lookups => m_node!(MdElem::CodeBlock{variant, value}) = {
                 assert_eq!(variant, CodeVariant::Yaml);
                 assert_eq!(value, r#"my: toml"#);
             })
@@ -1645,7 +1642,7 @@ mod tests {
             );
 
             assert_eq!(root.children.len(), 3);
-            check!(&root.children[1], Node::ThematicBreak(_), lookups => m_node!(MdElem::LeafBlock::ThematicBreak) = {
+            check!(&root.children[1], Node::ThematicBreak(_), lookups => m_node!(MdElem::ThematicBreak) = {
                 // nothing to check
             });
         }
@@ -1664,7 +1661,7 @@ mod tests {
                     "#},
             );
             assert_eq!(root.children.len(), 1);
-            check!(&root.children[0], Node::Table(table_node), lookups => m_node!(MdElem::LeafBlock::Table{alignments, rows}) = {
+            check!(&root.children[0], Node::Table(table_node), lookups => m_node!(MdElem::Table{alignments, rows}) = {
                 assert_eq!(alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Center, mdast::AlignKind::Right, mdast::AlignKind::None]);
                 assert_eq!(rows,
                     vec![ // rows
@@ -1918,10 +1915,10 @@ mod tests {
                     title: vec![mdq_inline!("first")],
                     body: vec![],
                 }),
-                m_node!(MdElem::LeafBlock::Paragraph {
+                m_node!(MdElem::Paragraph {
                     body: vec![mdq_inline!("aaa")],
                 }),
-                m_node!(MdElem::LeafBlock::Paragraph {
+                m_node!(MdElem::Paragraph {
                     body: vec![mdq_inline!("bbb")],
                 }),
             ];
@@ -1929,10 +1926,10 @@ mod tests {
                 depth: 1,
                 title: vec![mdq_inline!("first")],
                 body: vec![
-                    m_node!(MdElem::LeafBlock::Paragraph {
+                    m_node!(MdElem::Paragraph {
                         body: vec![mdq_inline!("aaa")],
                     }),
-                    m_node!(MdElem::LeafBlock::Paragraph {
+                    m_node!(MdElem::Paragraph {
                         body: vec![mdq_inline!("bbb")],
                     }),
                 ],
@@ -1955,7 +1952,7 @@ mod tests {
                     title: vec![mdq_inline!("aaa")],
                     body: vec![],
                 }),
-                m_node!(MdElem::LeafBlock::Paragraph {
+                m_node!(MdElem::Paragraph {
                     body: vec![mdq_inline!("bbb")],
                 }),
             ];
@@ -1965,7 +1962,7 @@ mod tests {
                 body: vec![m_node!(MdElem::Section {
                     depth: 2,
                     title: vec![mdq_inline!("aaa")],
-                    body: vec![m_node!(MdElem::LeafBlock::Paragraph {
+                    body: vec![m_node!(MdElem::Paragraph {
                         body: vec![mdq_inline!("bbb")],
                     })],
                 })],
@@ -2039,18 +2036,18 @@ mod tests {
         #[test]
         fn no_headers() -> Result<(), InvalidMd> {
             let linear = vec![
-                m_node!(MdElem::LeafBlock::Paragraph {
+                m_node!(MdElem::Paragraph {
                     body: vec![mdq_inline!("one")],
                 }),
-                m_node!(MdElem::LeafBlock::Paragraph {
+                m_node!(MdElem::Paragraph {
                     body: vec![mdq_inline!("two")],
                 }),
             ];
             let expect = vec![
-                m_node!(MdElem::LeafBlock::Paragraph {
+                m_node!(MdElem::Paragraph {
                     body: vec![mdq_inline!("one")],
                 }),
-                m_node!(MdElem::LeafBlock::Paragraph {
+                m_node!(MdElem::Paragraph {
                     body: vec![mdq_inline!("two")],
                 }),
             ];
@@ -2152,7 +2149,7 @@ mod tests {
         #[test]
         fn paragraph_before_and_after_header() -> Result<(), InvalidMd> {
             let linear = vec![
-                m_node!(MdElem::LeafBlock::Paragraph {
+                m_node!(MdElem::Paragraph {
                     body: vec![mdq_inline!("before")],
                 }),
                 m_node!(MdElem::Section {
@@ -2160,18 +2157,18 @@ mod tests {
                     title: vec![mdq_inline!("the header")],
                     body: vec![],
                 }),
-                m_node!(MdElem::LeafBlock::Paragraph {
+                m_node!(MdElem::Paragraph {
                     body: vec![mdq_inline!("after")],
                 }),
             ];
             let expect = vec![
-                m_node!(MdElem::LeafBlock::Paragraph {
+                m_node!(MdElem::Paragraph {
                     body: vec![mdq_inline!("before")],
                 }),
                 m_node!(MdElem::Section {
                     depth: 3,
                     title: vec![mdq_inline!("the header")],
-                    body: vec![m_node!(MdElem::LeafBlock::Paragraph {
+                    body: vec![m_node!(MdElem::Paragraph {
                         body: vec![mdq_inline!("after")],
                     })],
                 }),

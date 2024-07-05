@@ -6,7 +6,7 @@ mod test_utils {
             crate::m_node!(MdElem::$($node_names)::* {$($attr: $val),*})
         };
         ($paragraph_text:literal) => {
-            crate::m_node!(MdElem::LeafBlock::Paragraph{body: vec![crate::mdq_inline!($paragraph_text)]})
+            crate::m_node!(MdElem::Paragraph{body: vec![crate::mdq_inline!($paragraph_text)]})
         };
     }
 

@@ -1,7 +1,7 @@
 use crate::fmt_str::inlines_to_plain_string;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::{ParseErrorReason, ParseResult};
-use crate::tree::{Inline, LeafBlock, MdElem};
+use crate::tree::{Inline, MdElem};
 use regex::Regex;
 use std::borrow::Borrow;
 
@@ -51,9 +51,9 @@ impl StringMatcher {
 
     fn matches_node(&self, node: &MdElem) -> bool {
         match node {
-            MdElem::LeafBlock(LeafBlock::Paragraph(p)) => self.matches_inlines(&p.body),
-            MdElem::LeafBlock(LeafBlock::ThematicBreak | LeafBlock::CodeBlock(_)) => false,
-            MdElem::LeafBlock(LeafBlock::Table(table)) => {
+            MdElem::Paragraph(p) => self.matches_inlines(&p.body),
+            MdElem::ThematicBreak | MdElem::CodeBlock(_) => false,
+            MdElem::Table(table) => {
                 for row in &table.rows {
                     for cell in row {
                         if self.matches_inlines(cell) {

@@ -36,7 +36,7 @@ mod tests {
     use super::*;
     use indoc::indoc;
 
-    use crate::tree::{FormattingVariant, Inline, LeafBlock, MdElem, ReadOptions, TextVariant};
+    use crate::tree::{FormattingVariant, Inline, MdElem, ReadOptions, TextVariant};
     use crate::unwrap;
     use markdown::ParseOptions;
 
@@ -122,7 +122,7 @@ mod tests {
         options.constructs.math_text = true;
         let node = markdown::to_mdast(md, &options).unwrap();
         let md_elems = MdElem::read(node, &ReadOptions::default()).unwrap();
-        unwrap!(&md_elems[0], MdElem::LeafBlock(LeafBlock::Paragraph(p)));
+        unwrap!(&md_elems[0], MdElem::Paragraph(p));
         p.body.iter().for_each(|inline| VARIANTS_CHECKER.see(inline));
         let actual = inlines_to_plain_string(&p.body);
         assert_eq!(&actual, expect);
