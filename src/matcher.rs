@@ -1,7 +1,7 @@
 use crate::fmt_str::inlines_to_plain_string;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::{ParseErrorReason, ParseResult};
-use crate::tree::{Block, Container, Inline, LeafBlock, MdElem};
+use crate::tree::{Inline, MdElem};
 use regex::Regex;
 use std::borrow::Borrow;
 
@@ -49,11 +49,11 @@ impl StringMatcher {
         haystacks.iter().any(|node| self.matches_node(node.borrow()))
     }
 
-    fn matches_block(&self, block: &Block) -> bool {
-        match block {
-            Block::LeafBlock(LeafBlock::Paragraph(p)) => self.matches_inlines(&p.body),
-            Block::LeafBlock(LeafBlock::ThematicBreak | LeafBlock::CodeBlock(_)) => false,
-            Block::LeafBlock(LeafBlock::Table(table)) => {
+    fn matches_node(&self, node: &MdElem) -> bool {
+        match node {
+            MdElem::Paragraph(p) => self.matches_inlines(&p.body),
+            MdElem::ThematicBreak | MdElem::CodeBlock(_) => false,
+            MdElem::Table(table) => {
                 for row in &table.rows {
                     for cell in row {
                         if self.matches_inlines(cell) {
@@ -63,20 +63,14 @@ impl StringMatcher {
                 }
                 false
             }
-            Block::Container(Container::List(list)) => list.items.iter().any(|li| self.matches_any(&li.item)),
-            Block::Container(Container::BlockQuote(block)) => self.matches_any(&block.body),
-            Block::Container(Container::Section(section)) => {
+            MdElem::List(list) => list.items.iter().any(|li| self.matches_any(&li.item)),
+            MdElem::BlockQuote(block) => self.matches_any(&block.body),
+            MdElem::Section(section) => {
                 if self.matches_inlines(&section.title) {
                     return true;
                 }
                 self.matches_any(&section.body)
             }
-        }
-    }
-
-    fn matches_node(&self, node: &MdElem) -> bool {
-        match node {
-            MdElem::Block(block) => self.matches_block(block),
             MdElem::Inline(inline) => self.matches_inlines(&[inline]),
         }
     }
