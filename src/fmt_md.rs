@@ -560,7 +560,7 @@ pub mod tests {
         #[test]
         fn totally_empty() {
             check_render(
-                md_elems![Block::Container::Section {
+                md_elems![Section {
                     depth: 3,
                     title: vec![],
                     body: vec![],
@@ -573,7 +573,7 @@ pub mod tests {
         #[test]
         fn only_title() {
             check_render(
-                md_elems![Block::Container::Section {
+                md_elems![Section {
                     depth: 3,
                     title: vec![mdq_inline!("My header")],
                     body: vec![],
@@ -586,7 +586,7 @@ pub mod tests {
         #[test]
         fn only_body() {
             check_render(
-                md_elems![Block::Container::Section {
+                md_elems![Section {
                     depth: 3,
                     title: vec![],
                     body: md_elems!["Hello, world."],
@@ -601,10 +601,10 @@ pub mod tests {
         #[test]
         fn title_and_body() {
             check_render(
-                md_elems![Block::Container::Section {
+                md_elems![Section {
                     depth: 1,
                     title: vec![mdq_inline!("My title")],
-                    body: md_elems![Block::Container::BlockQuote {
+                    body: md_elems![BlockQuote {
                         body: md_elems!["Hello, world."],
                     },],
                 }],
@@ -636,7 +636,7 @@ pub mod tests {
         #[test]
         fn single_level() {
             check_render(
-                md_elems![Block::Container::BlockQuote {
+                md_elems![BlockQuote {
                     body: md_elems!["Hello, world"]
                 }],
                 indoc! {
@@ -648,10 +648,10 @@ pub mod tests {
         #[test]
         fn two_levels() {
             check_render(
-                md_elems![Block::Container::BlockQuote {
+                md_elems![BlockQuote {
                     body: md_elems![
                         "Outer",
-                        Block::Container::BlockQuote {
+                        BlockQuote {
                             body: md_elems!["Inner"],
                         },
                     ]
@@ -671,7 +671,7 @@ pub mod tests {
         #[test]
         fn ordered() {
             check_render(
-                md_elems![Block::Container::List {
+                md_elems![List {
                     starting_index: Some(3),
                     items: vec![
                         ListItem {
@@ -698,7 +698,7 @@ pub mod tests {
         #[test]
         fn unordered() {
             check_render(
-                md_elems![Block::Container::List {
+                md_elems![List {
                     starting_index: None,
                     items: vec![
                         ListItem {
@@ -725,7 +725,7 @@ pub mod tests {
         #[test]
         fn block_alignments() {
             check_render(
-                md_elems![Block::Container::List {
+                md_elems![List {
                     starting_index: None,
                     items: vec![
                         ListItem {
@@ -734,13 +734,13 @@ pub mod tests {
                         },
                         ListItem {
                             checked: None,
-                            item: md_elems!(Block::Container::BlockQuote {
+                            item: md_elems!(BlockQuote {
                                 body: md_elems!["quoted block one", "quoted block two"]
                             })
                         },
                         ListItem {
                             checked: None,
-                            item: md_elems!(Block::LeafBlock::CodeBlock {
+                            item: md_elems!(CodeBlock {
                                 variant: CodeVariant::Code(None),
                                 value: "line 1\nline 2".to_string(),
                             })
@@ -749,10 +749,10 @@ pub mod tests {
                             checked: Some(false),
                             item: md_elems![
                                 "closing argument",
-                                Block::Container::BlockQuote {
+                                BlockQuote {
                                     body: md_elems!["supporting evidence"]
                                 },
-                                Block::LeafBlock::CodeBlock {
+                                CodeBlock {
                                     variant: CodeVariant::Code(None),
                                     value: "line a\nline b".to_string(),
                                 },
@@ -832,7 +832,7 @@ pub mod tests {
         #[test]
         fn simple() {
             check_render(
-                md_elems![Block::LeafBlock::Table {
+                md_elems![Table {
                     alignments: vec![
                         mdast::AlignKind::Left,
                         mdast::AlignKind::Right,
@@ -869,7 +869,7 @@ pub mod tests {
         fn single_char_cells() {
             // This checks the minimum padding aspects
             check_render(
-                md_elems![Block::LeafBlock::Table {
+                md_elems![Table {
                     alignments: vec![
                         mdast::AlignKind::Left,
                         mdast::AlignKind::Right,
@@ -906,7 +906,7 @@ pub mod tests {
         fn empty_cells() {
             // This checks the minimum padding aspects
             check_render(
-                md_elems![Block::LeafBlock::Table {
+                md_elems![Table {
                     alignments: vec![
                         mdast::AlignKind::Left,
                         mdast::AlignKind::Right,
@@ -943,7 +943,7 @@ pub mod tests {
         fn row_counts_inconsistent() {
             // This is an invalid table, but we should still support it
             check_render(
-                md_elems![Block::LeafBlock::Table {
+                md_elems![Table {
                     alignments: vec![mdast::AlignKind::None, mdast::AlignKind::None,],
                     rows: vec![
                         // Header row: two values
@@ -980,17 +980,13 @@ pub mod tests {
 
         #[test]
         fn by_itself() {
-            check_render(vec![m_node!(MdElem::Block::LeafBlock::ThematicBreak)], "   -----");
+            check_render(vec![m_node!(MdElem::ThematicBreak)], "   -----");
         }
 
         #[test]
         fn with_paragraphs() {
             check_render(
-                vec![
-                    md_elem!("before"),
-                    m_node!(MdElem::Block::LeafBlock::ThematicBreak),
-                    md_elem!("after"),
-                ],
+                vec![md_elem!("before"), m_node!(MdElem::ThematicBreak), md_elem!("after")],
                 indoc! {r#"
                 before
 
@@ -1007,7 +1003,7 @@ pub mod tests {
         #[test]
         fn code_no_lang() {
             check_render(
-                md_elems![Block::LeafBlock::CodeBlock {
+                md_elems![CodeBlock {
                     variant: CodeVariant::Code(None),
                     value: "one\ntwo".to_string(),
                 }],
@@ -1022,7 +1018,7 @@ pub mod tests {
         #[test]
         fn code_with_lang() {
             check_render(
-                md_elems![Block::LeafBlock::CodeBlock {
+                md_elems![CodeBlock {
                     variant: CodeVariant::Code(Some(CodeOpts {
                         language: "rust".to_string(),
                         metadata: None
@@ -1040,7 +1036,7 @@ pub mod tests {
         #[test]
         fn code_with_lang_and_title() {
             check_render(
-                md_elems![Block::LeafBlock::CodeBlock {
+                md_elems![CodeBlock {
                     variant: CodeVariant::Code(Some(CodeOpts {
                         language: "rust".to_string(),
                         metadata: Some(r#"title="my code""#.to_string())
@@ -1058,7 +1054,7 @@ pub mod tests {
         #[test]
         fn math_no_metadata() {
             check_render(
-                md_elems![Block::LeafBlock::CodeBlock {
+                md_elems![CodeBlock {
                     variant: CodeVariant::Math { metadata: None },
                     value: "one\ntwo".to_string(),
                 }],
@@ -1073,7 +1069,7 @@ pub mod tests {
         #[test]
         fn math_with_metadata() {
             check_render(
-                md_elems![Block::LeafBlock::CodeBlock {
+                md_elems![CodeBlock {
                     variant: CodeVariant::Math {
                         metadata: Some("metadata".to_string())
                     },
@@ -1090,7 +1086,7 @@ pub mod tests {
         #[test]
         fn toml() {
             check_render(
-                md_elems![Block::LeafBlock::CodeBlock {
+                md_elems![CodeBlock {
                     variant: CodeVariant::Toml,
                     value: "one\ntwo".to_string(),
                 }],
@@ -1105,7 +1101,7 @@ pub mod tests {
         #[test]
         fn yaml() {
             check_render(
-                md_elems![Block::LeafBlock::CodeBlock {
+                md_elems![CodeBlock {
                     variant: CodeVariant::Yaml,
                     value: "one\ntwo".to_string(),
                 }],
@@ -1360,7 +1356,7 @@ pub mod tests {
                         ],
                         link_definition: link,
                     })),
-                    m_node!(MdElem::Block::LeafBlock::ThematicBreak),
+                    m_node!(MdElem::ThematicBreak),
                 ];
                 check_render(nodes, expect);
             }
@@ -1509,7 +1505,7 @@ pub mod tests {
                         alt: "hello _world_!".to_string(),
                         link,
                     })),
-                    m_node!(MdElem::Block::LeafBlock::ThematicBreak),
+                    m_node!(MdElem::ThematicBreak),
                 ];
                 check_render(nodes, expect);
             }
@@ -1733,7 +1729,7 @@ pub mod tests {
                         label: "a".to_string(),
                         text: md_elems!["Hello, world."],
                     })),
-                    m_node!(MdElem::Block::LeafBlock::ThematicBreak),
+                    m_node!(MdElem::ThematicBreak),
                 ],
                 indoc! {r#"
                     [^a]
@@ -1752,7 +1748,7 @@ pub mod tests {
                         label: "a".to_string(),
                         text: md_elems!["Hello,\nworld."],
                     })),
-                    m_node!(MdElem::Block::LeafBlock::ThematicBreak),
+                    m_node!(MdElem::ThematicBreak),
                 ],
                 indoc! {r#"
                     [^a]
@@ -1773,7 +1769,7 @@ pub mod tests {
         #[test]
         fn link_and_footnote() {
             check_render(
-                md_elems![Block::LeafBlock::Paragraph {
+                md_elems![Paragraph {
                     body: vec![
                         mdq_inline!("Hello, "),
                         m_node!(Inline::Link {
@@ -1869,7 +1865,7 @@ pub mod tests {
                         link_canonicalization: LinkTransform::Keep,
                     },
                 },
-                md_elems![Block::LeafBlock::Paragraph {
+                md_elems![Paragraph {
                     body: vec![m_node!(Inline::Link {
                         text: vec![mdq_inline!("link description")],
                         link_definition: LinkDefinition {
@@ -1958,7 +1954,7 @@ pub mod tests {
                     },
                 },
                 // Define them in the opposite order that we'd expect them
-                md_elems![Block::LeafBlock::Paragraph {
+                md_elems![Paragraph {
                     body: vec![
                         Inline::Footnote(Footnote {
                             label: "d".to_string(),
@@ -2000,10 +1996,10 @@ pub mod tests {
 
         fn link_and_footnote_markdown() -> Vec<MdElem> {
             md_elems![
-                Block::Container::Section {
+                Section {
                     depth: 1,
                     title: vec![mdq_inline!("First section")],
-                    body: md_elems![Block::LeafBlock::Paragraph {
+                    body: md_elems![Paragraph {
                         body: vec![
                             m_node!(Inline::Link {
                                 text: vec![mdq_inline!("link description")],
@@ -2022,7 +2018,7 @@ pub mod tests {
                         ],
                     }],
                 },
-                Block::Container::Section {
+                Section {
                     depth: 1,
                     title: vec![mdq_inline!("Second section")],
                     body: md_elems!["Second section contents."],
