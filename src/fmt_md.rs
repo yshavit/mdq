@@ -5,7 +5,7 @@ use std::cmp::max;
 use std::fmt::Alignment;
 use std::ops::Deref;
 
-use crate::link_transform::LinkLabel;
+use crate::link_transform::{LinkLabel, LinkTransform};
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
@@ -72,7 +72,7 @@ where
     let mut writer_state = MdWriterState {
         opts: options,
         prev_was_thematic_break: false,
-        inlines_writer: MdInlinesWriter::new(options.inline_options),
+        inlines_writer: &mut MdInlinesWriter::new(options.inline_options),
     };
     writer_state.write_md(out, nodes, true);
 
@@ -81,13 +81,33 @@ where
     writer_state.write_definitions(out, DefinitionsToWrite::Both, true);
 }
 
-struct MdWriterState<'a> {
-    opts: &'a MdOptions,
-    prev_was_thematic_break: bool,
-    inlines_writer: MdInlinesWriter<'a>,
+pub fn write_md_inlines<'a, I, W>(out: &mut Output<W>, nodes: I, inlines_writer: &mut MdInlinesWriter<'a>)
+where
+    I: Iterator<Item = MdElemRef<'a>>,
+    W: SimpleWrite,
+{
+    let mut writer_state = MdWriterState {
+        opts: &MdOptions {
+            link_reference_placement: ReferencePlacement::Doc, // but we won't actually write them
+            footnote_reference_placement: ReferencePlacement::Doc, // ditto
+            inline_options: MdInlinesWriterOptions {
+                link_canonicalization: LinkTransform::Keep, // ignored; TODO remove from this struct
+            },
+        },
+        prev_was_thematic_break: false,
+        inlines_writer,
+    };
+    // This will write everything but the references; we'll keep those in the inlines_writer
+    writer_state.write_md(out, nodes, true);
 }
 
-impl<'a> MdWriterState<'a> {
+struct MdWriterState<'s, 'a> {
+    opts: &'a MdOptions,
+    prev_was_thematic_break: bool,
+    inlines_writer: &'s mut MdInlinesWriter<'a>,
+}
+
+impl<'s, 'a> MdWriterState<'s, 'a> {
     fn write_md<I, W>(&mut self, out: &mut Output<W>, nodes: I, add_break: bool)
     where
         I: Iterator<Item = MdElemRef<'a>>,

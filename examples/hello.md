@@ -1,6 +1,6 @@
 # Greetings
 
-![welcome mat image](https://example.com/welcome.png)
+![welcome image](https://example.com/welcome.png)
 
 How are you!
 
@@ -18,6 +18,8 @@ This is [my referenced link][a1].
 
 [a1]: https://example.com/reference
 
+# Details
+
 ### Here's a *cool* table
 
 | Column Left | Column Middle | Column Right |
@@ -30,10 +32,17 @@ This is [my inline link with title](https://example.com/inline "its title").
 
 This is [my referenced link with title][a2].
 
+This is [a collapsed link][], and this is [a shortcut link].
+
+[a collapsed link]: https://example.com/collapsed
+[a shortcut link]: https://example.com/shortcut "and it has a title"
+
 ## Hello lists
 
-1. List two
-2. List two
+1. List one
+2. List two with...
+
+   ...two paragraphs
 
 - Item a[^1]
 

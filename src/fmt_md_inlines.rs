@@ -4,6 +4,7 @@ use crate::tree::{
     Footnote, Formatting, FormattingVariant, Image, Inline, Link, LinkDefinition, LinkReference, MdElem, Text,
     TextVariant,
 };
+use serde::Serialize;
 use std::borrow::{Borrow, Cow};
 use std::collections::{HashMap, HashSet};
 
@@ -33,9 +34,10 @@ impl<'a> PendingReferences<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
+#[derive(Serialize, Debug, PartialEq, Eq, Copy, Clone, Hash)]
 pub struct UrlAndTitle<'a> {
     pub url: &'a String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub title: &'a Option<String>,
 }
 
