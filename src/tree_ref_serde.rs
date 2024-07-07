@@ -285,15 +285,8 @@ fn inlines_to_string<'a, I>(inlines: I, writer: &mut MdInlinesWriter<'a>) -> Str
 where
     I: IntoIterator<Item = &'a Inline>,
 {
-    md_to_string(
-        &inlines.into_iter().map(|inline| MdElemRef::Inline(inline)).collect(),
-        writer,
-    )
-}
-
-fn md_to_string<'a>(md: &Vec<MdElemRef<'a>>, writer: &mut MdInlinesWriter<'a>) -> String {
+    let md: Vec<_> = inlines.into_iter().map(|inline| MdElemRef::Inline(inline)).collect();
     let mut output = Output::new(String::with_capacity(16)); // guess
-    fmt_md::write_md_inlines(&mut output, md.iter().map(|e| *e), writer);
-
+    fmt_md::write_md_inlines(&mut output, md.into_iter().map(|e| e), writer);
     output.take_underlying().unwrap()
 }
