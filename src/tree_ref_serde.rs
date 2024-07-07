@@ -627,6 +627,30 @@ mod tests {
         );
     }
 
+    #[test]
+    fn table() {
+        check(
+            md_elem!(Table {
+                alignments: vec![AlignKind::Left, AlignKind::None],
+                rows: vec![
+                    vec![vec![mdq_inline!("R1C1")], vec![mdq_inline!("R1C2")]],
+                    vec![vec![mdq_inline!("R2C1")], vec![mdq_inline!("R2C2")]],
+                ]
+            }),
+            json_str!(
+                {"items":[
+                    {"table":{
+                        "alignments": ["left", "none"],
+                        "rows": [
+                            [ "R1C1", "R1C2" ],
+                            [ "R2C1", "R2C2" ]
+                        ]
+                    }}
+                ]}
+            ),
+        );
+    }
+
     fn check(given: MdElem, expect: &str) {
         let opts = MdInlinesWriterOptions {
             link_canonicalization: LinkTransform::Keep,
