@@ -25,10 +25,15 @@ pub enum SerdeElem<'a> {
     BlockQuote(Vec<SerdeElem<'a>>),
     CodeBlock {
         code: &'a String,
+
         #[serde(rename = "type")]
         code_type: CodeBlockType,
-        metadata: Option<&'a String>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
         language: Option<&'a String>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        metadata: Option<&'a String>,
     },
     Paragraph(String),
     Link {
@@ -133,6 +138,7 @@ pub enum ListItemType {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CodeBlockType {
     Code,
     Math,
@@ -141,7 +147,7 @@ pub enum CodeBlockType {
 }
 
 impl<'a> SerdeDoc<'a> {
-    pub fn new(elems: &Vec<MdElemRef<'a>>, opts: MdInlinesWriterOptions) -> Self {
+    pub fn new(elems: &[MdElemRef<'a>], opts: MdInlinesWriterOptions) -> Self {
         let mut inlines_writer = MdInlinesWriter::new(opts);
         const DEFAULT_CAPACITY: usize = 16; // todo we can actually compute these if we want
         let mut result = Self {
@@ -289,4 +295,181 @@ where
     let mut output = Output::new(String::with_capacity(16)); // guess
     fmt_md::write_md_inlines(&mut output, md.into_iter().map(|e| e), writer);
     output.take_underlying().unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fmt_md_inlines::MdInlinesWriterOptions;
+    use crate::link_transform::LinkTransform;
+    use crate::m_node;
+    use crate::md_elems;
+    use crate::tree::MdElem;
+    use crate::tree::*;
+    use crate::variants_checker;
+    use crate::{md_elem, mdq_inline};
+
+    variants_checker!(CHECKER = MdElemRef {
+        Doc(_),
+
+        BlockQuote(_),
+        CodeBlock(_),
+        Inline(_),
+        List(_),
+        Paragraph(_),
+        Section(_),
+        Table(_),
+        ThematicBreak,
+
+        ListItem(_),
+        Link(_),
+        Image(_),
+    });
+
+    mod doc {
+        use super::*;
+
+        #[test]
+        fn doc() {
+            let paragraphs = md_elems!("alpha", "bravo");
+            let elems_ref = MdElemRef::Doc(&paragraphs);
+            check_md_ref(
+                elems_ref,
+                concat!(
+                    r#"{"items":["#,
+                    /*  */ r#"{"document":["#,
+                    /*      */ r#"{"paragraph":"alpha"},"#,
+                    /*      */ r#"{"paragraph":"bravo"}"#,
+                    /*  */ r#"]}"#,
+                    r#"]}"#,
+                ),
+            );
+        }
+    }
+
+    mod simple {
+        use super::*;
+
+        #[test]
+        fn block_quote() {
+            check(
+                MdElem::BlockQuote(BlockQuote {
+                    body: md_elems!("alpha"),
+                }),
+                concat!(
+                    r#"{"items":["#,
+                    /*  */ r#"{"block_quote":["#,
+                    /*      */ r#"{"paragraph":"alpha"}"#,
+                    /*  */ r#"]}"#,
+                    r#"]}"#,
+                ),
+            );
+        }
+
+        #[test]
+        fn code_block_simple() {
+            check(
+                MdElem::CodeBlock(CodeBlock {
+                    variant: CodeVariant::Code(None),
+                    value: "my code".to_string(),
+                }),
+                concat!(
+                    r#"{"items":["#,
+                    /*  */ r#"{"code_block":{"#,
+                    /*      */ r#""code":"my code","#,
+                    /*      */ r#""type":"code""#,
+                    /*  */ r#"}}"#,
+                    r#"]}"#,
+                ),
+            );
+        }
+
+        #[test]
+        fn code_block_full() {
+            check(
+                MdElem::CodeBlock(CodeBlock {
+                    variant: CodeVariant::Code(Some(CodeOpts {
+                        language: "rust".to_string(),
+                        metadata: Some("my-metadata".to_string()),
+                    })),
+                    value: "my code".to_string(),
+                }),
+                concat!(
+                    r#"{"items":["#,
+                    /*  */ r#"{"code_block":{"#,
+                    /*      */ r#""code":"my code","#,
+                    /*      */ r#""type":"code","#,
+                    /*      */ r#""language":"rust","#,
+                    /*      */ r#""metadata":"my-metadata""#,
+                    /*  */ r#"}}"#,
+                    r#"]}"#,
+                ),
+            );
+        }
+
+        #[test]
+        fn image() {
+            check(
+                md_elem!(Inline::Image {
+                    alt: "the alt text".to_string(),
+                    link: LinkDefinition {
+                        url: "https://example.com/image.png".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline,
+                    }
+                }),
+                concat!(
+                    r#"{"items":["#,
+                    /*  */ r#"{"paragraph":"![the alt text](https://example.com/image.png)""#,
+                    r#"}]}"#,
+                ),
+            );
+        }
+
+        #[test]
+        fn link_with_reference() {
+            check(
+                md_elem!(Inline::Link {
+                    text: vec![mdq_inline!("alpha")],
+                    link_definition: LinkDefinition {
+                        url: "https://example.com/a".to_string(),
+                        title: None,
+                        reference: LinkReference::Full("a".to_string()),
+                    }
+                }),
+                concat!(
+                    r#"{"#,
+                    /*  */ r#""items":["#,
+                    /*      */ r#"{"paragraph":"[alpha][a]"}"#,
+                    /*  */ r#"],"#,
+                    /*  */ r#""links":{"#,
+                    /*      */ r#""a":{"url":"https://example.com/a"}"#,
+                    /*  */ r#"}"#,
+                    r#"}"#,
+                ),
+            );
+        }
+    }
+
+    fn check(given: MdElem, expect: &str) {
+        let opts = MdInlinesWriterOptions {
+            link_canonicalization: LinkTransform::Keep,
+        };
+        check_with(opts, MdElemRef::from(&given), expect);
+    }
+
+    fn check_md_ref(given: MdElemRef, expect: &str) {
+        let opts = MdInlinesWriterOptions {
+            link_canonicalization: LinkTransform::Keep,
+        };
+        check_with(opts, given, expect);
+    }
+
+    fn check_with(opts: MdInlinesWriterOptions, elem_ref: MdElemRef, expect: &str) {
+        CHECKER.see(&elem_ref);
+        let mut actual_bytes = Vec::with_capacity(32);
+        serde_json::to_writer(&mut actual_bytes, &SerdeDoc::new(&[elem_ref], opts)).unwrap();
+        let actual_string = String::from_utf8(actual_bytes).unwrap();
+        assert_eq!(actual_string, expect);
+    }
 }
