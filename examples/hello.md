@@ -39,8 +39,10 @@ This is [a collapsed link][], and this is [a shortcut link].
 
 ## Hello lists
 
-1. List two
-2. List two
+1. List one
+2. List two with...
+
+   ...two paragraphs
 
 - Item a[^1]
 
