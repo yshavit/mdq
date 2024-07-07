@@ -1,13 +1,22 @@
+use crate::fmt_md;
 use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions, UrlAndTitle};
 use crate::link_transform::LinkLabel;
 use crate::output::Output;
 use crate::tree::{CodeBlock, CodeVariant, Inline, LinkDefinition, LinkReference, MdElem, Section};
 use crate::tree_ref::MdElemRef;
-use crate::{fmt_md, tree};
+use markdown::mdast::AlignKind;
 use serde::Serialize;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
-use tree::Link;
+
+#[derive(Serialize)]
+pub struct SerdeDoc<'a> {
+    items: Vec<SerdeElem<'a>>,
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    links: HashMap<Cow<'a, str>, UrlAndTitle<'a>>,
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    footnotes: HashMap<&'a String, Vec<SerdeElem<'a>>>,
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -24,23 +33,79 @@ pub enum SerdeElem<'a> {
     Paragraph(String),
     Link {
         display: String,
-        url: &'a String,
-
-        #[serde(skip_serializing_if = "Option::is_none")]
-        title: &'a Option<String>,
-
-        #[serde(skip_serializing_if = "Option::is_none")]
-        reference: Option<Cow<'a, String>>,
-
-        #[serde(skip_serializing_if = "Option::is_none")]
-        reference_style: Option<LinkCollapseStyle>,
+        #[serde(flatten)]
+        link: LinkSerde<'a>,
+    },
+    Image {
+        alt: &'a String,
+        #[serde(flatten)]
+        link: LinkSerde<'a>,
     },
     List(Vec<LiSerde<'a>>),
+    ListItem(LiSerde<'a>),
     Section {
         depth: u8,
         title: String,
         body: Vec<SerdeElem<'a>>,
     },
+    ThematicBreak,
+    Table {
+        alignments: Vec<AlignSerde>,
+        rows: Vec<Vec<String>>,
+    },
+}
+
+#[derive(Serialize)]
+pub struct LinkSerde<'a> {
+    url: &'a String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    title: &'a Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reference: Option<Cow<'a, String>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reference_style: Option<LinkCollapseStyle>,
+}
+
+impl<'a> From<&'a LinkDefinition> for LinkSerde<'a> {
+    fn from(value: &'a LinkDefinition) -> Self {
+        let LinkDefinition { url, title, reference } = value;
+
+        let (reference, reference_style) = match reference {
+            LinkReference::Inline => (None, None),
+            LinkReference::Full(reference) => (Some(Cow::Borrowed(reference)), None),
+            LinkReference::Collapsed => (None, Some(LinkCollapseStyle::Collapsed)),
+            LinkReference::Shortcut => (None, Some(LinkCollapseStyle::Shortcut)),
+        };
+        Self {
+            url,
+            title,
+            reference,
+            reference_style,
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AlignSerde {
+    Left,
+    Right,
+    Center,
+    None,
+}
+
+impl From<&AlignKind> for AlignSerde {
+    fn from(value: &AlignKind) -> Self {
+        match value {
+            AlignKind::Left => Self::Left,
+            AlignKind::Right => Self::Right,
+            AlignKind::Center => Self::Center,
+            AlignKind::None => Self::None,
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -75,15 +140,6 @@ pub enum CodeBlockType {
     Yaml,
 }
 
-#[derive(Serialize)]
-pub struct SerdeDoc<'a> {
-    items: Vec<SerdeElem<'a>>,
-    #[serde(skip_serializing_if = "HashMap::is_empty")]
-    links: HashMap<Cow<'a, str>, UrlAndTitle<'a>>,
-    #[serde(skip_serializing_if = "HashMap::is_empty")]
-    footnotes: HashMap<&'a String, SerdeElem<'a>>,
-}
-
 impl<'a> SerdeDoc<'a> {
     pub fn new(elems: &Vec<MdElemRef<'a>>, opts: MdInlinesWriterOptions) -> Self {
         let mut inlines_writer = MdInlinesWriter::new(opts);
@@ -105,7 +161,10 @@ impl<'a> SerdeDoc<'a> {
             result.links.insert(link_to_str, url);
         }
         for (footnote_name, footnote_contents) in inlines_writer.drain_pending_footnotes() {
-            // TODO
+            result.footnotes.insert(
+                footnote_name,
+                SerdeElem::build_multi(footnote_contents, &mut inlines_writer),
+            );
         }
         result
     }
@@ -183,30 +242,41 @@ impl<'a> SerdeElem<'a> {
                 let body = Self::build_multi(body, inlines_writer);
                 Self::Section { depth, title, body }
             }
-            // MdElemRef::Table(_) => {}
-            // MdElemRef::ThematicBreak => {}
-            // MdElemRef::ListItem(li) => {}
-            MdElemRef::Link(link) => {
-                let Link { text, link_definition } = link;
-                let LinkDefinition { url, title, reference } = link_definition;
-
-                let display = inlines_to_string(text, inlines_writer);
-                let (reference, reference_style) = match reference {
-                    LinkReference::Inline => (None, None),
-                    LinkReference::Full(reference) => (Some(Cow::Borrowed(reference)), None),
-                    LinkReference::Collapsed => (None, Some(LinkCollapseStyle::Collapsed)),
-                    LinkReference::Shortcut => (None, Some(LinkCollapseStyle::Shortcut)),
-                };
-                Self::Link {
-                    display,
-                    url,
-                    title,
-                    reference,
-                    reference_style,
+            MdElemRef::Table(table) => {
+                let mut rendered_rows = Vec::with_capacity(table.rows.len());
+                for row in &table.rows {
+                    let mut rendered_cells = Vec::with_capacity(row.len());
+                    for cell in row {
+                        rendered_cells.push(inlines_to_string(cell, inlines_writer));
+                    }
+                    rendered_rows.push(rendered_cells);
+                }
+                Self::Table {
+                    alignments: table.alignments.iter().map(|a| a.into()).collect(),
+                    rows: rendered_rows,
                 }
             }
-            // MdElemRef::Image(_) => {}
-            _ => todo!(),
+            MdElemRef::ThematicBreak => Self::ThematicBreak,
+            MdElemRef::ListItem(li) => {
+                let (li_type, index) = match li.0 {
+                    None => (ListItemType::Unordered, None),
+                    idx => (ListItemType::Ordered, idx),
+                };
+                Self::ListItem(LiSerde {
+                    item: Self::build_multi(&li.1.item, inlines_writer),
+                    checked: &li.1.checked,
+                    li_type,
+                    index,
+                })
+            }
+            MdElemRef::Link(link) => Self::Link {
+                display: inlines_to_string(&link.text, inlines_writer),
+                link: (&link.link_definition).into(),
+            },
+            MdElemRef::Image(img) => Self::Image {
+                alt: &img.alt,
+                link: (&img.link).into(),
+            },
         }
     }
 }
@@ -227,26 +297,3 @@ fn md_to_string<'a>(md: &Vec<MdElemRef<'a>>, writer: &mut MdInlinesWriter<'a>) -
 
     output.take_underlying().unwrap()
 }
-
-// impl<'md, 's> Serialize for MdElemsStream<'md, 's> {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: Serializer,
-//     {
-//         todo
-//         // TODO: create Inlines holder, use it to serialize something of form:
-//         // {
-//         //     items: <vec>,
-//         //     references: <vec>
-//         // }
-//         // // or maybe:
-//         // {
-//         //     items: []items
-//         // }
-//         // where:
-//         //     item: {
-//         //         item: <contents>
-//         //         references: []refs
-//         //     }
-//     }
-// }
