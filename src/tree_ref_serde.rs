@@ -5,7 +5,7 @@ use crate::output::Output;
 use crate::tree::{CodeBlock, CodeVariant, Inline, LinkDefinition, LinkReference, MdElem, Section};
 use crate::tree_ref::MdElemRef;
 use markdown::mdast::AlignKind;
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 
@@ -53,11 +53,16 @@ pub enum SerdeElem<'a> {
         title: String,
         body: Vec<SerdeElem<'a>>,
     },
+    #[serde(serialize_with = "serialize_thematic_break")]
     ThematicBreak,
     Table {
         alignments: Vec<AlignSerde>,
         rows: Vec<Vec<String>>,
     },
+}
+
+fn serialize_thematic_break<S: Serializer>(ser: S) -> Result<S::Ok, S::Error> {
+    ser.serialize_none()
 }
 
 #[derive(Serialize)]
@@ -116,12 +121,12 @@ impl From<&AlignKind> for AlignSerde {
 #[derive(Serialize)]
 pub struct LiSerde<'a> {
     item: Vec<SerdeElem<'a>>,
-    #[serde(rename = "type")]
-    li_type: ListItemType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    checked: &'a Option<bool>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     index: Option<u32>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    checked: &'a Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -129,12 +134,6 @@ pub struct LiSerde<'a> {
 pub enum LinkCollapseStyle {
     Collapsed,
     Shortcut,
-}
-
-#[derive(Serialize)]
-pub enum ListItemType {
-    Ordered,
-    Unordered,
 }
 
 #[derive(Serialize)]
@@ -220,18 +219,17 @@ impl<'a> SerdeElem<'a> {
                 let mut starting = list.starting_index;
                 let mut li_refs = Vec::with_capacity(list.items.len());
                 for li in &list.items {
-                    let (li_type, index) = match starting.as_mut() {
-                        None => (ListItemType::Unordered, None),
+                    let index = match starting.as_mut() {
+                        None => None,
                         Some(value) => {
                             let old = *value;
                             *value += 1;
-                            (ListItemType::Ordered, Some(old))
+                            Some(old)
                         }
                     };
                     li_refs.push(LiSerde {
                         item: Self::build_multi(&li.item, inlines_writer),
                         checked: &li.checked,
-                        li_type,
                         index,
                     })
                 }
@@ -264,14 +262,12 @@ impl<'a> SerdeElem<'a> {
             }
             MdElemRef::ThematicBreak => Self::ThematicBreak,
             MdElemRef::ListItem(li) => {
-                let (li_type, index) = match li.0 {
-                    None => (ListItemType::Unordered, None),
-                    idx => (ListItemType::Ordered, idx),
+                let index = match li.0 {
+                    idx => idx,
                 };
                 Self::ListItem(LiSerde {
                     item: Self::build_multi(&li.1.item, inlines_writer),
                     checked: &li.1.checked,
-                    li_type,
                     index,
                 })
             }
@@ -306,6 +302,7 @@ mod tests {
     use crate::md_elems;
     use crate::tree::MdElem;
     use crate::tree::*;
+    use crate::tree_ref::ListItemRef;
     use crate::variants_checker;
     use crate::{md_elem, mdq_inline};
 
@@ -347,108 +344,233 @@ mod tests {
         }
     }
 
-    mod simple {
-        use super::*;
+    #[test]
+    fn block_quote() {
+        check(
+            MdElem::BlockQuote(BlockQuote {
+                body: md_elems!("alpha"),
+            }),
+            concat!(
+                r#"{"items":["#,
+                /*  */ r#"{"block_quote":["#,
+                /*      */ r#"{"paragraph":"alpha"}"#,
+                /*  */ r#"]}"#,
+                r#"]}"#,
+            ),
+        );
+    }
 
-        #[test]
-        fn block_quote() {
-            check(
-                MdElem::BlockQuote(BlockQuote {
-                    body: md_elems!("alpha"),
-                }),
-                concat!(
-                    r#"{"items":["#,
-                    /*  */ r#"{"block_quote":["#,
-                    /*      */ r#"{"paragraph":"alpha"}"#,
-                    /*  */ r#"]}"#,
-                    r#"]}"#,
-                ),
-            );
-        }
+    #[test]
+    fn code_block_simple() {
+        check(
+            MdElem::CodeBlock(CodeBlock {
+                variant: CodeVariant::Code(None),
+                value: "my code".to_string(),
+            }),
+            concat!(
+                r#"{"items":["#,
+                /*  */ r#"{"code_block":{"#,
+                /*      */ r#""code":"my code","#,
+                /*      */ r#""type":"code""#,
+                /*  */ r#"}}"#,
+                r#"]}"#,
+            ),
+        );
+    }
 
-        #[test]
-        fn code_block_simple() {
-            check(
-                MdElem::CodeBlock(CodeBlock {
-                    variant: CodeVariant::Code(None),
-                    value: "my code".to_string(),
-                }),
-                concat!(
-                    r#"{"items":["#,
-                    /*  */ r#"{"code_block":{"#,
-                    /*      */ r#""code":"my code","#,
-                    /*      */ r#""type":"code""#,
-                    /*  */ r#"}}"#,
-                    r#"]}"#,
-                ),
-            );
-        }
+    #[test]
+    fn code_block_full() {
+        check(
+            MdElem::CodeBlock(CodeBlock {
+                variant: CodeVariant::Code(Some(CodeOpts {
+                    language: "rust".to_string(),
+                    metadata: Some("my-metadata".to_string()),
+                })),
+                value: "my code".to_string(),
+            }),
+            concat!(
+                r#"{"items":["#,
+                /*  */ r#"{"code_block":{"#,
+                /*      */ r#""code":"my code","#,
+                /*      */ r#""type":"code","#,
+                /*      */ r#""language":"rust","#,
+                /*      */ r#""metadata":"my-metadata""#,
+                /*  */ r#"}}"#,
+                r#"]}"#,
+            ),
+        );
+    }
 
-        #[test]
-        fn code_block_full() {
-            check(
-                MdElem::CodeBlock(CodeBlock {
-                    variant: CodeVariant::Code(Some(CodeOpts {
-                        language: "rust".to_string(),
-                        metadata: Some("my-metadata".to_string()),
-                    })),
-                    value: "my code".to_string(),
-                }),
-                concat!(
-                    r#"{"items":["#,
-                    /*  */ r#"{"code_block":{"#,
-                    /*      */ r#""code":"my code","#,
-                    /*      */ r#""type":"code","#,
-                    /*      */ r#""language":"rust","#,
-                    /*      */ r#""metadata":"my-metadata""#,
-                    /*  */ r#"}}"#,
-                    r#"]}"#,
-                ),
-            );
-        }
+    #[test]
+    fn image() {
+        check(
+            md_elem!(Inline::Image {
+                alt: "the alt text".to_string(),
+                link: LinkDefinition {
+                    url: "https://example.com/image.png".to_string(),
+                    title: None,
+                    reference: LinkReference::Inline,
+                }
+            }),
+            concat!(
+                r#"{"items":["#,
+                /*  */ r#"{"paragraph":"![the alt text](https://example.com/image.png)""#,
+                r#"}]}"#,
+            ),
+        );
+    }
 
-        #[test]
-        fn image() {
-            check(
-                md_elem!(Inline::Image {
-                    alt: "the alt text".to_string(),
-                    link: LinkDefinition {
-                        url: "https://example.com/image.png".to_string(),
-                        title: None,
-                        reference: LinkReference::Inline,
+    #[test]
+    fn image_ref() {
+        check_md_ref(
+            MdElemRef::Image(&Image {
+                alt: "the alt text".to_string(),
+                link: LinkDefinition {
+                    url: "https://example.com/image.png".to_string(),
+                    title: None,
+                    reference: LinkReference::Inline,
+                },
+            }),
+            concat!(
+                r#"{"items":["#,
+                /*  */ r#"{"image":{"#,
+                /*    */ r#""alt":"the alt text","#,
+                /*    */ r#""url":"https://example.com/image.png""#,
+                /*  */ r#"}}"#,
+                r#"]}"#,
+            ),
+        );
+    }
+
+    #[test]
+    fn link_with_reference() {
+        check(
+            md_elem!(Inline::Link {
+                text: vec![mdq_inline!("alpha")],
+                link_definition: LinkDefinition {
+                    url: "https://example.com/a".to_string(),
+                    title: None,
+                    reference: LinkReference::Full("a".to_string()),
+                }
+            }),
+            concat!(
+                r#"{"#,
+                /*  */ r#""items":["#,
+                /*      */ r#"{"paragraph":"[alpha][a]"}"#,
+                /*  */ r#"],"#,
+                /*  */ r#""links":{"#,
+                /*      */ r#""a":{"url":"https://example.com/a"}"#,
+                /*  */ r#"}"#,
+                r#"}"#,
+            ),
+        );
+    }
+
+    #[test]
+    fn link_ref_with_reference() {
+        check_md_ref(
+            MdElemRef::Link(&Link {
+                text: vec![mdq_inline!("hello")],
+                link_definition: LinkDefinition {
+                    url: "https://example.com/hi.html".to_string(),
+                    title: None,
+                    reference: LinkReference::Collapsed,
+                },
+            }),
+            concat!(
+                r#"{"items":["#,
+                /*  */ r#"{"link":{"#,
+                /*    */ r#""display":"hello","#,
+                /*    */ r#""url":"https://example.com/hi.html","#,
+                /*    */ r#""reference_style":"collapsed""#,
+                /*  */ r#"}}"#,
+                r#"]}"#,
+            ),
+        );
+    }
+
+    #[test]
+    fn thematic_break() {
+        check(
+            MdElem::ThematicBreak,
+            concat!(r#"{"items":[{"thematic_break":null}]}"#,),
+        );
+    }
+
+    #[test]
+    fn list() {
+        check(
+            md_elem!(List {
+                starting_index: Some(1),
+                items: vec![
+                    ListItem {
+                        checked: None,
+                        item: md_elems!("one"),
+                    },
+                    ListItem {
+                        checked: Some(false),
+                        item: md_elems!("two"),
                     }
-                }),
-                concat!(
-                    r#"{"items":["#,
-                    /*  */ r#"{"paragraph":"![the alt text](https://example.com/image.png)""#,
-                    r#"}]}"#,
-                ),
-            );
-        }
+                ]
+            }),
+            concat!(
+                r#"{"items":["#,
+                /*  */ r#"{"list":["#,
+                /*    */ r#"{"item":[{"paragraph":"one"}],"index":1},"#,
+                /*    */ r#"{"item":[{"paragraph":"two"}],"index":2,"checked":false}"#,
+                /*  */ r#"]}"#,
+                r#"]}"#,
+            ),
+        );
+    }
 
-        #[test]
-        fn link_with_reference() {
-            check(
-                md_elem!(Inline::Link {
-                    text: vec![mdq_inline!("alpha")],
-                    link_definition: LinkDefinition {
-                        url: "https://example.com/a".to_string(),
-                        title: None,
-                        reference: LinkReference::Full("a".to_string()),
-                    }
-                }),
-                concat!(
-                    r#"{"#,
-                    /*  */ r#""items":["#,
-                    /*      */ r#"{"paragraph":"[alpha][a]"}"#,
-                    /*  */ r#"],"#,
-                    /*  */ r#""links":{"#,
-                    /*      */ r#""a":{"url":"https://example.com/a"}"#,
-                    /*  */ r#"}"#,
-                    r#"}"#,
-                ),
-            );
-        }
+    #[test]
+    fn list_item() {
+        check_md_ref(
+            MdElemRef::ListItem(ListItemRef(
+                None,
+                &ListItem {
+                    checked: None,
+                    item: md_elems!("hello, world"),
+                },
+            )),
+            concat!(
+                r#"{"items":["#,
+                /*  */ r#"{"list_item":{"item":[{"paragraph":"hello, world"}]}}"#,
+                r#"]}"#,
+            ),
+        );
+    }
+
+    #[test]
+    fn paragraph() {
+        check(
+            md_elem!("the text"),
+            concat!(r#"{"items":[{"paragraph":"the text"}]}"#,),
+        );
+    }
+
+    #[test]
+    fn section() {
+        check(
+            md_elem!(Section {
+                depth: 2,
+                title: vec![mdq_inline!("section title")],
+                body: md_elems!["alpha", "bravo"]
+            }),
+            concat!(
+                r#"{"items":["#,
+                /*  */ r#"{"section":{"#,
+                /*    */ r#""depth":2,"#,
+                /*    */ r#""title":"section title","#,
+                /*    */ r#""body":["#,
+                /*      */ r#"{"paragraph":"alpha"},"#,
+                /*      */ r#"{"paragraph":"bravo"}"#,
+                /*    */ r#"]"#,
+                /*  */ r#"}}"#,
+                r#"]}"#,
+            ),
+        );
     }
 
     fn check(given: MdElem, expect: &str) {
