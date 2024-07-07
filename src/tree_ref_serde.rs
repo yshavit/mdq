@@ -323,6 +323,48 @@ mod tests {
         Image(_),
     });
 
+    macro_rules! json_kvs {
+        () => {};
+        ($key:literal : $value:tt) => {
+            concat!(stringify!($key), ":", json_str!($value))
+        };
+        ($key:literal : $value:tt, $($rest:tt)+) => {
+            concat!(stringify!($key), ":", json_str!($value), ",", json_kvs!($($rest)*))
+        };
+    }
+
+    macro_rules! json_seq {
+        () => {""};
+        ($value:tt) => {
+            json_str!($value)
+        };
+        ($value:tt, $($rest:tt)+) => {
+            concat!(json_str!($value), ",", json_seq!($($rest),*))
+        };
+    }
+
+    /// Builds a json literal out of a string. Unlike [serde_json::json], this macro preserves the order of map
+    /// (object) entries.
+    macro_rules! json_str {
+        () => {""};
+        (null) => {"null"};
+        ($one:literal) => {stringify!($one)};
+        ({$($kvs:tt)*}) => {
+            concat!(
+                "{",
+                json_kvs!($($kvs)*),
+                "}"
+            )
+        };
+        ([$($values:tt)*]) => {
+            concat!(
+                "[",
+                json_seq!($($values)*),
+                "]"
+            )
+        };
+    }
+
     mod doc {
         use super::*;
 
@@ -332,13 +374,13 @@ mod tests {
             let elems_ref = MdElemRef::Doc(&paragraphs);
             check_md_ref(
                 elems_ref,
-                concat!(
-                    r#"{"items":["#,
-                    /*  */ r#"{"document":["#,
-                    /*      */ r#"{"paragraph":"alpha"},"#,
-                    /*      */ r#"{"paragraph":"bravo"}"#,
-                    /*  */ r#"]}"#,
-                    r#"]}"#,
+                json_str!(
+                    {"items": [
+                        {"document": [
+                            {"paragraph": "alpha"},
+                            {"paragraph": "bravo"}
+                        ]}
+                    ]}
                 ),
             );
         }
@@ -350,12 +392,12 @@ mod tests {
             MdElem::BlockQuote(BlockQuote {
                 body: md_elems!("alpha"),
             }),
-            concat!(
-                r#"{"items":["#,
-                /*  */ r#"{"block_quote":["#,
-                /*      */ r#"{"paragraph":"alpha"}"#,
-                /*  */ r#"]}"#,
-                r#"]}"#,
+            json_str!(
+                {"items": [
+                    {"block_quote": [
+                        {"paragraph": "alpha"}
+                    ]}
+                ]}
             ),
         );
     }
@@ -367,13 +409,13 @@ mod tests {
                 variant: CodeVariant::Code(None),
                 value: "my code".to_string(),
             }),
-            concat!(
-                r#"{"items":["#,
-                /*  */ r#"{"code_block":{"#,
-                /*      */ r#""code":"my code","#,
-                /*      */ r#""type":"code""#,
-                /*  */ r#"}}"#,
-                r#"]}"#,
+            json_str!(
+                {"items": [
+                    {"code_block": {
+                        "code": "my code",
+                        "type": "code"
+                    }}
+                ]}
             ),
         );
     }
@@ -388,15 +430,15 @@ mod tests {
                 })),
                 value: "my code".to_string(),
             }),
-            concat!(
-                r#"{"items":["#,
-                /*  */ r#"{"code_block":{"#,
-                /*      */ r#""code":"my code","#,
-                /*      */ r#""type":"code","#,
-                /*      */ r#""language":"rust","#,
-                /*      */ r#""metadata":"my-metadata""#,
-                /*  */ r#"}}"#,
-                r#"]}"#,
+            json_str!(
+                {"items": [
+                    {"code_block": {
+                        "code": "my code",
+                        "type": "code",
+                        "language": "rust",
+                        "metadata": "my-metadata"
+                    }}
+                ]}
             ),
         );
     }
@@ -412,10 +454,10 @@ mod tests {
                     reference: LinkReference::Inline,
                 }
             }),
-            concat!(
-                r#"{"items":["#,
-                /*  */ r#"{"paragraph":"![the alt text](https://example.com/image.png)""#,
-                r#"}]}"#,
+            json_str!(
+                {"items": [
+                    {"paragraph": "![the alt text](https://example.com/image.png)"
+                }]}
             ),
         );
     }
@@ -431,13 +473,13 @@ mod tests {
                     reference: LinkReference::Inline,
                 },
             }),
-            concat!(
-                r#"{"items":["#,
-                /*  */ r#"{"image":{"#,
-                /*    */ r#""alt":"the alt text","#,
-                /*    */ r#""url":"https://example.com/image.png""#,
-                /*  */ r#"}}"#,
-                r#"]}"#,
+            json_str!(
+                {"items": [
+                    {"image": {
+                        "alt": "the alt text",
+                        "url": "https://example.com/image.png"
+                    }}
+                ]}
             ),
         );
     }
@@ -453,15 +495,17 @@ mod tests {
                     reference: LinkReference::Full("a".to_string()),
                 }
             }),
-            concat!(
-                r#"{"#,
-                /*  */ r#""items":["#,
-                /*      */ r#"{"paragraph":"[alpha][a]"}"#,
-                /*  */ r#"],"#,
-                /*  */ r#""links":{"#,
-                /*      */ r#""a":{"url":"https://example.com/a"}"#,
-                /*  */ r#"}"#,
-                r#"}"#,
+            json_str!(
+                {
+                    "items": [
+                        {"paragraph": "[alpha][a]"}
+                    ],
+                    "links": {
+                        "a": {
+                            "url":"https://example.com/a"
+                        }
+                    }
+                }
             ),
         );
     }
@@ -477,14 +521,14 @@ mod tests {
                     reference: LinkReference::Collapsed,
                 },
             }),
-            concat!(
-                r#"{"items":["#,
-                /*  */ r#"{"link":{"#,
-                /*    */ r#""display":"hello","#,
-                /*    */ r#""url":"https://example.com/hi.html","#,
-                /*    */ r#""reference_style":"collapsed""#,
-                /*  */ r#"}}"#,
-                r#"]}"#,
+            json_str!(
+                {"items": [
+                    {"link": {
+                        "display": "hello",
+                        "url": "https://example.com/hi.html",
+                        "reference_style": "collapsed"
+                    }}
+                ]}
             ),
         );
     }
@@ -493,7 +537,11 @@ mod tests {
     fn thematic_break() {
         check(
             MdElem::ThematicBreak,
-            concat!(r#"{"items":[{"thematic_break":null}]}"#,),
+            json_str!(
+                {"items": [
+                    {"thematic_break":null}
+                ]}
+            ),
         );
     }
 
@@ -513,13 +561,13 @@ mod tests {
                     }
                 ]
             }),
-            concat!(
-                r#"{"items":["#,
-                /*  */ r#"{"list":["#,
-                /*    */ r#"{"item":[{"paragraph":"one"}],"index":1},"#,
-                /*    */ r#"{"item":[{"paragraph":"two"}],"index":2,"checked":false}"#,
-                /*  */ r#"]}"#,
-                r#"]}"#,
+            json_str!(
+                {"items": [
+                    {"list": [
+                        {"item": [{"paragraph":"one"}], "index":1},
+                        {"item": [{"paragraph":"two"}], "index":2, "checked":false}
+                    ]}
+                ]}
             ),
         );
     }
@@ -534,10 +582,12 @@ mod tests {
                     item: md_elems!("hello, world"),
                 },
             )),
-            concat!(
-                r#"{"items":["#,
-                /*  */ r#"{"list_item":{"item":[{"paragraph":"hello, world"}]}}"#,
-                r#"]}"#,
+            json_str!(
+                {"items":[
+                    {"list_item": {
+                        "item": [{"paragraph":"hello, world"}]}
+                    }
+                ]}
             ),
         );
     }
@@ -546,7 +596,11 @@ mod tests {
     fn paragraph() {
         check(
             md_elem!("the text"),
-            concat!(r#"{"items":[{"paragraph":"the text"}]}"#,),
+            json_str!(
+                {"items": [
+                    {"paragraph":"the text"}
+                ]}
+            ),
         );
     }
 
@@ -558,17 +612,17 @@ mod tests {
                 title: vec![mdq_inline!("section title")],
                 body: md_elems!["alpha", "bravo"]
             }),
-            concat!(
-                r#"{"items":["#,
-                /*  */ r#"{"section":{"#,
-                /*    */ r#""depth":2,"#,
-                /*    */ r#""title":"section title","#,
-                /*    */ r#""body":["#,
-                /*      */ r#"{"paragraph":"alpha"},"#,
-                /*      */ r#"{"paragraph":"bravo"}"#,
-                /*    */ r#"]"#,
-                /*  */ r#"}}"#,
-                r#"]}"#,
+            json_str!(
+                {"items":[
+                    {"section":{
+                        "depth":2,
+                        "title":"section title",
+                        "body":[
+                            {"paragraph":"alpha"},
+                            {"paragraph":"bravo"}
+                        ]
+                    }}
+                ]}
             ),
         );
     }
