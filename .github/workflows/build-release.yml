@@ -23,5 +23,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: mdq-${{ matrix.os }}
-        path: target/release/mdq
+        path: target
         if-no-files-found: error
