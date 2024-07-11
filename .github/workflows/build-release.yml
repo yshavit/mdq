@@ -19,7 +19,7 @@ jobs:
     - name: setup
       shell: bash
       run: |
-        if [[ "$MATRIX_OS" == windows ]]; then
+        if [[ "$RUNNER_OS" == Windows ]]; then
           build_file_name=mdq.exe
         else
           build_file_name=mdq
@@ -34,7 +34,13 @@ jobs:
       run: cargo build --release
     - name: sha256sum
       shell: bash
-      run: printf '::notice title=sha256sum %s (%s)::%s\n' "$BUILD_FILE_NAME" "$MATRIX_OS" "$(sha256sum "target/release/${BUILD_FILE_NAME}" | cut -f1 -d' ')"
+      run: |
+        if [[ "$RUNNER_OS" == macOS ]]; then
+          function sha256sum() {
+            shasum -a 256 "$@"
+          }
+        fi
+        printf '::notice title=sha256sum %s (%s)::%s\n' "$BUILD_FILE_NAME" "$MATRIX_OS" "$(sha256sum "target/release/${BUILD_FILE_NAME}" | cut -f1 -d' ')"
       env:
         MATRIX_OS: ${{ matrix.os }}
     - name: upload
