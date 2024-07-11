@@ -16,14 +16,21 @@ jobs:
         os: [ubuntu, macos, windows]
     runs-on: ${{ matrix.os }}-latest
     steps:
+    - name: setup
+      run: |
+        if [[ "$MATRIX_OS" == windows ]]; then
+          build_file_name=mdq.exe
+        else
+          build_file_name=mdq
+        fi
+        echo "BUILD_FILE_NAME=${build_file_name}" >> "$GITHUB_ENV"
     - uses: actions/checkout@v4
     - name: build
       run: cargo build --release
+    - name: print hash
+      run: printf '::notice title=sha256sum %s::%s\n' "$BUILD_FILE_NAME" "$(sha256sum "target/release/${BUILD_FILE_NAME}" | cut -f1 -d' ')"
     - name: upload
       uses: actions/upload-artifact@v4
       with:
         name: mdq-${{ matrix.os }}
-        path: |
-          target/release/mdq
-          target/release/mdq.exe
-        if-no-files-found: error
+        path: target/release/${{ env.BUILD_FILE_NAME }}
