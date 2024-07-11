@@ -1,0 +1,26 @@
+name: build-release
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+        os: [ubuntu]
+    runs-on: ${{ matrix.os }}-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: build
+      run: cargo build --release
+    - name: upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: mdq-${{ matrix.os }}
+        path: target/release/mdq
+        if-no-files-found: error
