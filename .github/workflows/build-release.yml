@@ -1,0 +1,49 @@
+name: build-release
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu, macos, windows]
+    runs-on: ${{ matrix.os }}-latest
+    steps:
+    - name: setup
+      shell: bash
+      run: |
+        if [[ "$RUNNER_OS" == Windows ]]; then
+          build_file_name=mdq.exe
+        else
+          build_file_name=mdq
+        fi
+        echo "BUILD_FILE_NAME=${build_file_name}" >> "$GITHUB_ENV"
+      env:
+        MATRIX_OS: ${{ matrix.os }}
+    - name: rustc version
+      run: rustc --version --verbose
+    - uses: actions/checkout@v4
+    - name: build
+      run: cargo build --release
+    - name: sha256sum
+      shell: bash
+      run: |
+        if [[ "$RUNNER_OS" == macOS ]]; then
+          function sha256sum() {
+            shasum -a 256 "$@"
+          }
+        fi
+        printf '::notice title=sha256sum %s (%s)::%s\n' "$BUILD_FILE_NAME" "$MATRIX_OS" "$(sha256sum "target/release/${BUILD_FILE_NAME}" | cut -f1 -d' ')"
+      env:
+        MATRIX_OS: ${{ matrix.os }}
+    - name: upload
+      uses: actions/upload-artifact@v4
+      with:
+        if-no-files-found: error
+        name: mdq-${{ matrix.os }}
+        path: target/release/${{ env.BUILD_FILE_NAME }}
