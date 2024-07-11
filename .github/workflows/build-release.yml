@@ -12,6 +12,7 @@ env:
 jobs:
   build:
     strategy:
+      matrix:
         os: [ubuntu]
     runs-on: ${{ matrix.os }}-latest
     steps:
