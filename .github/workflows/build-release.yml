@@ -17,6 +17,7 @@ jobs:
     runs-on: ${{ matrix.os }}-latest
     steps:
     - name: setup
+      shell: bash
       run: |
         if [[ "$MATRIX_OS" == windows ]]; then
           build_file_name=mdq.exe
