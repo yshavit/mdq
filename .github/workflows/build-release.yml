@@ -25,13 +25,17 @@ jobs:
           build_file_name=mdq
         fi
         echo "BUILD_FILE_NAME=${build_file_name}" >> "$GITHUB_ENV"
+      env:
+        MATRIX_OS: ${{ matrix.os }}
     - uses: actions/checkout@v4
     - name: build
       run: cargo build --release
-    - name: print hash
-      run: printf '::notice title=sha256sum %s::%s\n' "$BUILD_FILE_NAME" "$(sha256sum "target/release/${BUILD_FILE_NAME}" | cut -f1 -d' ')"
+    - name: sha256sum
+      shell: bash
+      run: printf '::notice title=sha256sum %s (%s)::%s\n' "$BUILD_FILE_NAME" "$MATRIX_OS" "$(sha256sum "target/release/${BUILD_FILE_NAME}" | cut -f1 -d' ')"
     - name: upload
       uses: actions/upload-artifact@v4
       with:
+        if-no-files-found: error
         name: mdq-${{ matrix.os }}
         path: target/release/${{ env.BUILD_FILE_NAME }}
