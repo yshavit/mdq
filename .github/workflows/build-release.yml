@@ -46,7 +46,7 @@ jobs:
       env:
         MATRIX_OS: ${{ matrix.os }}
     - name: mac installer
-      if: ${{ env.RUNNER_OS }} == macOS
+      if: ${{ env.RUNNER_OS == macOS }}
       run: |
         tmp_file="$(mktemp)"
         cp scripts/installer.sh "$tmp_file"
