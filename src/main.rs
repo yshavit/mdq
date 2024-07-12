@@ -145,10 +145,58 @@ fn print_select_parse_error(original_string: &str, err: ParseError) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Error;
 
     #[test]
     fn verify_cli() {
         use clap::CommandFactory;
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn standard_selectors() {
+        let result = Cli::try_parse_from(["mdq", "# hello"]);
+        unwrap!(result, Ok(cli));
+        assert_eq!(cli.selector_string().as_str(), "# hello");
+    }
+
+    #[test]
+    fn two_standard_selectors() {
+        let result = Cli::try_parse_from(["mdq", "# hello", "# world"]);
+        check_err(&result, "unexpected argument '# world' found");
+    }
+
+    #[test]
+    fn start_with_list_selectors() {
+        let result = Cli::try_parse_from(["mdq", "- world"]);
+        unwrap!(result, Ok(cli));
+        assert_eq!(cli.selector_string().as_str(), "- world");
+    }
+
+    #[test]
+    fn start_with_list_selectors_twice() {
+        let result = Cli::try_parse_from(["mdq", "- hello", "- world"]);
+        check_err(
+            &result,
+            "the argument '-  <selectors starting with list>' cannot be used multiple times",
+        );
+    }
+
+    #[test]
+    fn both_list_and_std_selectors() {
+        let result = Cli::try_parse_from(["mdq", "# hello", "- world"]);
+        check_err(
+            &result,
+            "the argument '[selectors]' cannot be used with '-  <selectors starting with list>'",
+        )
+    }
+
+    fn check_err(result: &Result<Cli, Error>, expect: &str) {
+        unwrap!(result, Err(e));
+        let e_str = e.to_string();
+        let first_line = e_str.split('\n').next().expect("no error string found");
+        let mut expect_full = "error: ".to_string();
+        expect_full.push_str(expect);
+        assert_eq!(first_line, &expect_full);
     }
 }
