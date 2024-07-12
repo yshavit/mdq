@@ -1,6 +1,8 @@
 use clap::Parser;
+use std::borrow::Cow;
 use std::io;
 use std::io::{stdin, Read};
+use std::ops::Deref;
 use std::process::ExitCode;
 
 use crate::fmt_md::{MdOptions, ReferencePlacement};
@@ -46,11 +48,30 @@ struct Cli {
     #[arg(long, short, value_enum, default_value_t=LinkTransform::Reference)]
     link_canonicalization: LinkTransform,
 
-    /// The selector string
-    selectors: Option<String>,
-
     #[arg(long, short, default_value_t = false)]
     json: bool,
+
+    #[arg(short = ' ', hide = true)]
+    list_switch: Option<String>,
+
+    /// The selector string
+    selectors: Option<String>,
+}
+
+impl Cli {
+    fn selector_string(&self) -> Result<Cow<String>, &str> {
+        match (&self.selectors, &self.list_switch) {
+            (Some(selectors), None) => Ok(Cow::Borrowed(selectors)),
+            (None, Some(list_selectors)) => {
+                let mut reconstructed = String::with_capacity(list_selectors.len() + 2);
+                reconstructed.push_str("- ");
+                reconstructed.push_str(list_selectors);
+                Ok(Cow::Owned(reconstructed))
+            }
+            (None, None) => Ok(Cow::Owned(String::new())),
+            (Some(_), Some(_)) => Err("cannot list multiple selectors"),
+        }
+    }
 }
 
 fn main() -> ExitCode {
@@ -61,11 +82,17 @@ fn main() -> ExitCode {
     let ast = markdown::to_mdast(&mut contents, &markdown::ParseOptions::gfm()).unwrap();
     let mdqs = MdElem::read(ast, &ReadOptions::default()).unwrap();
 
-    let selectors_str = &cli.selectors.unwrap_or_default();
-    let selectors = match MdqRefSelector::parse(selectors_str) {
+    let selectors_str = match cli.selector_string() {
+        Ok(s) => s,
+        Err(err) => {
+            eprintln!("{err}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let selectors = match MdqRefSelector::parse(selectors_str.deref()) {
         Ok(selectors) => selectors,
         Err(err) => {
-            print_select_parse_error(selectors_str, err);
+            print_select_parse_error(selectors_str.deref(), err);
             return ExitCode::FAILURE;
         }
     };
