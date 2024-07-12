@@ -112,10 +112,10 @@ fn main() -> ExitCode {
         },
     };
 
+    let mut stdout = io::stdout().lock();
     if cli.json {
-        serde_json::to_writer(io::stdout(), &SerdeDoc::new(&pipeline_nodes, md_options.inline_options)).unwrap();
+        serde_json::to_writer(&mut stdout, &SerdeDoc::new(&pipeline_nodes, md_options.inline_options)).unwrap();
     } else {
-        let mut stdout = io::stdout().lock();
         let mut out = output::Output::new(Stream(&mut stdout));
         fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
         out.write_str("\n");
