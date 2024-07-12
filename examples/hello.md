@@ -47,7 +47,7 @@ This is [a collapsed link][], and this is [a shortcut link].
 - Item a[^1]
 
 - [x] checked
-- [ ] unchecked
+- [ ] unchecked and contains a [link within a task](https://example.com/task)
 
 [a2]: https://example.com/reference "from the previous section"
 [^1]: interesting footnote
