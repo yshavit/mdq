@@ -56,6 +56,8 @@ jobs:
         export BUILD_FILE_NAME=mdq-installer.sh
         echo BUILD_FILE_NAME=mdq-installer.sh >> "$GITHUB_ENV"
         printf '::notice title=sha256sum %s (%s)::%s\n' "$BUILD_FILE_NAME" "$MATRIX_OS" "$(shasum -a 256 "target/release/${BUILD_FILE_NAME}" | cut -f1 -d' ')"
+      env:
+        MATRIX_OS: ${{ matrix.os }}
     - name: upload
       uses: actions/upload-artifact@v4
       with:
