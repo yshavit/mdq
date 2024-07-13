@@ -8,8 +8,14 @@ use std::borrow::Borrow;
 #[derive(Debug)]
 pub enum StringMatcher {
     Any,
-    Substring(String),
+    Substring(Substring), // TODO do we actually need this, given that we always just compile it down to a regex?
     Regex(Regex),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Substring {
+    value: String,
+    case_sensitive: bool,
 }
 
 impl PartialEq for StringMatcher {
@@ -29,8 +35,12 @@ impl StringMatcher {
     pub fn matches(&self, haystack: &str) -> bool {
         match self {
             StringMatcher::Any => true,
-            StringMatcher::Substring(look_for) => {
-                let pattern = format!("(?i){}", regex::escape(look_for));
+            StringMatcher::Substring(substring) => {
+                let mut pattern = String::with_capacity(substring.value.len() + 10); // +10 for modifiers, escapes, etc
+                if !substring.case_sensitive {
+                    pattern.push_str("(?i)");
+                }
+                pattern.push_str(&regex::escape(&substring.value));
                 let re = Regex::new(&pattern).expect("internal error");
                 re.is_match(haystack)
             }
@@ -128,7 +138,10 @@ impl StringMatcher {
             result.push(ch);
         }
 
-        StringMatcher::Substring(result)
+        StringMatcher::Substring(Substring {
+            value: result,
+            case_sensitive: false,
+        })
     }
 
     fn parse_matcher_quoted(chars: &mut ParsingIterator, ending_char: char) -> ParseResult<StringMatcher> {
@@ -168,7 +181,10 @@ impl StringMatcher {
                 ch => result.push(ch),
             }
         }
-        Ok(StringMatcher::Substring(result))
+        Ok(StringMatcher::Substring(Substring {
+            value: result,
+            case_sensitive: true,
+        }))
     }
 
     fn parse_regex_matcher(chars: &mut ParsingIterator) -> ParseResult<StringMatcher> {
@@ -206,54 +222,44 @@ mod test {
 
     #[test]
     fn bareword() {
-        parse_and_check("hello", StringMatcher::Substring("hello".to_string()), "");
-        parse_and_check("hello ", StringMatcher::Substring("hello".to_string()), "");
-        parse_and_check(
-            "hello / goodbye",
-            StringMatcher::Substring("hello / goodbye".to_string()),
-            "",
-        );
-        parse_and_check(
-            "hello| goodbye",
-            StringMatcher::Substring("hello".to_string()),
-            "| goodbye",
-        );
-        parse_and_check(
-            "hello | goodbye",
-            StringMatcher::Substring("hello".to_string()),
-            "| goodbye",
-        );
-        parse_and_check_with(']', "foo] rest", StringMatcher::Substring("foo".to_string()), "] rest");
+        parse_and_check("hello", case_insensitive("hello"), "");
+        parse_and_check("hello ", case_insensitive("hello"), "");
+        parse_and_check("hello / goodbye", case_insensitive("hello / goodbye"), "");
+        parse_and_check("hello| goodbye", case_insensitive("hello"), "| goodbye");
+        parse_and_check("hello | goodbye", case_insensitive("hello"), "| goodbye");
+        parse_and_check_with(']', "foo] rest", case_insensitive("foo"), "] rest");
     }
 
     #[test]
     fn bareword_case_sensitivity() {
-        let m = parse_and_check("hello", StringMatcher::Substring("hello".to_string()), "");
+        let m = parse_and_check("hello", case_insensitive("hello"), "");
         assert_eq!(true, m.matches("hello"));
         assert_eq!(true, m.matches("HELLO"));
     }
 
     #[test]
+    fn quoted_case_sensitivity() {
+        let m = parse_and_check("'hello'", case_sensitive("hello"), "");
+        assert_eq!(true, m.matches("hello"));
+        assert_eq!(false, m.matches("HELLO"));
+    }
+
+    #[test]
     fn bareword_regex_char() {
-        let m = parse_and_check("hello.world", StringMatcher::Substring("hello.world".to_string()), "");
+        let m = parse_and_check("hello.world", case_insensitive("hello.world"), "");
         assert_eq!(true, m.matches("hello.world"));
         assert_eq!(false, m.matches("hello world")); // the period is _not_ a regex any
     }
 
     #[test]
     fn bareword_end_delimiters() {
-        parse_and_check_with(
-            '@',
-            "hello@world",
-            StringMatcher::Substring("hello".to_string()),
-            "@world",
-        );
+        parse_and_check_with('@', "hello@world", case_insensitive("hello"), "@world");
 
         // "$" is always an end delimiter
         parse_and_check_with(
             '@',
             "hello$world",
-            StringMatcher::Substring("hello".to_string()),
+            case_insensitive("hello"),
             "world", // note: the dollar sign got consumed!
         );
     }
@@ -269,7 +275,7 @@ mod test {
     fn double_quoted_string() {
         parse_and_check(
             r#" "hello world's ☃ \' \" \r \n \t says \"\u{2603}\" to me"_"#,
-            StringMatcher::Substring("hello world's ☃ ' \" \r \n \t says \"☃\" to me".to_string()),
+            case_sensitive("hello world's ☃ ' \" \r \n \t says \"☃\" to me"),
             "_",
         );
     }
@@ -281,7 +287,7 @@ mod test {
     fn single_quoted_string() {
         parse_and_check(
             r#" 'hello world\'s ☃ \' \" \r \n \t says "\u{2603}" to me'_"#,
-            StringMatcher::Substring("hello world's ☃ ' \" \r \n \t says \"☃\" to me".to_string()),
+            case_sensitive("hello world's ☃ ' \" \r \n \t says \"☃\" to me"),
             "_",
         );
     }
@@ -435,5 +441,19 @@ mod test {
         let err = StringMatcher::read(&mut iter, SELECTOR_SEPARATOR).expect_err("expected to fail parsing");
         assert_eq!(iter.input_position(), at);
         assert_eq!(err, expect);
+    }
+
+    fn case_sensitive(value: &str) -> StringMatcher {
+        StringMatcher::Substring(Substring {
+            value: value.to_string(),
+            case_sensitive: true,
+        })
+    }
+
+    fn case_insensitive(value: &str) -> StringMatcher {
+        StringMatcher::Substring(Substring {
+            value: value.to_string(),
+            case_sensitive: false,
+        })
     }
 }
