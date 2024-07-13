@@ -94,6 +94,10 @@ impl StringMatcher {
                 let _ = chars.next();
                 Self::parse_regex_matcher(chars)
             }
+            ch @ ('\'' | '"') => {
+                let _ = chars.next();
+                Self::parse_matcher_quoted(chars, ch)
+            }
             other if other == bareword_end => Ok(StringMatcher::Any), // do *not* consume it!
             _ => Err(ParseErrorReason::InvalidSyntax(
                 "invalid string specifier (must be quoted or a bareword that starts with a letter)".to_string(),
@@ -125,6 +129,46 @@ impl StringMatcher {
         }
 
         StringMatcher::Substring(result)
+    }
+
+    fn parse_matcher_quoted(chars: &mut ParsingIterator, ending_char: char) -> ParseResult<StringMatcher> {
+        let mut result = String::with_capacity(20); // just a guess
+        loop {
+            match chars.next().ok_or_else(|| ParseErrorReason::Expected(ending_char))? {
+                '\\' => {
+                    let escaped = match chars.next().ok_or_else(|| ParseErrorReason::UnexpectedEndOfInput)? {
+                        escaped @ ('\'' | '"' | '\\') => escaped,
+                        'n' => '\n',
+                        'r' => '\r',
+                        't' => '\t',
+                        'u' => {
+                            chars.require_char('{')?;
+                            let mut hex_str = String::with_capacity(6);
+                            loop {
+                                match chars.next().ok_or_else(|| ParseErrorReason::Expected('}'))? {
+                                    '}' => break,
+                                    ch if ch.is_ascii_hexdigit() => {
+                                        hex_str.push(ch);
+                                        if hex_str.len() > 6 {
+                                            return Err(ParseErrorReason::Expected('}'));
+                                        }
+                                    }
+                                    _ => return Err(ParseErrorReason::InvalidEscape),
+                                }
+                            }
+                            let as_int =
+                                u32::from_str_radix(&hex_str, 16).map_err(|_| ParseErrorReason::InvalidEscape)?;
+                            char::from_u32(as_int).ok_or_else(|| ParseErrorReason::InvalidEscape)?
+                        }
+                        _ => return Err(ParseErrorReason::InvalidEscape),
+                    };
+                    result.push(escaped);
+                }
+                ch if ch == ending_char => break,
+                ch => result.push(ch),
+            }
+        }
+        Ok(StringMatcher::Substring(result))
     }
 
     fn parse_regex_matcher(chars: &mut ParsingIterator) -> ParseResult<StringMatcher> {
@@ -211,6 +255,110 @@ mod test {
             "hello$world",
             StringMatcher::Substring("hello".to_string()),
             "world", // note: the dollar sign got consumed!
+        );
+    }
+
+    /// Checks double-quoted string.
+    ///
+    /// Specifically:
+    /// - single quotes can appear escaped or unescaped
+    /// - double quotes must be escaped
+    /// - \r, \n, \t
+    /// - unicode code points
+    #[test]
+    fn double_quoted_string() {
+        parse_and_check(
+            r#" "hello world's ☃ \' \" \r \n \t says \"\u{2603}\" to me"_"#,
+            StringMatcher::Substring("hello world's ☃ ' \" \r \n \t says \"☃\" to me".to_string()),
+            "_",
+        );
+    }
+
+    /// Checks double-quoted string.
+    ///
+    /// See [double_quoted_string], except that _double_ quotes may be unescaped, and single quotes must be escaped.
+    #[test]
+    fn single_quoted_string() {
+        parse_and_check(
+            r#" 'hello world\'s ☃ \' \" \r \n \t says "\u{2603}" to me'_"#,
+            StringMatcher::Substring("hello world's ☃ ' \" \r \n \t says \"☃\" to me".to_string()),
+            "_",
+        );
+    }
+
+    #[test]
+    fn quote_errs() {
+        expect_err(
+            r#" " "#,
+            ParseErrorReason::Expected('"'),
+            Position {
+                line: 0,
+                column: r#" " "#.len(),
+            },
+        );
+        expect_err(
+            r#" ' "#,
+            ParseErrorReason::Expected('\''),
+            Position {
+                line: 0,
+                column: " ' ".len(),
+            },
+        );
+        expect_err(
+            r#" '\"#,
+            ParseErrorReason::UnexpectedEndOfInput,
+            Position {
+                line: 0,
+                column: r#" "\"#.len(),
+            },
+        );
+        expect_err(
+            r#" "\x" "#,
+            ParseErrorReason::InvalidEscape,
+            Position {
+                line: 0,
+                column: r#" "\x"#.len(),
+            },
+        );
+        expect_err(
+            r#" "\u2603" "#,
+            ParseErrorReason::Expected('{'),
+            Position {
+                line: 0,
+                column: r#" "\u2"#.len(),
+            },
+        );
+        expect_err(
+            r#" "\u{}" "#,
+            ParseErrorReason::InvalidEscape,
+            Position {
+                line: 0,
+                column: r#" "\u{}"#.len(),
+            },
+        );
+        expect_err(
+            r#" "\u{12345678}" "#, // out of range
+            ParseErrorReason::Expected('}'),
+            Position {
+                line: 0,
+                column: r#" "\u{1234567"#.len(),
+            },
+        );
+        expect_err(
+            r#" "\u{snowman}" "#,
+            ParseErrorReason::InvalidEscape,
+            Position {
+                line: 0,
+                column: r#" "\u{s"#.len(),
+            },
+        );
+        expect_err(
+            r#" "\u{2603"#,
+            ParseErrorReason::Expected('}'),
+            Position {
+                line: 0,
+                column: r#" "\u{2603"#.len(),
+            },
         );
     }
 

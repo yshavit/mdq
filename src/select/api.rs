@@ -26,6 +26,7 @@ pub enum ParseErrorReason {
     UnexpectedCharacter(char),
     UnexpectedEndOfInput,
     InvalidSyntax(String),
+    InvalidEscape,
 }
 
 impl Display for ParseErrorReason {
@@ -35,6 +36,7 @@ impl Display for ParseErrorReason {
             ParseErrorReason::UnexpectedCharacter(ch) => write!(f, "unexpected character \"{}\"", ch),
             ParseErrorReason::UnexpectedEndOfInput => write!(f, "unexpected end of input"),
             ParseErrorReason::InvalidSyntax(s) => write!(f, "{}", s),
+            ParseErrorReason::InvalidEscape => write!(f, "invalid escape sequence"),
         }
     }
 }
