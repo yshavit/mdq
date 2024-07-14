@@ -1,0 +1,33 @@
+[given]
+md = '''
+# Alpha
+
+My first section.
+
+## Sub-section
+
+Hello, world.
+
+# Bravo
+
+My second section.
+'''
+
+[expect."select top-level section"]
+cli_args = ["# alpha"]
+output = '''
+# Alpha
+
+My first section.
+
+## Sub-section
+
+Hello, world.
+'''
+[expect."select subsection"]
+cli_args = ["# sub"]
+output = '''
+## Sub-section
+
+Hello, world.
+'''

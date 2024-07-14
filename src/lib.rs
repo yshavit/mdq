@@ -1,4 +1,5 @@
 use clap::Parser;
+use output::Output;
 use std::borrow::Cow;
 use std::io;
 use std::io::{stdin, Read, Write};
@@ -129,9 +130,8 @@ where
     if cli.json {
         serde_json::to_writer(&mut stdout, &SerdeDoc::new(&pipeline_nodes, md_options.inline_options)).unwrap();
     } else {
-        let mut out = output::Output::new(Stream(&mut stdout));
+        let mut out = Output::new(Stream(&mut stdout));
         fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
-        out.write_str("\n");
     }
 
     true
