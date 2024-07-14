@@ -7,6 +7,8 @@ struct Case<const N: usize> {
     md: &'static str,
 }
 
+/// A simple placeholder, just to let the IDE know that there's something here. This lets us run and debug integ tests
+/// more easily in the IDE.
 #[test]
 fn placeholder() {
     // nothing

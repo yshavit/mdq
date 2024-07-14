@@ -1,5 +1,5 @@
 [given]
-md = """
+md = '''
 # Fizz
 
 My first section.
@@ -7,14 +7,14 @@ My first section.
 # Buzz
 
 My second section.
-"""
+'''
 
 [expect."bareword section search"]
 cli_args = ["# fizz"]
-output = """
+output = '''
 # Fizz
 
 My first section.
 
 
-"""
+'''
