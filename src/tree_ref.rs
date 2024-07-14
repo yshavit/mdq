@@ -41,6 +41,12 @@ impl<'a> From<&'a MdElem> for MdElemRef<'a> {
     }
 }
 
+impl<'a> From<&'a Section> for MdElemRef<'a> {
+    fn from(value: &'a Section) -> Self {
+        MdElemRef::Section(value)
+    }
+}
+
 #[macro_export]
 macro_rules! wrap_mdq_refs {
     ($variant:ident: $source:expr) => {{

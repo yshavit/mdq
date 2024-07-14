@@ -23,6 +23,6 @@ impl<'a> Selector<'a, &'a Section> for SectionSelector {
     }
 
     fn pick(&self, item: &'a Section) -> MdElemRef<'a> {
-        MdElemRef::Doc(&item.body)
+        item.into()
     }
 }
