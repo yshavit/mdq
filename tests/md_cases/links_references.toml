@@ -1,0 +1,86 @@
+[given]
+md = '''
+# First Section
+
+We have:
+
+- an [inline link](https://example.com)
+- a [standard reference link][1]
+- a [link with a non-numeric reference id][a]
+- a [link with a non-sequential reference id][456]
+- a [collapsed link][]
+- a [shortcut link].
+- a [link with a title](https://example.com "my title")
+- a [link with a title that contains double-quotes](https://example.com 'my "alleged" title')
+
+[1]: https://example.com/1
+[a]: https://example.com/a
+[456]: https://example.com/non-sequential
+[collapsed link]: https://example.com/collapsed
+[shortcut link]: https://example.com/shortcut
+
+# Second section
+
+Some section text.
+
+'''
+
+[expect."standard link placement"]
+cli_args = []
+output = '''
+# First Section
+
+We have:
+
+- an [inline link][1]
+- a [standard reference link][2]
+- a [link with a non-numeric reference id][a]
+- a [link with a non-sequential reference id][3]
+- a [collapsed link][collapsed link]
+- a [shortcut link][shortcut link].
+- a [link with a title][4]
+- a [link with a title that contains double-quotes][5]
+
+[1]: https://example.com
+[2]: https://example.com/1
+[3]: https://example.com/non-sequential
+[4]: https://example.com "my title"
+[5]: https://example.com 'my "alleged" title'
+[a]: https://example.com/a
+[collapsed link]: https://example.com/collapsed
+[shortcut link]: https://example.com/shortcut
+
+# Second section
+
+Some section text.
+'''
+
+[expect."links at bottom of doc"]
+cli_args = ["--link-pos", "doc"]
+output = '''
+# First Section
+
+We have:
+
+- an [inline link][1]
+- a [standard reference link][2]
+- a [link with a non-numeric reference id][a]
+- a [link with a non-sequential reference id][3]
+- a [collapsed link][collapsed link]
+- a [shortcut link][shortcut link].
+- a [link with a title][4]
+- a [link with a title that contains double-quotes][5]
+
+# Second section
+
+Some section text.
+
+[1]: https://example.com
+[2]: https://example.com/1
+[3]: https://example.com/non-sequential
+[4]: https://example.com "my title"
+[5]: https://example.com 'my "alleged" title'
+[a]: https://example.com/a
+[collapsed link]: https://example.com/collapsed
+[shortcut link]: https://example.com/shortcut
+'''
