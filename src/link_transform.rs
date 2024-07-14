@@ -74,15 +74,21 @@ pub struct LinkTransformation<'a> {
 
 /// A temporary holder to perform link transformations.
 ///
+/// To use:
+///
+/// ```compile_fail
 ///     // self: MdInlinesWriter
 ///     let link_ref = LinkTransformation::new(self.link_transformer.transform_variant(), self, link_like)
 ///         .apply(&mut self.link_transformer, &link.reference);
+/// ```
 ///
 /// We need this because ownership prohibits:
 ///
+/// ```compile_fail
 ///     let link_ref = self.link_transformer.transform(self, link_like)
 ///                    ^^^^^^^^^^^^^^^^^^^^^           ^^^^
 ///                    first borrow                    second borrow
+/// ```
 ///
 /// This lets us use the `transform_variant()`'s Copy-ability to release the borrow.
 impl<'a> LinkTransformation<'a> {

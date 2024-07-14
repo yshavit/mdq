@@ -21,7 +21,7 @@ pub struct MdOptions {
 pub enum ReferencePlacement {
     /// Show link definitions in the first section that uses the link.
     ///
-    /// ```
+    /// ```md
     /// # Top Header
     ///
     /// ## Second section
@@ -40,7 +40,7 @@ pub enum ReferencePlacement {
 
     /// Show link definitions at the bottom of the document.
     ///
-    /// ```
+    /// ```md
     /// # Top Header
     ///
     /// ## Second section

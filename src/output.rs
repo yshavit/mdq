@@ -65,9 +65,11 @@ pub enum Block {
     ///
     /// This is useful for lists:
     ///
-    ///     1. §Paragraph starts here.§
-    ///     2. §Paragraph starts here, and
-    ///        indentation continues.§
+    /// ```md
+    /// 1. §Paragraph starts here.§
+    /// 2. §Paragraph starts here, and
+    ///    indentation continues.§
+    /// ```
     ///
     /// (where `§` signifies the start and end of an inlined paragraph)
     Inlined(usize),

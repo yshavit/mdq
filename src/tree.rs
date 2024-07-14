@@ -72,7 +72,7 @@ pub struct ReadOptions {
     ///
     /// For example:
     ///
-    /// ```
+    /// ```md
     /// [ambiguous link][1]
     ///
     /// [1]: https://example.com/one
@@ -81,7 +81,7 @@ pub struct ReadOptions {
     ///
     /// If this value is `true` and there are multiple _identical_ links, the validation will still pass:
     ///
-    /// ```
+    /// ```md
     /// [non-ambiguous link][1]
     ///
     /// [1]: https://example.com/one
@@ -227,13 +227,13 @@ macro_rules! mdx_nodes {
 /// Creates a nested enum.
 ///
 /// This macro translates:
-/// ```
-/// node!(A::B::C { foo: 123 }
+/// ```compile_fail
+/// m_node!(A::B::C { foo: 123 }
 /// ```
 ///
 /// into:
 ///
-/// ```
+/// ```compile_fail
 /// A::B(B::C(C { foo: 123 }))
 /// ```
 #[macro_export]
