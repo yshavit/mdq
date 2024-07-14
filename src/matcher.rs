@@ -16,6 +16,8 @@ impl PartialEq for StringMatcher {
     }
 }
 
+const ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT: &str = r#"can't have single anchor without text"#;
+
 impl StringMatcher {
     const BAREWORD_ANCHOR_END: char = '$';
 
@@ -63,8 +65,18 @@ impl StringMatcher {
             None => return Ok(StringMatcher::any()),
             Some(ch) => ch,
         };
+
+        let (anchor_start, peek_ch) = if peek_ch == '^' {
+            let _ = chars.next(); // drop the ^ char
+            chars.drop_whitespace();
+            let next_ch = chars.peek().ok_or_else(|| ParseErrorReason::UnexpectedEndOfInput)?;
+            (true, next_ch)
+        } else {
+            (false, peek_ch)
+        };
+
         if peek_ch.is_alphanumeric() {
-            return Ok(Self::parse_matcher_bare(chars, bareword_end));
+            return Ok(Self::parse_matcher_bare(chars, bareword_end, anchor_start));
         }
         match peek_ch {
             '*' => {
@@ -78,46 +90,67 @@ impl StringMatcher {
             }
             ch @ ('\'' | '"') => {
                 let _ = chars.next();
-                Self::parse_matcher_quoted(chars, ch)
+                Self::parse_matcher_quoted(chars, ch, anchor_start)
             }
-            other if other == bareword_end => Ok(StringMatcher::any()), // do *not* consume it!
+            '$' => {
+                if anchor_start {
+                    let _ = chars.next();
+                    Ok(StringMatcher::empty())
+                } else {
+                    Err(ParseErrorReason::InvalidSyntax(
+                        ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string(),
+                    ))
+                }
+            }
+            other if other == bareword_end => {
+                // do *not* consume the bareword end delimiter!
+                if anchor_start {
+                    Err(ParseErrorReason::InvalidSyntax(
+                        ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string(),
+                    ))
+                } else {
+                    Ok(StringMatcher::any())
+                }
+            }
             _ => Err(ParseErrorReason::InvalidSyntax(
                 "invalid string specifier (must be quoted or a bareword that starts with a letter)".to_string(),
             )),
         }
     }
 
-    fn parse_matcher_bare(chars: &mut ParsingIterator, bareword_end: char) -> Self {
+    fn parse_matcher_bare(chars: &mut ParsingIterator, bareword_end: char, anchor_start: bool) -> Self {
         let mut result = String::with_capacity(20); // just a guess
         let mut dropped = String::with_capacity(8); // also a guess
 
-        loop {
+        let anchor_end = loop {
             // Drop whitespace, but keep a record of it. If we see a char within this bareword (ie not end-of-input or
             // the bareword_end), then we'll append that whitespace back.
             chars.drop_to_while(&mut dropped, |ch| ch.is_whitespace());
             let Some(ch) = chars.peek() else {
-                break;
+                break false;
             };
             if ch == Self::BAREWORD_ANCHOR_END {
                 let _ = chars.next();
-                break;
+                break true;
             }
             if ch == bareword_end {
-                break;
+                break false;
             }
             let _ = chars.next();
             result.push_str(&dropped);
             result.push(ch);
-        }
+        };
 
         SubstringToRegex {
             look_for: result,
             case_sensitive: false,
+            anchor_start,
+            anchor_end,
         }
         .to_string_matcher()
     }
 
-    fn parse_matcher_quoted(chars: &mut ParsingIterator, ending_char: char) -> ParseResult<Self> {
+    fn parse_matcher_quoted(chars: &mut ParsingIterator, ending_char: char, anchor_start: bool) -> ParseResult<Self> {
         let mut result = String::with_capacity(20); // just a guess
         loop {
             match chars.next().ok_or_else(|| ParseErrorReason::Expected(ending_char))? {
@@ -154,9 +187,13 @@ impl StringMatcher {
                 ch => result.push(ch),
             }
         }
+        chars.drop_whitespace();
+        let anchor_end = chars.consume_if(Self::BAREWORD_ANCHOR_END);
         Ok(SubstringToRegex {
             look_for: result,
             case_sensitive: true,
+            anchor_start,
+            anchor_end,
         }
         .to_string_matcher())
     }
@@ -192,6 +229,12 @@ impl StringMatcher {
         }
     }
 
+    fn empty() -> Self {
+        Self {
+            re: Regex::new("^$").expect("internal error"),
+        }
+    }
+
     fn regex(re: Regex) -> Self {
         Self { re }
     }
@@ -200,15 +243,24 @@ impl StringMatcher {
 struct SubstringToRegex {
     look_for: String,
     case_sensitive: bool,
+    anchor_start: bool,
+    anchor_end: bool,
 }
 
 impl SubstringToRegex {
     fn to_string_matcher(&self) -> StringMatcher {
         let mut pattern = String::with_capacity(self.look_for.len() + 10); // +10 for modifiers, escapes, etc
-        if !self.case_sensitive {
+        if !self.case_sensitive && !self.look_for.is_empty() {
             pattern.push_str("(?i)");
         }
+        if self.anchor_start {
+            pattern.push('^');
+        }
         pattern.push_str(&regex::escape(&self.look_for));
+        if self.anchor_end {
+            pattern.push('$');
+        }
+
         let re = Regex::new(&pattern).expect("internal error");
         StringMatcher { re }
     }
@@ -223,44 +275,112 @@ mod test {
 
     #[test]
     fn bareword() {
-        parse_and_check("hello", case_insensitive("hello"), "");
-        parse_and_check("hello ", case_insensitive("hello"), "");
-        parse_and_check("hello / goodbye", case_insensitive("hello / goodbye"), "");
-        parse_and_check("hello| goodbye", case_insensitive("hello"), "| goodbye");
-        parse_and_check("hello | goodbye", case_insensitive("hello"), "| goodbye");
-        parse_and_check_with(']', "foo] rest", case_insensitive("foo"), "] rest");
+        parse_and_check("hello", re_insensitive("hello"), "");
+        parse_and_check("hello ", re_insensitive("hello"), "");
+        parse_and_check("hello / goodbye", re_insensitive("hello / goodbye"), "");
+        parse_and_check("hello| goodbye", re_insensitive("hello"), "| goodbye");
+        parse_and_check("hello | goodbye", re_insensitive("hello"), "| goodbye");
+        parse_and_check_with(']', "foo] rest", re_insensitive("foo"), "] rest");
+    }
+
+    #[test]
+    fn bareword_anchor_start() {
+        let m = parse_and_check("^ hello |after", re_insensitive("^hello"), "|after");
+        assert_eq!(false, m.matches("pre hello"));
+        assert_eq!(true, m.matches("hello"));
+        assert_eq!(true, m.matches("hello post"));
+    }
+
+    #[test]
+    fn bareword_anchor_end() {
+        let m = parse_and_check(" hello $ |after", re_insensitive("hello$"), " |after");
+        assert_eq!(true, m.matches("pre hello"));
+        assert_eq!(true, m.matches("hello"));
+        assert_eq!(false, m.matches("hello post"));
+    }
+
+    #[test]
+    fn only_starting_anchor() {
+        expect_err(
+            "^ |",
+            ParseErrorReason::InvalidSyntax(ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string()),
+            Position { line: 0, column: 2 },
+        );
+        expect_err(
+            "^",
+            ParseErrorReason::UnexpectedEndOfInput,
+            Position { line: 0, column: 1 },
+        );
+    }
+
+    #[test]
+    fn only_ending_anchor() {
+        expect_err(
+            "$ |",
+            ParseErrorReason::InvalidSyntax(ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string()),
+            Position { line: 0, column: 0 },
+        );
+        expect_err(
+            "$",
+            ParseErrorReason::InvalidSyntax(ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string()),
+            Position { line: 0, column: 0 },
+        );
+    }
+
+    #[test]
+    fn only_both_anchors() {
+        let matcher = parse_and_check("^$ |after", re("^$"), " |after");
+        assert_eq!(matcher.matches(""), true);
+        assert_eq!(matcher.matches("x"), false);
+        assert_eq!(matcher.matches("\n"), false);
     }
 
     #[test]
     fn bareword_case_sensitivity() {
-        let m = parse_and_check("hello", case_insensitive("hello"), "");
+        let m = parse_and_check("hello", re_insensitive("hello"), "");
         assert_eq!(true, m.matches("hello"));
         assert_eq!(true, m.matches("HELLO"));
     }
 
     #[test]
     fn quoted_case_sensitivity() {
-        let m = parse_and_check("'hello'", case_sensitive("hello"), "");
+        let m = parse_and_check("'hello'", re("hello"), "");
         assert_eq!(true, m.matches("hello"));
         assert_eq!(false, m.matches("HELLO"));
     }
 
     #[test]
+    fn quoted_anchor_start() {
+        let m = parse_and_check("^'hello'", re("^hello"), "");
+        assert_eq!(false, m.matches("pre hello"));
+        assert_eq!(true, m.matches("hello"));
+        assert_eq!(true, m.matches("hello post"));
+    }
+
+    #[test]
+    fn quoted_anchor_end() {
+        let m = parse_and_check("'hello'$", re("hello$"), "");
+        assert_eq!(true, m.matches("pre hello"));
+        assert_eq!(true, m.matches("hello"));
+        assert_eq!(false, m.matches("hello post"));
+    }
+
+    #[test]
     fn bareword_regex_char() {
-        let m = parse_and_check("hello.world", case_insensitive("hello.world"), "");
+        let m = parse_and_check("hello.world", re_insensitive("hello\\.world"), "");
         assert_eq!(true, m.matches("hello.world"));
         assert_eq!(false, m.matches("hello world")); // the period is _not_ a regex any
     }
 
     #[test]
     fn bareword_end_delimiters() {
-        parse_and_check_with('@', "hello@world", case_insensitive("hello"), "@world");
+        parse_and_check_with('@', "hello@world", re_insensitive("hello"), "@world");
 
         // "$" is always an end delimiter
         parse_and_check_with(
             '@',
             "hello$world",
-            case_insensitive("hello"),
+            re_insensitive("hello$"),
             "world", // note: the dollar sign got consumed!
         );
     }
@@ -276,7 +396,7 @@ mod test {
     fn double_quoted_string() {
         parse_and_check(
             r#" "hello world's ☃ \' \" \r \n \t says \"\u{2603}\" to me"_"#,
-            case_sensitive("hello world's ☃ ' \" \r \n \t says \"☃\" to me"),
+            re("hello world's ☃ ' \" \r \n \t says \"☃\" to me"),
             "_",
         );
     }
@@ -288,7 +408,7 @@ mod test {
     fn single_quoted_string() {
         parse_and_check(
             r#" 'hello world\'s ☃ \' \" \r \n \t says "\u{2603}" to me'_"#,
-            case_sensitive("hello world's ☃ ' \" \r \n \t says \"☃\" to me"),
+            re("hello world's ☃ ' \" \r \n \t says \"☃\" to me"),
             "_",
         );
     }
@@ -446,19 +566,16 @@ mod test {
         assert_eq!(err, expect);
     }
 
-    fn case_sensitive(value: &str) -> StringMatcher {
-        SubstringToRegex {
-            look_for: value.to_string(),
-            case_sensitive: true,
+    fn re(value: &str) -> StringMatcher {
+        StringMatcher {
+            re: Regex::new(value).expect("test error"),
         }
-        .to_string_matcher()
     }
 
-    fn case_insensitive(value: &str) -> StringMatcher {
-        SubstringToRegex {
-            look_for: value.to_string(),
-            case_sensitive: false,
-        }
-        .to_string_matcher()
+    fn re_insensitive(value: &str) -> StringMatcher {
+        let mut s = String::with_capacity(value.len() + 3);
+        s.push_str("(?i)");
+        s.push_str(value);
+        re(&s)
     }
 }
