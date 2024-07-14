@@ -6,26 +6,13 @@ use regex::Regex;
 use std::borrow::Borrow;
 
 #[derive(Debug)]
-pub enum StringMatcher {
-    Any,
-    Substring(Substring), // TODO do we actually need this, given that we always just compile it down to a regex?
-    Regex(Regex),
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Substring {
-    value: String,
-    case_sensitive: bool,
+pub struct StringMatcher {
+    re: Regex,
 }
 
 impl PartialEq for StringMatcher {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (StringMatcher::Any, StringMatcher::Any) => true,
-            (StringMatcher::Substring(lhs), StringMatcher::Substring(rhs)) => lhs == rhs,
-            (StringMatcher::Regex(lhs), StringMatcher::Regex(rhs)) => lhs.as_str() == rhs.as_str(),
-            _ => false,
-        }
+        self.re.as_str() == other.re.as_str()
     }
 }
 
@@ -33,19 +20,7 @@ impl StringMatcher {
     const BAREWORD_ANCHOR_END: char = '$';
 
     pub fn matches(&self, haystack: &str) -> bool {
-        match self {
-            StringMatcher::Any => true,
-            StringMatcher::Substring(substring) => {
-                let mut pattern = String::with_capacity(substring.value.len() + 10); // +10 for modifiers, escapes, etc
-                if !substring.case_sensitive {
-                    pattern.push_str("(?i)");
-                }
-                pattern.push_str(&regex::escape(&substring.value));
-                let re = Regex::new(&pattern).expect("internal error");
-                re.is_match(haystack)
-            }
-            StringMatcher::Regex(re) => re.is_match(haystack),
-        }
+        self.re.is_match(haystack)
     }
 
     pub fn matches_inlines<I: Borrow<Inline>>(&self, haystack: &[I]) -> bool {
@@ -53,9 +28,6 @@ impl StringMatcher {
     }
 
     pub fn matches_any<N: Borrow<MdElem>>(&self, haystacks: &[N]) -> bool {
-        if matches!(self, StringMatcher::Any) {
-            return true;
-        }
         haystacks.iter().any(|node| self.matches_node(node.borrow()))
     }
 
@@ -85,10 +57,10 @@ impl StringMatcher {
         }
     }
 
-    pub fn read(chars: &mut ParsingIterator, bareword_end: char) -> ParseResult<StringMatcher> {
+    pub fn read(chars: &mut ParsingIterator, bareword_end: char) -> ParseResult<Self> {
         chars.drop_whitespace();
         let peek_ch = match chars.peek() {
-            None => return Ok(StringMatcher::Any),
+            None => return Ok(StringMatcher::any()),
             Some(ch) => ch,
         };
         if peek_ch.is_alphanumeric() {
@@ -98,7 +70,7 @@ impl StringMatcher {
             '*' => {
                 let _ = chars.next(); // drop the char we peeked
                 chars.drop_whitespace();
-                Ok(StringMatcher::Any)
+                Ok(StringMatcher::any())
             }
             '/' => {
                 let _ = chars.next();
@@ -108,14 +80,14 @@ impl StringMatcher {
                 let _ = chars.next();
                 Self::parse_matcher_quoted(chars, ch)
             }
-            other if other == bareword_end => Ok(StringMatcher::Any), // do *not* consume it!
+            other if other == bareword_end => Ok(StringMatcher::any()), // do *not* consume it!
             _ => Err(ParseErrorReason::InvalidSyntax(
                 "invalid string specifier (must be quoted or a bareword that starts with a letter)".to_string(),
             )),
         }
     }
 
-    fn parse_matcher_bare(chars: &mut ParsingIterator, bareword_end: char) -> StringMatcher {
+    fn parse_matcher_bare(chars: &mut ParsingIterator, bareword_end: char) -> Self {
         let mut result = String::with_capacity(20); // just a guess
         let mut dropped = String::with_capacity(8); // also a guess
 
@@ -138,13 +110,14 @@ impl StringMatcher {
             result.push(ch);
         }
 
-        StringMatcher::Substring(Substring {
-            value: result,
+        SubstringToRegex {
+            look_for: result,
             case_sensitive: false,
-        })
+        }
+        .to_string_matcher()
     }
 
-    fn parse_matcher_quoted(chars: &mut ParsingIterator, ending_char: char) -> ParseResult<StringMatcher> {
+    fn parse_matcher_quoted(chars: &mut ParsingIterator, ending_char: char) -> ParseResult<Self> {
         let mut result = String::with_capacity(20); // just a guess
         loop {
             match chars.next().ok_or_else(|| ParseErrorReason::Expected(ending_char))? {
@@ -181,10 +154,11 @@ impl StringMatcher {
                 ch => result.push(ch),
             }
         }
-        Ok(StringMatcher::Substring(Substring {
-            value: result,
+        Ok(SubstringToRegex {
+            look_for: result,
             case_sensitive: true,
-        }))
+        }
+        .to_string_matcher())
     }
 
     fn parse_regex_matcher(chars: &mut ParsingIterator) -> ParseResult<StringMatcher> {
@@ -207,9 +181,36 @@ impl StringMatcher {
         }
 
         match Regex::new(&result) {
-            Ok(re) => Ok(StringMatcher::Regex(re)),
+            Ok(re) => Ok(StringMatcher::regex(re)),
             Err(err) => Err(ParseErrorReason::InvalidSyntax(err.to_string())),
         }
+    }
+
+    fn any() -> Self {
+        Self {
+            re: Regex::new(".*").expect("internal error"),
+        }
+    }
+
+    fn regex(re: Regex) -> Self {
+        Self { re }
+    }
+}
+
+struct SubstringToRegex {
+    look_for: String,
+    case_sensitive: bool,
+}
+
+impl SubstringToRegex {
+    fn to_string_matcher(&self) -> StringMatcher {
+        let mut pattern = String::with_capacity(self.look_for.len() + 10); // +10 for modifiers, escapes, etc
+        if !self.case_sensitive {
+            pattern.push_str("(?i)");
+        }
+        pattern.push_str(&regex::escape(&self.look_for));
+        let re = Regex::new(&pattern).expect("internal error");
+        StringMatcher { re }
     }
 }
 
@@ -371,15 +372,15 @@ mod test {
     //noinspection RegExpSingleCharAlternation (for the "(a|b)" case)
     #[test]
     fn regex() {
-        parse_and_check(r#"/foo/"#, StringMatcher::Regex(Regex::new("foo").unwrap()), "");
-        parse_and_check(r#"/foo /"#, StringMatcher::Regex(Regex::new("foo ").unwrap()), "");
-        parse_and_check(r#"/foo/bar"#, StringMatcher::Regex(Regex::new("foo").unwrap()), "bar");
-        parse_and_check(r#"//"#, StringMatcher::Regex(Regex::new("").unwrap()), "");
-        parse_and_check(r#"/(a|b)/"#, StringMatcher::Regex(Regex::new("(a|b)").unwrap()), "");
-        parse_and_check(r#"/\d/"#, StringMatcher::Regex(Regex::new("\\d").unwrap()), "");
+        parse_and_check(r#"/foo/"#, StringMatcher::regex(Regex::new("foo").unwrap()), "");
+        parse_and_check(r#"/foo /"#, StringMatcher::regex(Regex::new("foo ").unwrap()), "");
+        parse_and_check(r#"/foo/bar"#, StringMatcher::regex(Regex::new("foo").unwrap()), "bar");
+        parse_and_check(r#"//"#, StringMatcher::regex(Regex::new("").unwrap()), "");
+        parse_and_check(r#"/(a|b)/"#, StringMatcher::regex(Regex::new("(a|b)").unwrap()), "");
+        parse_and_check(r#"/\d/"#, StringMatcher::regex(Regex::new("\\d").unwrap()), "");
         parse_and_check(
             r#"/fizz\/buzz/"#,
-            StringMatcher::Regex(Regex::new("fizz/buzz").unwrap()),
+            StringMatcher::regex(Regex::new("fizz/buzz").unwrap()),
             "",
         );
 
@@ -411,11 +412,13 @@ mod test {
 
     #[test]
     fn any() {
-        parse_and_check("| rest", StringMatcher::Any, "| rest");
-        parse_and_check(" | rest", StringMatcher::Any, "| rest");
-        parse_and_check("*| rest", StringMatcher::Any, "| rest");
-        parse_and_check(" * | rest", StringMatcher::Any, "| rest");
-        parse_and_check_with(']', "] rest", StringMatcher::Any, "] rest");
+        let empty_matcher = parse_and_check("| rest", StringMatcher::any(), "| rest");
+        assert_eq!(empty_matcher.matches(""), true);
+
+        parse_and_check(" | rest", StringMatcher::any(), "| rest");
+        parse_and_check("*| rest", StringMatcher::any(), "| rest");
+        parse_and_check(" * | rest", StringMatcher::any(), "| rest");
+        parse_and_check_with(']', "] rest", StringMatcher::any(), "] rest");
     }
 
     fn parse_and_check_with(
@@ -444,16 +447,18 @@ mod test {
     }
 
     fn case_sensitive(value: &str) -> StringMatcher {
-        StringMatcher::Substring(Substring {
-            value: value.to_string(),
+        SubstringToRegex {
+            look_for: value.to_string(),
             case_sensitive: true,
-        })
+        }
+        .to_string_matcher()
     }
 
     fn case_insensitive(value: &str) -> StringMatcher {
-        StringMatcher::Substring(Substring {
-            value: value.to_string(),
+        SubstringToRegex {
+            look_for: value.to_string(),
             case_sensitive: false,
-        })
+        }
+        .to_string_matcher()
     }
 }
