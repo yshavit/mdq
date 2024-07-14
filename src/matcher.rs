@@ -251,6 +251,7 @@ impl SubstringToRegex {
     fn to_string_matcher(&self) -> StringMatcher {
         let mut pattern = String::with_capacity(self.look_for.len() + 10); // +10 for modifiers, escapes, etc
         if !self.case_sensitive && !self.look_for.is_empty() {
+            // (is_empty isn't necessary, just makes for a cleaner regex)
             pattern.push_str("(?i)");
         }
         if self.anchor_start {
