@@ -3,7 +3,6 @@ use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
 use crate::select::ParseResult;
 use crate::tree::Link;
-use crate::tree_ref::MdElemRef;
 
 #[derive(Debug, PartialEq)]
 pub struct LinkSelector {
@@ -21,10 +20,6 @@ impl<'a> Selector<'a, &'a Link> for LinkSelector {
     fn matches(&self, item: &'a Link) -> bool {
         self.matchers.display_matcher.matches_inlines(&item.text)
             && self.matchers.url_matcher.matches(&item.link_definition.url)
-    }
-
-    fn pick(&self, item: &'a Link) -> MdElemRef<'a> {
-        item.into()
     }
 }
 
