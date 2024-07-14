@@ -1,8 +1,6 @@
 use clap::Parser;
 use std::borrow::Cow;
 use std::io;
-use std::io::{stdin, Read};
-use std::process::ExitCode;
 
 use crate::fmt_md::{MdOptions, ReferencePlacement};
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
@@ -32,24 +30,24 @@ mod utils_for_test;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
-struct Cli {
+pub struct Cli {
     /// Where to put link references.
     ///
     /// For links and images of style `[description][1]`, this flag controls where to put the `[1]: https://example.com`
     /// definition.
     #[arg(long, value_enum, default_value_t=ReferencePlacement::Section)]
-    link_pos: ReferencePlacement,
+    pub(crate) link_pos: ReferencePlacement,
 
     /// Where to put footnote references. Defaults to be same as --link-pos
     #[arg(long, value_enum)]
-    footnote_pos: Option<ReferencePlacement>,
+    pub(crate) footnote_pos: Option<ReferencePlacement>,
 
     #[arg(long, short, value_enum, default_value_t=LinkTransform::Reference)]
-    link_canonicalization: LinkTransform,
+    pub(crate) link_canonicalization: LinkTransform,
 
     /// Output the results as a JSON object, instead of as markdown.
     #[arg(long, short, default_value_t = false)]
-    json: bool, // TODO this should really be output=<json|md>
+    pub(crate) json: bool, // TODO this should really be output=<json|md>
 
     #[arg(
         short = ' ',
@@ -57,11 +55,11 @@ struct Cli {
         group = "selectors_group",
         value_name = "selectors starting with list"
     )]
-    list_selector: Option<String>,
+    pub(crate) list_selector: Option<String>,
 
     /// The selectors string
     #[arg(group = "selectors_group", value_name = "selectors")]
-    selectors: Option<String>,
+    pub(crate) selectors: Option<String>,
 }
 
 impl Cli {
@@ -81,12 +79,8 @@ impl Cli {
     }
 }
 
-fn main() -> ExitCode {
-    let cli = Cli::parse();
-
-    let mut contents = String::new();
-    stdin().read_to_string(&mut contents).expect("invalid input (not utf8)");
-    let ast = markdown::to_mdast(&mut contents, &markdown::ParseOptions::gfm()).unwrap();
+pub fn run_main(cli: &Cli, contents: String) -> bool {
+    let ast = markdown::to_mdast(&contents, &markdown::ParseOptions::gfm()).unwrap();
     let mdqs = MdElem::read(ast, &ReadOptions::default()).unwrap();
 
     let selectors_str = cli.selector_string();
@@ -94,7 +88,7 @@ fn main() -> ExitCode {
         Ok(selectors) => selectors,
         Err(err) => {
             print_select_parse_error(&selectors_str, err);
-            return ExitCode::FAILURE;
+            return false;
         }
     };
 
@@ -121,7 +115,7 @@ fn main() -> ExitCode {
         out.write_str("\n");
     }
 
-    ExitCode::SUCCESS
+    true
 }
 
 fn print_select_parse_error(original_string: &str, err: ParseError) {

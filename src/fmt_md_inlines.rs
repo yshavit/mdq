@@ -155,7 +155,7 @@ impl<'a> MdInlinesWriter<'a> {
     ///
     /// Examples:
     ///
-    /// ```
+    /// ```md
     /// [an inline link](https://example.com)
     /// [a referenced link][1]
     /// ```
