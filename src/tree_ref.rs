@@ -41,6 +41,24 @@ impl<'a> From<&'a MdElem> for MdElemRef<'a> {
     }
 }
 
+impl<'a> From<ListItemRef<'a>> for MdElemRef<'a> {
+    fn from(value: ListItemRef<'a>) -> Self {
+        MdElemRef::ListItem(value)
+    }
+}
+
+impl<'a> From<&'a Image> for MdElemRef<'a> {
+    fn from(value: &'a Image) -> Self {
+        MdElemRef::Image(value)
+    }
+}
+
+impl<'a> From<&'a Link> for MdElemRef<'a> {
+    fn from(value: &'a Link) -> Self {
+        MdElemRef::Link(value)
+    }
+}
+
 impl<'a> From<&'a Section> for MdElemRef<'a> {
     fn from(value: &'a Section) -> Self {
         MdElemRef::Section(value)

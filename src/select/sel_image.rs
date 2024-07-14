@@ -23,6 +23,6 @@ impl<'a> Selector<'a, &'a Image> for ImageSelector {
     }
 
     fn pick(&self, item: &'a Image) -> MdElemRef<'a> {
-        MdElemRef::Image(item)
+        item.into()
     }
 }

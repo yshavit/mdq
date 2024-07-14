@@ -24,7 +24,7 @@ impl<'a> Selector<'a, &'a Link> for LinkSelector {
     }
 
     fn pick(&self, item: &'a Link) -> MdElemRef<'a> {
-        MdElemRef::Link(item)
+        item.into()
     }
 }
 

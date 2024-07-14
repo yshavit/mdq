@@ -88,7 +88,7 @@ impl<'a> Selector<'a, ListItemRef<'a>> for ListItemSelector {
     }
 
     fn pick(&self, item: ListItemRef<'a>) -> MdElemRef<'a> {
-        MdElemRef::ListItem(item)
+        item.into()
     }
 }
 
