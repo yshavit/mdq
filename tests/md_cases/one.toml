@@ -1,0 +1,20 @@
+[given]
+md = """
+# Fizz
+
+My first section.
+
+# Buzz
+
+My second section.
+"""
+
+[expect."bareword section search"]
+cli_args = ["# fizz"]
+output = """
+# Fizz
+
+My first section.
+
+
+"""
