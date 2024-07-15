@@ -1,0 +1,64 @@
+[given]
+md = '''
+# Ordered
+
+2. two (note: starting count at 2!)
+3. three
+
+# Unordered
+
+- a point
+- another point
+
+# Tasks
+
+- [ ] an incomplete task
+- [x] a completed task
+'''
+
+
+[expect."select ordered"]
+cli_args = ['1.']
+output = '''
+2. two (note: starting count at 2!)
+
+   -----
+
+3. three
+'''
+
+
+[expect."select unordered"]
+cli_args = ['-']
+output = '''
+- a point
+
+   -----
+
+- another point
+'''
+
+
+[expect."select all tasks"]
+cli_args = ['- [?]'] # note: space between the - and [ is required
+output = '''
+- [ ] an incomplete task
+
+   -----
+
+- [x] a completed task
+'''
+
+
+[expect."select incomplete tasks"]
+cli_args = ['- [ ]']
+output = '''
+- [ ] an incomplete task
+'''
+
+
+[expect."select completed tasks"]
+cli_args = ['- [x]']
+output = '''
+- [x] a completed task
+'''
