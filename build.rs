@@ -12,8 +12,13 @@ fn main() -> Result<(), String> {
     println!("cargo::rerun-if-changed={MD_CASES_PATH}");
     let out_dir = env::var("OUT_DIR").unwrap();
 
-    let mut out = Writer::new();
+    generate_integ_test_cases(&out_dir)?;
 
+    Ok(())
+}
+
+fn generate_integ_test_cases(out_dir: &String) -> Result<(), String> {
+    let mut out = Writer::new();
     for md_case in fs::read_dir(MD_CASES_PATH).map_err(|e| e.to_string())? {
         let spec_file = DirEntryHelper::new(md_case.map_err(|e| e.to_string())?);
         if !spec_file.run(DirEntry::file_type)?.is_file() {
