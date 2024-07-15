@@ -187,7 +187,6 @@ impl Writer {
     fn write(&mut self, text: &str) -> &mut Self {
         let mut iter = text.split('\n').peekable();
         while let Some(line) = iter.next() {
-            let line = line.trim_start();
             if !line.is_empty() {
                 self.out.push_str(line);
             }

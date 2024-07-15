@@ -13,6 +13,7 @@ Hello, world.
 My second section.
 '''
 
+
 [expect."select top-level section"]
 cli_args = ["# alpha"]
 output = '''
@@ -24,6 +25,8 @@ My first section.
 
 Hello, world.
 '''
+
+
 [expect."select subsection"]
 cli_args = ["# sub"]
 output = '''

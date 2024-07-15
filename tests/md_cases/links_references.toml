@@ -1,43 +1,31 @@
 [given]
 md = '''
-# First Section
-
-We have:
-
 - an [inline link](https://example.com)
 - a [standard reference link][1]
 - a [link with a non-numeric reference id][a]
 - a [link with a non-sequential reference id][456]
 - a [collapsed link][]
-- a [shortcut link].
+- a [shortcut link]
 - a [link with a title](https://example.com "my title")
 - a [link with a title that contains double-quotes](https://example.com 'my "alleged" title')
 
 [1]: https://example.com/1
-[a]: https://example.com/a
+[a]: https://example.com/a "with a title"
 [456]: https://example.com/non-sequential
 [collapsed link]: https://example.com/collapsed
 [shortcut link]: https://example.com/shortcut
-
-# Second section
-
-Some section text.
-
 '''
 
-[expect."standard link placement"]
+
+[expect."default"]
 cli_args = []
 output = '''
-# First Section
-
-We have:
-
 - an [inline link][1]
 - a [standard reference link][2]
 - a [link with a non-numeric reference id][a]
 - a [link with a non-sequential reference id][3]
 - a [collapsed link][collapsed link]
-- a [shortcut link][shortcut link].
+- a [shortcut link][shortcut link]
 - a [link with a title][4]
 - a [link with a title that contains double-quotes][5]
 
@@ -46,41 +34,41 @@ We have:
 [3]: https://example.com/non-sequential
 [4]: https://example.com "my title"
 [5]: https://example.com 'my "alleged" title'
-[a]: https://example.com/a
+[a]: https://example.com/a "with a title"
 [collapsed link]: https://example.com/collapsed
 [shortcut link]: https://example.com/shortcut
-
-# Second section
-
-Some section text.
 '''
 
-[expect."links at bottom of doc"]
-cli_args = ["--link-pos", "doc"]
+
+[expect."keep original"]
+cli_args = ["--link-canonicalization", "keep"]
 output = '''
-# First Section
-
-We have:
-
-- an [inline link][1]
-- a [standard reference link][2]
+- an [inline link](https://example.com)
+- a [standard reference link][1]
 - a [link with a non-numeric reference id][a]
-- a [link with a non-sequential reference id][3]
-- a [collapsed link][collapsed link]
-- a [shortcut link][shortcut link].
-- a [link with a title][4]
-- a [link with a title that contains double-quotes][5]
+- a [link with a non-sequential reference id][456]
+- a [collapsed link][]
+- a [shortcut link]
+- a [link with a title](https://example.com "my title")
+- a [link with a title that contains double-quotes](https://example.com 'my "alleged" title')
 
-# Second section
-
-Some section text.
-
-[1]: https://example.com
-[2]: https://example.com/1
-[3]: https://example.com/non-sequential
-[4]: https://example.com "my title"
-[5]: https://example.com 'my "alleged" title'
-[a]: https://example.com/a
+[1]: https://example.com/1
+[456]: https://example.com/non-sequential
+[a]: https://example.com/a "with a title"
 [collapsed link]: https://example.com/collapsed
 [shortcut link]: https://example.com/shortcut
+'''
+
+
+[expect."inline all"]
+cli_args = ["--link-canonicalization", "inline"]
+output = '''
+- an [inline link](https://example.com)
+- a [standard reference link](https://example.com/1)
+- a [link with a non-numeric reference id](https://example.com/a "with a title")
+- a [link with a non-sequential reference id](https://example.com/non-sequential)
+- a [collapsed link](https://example.com/collapsed)
+- a [shortcut link](https://example.com/shortcut)
+- a [link with a title](https://example.com "my title")
+- a [link with a title that contains double-quotes](https://example.com 'my "alleged" title')
 '''

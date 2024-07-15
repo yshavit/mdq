@@ -1,0 +1,42 @@
+[given]
+md = '''
+# First Section
+
+This is [an interesting link][1].
+
+# Second section
+
+Some section text.
+
+[1]: https://example.com/interesting
+'''
+
+
+[expect."standard link placement"]
+cli_args = []
+output = '''
+# First Section
+
+This is [an interesting link][1].
+
+[1]: https://example.com/interesting
+
+# Second section
+
+Some section text.
+'''
+
+
+[expect."links at bottom of doc"]
+cli_args = ["--link-pos", "doc"]
+output = '''
+# First Section
+
+This is [an interesting link][1].
+
+# Second section
+
+Some section text.
+
+[1]: https://example.com/interesting
+'''
