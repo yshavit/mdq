@@ -140,18 +140,22 @@ impl Case {
             out.write("Case {");
             out.with_indent(|out| {
                 out.writeln(&format!("cli_args: {:?},", &self.cli_args));
-                out.write("expect_output: indoc::indoc! {r#\"");
-                out.with_indent(|out| {
-                    let mut iter = self.expect_output.split('\n').peekable();
-                    while let Some(line) = iter.next() {
-                        out.write(line);
-                        if iter.peek().is_some() {
-                            out.nl();
-                        } else {
-                            out.write("\"#},");
+                if self.expect_output.is_empty() {
+                    out.write("expect_output: \"\",");
+                } else {
+                    out.write("expect_output: indoc::indoc! {r#\"");
+                    out.with_indent(|out| {
+                        let mut iter = self.expect_output.split('\n').peekable();
+                        while let Some(line) = iter.next() {
+                            out.write(line);
+                            if iter.peek().is_some() {
+                                out.nl();
+                            } else {
+                                out.write("\"#},");
+                            }
                         }
-                    }
-                });
+                    });
+                }
                 out.write("md: MD,");
             });
             out.write("}.check();");

@@ -14,6 +14,8 @@ md = '''
 
 - [ ] an incomplete task
 - [x] a completed task
+
+1. [ ] ordered tasks are possible, too
 '''
 
 
@@ -39,7 +41,7 @@ output = '''
 '''
 
 
-[expect."select all tasks"]
+[expect."select all ordered tasks"]
 cli_args = ['- [?]'] # note: space between the - and [ is required
 output = '''
 - [ ] an incomplete task
@@ -50,15 +52,29 @@ output = '''
 '''
 
 
-[expect."select incomplete tasks"]
+[expect."select ordered task by text"]
+cli_args = ['- [?] incomplete'] # note: space between the - and [ is required
+output = '''
+- [ ] an incomplete task
+'''
+
+
+[expect."select incomplete ordered tasks"]
 cli_args = ['- [ ]']
 output = '''
 - [ ] an incomplete task
 '''
 
 
-[expect."select completed tasks"]
+[expect."select completed ordered tasks"]
 cli_args = ['- [x]']
 output = '''
 - [x] a completed task
+'''
+
+
+[expect."select unordered tasks"]
+cli_args = ['1. [?]']
+output = '''
+1. [ ] ordered tasks are possible, too
 '''
