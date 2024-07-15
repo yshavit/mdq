@@ -125,7 +125,7 @@ will probably get you 90% of what you need.
 4. JSON:
 
    The `--json` flag will cause mdq to output the selected items as JSON, instead of Markdown. The gory details
-   are [below](#json-output), but if you just try it out, hopefully it's pretty intuitive.
+   are [below](#json), but if you just try it out, hopefully it's pretty intuitive.
 
 That's most of what you need to know! The following is lots of detail.
 
@@ -384,7 +384,9 @@ Examples:
 - `^foobar$`: the string must be "foobar" exactly (since it's anchored to both the beginning and the end)
 - `^    "foo"`, `"bar"    $`, `^ foobar $`: equivalent to the previous, respectively
 
-### Output
+## Output
+
+### Markdown
 
 By default, mdq will output all selected items as markdown. If there were multiple items selected, they will be
 separated by a thematic break:
@@ -393,7 +395,7 @@ separated by a thematic break:
    ---
 ```
 
-You can also specify JSON output, as mentioned [below](#json-output).
+You can also specify JSON output, as mentioned [below](#json).
 
 #### Markdown for link and image references
 
@@ -419,7 +421,7 @@ You can also specify JSON output, as mentioned [below](#json-output).
 If converting links and images to reference form, all numeric references will be reordered to start at 1 and count
 up sequentially from there. Any non-numeric references (for example, `[a]`) will be unaltered.
 
-#### JSON output
+### JSON
 
 If you specify `--json`, mdq will output its results as json. The schema is:
 
@@ -537,8 +539,6 @@ This represents the full Markdown document; it's what you get if you run just `m
 text of the code block
 ```
 ~~~
-
-⬇️️ ⬇️️ ⬇️️
 
 ```json
 {
