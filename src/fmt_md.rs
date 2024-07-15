@@ -1559,8 +1559,6 @@ pub mod tests {
                 indoc! {r#"
                     [link text][1]
 
-                       -----
-
                     [1]: https://example.com"#},
             );
         }
@@ -1652,8 +1650,6 @@ pub mod tests {
                 indoc! {r#"
                     [link text][1]
 
-                       -----
-
                     [1]: https://example.com"#},
             );
         }
@@ -1676,8 +1672,6 @@ pub mod tests {
                 })],
                 indoc! {r#"
                     ![alt text][1]
-
-                       -----
 
                     [1]: https://example.com"#},
             );
@@ -1739,8 +1733,6 @@ pub mod tests {
                 })],
                 indoc! {r#"
                     ![alt text][1]
-
-                       -----
 
                     [1]: https://example.com"#},
             );
@@ -1819,8 +1811,6 @@ pub mod tests {
                 }],
                 indoc! {r#"
                     Hello, [world][1]! This is interesting[^a].
-
-                       -----
 
                     [1]: https://example.com
                     [^a]: this is my note"#},
@@ -1906,8 +1896,6 @@ pub mod tests {
                 }],
                 indoc! {r#"
                     [link description][1]
-
-                       -----
 
                     [1]: https://example.com"#},
             )
@@ -2013,8 +2001,6 @@ pub mod tests {
                 }],
                 indoc! {r#"
                     [^d][^c][b-text][b][a-text][a]
-
-                       -----
 
                     [a]: https://example.com/a
                     [b]: https://example.com/b
