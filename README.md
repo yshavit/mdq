@@ -112,11 +112,16 @@ will probably get you 90% of what you need.
 3. Chaining selectors via pipe:
    ```shell
    # Find sections whose title contains "foo", and within those, find all unordered lists.
-   $ cat example.md | mdq '# foo | - *'
+   $ cat example.md | mdq '# foo | - *
    ```
-   This is why we needed to quote `"quoted | strings"` above. Without the quote, the matcher would end at `|`. This
-   would mean we're only looking for sections whose title contains `quoted` (regardless of `| strings`), and that would
-   then pipe into a selector `strings` (which isn't valid).
+   This is why we needed to quote `"quoted | strings"` above. Without the quote, the matcher would end at `|` and
+   interpet the input as two selectors:
+
+    1. `# quoted`
+    2. `strings`
+
+   The first of those would look for sections whose title contains just `quoted` (without also checking for
+   `| strings`). The second is in invalid selector.
 4. JSON:
 
    The `--json` flag will cause mdq to output the selected items as JSON, instead of Markdown. The gory details
