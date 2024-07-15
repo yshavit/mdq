@@ -276,6 +276,10 @@ where
 
 impl<W: SimpleWrite> Drop for Output<W> {
     fn drop(&mut self) {
+        if self.pending_newlines > 0 {
+            self.write_raw("\n");
+            self.pending_newlines = 0;
+        }
         if let Err(e) = self.stream.flush() {
             if WritingState::Error != self.writing_state {
                 eprintln!("error while writing output: {}", e);

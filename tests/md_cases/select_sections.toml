@@ -1,0 +1,57 @@
+[given]
+md = '''
+# Alpha
+
+My first section.
+
+## Sub-section
+
+Hello, world.
+
+# Bravo
+
+My second section.
+'''
+
+
+[expect."select top-level section"]
+cli_args = ["# alpha"]
+output = '''
+# Alpha
+
+My first section.
+
+## Sub-section
+
+Hello, world.
+'''
+
+
+[expect."select subsection"]
+cli_args = ["# sub"]
+output = '''
+## Sub-section
+
+Hello, world.
+'''
+
+
+[expect."select all sections"]
+# note: This selects all the doc's contents, but not as a single doc: each top-level header is its own selection, so the
+# output separates them with a thematic break.
+cli_args = ["#"]
+output = '''
+# Alpha
+
+My first section.
+
+## Sub-section
+
+Hello, world.
+
+   -----
+
+# Bravo
+
+My second section.
+'''

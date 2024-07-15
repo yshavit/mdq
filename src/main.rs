@@ -1,14 +1,11 @@
 use clap::Parser;
-use mdq::{run_main, Cli};
-use std::io::{stdin, Read};
+use mdq::{run_stdio, Cli};
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
-    let mut contents = String::new();
-    stdin().read_to_string(&mut contents).expect("invalid input (not utf8)");
-    if run_main(&cli, contents) {
+    if run_stdio(&cli) {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE

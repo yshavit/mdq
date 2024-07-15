@@ -74,11 +74,15 @@ where
         prev_was_thematic_break: false,
         inlines_writer: &mut MdInlinesWriter::new(options.inline_options),
     };
-    writer_state.write_md(out, nodes, true);
+    let nodes_count = writer_state.write_md(out, nodes, true);
 
     // Always write the pending definitions at the end of the doc. If there were no sections, then BottomOfSection
-    // won't have been triggered, but we still want to write them
-    writer_state.write_definitions(out, DefinitionsToWrite::Both, true);
+    // won't have been triggered, but we still want to write them. We'll add a thematic break before the links if there
+    // was more than one top-level node: if there's one node, then the whole thing looks like a single document and
+    // should just have the links there; but if there are multiple, then each would have been separated by a thematic
+    // break, and we want to add another such break so that it's clear that the reference definitions don't just go with
+    // the last item.
+    writer_state.write_definitions(out, DefinitionsToWrite::Both, nodes_count > 1);
 }
 
 pub fn write_md_inlines<'a, I, W>(out: &mut Output<W>, nodes: I, inlines_writer: &mut MdInlinesWriter<'a>)
@@ -108,18 +112,21 @@ struct MdWriterState<'s, 'a> {
 }
 
 impl<'s, 'a> MdWriterState<'s, 'a> {
-    fn write_md<I, W>(&mut self, out: &mut Output<W>, nodes: I, add_break: bool)
+    fn write_md<I, W>(&mut self, out: &mut Output<W>, nodes: I, add_break: bool) -> usize
     where
         I: Iterator<Item = MdElemRef<'a>>,
         W: SimpleWrite,
     {
+        let mut count = 0;
         let mut iter = nodes.into_iter().peekable();
         while let Some(node) = iter.next() {
+            count += 1;
             self.write_one_md(out, node);
             if add_break && iter.peek().is_some() {
                 self.write_one_md(out, MdElemRef::ThematicBreak);
             }
         }
+        count
     }
 
     pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node_ref: MdElemRef<'a>)
@@ -130,7 +137,9 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
         self.prev_was_thematic_break = false;
 
         match node_ref {
-            MdElemRef::Doc(items) => self.write_md(out, items.iter().map(|elem| elem.into()), false),
+            MdElemRef::Doc(items) => {
+                self.write_md(out, items.iter().map(|elem| elem.into()), false);
+            }
             MdElemRef::Section(Section { depth, title, body }) => {
                 out.with_block(Block::Plain, |out| {
                     for _ in 0..*depth {
@@ -1550,8 +1559,6 @@ pub mod tests {
                 indoc! {r#"
                     [link text][1]
 
-                       -----
-
                     [1]: https://example.com"#},
             );
         }
@@ -1643,8 +1650,6 @@ pub mod tests {
                 indoc! {r#"
                     [link text][1]
 
-                       -----
-
                     [1]: https://example.com"#},
             );
         }
@@ -1667,8 +1672,6 @@ pub mod tests {
                 })],
                 indoc! {r#"
                     ![alt text][1]
-
-                       -----
 
                     [1]: https://example.com"#},
             );
@@ -1730,8 +1733,6 @@ pub mod tests {
                 })],
                 indoc! {r#"
                     ![alt text][1]
-
-                       -----
 
                     [1]: https://example.com"#},
             );
@@ -1810,8 +1811,6 @@ pub mod tests {
                 }],
                 indoc! {r#"
                     Hello, [world][1]! This is interesting[^a].
-
-                       -----
 
                     [1]: https://example.com
                     [^a]: this is my note"#},
@@ -1897,8 +1896,6 @@ pub mod tests {
                 }],
                 indoc! {r#"
                     [link description][1]
-
-                       -----
 
                     [1]: https://example.com"#},
             )
@@ -2004,8 +2001,6 @@ pub mod tests {
                 }],
                 indoc! {r#"
                     [^d][^c][b-text][b][a-text][a]
-
-                       -----
 
                     [a]: https://example.com/a
                     [b]: https://example.com/b

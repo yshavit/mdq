@@ -1,6 +1,8 @@
 use clap::Parser;
+use output::Output;
 use std::borrow::Cow;
 use std::io;
+use std::io::{stdin, Read, Write};
 
 use crate::fmt_md::{MdOptions, ReferencePlacement};
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
@@ -43,7 +45,7 @@ pub struct Cli {
     pub(crate) footnote_pos: Option<ReferencePlacement>,
 
     #[arg(long, short, value_enum, default_value_t=LinkTransform::Reference)]
-    pub(crate) link_canonicalization: LinkTransform,
+    pub(crate) link_canonicalization: LinkTransform, // TODO rename to link-format
 
     /// Output the results as a JSON object, instead of as markdown.
     #[arg(long, short, default_value_t = false)]
@@ -79,7 +81,25 @@ impl Cli {
     }
 }
 
-pub fn run_main(cli: &Cli, contents: String) -> bool {
+pub fn run_in_memory(cli: &Cli, contents: &str) -> Result<String, &'static str> {
+    let mut out = Vec::with_capacity(256); // just a guess
+
+    run(&cli, contents.to_string(), || &mut out);
+    let out_str = String::from_utf8(out).map_err(|_| "UTF-8 decode error")?;
+    Ok(out_str)
+}
+
+pub fn run_stdio(cli: &Cli) -> bool {
+    let mut contents = String::new();
+    stdin().read_to_string(&mut contents).expect("invalid input (not utf8)");
+    run(&cli, contents, || io::stdout().lock())
+}
+
+fn run<W, F>(cli: &Cli, contents: String, get_out: F) -> bool
+where
+    F: FnOnce() -> W,
+    W: Write,
+{
     let ast = markdown::to_mdast(&contents, &markdown::ParseOptions::gfm()).unwrap();
     let mdqs = MdElem::read(ast, &ReadOptions::default()).unwrap();
 
@@ -106,13 +126,12 @@ pub fn run_main(cli: &Cli, contents: String) -> bool {
         },
     };
 
-    let mut stdout = io::stdout().lock();
+    let mut stdout = get_out();
     if cli.json {
         serde_json::to_writer(&mut stdout, &SerdeDoc::new(&pipeline_nodes, md_options.inline_options)).unwrap();
     } else {
-        let mut out = output::Output::new(Stream(&mut stdout));
+        let mut out = Output::new(Stream(&mut stdout));
         fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
-        out.write_str("\n");
     }
 
     true
