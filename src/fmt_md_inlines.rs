@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Copy, Clone)]
 pub struct MdInlinesWriterOptions {
-    pub link_canonicalization: LinkTransform,
+    pub link_format: LinkTransform,
 }
 
 pub struct MdInlinesWriter<'a> {
@@ -74,7 +74,7 @@ impl<'a> MdInlinesWriter<'a> {
             seen_links: HashSet::with_capacity(pending_refs_capacity),
             seen_footnotes: HashSet::with_capacity(pending_refs_capacity),
             pending_references: PendingReferences::with_capacity(pending_refs_capacity),
-            link_transformer: LinkTransformer::from(options.link_canonicalization),
+            link_transformer: LinkTransformer::from(options.link_format),
         }
     }
 

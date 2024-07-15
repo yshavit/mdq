@@ -43,7 +43,7 @@ impl<'a> Display for LinkLabel<'a> {
             LinkLabel::Text(s) => f.write_str(s),
             LinkLabel::Inline(inlines) => {
                 let mut inline_writer = MdInlinesWriter::new(MdInlinesWriterOptions {
-                    link_canonicalization: LinkTransform::Keep,
+                    link_format: LinkTransform::Keep,
                 });
                 f.write_str(&inlines_to_string(&mut inline_writer, *inlines))
             }
@@ -422,7 +422,7 @@ mod tests {
     fn smoke_test_multi() {
         let mut transformer = LinkTransformer::from(LinkTransform::Reference);
         let mut iw = MdInlinesWriter::new(MdInlinesWriterOptions {
-            link_canonicalization: LinkTransform::Keep,
+            link_format: LinkTransform::Keep,
         });
 
         // [alpha](https://example.com) ==> [alpha][1]
@@ -508,7 +508,7 @@ mod tests {
             } = self;
             let mut transformer = LinkTransformer::from(transform);
             let mut iw = MdInlinesWriter::new(MdInlinesWriterOptions {
-                link_canonicalization: LinkTransform::Keep,
+                link_format: LinkTransform::Keep,
             });
             let link = Link {
                 text: vec![label],

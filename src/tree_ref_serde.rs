@@ -653,14 +653,14 @@ mod tests {
 
     fn check(given: MdElem, expect: &str) {
         let opts = MdInlinesWriterOptions {
-            link_canonicalization: LinkTransform::Keep,
+            link_format: LinkTransform::Keep,
         };
         check_with(opts, MdElemRef::from(&given), expect);
     }
 
     fn check_md_ref(given: MdElemRef, expect: &str) {
         let opts = MdInlinesWriterOptions {
-            link_canonicalization: LinkTransform::Keep,
+            link_format: LinkTransform::Keep,
         };
         check_with(opts, given, expect);
     }

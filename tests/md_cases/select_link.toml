@@ -9,7 +9,7 @@ This text has both [an inline link](https://example.com/inline) and a [reference
 
 
 [expect."select all"]
-cli_args = ['[]()', '--link-canonicalization=inline']
+cli_args = ['[]()', '--link-format=inline']
 output = '''
 [an inline link](https://example.com/inline)
 
@@ -19,19 +19,19 @@ output = '''
 
 
 [expect."select link by text"]
-cli_args = ['[an inline]()', '--link-canonicalization=inline']
+cli_args = ['[an inline]()', '--link-format=inline']
 output = '''
 [an inline link](https://example.com/inline)'''
 
 
 [expect."select link by url"]
-cli_args = ['[]("/referenced")', '--link-canonicalization=inline']
+cli_args = ['[]("/referenced")', '--link-format=inline']
 output = '''
 [referenced link](https://example.com/referenced)'''
 
 
 [expect."select image"]
-cli_args = ['![]()', '--link-canonicalization=inline']
+cli_args = ['![]()', '--link-format=inline']
 output = '''
 ![image alt text](https://example.com/hylas-and-nymphs.png)'''
 
