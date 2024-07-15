@@ -45,7 +45,7 @@ pub struct Cli {
     pub(crate) footnote_pos: Option<ReferencePlacement>,
 
     #[arg(long, short, value_enum, default_value_t=LinkTransform::Reference)]
-    pub(crate) link_canonicalization: LinkTransform, // TODO rename to link-format
+    pub(crate) link_format: LinkTransform,
 
     /// Output the results as a JSON object, instead of as markdown.
     #[arg(long, short, default_value_t = false)]
@@ -122,7 +122,7 @@ where
         link_reference_placement: cli.link_pos,
         footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
         inline_options: MdInlinesWriterOptions {
-            link_canonicalization: cli.link_canonicalization,
+            link_format: cli.link_format,
         },
     };
 

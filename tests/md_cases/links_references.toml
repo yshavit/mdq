@@ -41,7 +41,7 @@ output = '''
 
 
 [expect."keep original"]
-cli_args = ["--link-canonicalization", "keep"]
+cli_args = ["--link-format", "keep"]
 output = '''
 - an [inline link](https://example.com)
 - a [standard reference link][1]
@@ -61,7 +61,7 @@ output = '''
 
 
 [expect."inline all"]
-cli_args = ["--link-canonicalization", "inline"]
+cli_args = ["--link-format", "inline"]
 output = '''
 - an [inline link](https://example.com)
 - a [standard reference link](https://example.com/1)

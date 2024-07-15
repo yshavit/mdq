@@ -95,7 +95,7 @@ where
             link_reference_placement: ReferencePlacement::Doc, // but we won't actually write them
             footnote_reference_placement: ReferencePlacement::Doc, // ditto
             inline_options: MdInlinesWriterOptions {
-                link_canonicalization: LinkTransform::Keep, // ignored; TODO remove from this struct
+                link_format: LinkTransform::Keep, // ignored; TODO remove from this struct
             },
         },
         prev_was_thematic_break: false,
@@ -1636,7 +1636,7 @@ pub mod tests {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Section,
                     inline_options: MdInlinesWriterOptions {
-                        link_canonicalization: LinkTransform::Reference,
+                        link_format: LinkTransform::Reference,
                     },
                 },
                 vec![MdElemRef::Link(&Link {
@@ -1720,7 +1720,7 @@ pub mod tests {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Section,
                     inline_options: MdInlinesWriterOptions {
-                        link_canonicalization: LinkTransform::Reference,
+                        link_format: LinkTransform::Reference,
                     },
                 },
                 vec![MdElemRef::Image(&Image {
@@ -1824,7 +1824,7 @@ pub mod tests {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Section,
                     inline_options: MdInlinesWriterOptions {
-                        link_canonicalization: LinkTransform::Keep,
+                        link_format: LinkTransform::Keep,
                     },
                 },
                 link_and_footnote_markdown(),
@@ -1851,7 +1851,7 @@ pub mod tests {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Doc,
                     inline_options: MdInlinesWriterOptions {
-                        link_canonicalization: LinkTransform::Keep,
+                        link_format: LinkTransform::Keep,
                     },
                 },
                 link_and_footnote_markdown(),
@@ -1881,7 +1881,7 @@ pub mod tests {
                     link_reference_placement: ReferencePlacement::Section,
                     footnote_reference_placement: ReferencePlacement::Section,
                     inline_options: MdInlinesWriterOptions {
-                        link_canonicalization: LinkTransform::Keep,
+                        link_format: LinkTransform::Keep,
                     },
                 },
                 md_elems![Paragraph {
@@ -1908,7 +1908,7 @@ pub mod tests {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Section,
                     inline_options: MdInlinesWriterOptions {
-                        link_canonicalization: LinkTransform::Keep,
+                        link_format: LinkTransform::Keep,
                     },
                 },
                 link_and_footnote_markdown(),
@@ -1938,7 +1938,7 @@ pub mod tests {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Doc,
                     inline_options: MdInlinesWriterOptions {
-                        link_canonicalization: LinkTransform::Keep,
+                        link_format: LinkTransform::Keep,
                     },
                 },
                 link_and_footnote_markdown(),
@@ -1967,7 +1967,7 @@ pub mod tests {
                     link_reference_placement: ReferencePlacement::Doc,
                     footnote_reference_placement: ReferencePlacement::Doc,
                     inline_options: MdInlinesWriterOptions {
-                        link_canonicalization: LinkTransform::Keep,
+                        link_format: LinkTransform::Keep,
                     },
                 },
                 // Define them in the opposite order that we'd expect them
@@ -2072,7 +2072,7 @@ pub mod tests {
             link_reference_placement: Default::default(),
             footnote_reference_placement: Default::default(),
             inline_options: MdInlinesWriterOptions {
-                link_canonicalization: LinkTransform::Keep,
+                link_format: LinkTransform::Keep,
             },
         }
     }
