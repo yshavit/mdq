@@ -420,7 +420,7 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
 
             if matches!(which, DefinitionsToWrite::Links | DefinitionsToWrite::Both) {
                 let mut defs_to_write: Vec<_> = self.inlines_writer.drain_pending_links();
-                defs_to_write.sort_by_key(|(k, _)| k.to_string());
+                defs_to_write.sort_by_key(|(k, _)| k.get_sort_string());
 
                 for (link_ref, link_def) in defs_to_write {
                     out.write_char('[');

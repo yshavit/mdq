@@ -5,7 +5,6 @@ use clap::ValueEnum;
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::fmt::Display;
 use std::ops::Deref;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -33,19 +32,16 @@ pub enum LinkLabel<'a> {
     Inline(&'a Vec<Inline>),
 }
 
-// TODO keep this logic, but not in display -- it should just be a method "link_text_as_string". We need this for
-// sorting references, but in that context it's always a LinkTransform::Keep where we don't care about the reference
-// definition. This method does that, but by overloading it to Display it's just a bit confusing what it's semantically
-// trying to do.
-impl<'a> Display for LinkLabel<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<'a> LinkLabel<'a> {
+    pub fn get_sort_string(&self) -> String {
+        // There may be a way to Cow this so that we don't have to copy the ::Text string, but I can't find it.
         match self {
-            LinkLabel::Text(s) => f.write_str(s),
+            LinkLabel::Text(s) => s.to_string(),
             LinkLabel::Inline(inlines) => {
                 let mut inline_writer = MdInlinesWriter::new(MdInlinesWriterOptions {
                     link_format: LinkTransform::Keep,
                 });
-                f.write_str(&inlines_to_string(&mut inline_writer, *inlines))
+                inlines_to_string(&mut inline_writer, *inlines)
             }
         }
     }
