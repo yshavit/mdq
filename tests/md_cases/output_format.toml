@@ -1,0 +1,40 @@
+[given]
+md = '''
+Test _one_ two[1] three.
+
+[1]: https://example.com/1
+'''
+
+
+[expect."default"]
+cli_args = []
+output = '''
+Test _one_ two[1] three.
+
+[1]: https://example.com/1
+'''
+
+
+[expect."md"]
+cli_args = ['-o', 'md']
+output = '''
+Test _one_ two[1] three.
+
+[1]: https://example.com/1
+'''
+
+
+[expect."markdown"]
+cli_args = ['--output', 'markdown']
+output = '''
+Test _one_ two[1] three.
+
+[1]: https://example.com/1
+'''
+
+
+[expect."json"]
+cli_args = ['--output', 'json']
+output = '''
+{"items":[{"document":[{"paragraph":"Test _one_ two[1] three."}]}],"links":{"1":{"url":"https://example.com/1"}}}
+'''

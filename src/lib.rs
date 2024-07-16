@@ -1,6 +1,7 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use output::Output;
 use std::borrow::Cow;
+use std::fmt::{Display, Formatter};
 use std::io;
 use std::io::{stdin, Read, Write};
 
@@ -48,8 +49,8 @@ pub struct Cli {
     pub(crate) link_format: LinkTransform,
 
     /// Output the results as a JSON object, instead of as markdown.
-    #[arg(long, short, default_value_t = false)]
-    pub(crate) json: bool, // TODO this should really be output=<json|md>
+    #[arg(long, short, default_value_t = OutputFormat::Markdown)]
+    pub(crate) output: OutputFormat,
 
     #[arg(
         short = ' ',
@@ -62,6 +63,29 @@ pub struct Cli {
     /// The selectors string
     #[arg(group = "selectors_group", value_name = "selectors")]
     pub(crate) selectors: Option<String>,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum OutputFormat {
+    /// Output results as Markdown.
+    Markdown,
+
+    /// Alias for markdown
+    Md,
+
+    /// Output results as JSON. Spans of inline elements (like within a single paragraph) will be rendered as a single string of
+    /// Markdown, not as separate JSON elements.
+    Json,
+}
+
+impl Display for OutputFormat {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let self_str = match self {
+            OutputFormat::Markdown | OutputFormat::Md => "markdown",
+            OutputFormat::Json => "json",
+        };
+        f.write_str(self_str)
+    }
 }
 
 impl Cli {
@@ -127,11 +151,14 @@ where
     };
 
     let mut stdout = get_out();
-    if cli.json {
-        serde_json::to_writer(&mut stdout, &SerdeDoc::new(&pipeline_nodes, md_options.inline_options)).unwrap();
-    } else {
-        let mut out = Output::new(Stream(&mut stdout));
-        fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
+    match cli.output {
+        OutputFormat::Markdown | OutputFormat::Md => {
+            let mut out = Output::new(Stream(&mut stdout));
+            fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
+        }
+        OutputFormat::Json => {
+            serde_json::to_writer(&mut stdout, &SerdeDoc::new(&pipeline_nodes, md_options.inline_options)).unwrap();
+        }
     }
 
     true
