@@ -29,6 +29,11 @@ jobs:
         env:
           GIST_URL: ${{ vars.COVERAGE_GIST_URL }}
           GH_TOKEN: ${{ secrets.API_TOKEN }}
+
+      # Note: the following could technically be a separate job, but the "environment"
+      # bit means it counts as a deployment, not just a normal build. It's nice to have
+      # just one deployment per job run, so I'm keeping this all in one job.
+      # It's pretty quick, anyway.
       - name: Count TODOs
         run: |
           set -euo pipefail
