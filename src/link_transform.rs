@@ -115,7 +115,7 @@ impl<'a> LinkTransformation<'a> {
         Self { link_text }
     }
 
-    // TODO we could in principle return a Cow<'a, LinkReference>, and save some clones in the assigner.
+    // We could in principle return a Cow<'a, LinkReference>, and save some clones in the assigner.
     // To do that, fmt_md_inlines.rs would need to adjust to hold Cows instead of LinkLabels directly. For now, not
     // a high priority.
     pub fn apply(self, transformer: &mut LinkTransformer, link: &'a LinkReference) -> LinkReference {

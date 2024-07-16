@@ -148,9 +148,9 @@ pub enum CodeBlockType {
 impl<'a> SerdeDoc<'a> {
     pub fn new(elems: &[MdElemRef<'a>], opts: MdInlinesWriterOptions) -> Self {
         let mut inlines_writer = MdInlinesWriter::new(opts);
-        const DEFAULT_CAPACITY: usize = 16; // todo we can actually compute these if we want
+        const DEFAULT_CAPACITY: usize = 16; // we could compute these, but it's not really worth it
         let mut result = Self {
-            items: Vec::with_capacity(DEFAULT_CAPACITY),
+            items: Vec::with_capacity(elems.len()),
             links: HashMap::with_capacity(DEFAULT_CAPACITY),
             footnotes: HashMap::with_capacity(DEFAULT_CAPACITY),
         };
