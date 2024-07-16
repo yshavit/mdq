@@ -5,7 +5,7 @@ use crate::tree::{
     TextVariant,
 };
 use serde::Serialize;
-use std::borrow::{Borrow, Cow};
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Copy, Clone)]
@@ -102,13 +102,13 @@ impl<'a> MdInlinesWriter<'a> {
         self.pending_references.footnotes.drain().collect()
     }
 
-    pub fn write_line<E, W>(&mut self, out: &mut Output<W>, elems: &'a [E])
+    pub fn write_line<W, I>(&mut self, out: &mut Output<W>, elems: I)
     where
-        E: Borrow<Inline>,
         W: SimpleWrite,
+        I: IntoIterator<Item = &'a Inline>,
     {
         for elem in elems {
-            self.write_inline_element(out, elem.borrow());
+            self.write_inline_element(out, elem);
         }
     }
 
@@ -174,7 +174,7 @@ impl<'a> MdInlinesWriter<'a> {
         out.write_char('[');
         match &label {
             LinkLabel::Text(text) => out.write_str(text),
-            LinkLabel::Inline(text) => self.write_line(out, text),
+            LinkLabel::Inline(text) => self.write_line(out, *text),
         }
         out.write_char(']');
 

@@ -1,11 +1,10 @@
 use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
 use clap::ValueEnum;
-use std::borrow::Borrow;
 use std::cmp::max;
 use std::fmt::Alignment;
 use std::ops::Deref;
 
-use crate::link_transform::{LinkLabel, LinkTransform};
+use crate::link_transform::LinkLabel;
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
@@ -83,26 +82,6 @@ where
     // break, and we want to add another such break so that it's clear that the reference definitions don't just go with
     // the last item.
     writer_state.write_definitions(out, DefinitionsToWrite::Both, nodes_count > 1);
-}
-
-pub fn write_md_inlines<'a, I, W>(out: &mut Output<W>, nodes: I, inlines_writer: &mut MdInlinesWriter<'a>)
-where
-    I: Iterator<Item = MdElemRef<'a>>,
-    W: SimpleWrite,
-{
-    let mut writer_state = MdWriterState {
-        opts: &MdOptions {
-            link_reference_placement: ReferencePlacement::Doc, // but we won't actually write them
-            footnote_reference_placement: ReferencePlacement::Doc, // ditto
-            inline_options: MdInlinesWriterOptions {
-                link_format: LinkTransform::Keep, // unused here, but removing it is more refactoring than it's worth
-            },
-        },
-        prev_was_thematic_break: false,
-        inlines_writer,
-    };
-    // This will write everything but the references; we'll keep those in the inlines_writer
-    writer_state.write_md(out, nodes, true);
 }
 
 struct MdWriterState<'s, 'a> {
@@ -450,10 +429,7 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
         });
     }
 
-    fn line_to_string<E>(&mut self, line: &'a [E]) -> String
-    where
-        E: Borrow<Inline>,
-    {
+    fn line_to_string(&mut self, line: &'a Line) -> String {
         let mut out = Output::new(String::with_capacity(line.len() * 10)); // rough guess
         self.inlines_writer.write_line(&mut out, line);
         out.take_underlying().unwrap()

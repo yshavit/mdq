@@ -1,4 +1,3 @@
-use crate::fmt_md;
 use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions, UrlAndTitle};
 use crate::link_transform::LinkLabel;
 use crate::output::Output;
@@ -287,9 +286,8 @@ fn inlines_to_string<'a, I>(inlines: I, writer: &mut MdInlinesWriter<'a>) -> Str
 where
     I: IntoIterator<Item = &'a Inline>,
 {
-    let md: Vec<_> = inlines.into_iter().map(|inline| MdElemRef::Inline(inline)).collect();
     let mut output = Output::new(String::with_capacity(16)); // guess
-    fmt_md::write_md_inlines(&mut output, md.into_iter().map(|e| e), writer);
+    writer.write_line(&mut output, inlines);
     output.take_underlying().unwrap()
 }
 
