@@ -14,7 +14,10 @@ jobs:
       CARGO_TERM_COLOR: always
     steps:
       - uses: actions/checkout@v4
-      - run: cargo install cargo-tarpaulin
+      - name: install cargo-tarpaulin
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-tarpaulin
       - name: Generate code coverage
         run: |
           cargo tarpaulin -o json --output-dir target/
@@ -45,7 +48,6 @@ jobs:
             jq -c '{schemaVersion: 1, label: $badge_label, color: $color, message: $message}' \
             --arg badge_label "☑ Pending TODOs" --arg color "$color" --arg message "$todos_count")"
 
-          percent_coverage="$(cargo llvm-cov --json | jq '.data[].totals.lines.percent')"
           printf '::notice title=TODOs Count::%s' "$todos_count"
           gh gist edit "$GIST_URL" <(echo "$json_text")
         env:
