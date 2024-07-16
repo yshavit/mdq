@@ -3,6 +3,8 @@ name: Coverage
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   coverage:
@@ -12,11 +14,11 @@ jobs:
       CARGO_TERM_COLOR: always
     steps:
       - uses: actions/checkout@v4
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+      - run: cargo install cargo-tarpaulin
       - name: Generate code coverage
         run: |
-          percent_coverage="$(cargo llvm-cov --json | jq '.data[].totals.lines.percent')"
+          cargo tarpaulin -o json --output-dir target/
+          percent_coverage="$(cat target/tarpaulin-report.json | jq .coverage)"
           printf '::notice title=Coverage (lines %%)::%s' "$percent_coverage"
           echo "LINES_PERCENT=$percent_coverage" >> "$GITHUB_ENV"
       - name: Upload to gist
