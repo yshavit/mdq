@@ -95,7 +95,7 @@ where
             link_reference_placement: ReferencePlacement::Doc, // but we won't actually write them
             footnote_reference_placement: ReferencePlacement::Doc, // ditto
             inline_options: MdInlinesWriterOptions {
-                link_format: LinkTransform::Keep, // ignored; TODO remove from this struct
+                link_format: LinkTransform::Keep, // unused here, but removing it is more refactoring than it's worth
             },
         },
         prev_was_thematic_break: false,
@@ -420,7 +420,7 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
 
             if matches!(which, DefinitionsToWrite::Links | DefinitionsToWrite::Both) {
                 let mut defs_to_write: Vec<_> = self.inlines_writer.drain_pending_links();
-                defs_to_write.sort_by_key(|(k, _)| k.to_string());
+                defs_to_write.sort_by_key(|(k, _)| k.get_sort_string());
 
                 for (link_ref, link_def) in defs_to_write {
                     out.write_char('[');

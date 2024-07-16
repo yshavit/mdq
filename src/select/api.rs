@@ -93,7 +93,7 @@ macro_rules! selectors {
                             None => Err(ParseErrorReason::UnexpectedEndOfInput),
                         }
                     }
-                    Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)), // TODO should be Any w/ bareword if first char is a letter
+                    Some(other) => Err(ParseErrorReason::UnexpectedCharacter(other)),
                 }
             }
         }
