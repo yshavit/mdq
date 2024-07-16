@@ -95,7 +95,7 @@ where
             link_reference_placement: ReferencePlacement::Doc, // but we won't actually write them
             footnote_reference_placement: ReferencePlacement::Doc, // ditto
             inline_options: MdInlinesWriterOptions {
-                link_format: LinkTransform::Keep, // ignored; TODO remove from this struct
+                link_format: LinkTransform::Keep, // unused here, but removing it is more refactoring than it's worth
             },
         },
         prev_was_thematic_break: false,
