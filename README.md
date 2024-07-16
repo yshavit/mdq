@@ -62,7 +62,7 @@ You can select...
   $ cat example.md | mdq '# foo'       # find headers whose title contains "foo"
   ```
 
-- Find lists and tasks:
+- Lists and tasks:
 
   ```bash
   $ cat example.md | mdq '- foo'       # find unordered list items containing "foo"
@@ -73,7 +73,7 @@ You can select...
   $ cat example.md | mdq '- [?] foo'   # find all task items containing "foo"
   ```
 
-- Find links and images:
+- Links and images:
 
   ```bash
   $ cat example.md | mdq '[foo](bar)'  # find links with display text containing "foo"
