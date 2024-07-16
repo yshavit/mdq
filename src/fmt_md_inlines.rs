@@ -102,10 +102,10 @@ impl<'a> MdInlinesWriter<'a> {
         self.pending_references.footnotes.drain().collect()
     }
 
-    pub fn write_line<W, I>(&mut self, out: &mut Output<W>, elems: I)
+    pub fn write_line<I, W>(&mut self, out: &mut Output<W>, elems: I)
     where
-        W: SimpleWrite,
         I: IntoIterator<Item = &'a Inline>,
+        W: SimpleWrite,
     {
         for elem in elems {
             self.write_inline_element(out, elem);
