@@ -1,7 +1,5 @@
-use clap::ValueEnum;
 use cli::{Cli, OutputFormat};
 use output::Output;
-use std::fmt::Display;
 use std::io;
 use std::io::{stdin, Read, Write};
 
