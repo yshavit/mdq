@@ -11,7 +11,7 @@ struct Case<const N: usize> {
 impl<const N: usize> Case<N> {
     fn check(&self) {
         let all_cli_args = ["cmd"].iter().chain(&self.cli_args);
-        let cli = mdq::Cli::try_parse_from(all_cli_args).unwrap();
+        let cli = mdq::cli::Cli::try_parse_from(all_cli_args).unwrap();
         let (actual_success, actual_out) = mdq::run_in_memory(&cli, self.md);
         assert_eq!(actual_out, self.expect_output);
         assert_eq!(actual_success, self.expect_success);
