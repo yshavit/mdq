@@ -49,7 +49,17 @@ where
     W: Write,
 {
     let ast = markdown::to_mdast(&contents, &markdown::ParseOptions::gfm()).unwrap();
-    let mdqs = MdElem::read(ast, &ReadOptions::default()).unwrap();
+    let read_options = ReadOptions {
+        validate_no_conflicting_links: false,
+        allow_unknown_markdown: cli.allow_unknown_markdown,
+    };
+    let mdqs = match MdElem::read(ast, &read_options) {
+        Ok(mdqs) => mdqs,
+        Err(err) => {
+            eprintln!("error: {}", err);
+            return false;
+        }
+    };
 
     let selectors_str = cli.selector_string();
     let selectors = match MdqRefSelector::parse(&selectors_str) {

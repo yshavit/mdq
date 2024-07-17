@@ -40,6 +40,10 @@ pub struct Cli {
     /// Quiet: do not print anything to stdout. The exit code will still be 0 if-and-only-iff any elements match.
     #[arg(long, short)]
     pub(crate) quiet: bool,
+
+    // See: tree.rs > Lookups::unknown_markdown.
+    #[arg(long, hide = true)]
+    pub(crate) allow_unknown_markdown: bool,
 }
 
 impl Cli {
