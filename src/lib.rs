@@ -49,7 +49,11 @@ where
     W: Write,
 {
     let ast = markdown::to_mdast(&contents, &markdown::ParseOptions::gfm()).unwrap();
-    let mdqs = match MdElem::read(ast, &ReadOptions::default()) {
+    let read_options = ReadOptions {
+        validate_no_conflicting_links: false,
+        allow_unknown_markdown: cli.allow_unknown_markdown,
+    };
+    let mdqs = match MdElem::read(ast, &read_options) {
         Ok(mdqs) => mdqs,
         Err(err) => {
             eprintln!("error: {}", err);

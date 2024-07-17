@@ -1,7 +1,7 @@
 use std::backtrace::Backtrace;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display, Formatter, Write};
 use std::hash::{Hash, Hasher};
 use std::vec::IntoIter;
 
@@ -89,14 +89,8 @@ pub struct ReadOptions {
     /// [1]: https://example.com/one
     /// ```
     pub validate_no_conflicting_links: bool,
-}
 
-impl Default for ReadOptions {
-    fn default() -> Self {
-        Self {
-            validate_no_conflicting_links: false,
-        }
-    }
+    pub allow_unknown_markdown: bool,
 }
 
 pub type TableRow = Vec<Line>;
@@ -205,6 +199,7 @@ pub enum InvalidMd {
     MissingReferenceDefinition(String),
     ConflictingReferenceDefinition(String),
     InternalError(PartialEqBacktrace),
+    UnknownMarkdown(&'static str),
 }
 
 /// A wrapper for [Backtrace] that implements [PartialEq] to always return `true`. This lets us use it in a struct
@@ -243,7 +238,13 @@ impl Display for InvalidMd {
                 f.write_str("internal error\n")?;
                 std::fmt::Display::fmt(&backtrace.0, f)
             }
-        }
+            InvalidMd::UnknownMarkdown(description) => {
+                write!(f, "encountered unknown markdown: {}\n\n", description)?;
+                f.write_str("* Please consider reporting this at https://github.com/yshavit/mdq/issues\n")?;
+                f.write_str("* You can suppress this error by using --allow-unknown-markdown.")
+            }
+        }?;
+        f.write_char('\n')
     }
 }
 
@@ -357,7 +358,7 @@ impl MdElem {
             })),
             mdast::Node::ImageReference(node) => MdElem::Inline(Inline::Image(Image {
                 alt: node.alt,
-                link: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
+                link: lookups.resolve_link(node.identifier, node.label, node.reference_kind, lookups)?,
             })),
             mdast::Node::Link(node) => MdElem::Inline(Inline::Link(Link {
                 text: MdElem::inlines(node.children, lookups)?,
@@ -369,10 +370,10 @@ impl MdElem {
             })),
             mdast::Node::LinkReference(node) => MdElem::Inline(Inline::Link(Link {
                 text: MdElem::inlines(node.children, lookups)?,
-                link_definition: lookups.resolve_link(node.identifier, node.label, node.reference_kind)?,
+                link_definition: lookups.resolve_link(node.identifier, node.label, node.reference_kind, lookups)?,
             })),
             mdast::Node::FootnoteReference(node) => {
-                let definition = lookups.resolve_footnote(&node.identifier, &node.label)?;
+                let definition = lookups.resolve_footnote(&node.identifier, &node.label, lookups)?;
                 MdElem::Inline(Inline::Footnote(Footnote {
                     label: node.label.unwrap_or(node.identifier),
                     text: MdElem::all(definition.children.clone(), lookups)?,
@@ -637,6 +638,7 @@ where
 struct Lookups {
     link_definitions: HashMap<String, mdast::Definition>,
     footnote_definitions: HashMap<String, mdast::FootnoteDefinition>,
+    allow_unknown_markdown: bool,
 }
 
 impl Lookups {
@@ -646,6 +648,7 @@ impl Lookups {
         let mut result = Self {
             link_definitions: HashMap::with_capacity(DEFAULT_CAPACITY),
             footnote_definitions: HashMap::with_capacity(DEFAULT_CAPACITY),
+            allow_unknown_markdown: read_opts.allow_unknown_markdown,
         };
 
         result.build_lookups(node, &read_opts)?;
@@ -653,14 +656,23 @@ impl Lookups {
         Ok(result)
     }
 
+    fn unknown_markdown(&self, description: &'static str) -> Result<(), InvalidMd> {
+        if self.allow_unknown_markdown {
+            Ok(())
+        } else {
+            Err(InvalidMd::UnknownMarkdown(description))
+        }
+    }
+
     fn resolve_link(
         &self,
         identifier: String,
         label: Option<String>,
         reference_kind: mdast::ReferenceKind,
+        lookups: &Lookups,
     ) -> Result<LinkDefinition, InvalidMd> {
         if let None = label {
-            todo!("What is this case???");
+            lookups.unknown_markdown("link label was None")?;
         }
         let Some(definition) = self.link_definitions.get(&identifier) else {
             let human_visible_identifier = label.unwrap_or(identifier);
@@ -683,9 +695,10 @@ impl Lookups {
         &self,
         identifier: &String,
         label: &Option<String>,
+        lookups: &Lookups,
     ) -> Result<&mdast::FootnoteDefinition, InvalidMd> {
         if label.is_none() {
-            todo!("What is this case???");
+            lookups.unknown_markdown("footnote label was None")?;
         }
         let Some(definition) = self.footnote_definitions.get(identifier) else {
             let human_visible_identifier = label.to_owned().unwrap_or_else(|| identifier.to_string());
@@ -878,7 +891,7 @@ mod tests {
 
             check!(&root.children[0], Node::List(ul), lookups => m_node!(MdElem::List{starting_index, items}) = {
                 for child in &ul.children {
-                    check!(error: child, Node::ListItem(_), lookups => InvalidMd::InternalError);
+                    check!(error: child, Node::ListItem(_), lookups => internal_error());
                 }
                 assert_eq!(starting_index, None);
                 assert_eq!(items, vec![
@@ -898,7 +911,7 @@ mod tests {
             });
             check!(&root.children[1], Node::List(ol), lookups => m_node!(MdElem::List{starting_index, items}) = {
                 for child in &ol.children {
-                    check!(error: child, Node::ListItem(_), lookups => InvalidMd::InternalError);
+                    check!(error: child, Node::ListItem(_), lookups => internal_error());
                 }
                 assert_eq!(starting_index, Some(4));
                 assert_eq!(items, vec![
@@ -1723,9 +1736,9 @@ mod tests {
                 );
                 // Do a spot check for the rows and cells; mainly just so that we'll have called check! on them.
                 assert_eq!(table_node.children.len(), 2); // two rows
-                check!(error: &table_node.children[0], Node::TableRow(tr), lookups => InvalidMd::InternalError, {
+                check!(error: &table_node.children[0], Node::TableRow(tr), lookups => internal_error(), {
                     assert_eq!(tr.children.len(), 4); // four columns
-                    check!(error: &tr.children[0], Node::TableCell(_), lookups => InvalidMd::InternalError);
+                    check!(error: &tr.children[0], Node::TableCell(_), lookups => internal_error());
                 })
             });
         }
@@ -1792,6 +1805,7 @@ mod tests {
                 &ParseOptions::gfm(),
                 ReadOptions {
                     validate_no_conflicting_links: true,
+                    allow_unknown_markdown: false,
                 },
                 indoc! {r#"
                 Hello [world][1]
@@ -1816,6 +1830,7 @@ mod tests {
                 &ParseOptions::gfm(),
                 ReadOptions {
                     validate_no_conflicting_links: true,
+                    allow_unknown_markdown: false,
                 },
                 indoc! {r#"
                 This [looks like a link][^1], but mdast parses it as a footnote.
@@ -1846,6 +1861,7 @@ mod tests {
                 &ParseOptions::gfm(),
                 ReadOptions {
                     validate_no_conflicting_links: true,
+                    allow_unknown_markdown: false,
                 },
                 md,
             );
@@ -1864,6 +1880,7 @@ mod tests {
                 &ParseOptions::gfm(),
                 ReadOptions {
                     validate_no_conflicting_links: true,
+                    allow_unknown_markdown: false,
                 },
                 md,
             );
@@ -1881,6 +1898,7 @@ mod tests {
                 &ParseOptions::gfm(),
                 ReadOptions {
                     validate_no_conflicting_links: true,
+                    allow_unknown_markdown: false,
                 },
                 indoc! {r#"
                 This [link is duplicated][1].
@@ -1901,6 +1919,7 @@ mod tests {
                     &ParseOptions::gfm(),
                     ReadOptions {
                         validate_no_conflicting_links,
+                        allow_unknown_markdown: false,
                     },
                     indoc! {r#"
                         This [link is duplicated][1].
@@ -2244,5 +2263,18 @@ mod tests {
         let mut s = String::with_capacity(32);
         nodes.iter().for_each(|n| build(&mut s, n));
         s
+    }
+
+    fn internal_error() -> InvalidMd {
+        InvalidMd::InternalError(PartialEqBacktrace(Backtrace::force_capture()))
+    }
+
+    impl Default for ReadOptions {
+        fn default() -> Self {
+            Self {
+                validate_no_conflicting_links: false,
+                allow_unknown_markdown: false,
+            }
+        }
     }
 }
