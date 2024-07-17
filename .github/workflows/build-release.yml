@@ -36,8 +36,6 @@ jobs:
     - uses: actions/checkout@v4
     - name: build
       run: cargo build --release
-    - name: set permission
-      run: chmod +x target/release/$BUILD_FILE_NAME
     - name: sha256sum
       shell: bash
       run: |
@@ -60,7 +58,6 @@ jobs:
         cp scripts/installer.sh "$tmp_file"
         base64 -b 72 -i target/release/mdq | sed 's/^/# /' >> "$tmp_file"
         mv "$tmp_file" target/release/mdq-installer.sh
-        chmod +x target/release/mdq-installer.sh
         export BUILD_FILE_NAME=mdq-installer.sh
         echo BUILD_FILE_NAME=mdq-installer.sh >> "$GITHUB_ENV"
         printf '::notice title=sha256sum %s (%s)::%s\n' "$BUILD_FILE_NAME" "$MATRIX_OS" "$(shasum -a 256 "target/release/${BUILD_FILE_NAME}" | cut -f1 -d' ')"
