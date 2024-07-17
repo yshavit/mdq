@@ -9,6 +9,12 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+# for attestations
+permissions:
+  id-token: write
+  attestations: write
+  contents: read
+
 jobs:
   build:
     strategy:
@@ -45,19 +51,28 @@ jobs:
         printf '::notice title=sha256sum %s (%s)::%s\n' "$BUILD_FILE_NAME" "$MATRIX_OS" "$(sha256sum "target/release/${BUILD_FILE_NAME}" | cut -f1 -d' ')"
       env:
         MATRIX_OS: ${{ matrix.os }}
+    - name: Attest Build Provenance
+      uses: actions/attest-build-provenance@v1
+      with:
+      subject-path: "target/release/${{ env.BUILD_FILE_NAME }}"
     - name: mac installer
       if: ${{ runner.os == 'macOS' }}
       run: |
         tmp_file="$(mktemp)"
         cp scripts/installer.sh "$tmp_file"
         base64 -b 72 -i target/release/mdq | sed 's/^/# /' >> "$tmp_file"
-        chmod +x "$tmp_file"
         mv "$tmp_file" target/release/mdq-installer.sh
+        chmod +x target/release/mdq-installer.sh
         export BUILD_FILE_NAME=mdq-installer.sh
         echo BUILD_FILE_NAME=mdq-installer.sh >> "$GITHUB_ENV"
         printf '::notice title=sha256sum %s (%s)::%s\n' "$BUILD_FILE_NAME" "$MATRIX_OS" "$(shasum -a 256 "target/release/${BUILD_FILE_NAME}" | cut -f1 -d' ')"
       env:
         MATRIX_OS: ${{ matrix.os }}
+    - name: Attest Build Provenance (mac installer)
+      if: ${{ runner.os == 'macOS' }}
+      uses: actions/attest-build-provenance@v1
+      with:
+      subject-path: "target/release/${{ env.BUILD_FILE_NAME }}"
     - name: upload
       uses: actions/upload-artifact@v4
       with:
