@@ -1,5 +1,6 @@
 use clap::Parser;
-use mdq::{run_stdio, Cli};
+use mdq::cli::Cli;
+use mdq::run_stdio;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
