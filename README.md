@@ -28,7 +28,7 @@ you can (for example) ask mdq for all uncompleted tasks:
 mdq '- [ ]'
 ```
 
-mdq is available under the MIT license. I am open to other permissive licenses, if you have one you prefer.
+mdq is available under the Apache 2.0 or MIT licenses, at your option. I am open to other permissive licenses, if you have one you prefer.
 
 # Installation
 
