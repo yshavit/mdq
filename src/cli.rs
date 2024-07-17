@@ -41,6 +41,7 @@ pub struct Cli {
     #[arg(long, short)]
     pub(crate) quiet: bool,
 
+    // See: tree.rs > Lookups::unknown_markdown.
     #[arg(long, hide = true)]
     pub(crate) allow_unknown_markdown: bool,
 }
