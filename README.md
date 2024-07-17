@@ -32,13 +32,16 @@ mdq is available under the MIT license. I am open to other permissive licenses, 
 
 # Installation
 
-```shell
-cargo install --git https://github.com/yshavit/mdq
-```
+Any of these will work:
+1. ```shell
+   cargo install --git https://github.com/yshavit/mdq
+   ```
+2. You can download binaries from [the latest release] (or any other release, of course).
+3. You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do that (their limitation, not mine!)
 
-You can also grab the binaries from the latest [build-release] run. The build summary contains downloadable binaries
-for Windows, Linux, and Mac. (I haven't tested this on Windows, though.)
+The Windows release hasn't been tested.
 
+[the latest release]: https://github.com/yshavit/mdq/releases/latest
 [build-release]: https://github.com/yshavit/mdq/actions/workflows/build-release.yml
 
 # Basic Usage
