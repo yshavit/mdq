@@ -49,7 +49,13 @@ where
     W: Write,
 {
     let ast = markdown::to_mdast(&contents, &markdown::ParseOptions::gfm()).unwrap();
-    let mdqs = MdElem::read(ast, &ReadOptions::default()).unwrap();
+    let mdqs = match MdElem::read(ast, &ReadOptions::default()) {
+        Ok(mdqs) => mdqs,
+        Err(err) => {
+            eprintln!("error: {}", err);
+            return false;
+        }
+    };
 
     let selectors_str = cli.selector_string();
     let selectors = match MdqRefSelector::parse(&selectors_str) {

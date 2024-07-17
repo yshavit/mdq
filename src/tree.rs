@@ -1,6 +1,7 @@
+use std::backtrace::Backtrace;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::vec::IntoIter;
 
@@ -200,10 +201,50 @@ pub enum InvalidMd {
     Unsupported(mdast::Node),
     NonListItemDirectlyUnderList(mdast::Node),
     NonRowDirectlyUnderTable(mdast::Node),
-    NonInlineWhereInlineExpected,
+    NonInlineWhereInlineExpected(MdElem),
     MissingReferenceDefinition(String),
     ConflictingReferenceDefinition(String),
-    InternalError,
+    InternalError(PartialEqBacktrace),
+}
+
+/// A wrapper for [Backtrace] that implements [PartialEq] to always return `true`. This lets us use it in a struct
+/// while still letting us use `#[derive(PartialEq)]`
+#[derive(Debug)]
+pub struct PartialEqBacktrace(Backtrace);
+
+impl PartialEq for PartialEqBacktrace {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl Display for InvalidMd {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InvalidMd::Unsupported(node) => {
+                write!(f, "unsupported node: {:?}", node)
+            }
+            InvalidMd::NonListItemDirectlyUnderList(node) => {
+                write!(f, "expected a list item, but found: {:?}", node)
+            }
+            InvalidMd::NonRowDirectlyUnderTable(node) => {
+                write!(f, "expected a row, but found: {:?}", node)
+            }
+            InvalidMd::NonInlineWhereInlineExpected(node) => {
+                write!(f, "expected an inline element, but found: {:?}", node)
+            }
+            InvalidMd::MissingReferenceDefinition(id) => {
+                write!(f, "couldn't find definition for link/image/footnote: {}", id)
+            }
+            InvalidMd::ConflictingReferenceDefinition(id) => {
+                write!(f, "found multiple definitions for link/image/footnote: {}", id)
+            }
+            InvalidMd::InternalError(backtrace) => {
+                f.write_str("internal error\n")?;
+                std::fmt::Display::fmt(&backtrace.0, f)
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Hash)]
@@ -383,7 +424,7 @@ impl MdElem {
                     let mut column = Vec::with_capacity(cell_nodes.len());
                     for cell_node in cell_nodes {
                         let mdast::Node::TableCell(table_cell) = cell_node else {
-                            return Err(InvalidMd::InternalError);
+                            return Err(InvalidMd::InternalError(PartialEqBacktrace(Backtrace::force_capture())));
                         };
                         let cell_contents = Self::inlines(table_cell.children, lookups)?;
                         column.push(cell_contents);
@@ -397,7 +438,8 @@ impl MdElem {
             }
             mdast::Node::ThematicBreak(_) => m_node!(MdElem::ThematicBreak),
             mdast::Node::TableRow(_) | mdast::Node::TableCell(_) | mdast::Node::ListItem(_) => {
-                return Err(InvalidMd::InternalError); // should have been handled by Node::Table
+                // should have been handled by Node::Table
+                return Err(InvalidMd::InternalError(PartialEqBacktrace(Backtrace::force_capture())));
             }
             mdast::Node::Definition(_) => return Ok(Vec::new()),
             mdast::Node::Paragraph(node) => m_node!(MdElem::Paragraph {
@@ -532,7 +574,7 @@ impl MdElem {
         let mut result = Vec::with_capacity(mdq_children.len());
         for child in mdq_children {
             let MdElem::Inline(inline) = child else {
-                return Err(InvalidMd::NonInlineWhereInlineExpected);
+                return Err(InvalidMd::NonInlineWhereInlineExpected(child));
             };
             // If both this and the previous were plain text, then just combine the texts. This can happen if there was
             // a Node::Break between them.
