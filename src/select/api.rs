@@ -235,7 +235,7 @@ impl MdqRefSelector {
                     children.iter().map(|child| MdElemRef::Inline(child)).collect()
                 }
                 Inline::Footnote(footnote) => vec![MdElemRef::Doc(&footnote.text)],
-                Inline::Link(link) => vec![MdElemRef::Link(link)], // TODO find a test case that hits this to make sure it doesn't infinite-loop!
+                Inline::Link(link) => vec![MdElemRef::Link(link)], // issue #84: find a test case that hits this to make sure it doesn't infinite-loop!
                 Inline::Image(image) => vec![MdElemRef::Image(image)],
                 Inline::Text(Text { .. }) => Vec::new(),
             },
