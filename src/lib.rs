@@ -63,6 +63,10 @@ pub struct Cli {
     /// The selectors string
     #[arg(group = "selectors_group", value_name = "selectors")]
     pub(crate) selectors: Option<String>,
+
+    /// Quiet: do not print anything to stdout. The exit code will still be 0 if-and-only-iff any elements match.
+    #[arg(long, short)]
+    pub(crate) quiet: bool,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -105,12 +109,12 @@ impl Cli {
     }
 }
 
-pub fn run_in_memory(cli: &Cli, contents: &str) -> Result<String, &'static str> {
+pub fn run_in_memory(cli: &Cli, contents: &str) -> (bool, String) {
     let mut out = Vec::with_capacity(256); // just a guess
 
-    run(&cli, contents.to_string(), || &mut out);
-    let out_str = String::from_utf8(out).map_err(|_| "UTF-8 decode error")?;
-    Ok(out_str)
+    let result = run(&cli, contents.to_string(), || &mut out);
+    let out_str = String::from_utf8(out).map_err(|_| "UTF-8 decode error").unwrap();
+    (result, out_str)
 }
 
 pub fn run_stdio(cli: &Cli) -> bool {
@@ -150,18 +154,22 @@ where
         },
     };
 
-    let mut stdout = get_out();
-    match cli.output {
-        OutputFormat::Markdown | OutputFormat::Md => {
-            let mut out = Output::new(Stream(&mut stdout));
-            fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
-        }
-        OutputFormat::Json => {
-            serde_json::to_writer(&mut stdout, &SerdeDoc::new(&pipeline_nodes, md_options.inline_options)).unwrap();
+    let found_any = !pipeline_nodes.is_empty();
+
+    if !cli.quiet {
+        let mut stdout = get_out();
+        match cli.output {
+            OutputFormat::Markdown | OutputFormat::Md => {
+                let mut out = Output::new(Stream(&mut stdout));
+                fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
+            }
+            OutputFormat::Json => {
+                serde_json::to_writer(&mut stdout, &SerdeDoc::new(&pipeline_nodes, md_options.inline_options)).unwrap();
+            }
         }
     }
 
-    true
+    found_any
 }
 
 fn print_select_parse_error(original_string: &str, err: ParseError) {
