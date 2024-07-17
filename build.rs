@@ -113,6 +113,7 @@ struct TestGiven {
 struct TestExpect {
     cli_args: Vec<String>,
     output: String,
+    expect_success: Option<bool>,
 }
 
 impl TestSpecFile {
@@ -123,6 +124,7 @@ impl TestSpecFile {
                 case_name,
                 cli_args: test_expect.cli_args,
                 expect_output: test_expect.output,
+                expect_success: test_expect.expect_success.unwrap_or(true),
             })
         }
         results
@@ -134,6 +136,7 @@ struct Case {
     case_name: String,
     cli_args: Vec<String>,
     expect_output: String,
+    expect_success: bool,
 }
 
 impl Case {
@@ -161,6 +164,9 @@ impl Case {
                         }
                     });
                 }
+                out.write("expect_success: ")
+                    .write(&self.expect_success.to_string())
+                    .writeln(",");
                 out.write("md: MD,");
             });
             out.write("}.check();");

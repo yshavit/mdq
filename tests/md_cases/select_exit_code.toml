@@ -1,0 +1,21 @@
+[given]
+md = '''
+[fizz](https://example.com/buzz)
+'''
+
+
+[expect."match and output"]
+cli_args = ["--link-format", "keep", "[]()"]
+output = '''
+[fizz](https://example.com/buzz)'''
+
+
+[expect."match quiet"]
+cli_args = ["--link-format", "keep", "[]()", "-q"]
+output = ''
+
+
+[expect."no match"]
+cli_args = ["--link-format", "keep", "[no match]()"]
+output = ''
+expect_success = false

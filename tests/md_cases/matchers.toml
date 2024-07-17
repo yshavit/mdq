@@ -46,6 +46,7 @@ output = '''
 [expect."quoted with anchor"]
 cli_args = ['- "world "$'] # nothing matches this
 output = ''
+expect_success = false
 
 
 [expect."regex"]
@@ -65,8 +66,10 @@ output = '''
 [expect."quoted is case-sensitive"]
 cli_args = ['- "OYSTER"']
 output = ''
+expect_success = false
 
 
 [expect."regex is case-sensitive"]
 cli_args = ['- /OYSTER/']
 output = ''
+expect_success = false
