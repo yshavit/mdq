@@ -59,6 +59,29 @@ impl Cli {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum OutputFormat {
+    /// Output results as Markdown.
+    Markdown,
+
+    /// Alias for markdown
+    Md,
+
+    /// Output results as JSON. Spans of inline elements (like within a single paragraph) will be rendered as a single string of
+    /// Markdown, not as separate JSON elements.
+    Json,
+}
+
+impl Display for OutputFormat {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let self_str = match self {
+            OutputFormat::Markdown | OutputFormat::Md => "markdown",
+            OutputFormat::Json => "json",
+        };
+        f.write_str(self_str)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::cli::Cli;
@@ -117,28 +140,5 @@ mod tests {
         let mut expect_full = "error: ".to_string();
         expect_full.push_str(expect);
         assert_eq!(first_line, &expect_full);
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum OutputFormat {
-    /// Output results as Markdown.
-    Markdown,
-
-    /// Alias for markdown
-    Md,
-
-    /// Output results as JSON. Spans of inline elements (like within a single paragraph) will be rendered as a single string of
-    /// Markdown, not as separate JSON elements.
-    Json,
-}
-
-impl Display for OutputFormat {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let self_str = match self {
-            OutputFormat::Markdown | OutputFormat::Md => "markdown",
-            OutputFormat::Json => "json",
-        };
-        f.write_str(self_str)
     }
 }
