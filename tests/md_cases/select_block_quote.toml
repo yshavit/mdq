@@ -1,0 +1,43 @@
+[given]
+md = '''
+One
+
+> Two
+
+Three
+
+> - Four
+'''
+
+
+[expect."select all block quotes"]
+cli_args = ['>']
+output = '''
+> Two
+
+   -----
+
+> - Four
+'''
+
+
+[expect."select block quote with text"]
+cli_args = ['> two']
+output = '''
+> Two
+'''
+
+
+[expect."select block quote with list text"]
+ignore = '#144'
+cli_args = ['> - four'] # note: space between the - and [ is required
+output = '''
+> - Four
+'''
+
+
+[expect."select block quote then list"]
+cli_args = ['> | - *'] # note: space between the - and [ is required
+output = '''
+- Four
+'''
