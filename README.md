@@ -42,13 +42,12 @@ Any of these will work:
 3. You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
    that (their limitation, not mine!)
 
-> [!Note]
+> [!Tip]
 > - These binaries are all built on GitHub's servers, so if you trust my code (and dependencies), and you trust GitHub,
     you can trust the binaries.
     >
     >   See [the wiki page on release binaries] for information on how to verify them.
 > - You'll have to `chmod +x` them before you can run them.
-> - The Windows release hasn't been tested. I suspect it gets newlines wrong.
 >
 >
 
