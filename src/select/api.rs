@@ -1,6 +1,7 @@
 use crate::parse_common::Position;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
+use crate::select::sel_block_quote::BlockQuoteSelector;
 use crate::select::sel_image::ImageSelector;
 use crate::select::sel_link::LinkSelector;
 use crate::select::sel_list_item::ListItemSelector;
@@ -130,6 +131,8 @@ selectors![
 
     {'['} Link,
     ! {'['} Image,
+
+    {'>'} BlockQuote
 ];
 
 impl MdqRefSelector {

@@ -114,6 +114,7 @@ struct TestExpect {
     cli_args: Vec<String>,
     output: String,
     expect_success: Option<bool>,
+    ignore: Option<String>,
 }
 
 impl TestSpecFile {
@@ -125,6 +126,7 @@ impl TestSpecFile {
                 cli_args: test_expect.cli_args,
                 expect_output: test_expect.output,
                 expect_success: test_expect.expect_success.unwrap_or(true),
+                ignored: test_expect.ignore.is_some(),
             })
         }
         results
@@ -134,6 +136,7 @@ impl TestSpecFile {
 #[derive(Debug)]
 struct Case {
     case_name: String,
+    ignored: bool,
     cli_args: Vec<String>,
     expect_output: String,
     expect_success: bool,
@@ -142,6 +145,9 @@ struct Case {
 impl Case {
     fn write_test_fn_to(&self, out: &mut Writer) {
         let fn_name = self.case_name.replace(|ch: char| !ch.is_alphanumeric(), "_");
+        if self.ignored {
+            out.writeln("#[ignore]");
+        }
         out.writeln("#[test]");
         out.writes(&["fn ", &fn_name, "() {"]);
         out.with_indent(|out| {

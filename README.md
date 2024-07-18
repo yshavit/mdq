@@ -28,27 +28,34 @@ you can (for example) ask mdq for all uncompleted tasks:
 mdq '- [ ]'
 ```
 
-mdq is available under the Apache 2.0 or MIT licenses, at your option. I am open to other permissive licenses, if you have one you prefer.
+mdq is available under the Apache 2.0 or MIT licenses, at your option. I am open to other permissive licenses, if you
+have one you prefer.
 
 # Installation
 
 Any of these will work:
+
 1. ```shell
    cargo install --git https://github.com/yshavit/mdq
    ```
 2. You can download binaries from [the latest release] (or any other release, of course).
-3. You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do that (their limitation, not mine!)
+3. You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
+   that (their limitation, not mine!)
 
 > [!Note]
-> - These binaries are all built on GitHub's servers, so if you trust my code (and dependencies), and you trust GitHub, you can trust the binaries.
->
->   See [the wiki page on release binaries] for information on how to verify them.
+> - These binaries are all built on GitHub's servers, so if you trust my code (and dependencies), and you trust GitHub,
+    you can trust the binaries.
+    >
+    >   See [the wiki page on release binaries] for information on how to verify them.
 > - You'll have to `chmod +x` them before you can run them.
 > - The Windows release hasn't been tested. I suspect it gets newlines wrong.
 >
-> [the wiki page on release binaries]: https://github.com/yshavit/mdq/wiki/Release-binaries
+>
+
+[the wiki page on release binaries]: https://github.com/yshavit/mdq/wiki/Release-binaries
 
 [the latest release]: https://github.com/yshavit/mdq/releases/latest
+
 [build-release]: https://github.com/yshavit/mdq/actions/workflows/build-release.yml
 
 # Basic Usage
@@ -89,6 +96,12 @@ You can select...
   $ cat example.md | mdq '[foo](bar)'  # find links with display text containing "foo"
                                        # and URL containing "bar"
   $ cat example.md | mdq '![foo](bar)' # ditto for images
+  ```
+
+- Block quotes:
+
+  ```bash
+  $ cat example.md | mdq '> foo'  # find block quotes containing "foo"
   ```
 
 The `foo`s and `bar`s above can be:
