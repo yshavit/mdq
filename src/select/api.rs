@@ -238,7 +238,7 @@ impl MdqRefSelector {
                     children.iter().map(|child| MdElemRef::Inline(child)).collect()
                 }
                 Inline::Footnote(footnote) => vec![MdElemRef::Doc(&footnote.text)],
-                Inline::Link(link) => vec![MdElemRef::Link(link)], // issue #84: find a test case that hits this to make sure it doesn't infinite-loop!
+                Inline::Link(link) => vec![MdElemRef::Link(link)],
                 Inline::Image(image) => vec![MdElemRef::Image(image)],
                 Inline::Text(Text { .. }) => Vec::new(),
             },
@@ -329,5 +329,52 @@ mod test {
             MdqRefSelector::Section(SectionSelector::read(&mut ParsingIterator::new("")).unwrap()),
         ];
         assert_eq!(selected, Ok(expect));
+    }
+
+    /// Only a smoke test, because the code is pretty straightforward, and I don't feel like writing more. :-)
+    mod find_children_smoke {
+        use crate::mdq_inline;
+        use crate::select::MdqRefSelector;
+        use crate::tree::{Inline, Link, LinkDefinition, LinkReference, Text, TextVariant};
+        use crate::tree_ref::MdElemRef;
+
+        #[test]
+        fn link_direct() {
+            let link = Link {
+                text: vec![mdq_inline!("link text")],
+                link_definition: LinkDefinition {
+                    url: "https://example.com".to_string(),
+                    title: None,
+                    reference: LinkReference::Inline,
+                },
+            };
+            let node_ref = MdElemRef::Link(&link);
+            let children = MdqRefSelector::find_children(node_ref);
+            assert_eq!(
+                children,
+                vec![MdElemRef::Inline(&Inline::Text(Text {
+                    variant: TextVariant::Plain,
+                    value: "link text".to_string(),
+                }))]
+            );
+        }
+
+        #[test]
+        fn link_via_inlines() {
+            fn mk_link() -> Link {
+                Link {
+                    text: vec![mdq_inline!("link text")],
+                    link_definition: LinkDefinition {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline,
+                    },
+                }
+            }
+            let inline = Inline::Link(mk_link());
+            let node_ref = MdElemRef::Inline(&inline);
+            let children = MdqRefSelector::find_children(node_ref);
+            assert_eq!(children, vec![MdElemRef::Link(&mk_link()),]);
+        }
     }
 }

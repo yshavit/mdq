@@ -2,7 +2,7 @@ use crate::tree::{BlockQuote, CodeBlock, Image, Inline, Link, List, ListItem, Md
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
 /// selected.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MdElemRef<'a> {
     // Multiple elements that form a single area
     Doc(&'a Vec<MdElem>),
@@ -23,7 +23,7 @@ pub enum MdElemRef<'a> {
     Image(&'a Image),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ListItemRef<'a>(pub Option<u32>, pub &'a ListItem);
 
 impl<'a> From<&'a MdElem> for MdElemRef<'a> {
