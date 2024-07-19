@@ -3,6 +3,7 @@
 [![Code Coverage][coverage-shield]][coverage-link]
 [![Build status][build-shield]][build-link]
 [![Pending TODOs][todos-shield]][todos-link]
+[![Ignored tests][ignoreds-shield]][ignoreds-link]
 
 [coverage-shield]: https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fyshavit%2F53901a0115b596e015a891c41fb0f256%2Fraw%2Fmdq-coverage.json
 
@@ -15,6 +16,10 @@
 [todos-shield]: https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fyshavit%2Fe7a9e9e72651da0d7d2b1fbbe56237d0%2Fraw%2Fmdq-todos.json
 
 [todos-link]: https://github.com/search?q=repo%3Ayshavit%2Fmdq+NOT+path%3A.github%2Fworkflows%2Fcoverage.yml+NOT+path%3AREADME.md+todo&type=code
+
+[ignoreds-shield]: https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fyshavit%2F782a8dc5f77d2cf4b1c774da72636f00%2Fraw%2Fmdq-ignoreds.json
+
+[ignoreds-link]: https://github.com/search?q=repo%3Ayshavit%2Fmdq+%28%28path%3A%2F%5C.rs%24%2F+%22%23%5Bignore%5D%22%29+OR+%28path%3Atests%2Fmd_cases+%2F%5Eignore%2F%29%29&type=code
 
 ## What is mdq?
 
