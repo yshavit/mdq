@@ -24,6 +24,8 @@ jobs:
           percent_coverage="$(cat target/tarpaulin-report.json | jq .coverage)"
           printf '::notice title=Coverage (lines %%)::%s' "$percent_coverage"
           echo "LINES_PERCENT=$percent_coverage" >> "$GITHUB_ENV"
+        env:
+          TEST_TIMEOUT_MULTIPLIER: 10
       - name: Upload to gist
         run: ./scripts/percent_to_shields_gist coverage "$LINES_PERCENT"
         env:

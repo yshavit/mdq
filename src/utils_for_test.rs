@@ -14,6 +14,13 @@ mod test_utils {
         };
     }
 
+    #[macro_export]
+    macro_rules! test_delay_ms {
+        ($i:literal) => {
+            { time::Duration::from_millis($i * option_env!("TEST_TIMEOUT_MULTIPLIER").map(|s| s.parse::<u64>().expect("bad value for TEST_TIMEOUT_MULTIPLIER")).unwrap_or(1)) }
+        };
+    }
+
     /// Creates a static object named `$name` that looks for all the variants of enum `E`.
     ///
     /// ```
@@ -59,7 +66,7 @@ mod test_utils {
                     fn wait_for_all(&self) {
                         use std::{thread, time};
 
-                        let timeout = time::Duration::from_millis(500);
+                        let timeout = crate::test_delay_ms!(500);
                         let retry_delay = time::Duration::from_millis(50);
                         let start = time::Instant::now();
                         loop {
