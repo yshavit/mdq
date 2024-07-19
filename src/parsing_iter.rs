@@ -78,6 +78,12 @@ impl<'a> ParsingIterator<'a> {
             Ok(())
         }
     }
+    pub fn require_whitespace_or(&mut self, ch: char, description: &str) -> ParseResult<()> {
+        if self.peek() == Some(ch) {
+            return Ok(());
+        }
+        self.require_whitespace(description)
+    }
 
     pub fn require_char(&mut self, ch: char) -> ParseResult<()> {
         self.require_char_or_else(ch, || ParseErrorReason::Expected(ch))
