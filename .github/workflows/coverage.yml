@@ -3,6 +3,8 @@ name: Coverage
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ] # TODO
 
 jobs:
   coverage:
@@ -22,6 +24,8 @@ jobs:
           percent_coverage="$(cat target/tarpaulin-report.json | jq .coverage)"
           printf '::notice title=Coverage (lines %%)::%s' "$percent_coverage"
           echo "LINES_PERCENT=$percent_coverage" >> "$GITHUB_ENV"
+        env:
+          TEST_TIMEOUT_MULTIPLIER: 10
       - name: Upload to gist
         run: ./scripts/percent_to_shields_gist coverage "$LINES_PERCENT"
         env:
@@ -49,7 +53,7 @@ jobs:
           fi
           json_text="$(echo '{}' | 
             jq -c '{schemaVersion: 1, label: $badge_label, color: $color, message: $message}' \
-            --arg badge_label "☑ Pending TODOs" --arg color "$color" --arg message "$todos_count")"
+            --arg badge_label "Pending TODOs" --arg color "$color" --arg message "$todos_count")"
 
           printf '::notice title=TODOs Count::%s' "$todos_count"
           gh gist edit "$GIST_URL" <(echo "$json_text")
@@ -57,3 +61,27 @@ jobs:
           GIST_URL: ${{ vars.TODOS_GIST_URL }}
           GH_TOKEN: ${{ secrets.API_TOKEN }}
       
+      - name: Count Ignored Tests
+        run: |
+          rs_ignored="$(find . -not -path './target/*' -name '*.rs' -exec grep --fixed-strings -Hno '#[ignore]' {} \; | wc -l)"
+          integ_ignored="$(cd tests/md_cases/ ; find . -name '*.toml' -exec grep -Hno '^ignore\b' {} \; | wc -l)"
+          total_ignored="$(( $rs_ignored + $integ_ignored ))"
+
+          if [ "$total_ignored" -eq 0 ]; then
+            color=green
+          else
+            color=orange
+          fi
+          json_text="$(echo '{}' | 
+            jq -c '{schemaVersion: 1, label: $badge_label, color: $color, message: $message}' \
+            --arg badge_label "Ignored Tests" --arg color "$color" --arg message "$total_ignored")"
+
+          printf '::notice title=Ignored Tests Count::%s' "$total_ignored"
+          gh gist edit "$GIST_URL" <(echo "$json_text")
+        env:
+          GIST_URL: ${{ vars.IGNOREDS_GIST_URL }}
+          GH_TOKEN: ${{ secrets.API_TOKEN }}
+
+          
+
+
