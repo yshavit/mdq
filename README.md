@@ -44,12 +44,10 @@ Any of these will work:
 
 > [!Tip]
 > - These binaries are all built on GitHub's servers, so if you trust my code (and dependencies), and you trust GitHub,
-    you can trust the binaries.
-    >
-    >   See [the wiki page on release binaries] for information on how to verify them.
+>   you can trust the binaries.
+>
+>   See [the wiki page on release binaries] for information on how to verify them.
 > - You'll have to `chmod +x` them before you can run them.
->
->
 
 [the wiki page on release binaries]: https://github.com/yshavit/mdq/wiki/Release-binaries
 
