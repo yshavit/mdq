@@ -315,4 +315,19 @@ mod test {
             assert_eq!(mdq_ref_sel_parsed, Err(UnexpectedCharacter('\u{2603}')));
         }
     }
+
+    #[test]
+    fn pipes_smoke_test() {
+        // - leading pipes are discarded
+        // - block quote selector
+        // - empty selectors are disregarded
+        // - section selector
+        // - trailing selectors are disregarded
+        let selected = MdqRefSelector::parse("| > || # |||");
+        let expect = vec![
+            MdqRefSelector::BlockQuote(BlockQuoteSelector::read(&mut ParsingIterator::new("")).unwrap()),
+            MdqRefSelector::Section(SectionSelector::read(&mut ParsingIterator::new("")).unwrap()),
+        ];
+        assert_eq!(selected, Ok(expect));
+    }
 }
