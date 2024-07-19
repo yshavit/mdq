@@ -61,8 +61,8 @@ jobs:
       
       - name: Count Ignored Tests
         run: |
-          rs_ignored="$(find . -name '*.rs' -exec grep --fixed-strings -Hno '#[ignore]' {} \; | wc -l)"
-          integ_ignored="$(cd  tests/md_cases/ ; find . -name '*.toml' -exec grep -Hno '^ignore\b' {} \; | wc -l)"
+          rs_ignored="$(find . -name '*.rs' -exec grep --exclude-dir=target --fixed-strings -Hno '#[ignore]' {} \; | wc -l)"
+          integ_ignored="$(cd  tests/md_cases/ ; find . -name '*.toml' -exec grep  --exclude-dir=target -Hno '^ignore\b' {} \; | wc -l)"
           total_ignored="$(( $rs_ignored + $integ_ignored ))"
 
           if [ "$total_ignored" -eq 0 ]; then
