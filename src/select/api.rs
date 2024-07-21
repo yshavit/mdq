@@ -2,6 +2,7 @@ use crate::parse_common::Position;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
 use crate::select::sel_block_quote::BlockQuoteSelector;
+use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_image::ImageSelector;
 use crate::select::sel_link::LinkSelector;
 use crate::select::sel_list_item::ListItemSelector;
@@ -132,7 +133,9 @@ selectors![
     {'['} Link,
     ! {'['} Image,
 
-    {'>'} BlockQuote
+    {'>'} BlockQuote,
+
+    {'`'} CodeBlock,
 ];
 
 impl MdqRefSelector {
@@ -255,14 +258,14 @@ mod test {
 
     mod single_selector_parse {
         use super::*;
-        use crate::select::ParseErrorReason::UnexpectedCharacter;
+        use crate::variants_checker;
 
         #[test]
         fn section() {
             let input = "#";
             let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
             let section_sel_parsed = SectionSelector::read(&mut ParsingIterator::new(&input[1..])).unwrap();
-            assert_eq!(mdq_ref_sel_parsed, Ok(MdqRefSelector::Section(section_sel_parsed)));
+            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::Section(section_sel_parsed));
         }
 
         #[test]
@@ -271,7 +274,7 @@ mod test {
             let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
             let item_parsed =
                 ListItemSelector::read(ListItemType::Ordered, &mut ParsingIterator::new(&input[1..])).unwrap();
-            assert_eq!(mdq_ref_sel_parsed, Ok(MdqRefSelector::ListItem(item_parsed)));
+            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::ListItem(item_parsed));
         }
 
         #[test]
@@ -280,7 +283,7 @@ mod test {
             let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
             let item_parsed =
                 ListItemSelector::read(ListItemType::Unordered, &mut ParsingIterator::new(&input[1..])).unwrap();
-            assert_eq!(mdq_ref_sel_parsed, Ok(MdqRefSelector::ListItem(item_parsed)));
+            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::ListItem(item_parsed));
         }
 
         #[test]
@@ -288,7 +291,7 @@ mod test {
             let input = "[]()";
             let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
             let item_parsed = LinkSelector::read(&mut ParsingIterator::new(&input[1..])).unwrap();
-            assert_eq!(mdq_ref_sel_parsed, Ok(MdqRefSelector::Link(item_parsed)));
+            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::Link(item_parsed));
         }
 
         #[test]
@@ -297,7 +300,7 @@ mod test {
             let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
             // note: input[2..] because parse_selector reads both the '!' and the '['
             let item_parsed = ImageSelector::read(&mut ParsingIterator::new(&input[2..])).unwrap();
-            assert_eq!(mdq_ref_sel_parsed, Ok(MdqRefSelector::Image(item_parsed)));
+            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::Image(item_parsed));
         }
 
         #[test]
@@ -305,15 +308,47 @@ mod test {
             let input = ">";
             let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
             let item_parsed = BlockQuoteSelector::read(&mut ParsingIterator::new(&input[1..])).unwrap();
-            assert_eq!(mdq_ref_sel_parsed, Ok(MdqRefSelector::BlockQuote(item_parsed)));
+            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::BlockQuote(item_parsed));
+        }
+
+        #[test]
+        fn code_block() {
+            let input = "```";
+            let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
+            let item_parsed = CodeBlockSelector::read(&mut ParsingIterator::new(&input[1..])).unwrap();
+            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::CodeBlock(item_parsed));
+        }
+
+        #[test]
+        fn code_block_only_two_backticks() {
+            let input = "``";
+            let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
+            assert_eq!(mdq_ref_sel_parsed, Err(ParseErrorReason::Expected('`')));
         }
 
         #[test]
         fn unknown() {
             let input = "\u{2603}";
             let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
-            assert_eq!(mdq_ref_sel_parsed, Err(UnexpectedCharacter('\u{2603}')));
+            assert_eq!(
+                mdq_ref_sel_parsed,
+                Err(ParseErrorReason::UnexpectedCharacter('\u{2603}'))
+            );
         }
+
+        fn expect_ok(actual: ParseResult<MdqRefSelector>, expected: MdqRefSelector) {
+            actual.iter().for_each(|s| CHECKER.see(s));
+            assert_eq!(actual, Ok(expected))
+        }
+
+        variants_checker!(CHECKER = MdqRefSelector{
+            Section(_),
+            ListItem(_),
+            Link(_),
+            Image(_),
+            BlockQuote(_),
+            CodeBlock(_),
+        });
     }
 
     #[test]

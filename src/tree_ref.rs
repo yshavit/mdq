@@ -47,6 +47,12 @@ impl<'a> From<&'a BlockQuote> for MdElemRef<'a> {
     }
 }
 
+impl<'a> From<&'a CodeBlock> for MdElemRef<'a> {
+    fn from(value: &'a CodeBlock) -> Self {
+        MdElemRef::CodeBlock(value)
+    }
+}
+
 impl<'a> From<ListItemRef<'a>> for MdElemRef<'a> {
     fn from(value: ListItemRef<'a>) -> Self {
         MdElemRef::ListItem(value)

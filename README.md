@@ -106,6 +106,12 @@ You can select...
   $ cat example.md | mdq '> foo'  # find block quotes containing "foo"
   ```
 
+- Code blocks:
+
+  ```bash
+  $ cat example.md | mdq '```rust fizz'  # find code blocks for rust with "fizz" within them
+  ```
+
 The `foo`s and `bar`s above can be:
 
 - an `unquoted string` that starts with a letter, as shown above
