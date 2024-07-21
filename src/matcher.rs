@@ -59,7 +59,10 @@ impl StringMatcher {
         }
     }
 
-    pub fn read(chars: &mut ParsingIterator, bareword_end: char) -> ParseResult<Self> {
+    pub fn read<C>(chars: &mut ParsingIterator, bareword_end: C) -> ParseResult<Self>
+    where
+        C: Into<CharEnd>,
+    {
         chars.drop_whitespace();
         let peek_ch = match chars.peek() {
             None => return Ok(StringMatcher::any()),
@@ -78,6 +81,7 @@ impl StringMatcher {
         if peek_ch.is_alphanumeric() {
             return Ok(Self::parse_matcher_bare(chars, bareword_end, anchor_start));
         }
+        let bareword_end = bareword_end.into();
         match peek_ch {
             '*' => {
                 let _ = chars.next(); // drop the char we peeked
@@ -102,7 +106,7 @@ impl StringMatcher {
                     ))
                 }
             }
-            other if other == bareword_end => {
+            other if bareword_end.test(other) => {
                 // do *not* consume the bareword end delimiter!
                 if anchor_start {
                     Err(ParseErrorReason::InvalidSyntax(
@@ -118,22 +122,38 @@ impl StringMatcher {
         }
     }
 
-    fn parse_matcher_bare(chars: &mut ParsingIterator, bareword_end: char, anchor_start: bool) -> Self {
+    fn parse_matcher_bare<C>(chars: &mut ParsingIterator, bareword_end: C, anchor_start: bool) -> Self
+    where
+        C: Into<CharEnd>,
+    {
         let mut result = String::with_capacity(20); // just a guess
         let mut dropped = String::with_capacity(8); // also a guess
 
+        let bareword_end = bareword_end.into();
         let anchor_end = loop {
-            // Drop whitespace, but keep a record of it. If we see a char within this bareword (ie not end-of-input or
-            // the bareword_end), then we'll append that whitespace back.
-            chars.drop_to_while(&mut dropped, |ch| ch.is_whitespace());
-            let Some(ch) = chars.peek() else {
+            let ch = match bareword_end {
+                CharEnd::AtChar(_) => {
+                    // Drop whitespace, but keep a record of it. If we see a char within this bareword
+                    // (ie not end-of-input or the bareword_end), then we'll append that whitespace back at the end
+                    // of this iteration.
+                    chars.drop_to_while(&mut dropped, |ch| ch.is_whitespace());
+                    chars.peek()
+                }
+                CharEnd::AtWhitespace => match chars.peek() {
+                    None => None,
+                    Some(ch) if ch.is_whitespace() => None,
+                    ch @ Some(_) => ch,
+                },
+            };
+            let Some(ch) = ch else {
                 break false;
             };
+
             if ch == Self::BAREWORD_ANCHOR_END {
                 let _ = chars.next();
                 break true;
             }
-            if ch == bareword_end {
+            if bareword_end.test(ch) {
                 break false;
             }
             let _ = chars.next();
@@ -223,7 +243,7 @@ impl StringMatcher {
         }
     }
 
-    fn any() -> Self {
+    pub fn any() -> Self {
         Self {
             re: Regex::new(".*").expect("internal error"),
         }
@@ -237,6 +257,26 @@ impl StringMatcher {
 
     fn regex(re: Regex) -> Self {
         Self { re }
+    }
+}
+
+pub enum CharEnd {
+    AtChar(char),
+    AtWhitespace,
+}
+
+impl From<char> for CharEnd {
+    fn from(ch: char) -> Self {
+        Self::AtChar(ch)
+    }
+}
+
+impl CharEnd {
+    fn test(&self, test_ch: char) -> bool {
+        match self {
+            CharEnd::AtChar(look_for) => look_for == &test_ch,
+            CharEnd::AtWhitespace => test_ch.is_whitespace(),
+        }
     }
 }
 
@@ -273,6 +313,7 @@ mod test {
     use crate::parse_common::Position;
     use crate::select::SELECTOR_SEPARATOR;
     use indoc::indoc;
+    use std::str::FromStr;
 
     #[test]
     fn bareword() {
@@ -578,5 +619,13 @@ mod test {
         s.push_str("(?i)");
         s.push_str(value);
         re(&s)
+    }
+
+    impl From<&str> for StringMatcher {
+        fn from(value: &str) -> Self {
+            Self {
+                re: Regex::from_str(value).unwrap(),
+            }
+        }
     }
 }
