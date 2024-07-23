@@ -16,7 +16,7 @@ fn build_inlines<N: Borrow<Inline>>(out: &mut String, inlines: &[N]) {
 fn build_inline(out: &mut String, elem: &Inline) {
     match elem {
         Inline::Formatting(Formatting { children, .. }) => build_inlines(out, children),
-        Inline::Text(Text { variant, value, .. }) => out.push_str(value),
+        Inline::Text(Text { value, .. }) => out.push_str(value),
         Inline::Link(Link { text, .. }) => build_inlines(out, text),
         Inline::Image(Image { alt, .. }) => out.push_str(alt),
         Inline::Footnote(footnote) => {
