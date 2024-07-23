@@ -180,7 +180,7 @@ impl StringMatcher {
                         'n' => '\n',
                         'r' => '\r',
                         't' => '\t',
-                        '`' => '`',
+                        '`' => '\'',
                         'u' => {
                             chars.require_char('{')?;
                             let mut hex_str = String::with_capacity(6);
@@ -439,7 +439,7 @@ mod test {
     fn double_quoted_string() {
         parse_and_check(
             r#" "hello world's ☃ \' \" \` \r \n \t says \"\u{2603}\" to me"_"#,
-            re("hello world's ☃ ' \" ` \r \n \t says \"☃\" to me"),
+            re("hello world's ☃ ' \" ' \r \n \t says \"☃\" to me"),
             "_",
         );
     }
@@ -451,7 +451,7 @@ mod test {
     fn single_quoted_string() {
         parse_and_check(
             r#" 'hello world\'s ☃ \' \" \` \r \n \t says "\u{2603}" to me'_"#,
-            re("hello world's ☃ ' \" ` \r \n \t says \"☃\" to me"),
+            re("hello world's ☃ ' \" ' \r \n \t says \"☃\" to me"),
             "_",
         );
     }
