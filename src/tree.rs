@@ -21,6 +21,7 @@ pub enum MdElem {
     ThematicBreak,
 
     Inline(Inline),
+    Html(String),
 }
 
 #[derive(Debug, PartialEq)]
@@ -454,10 +455,7 @@ impl MdElem {
                 variant: CodeVariant::Yaml,
                 value: node.value,
             }),
-            mdast::Node::Html(node) => MdElem::Inline(Inline::Text(Text {
-                variant: TextVariant::Html,
-                value: node.value,
-            })),
+            mdast::Node::Html(node) => MdElem::Html(node.value),
 
             mdx_nodes! {} => {
                 // If you implement this, make sure to remove the mdx_nodes macro. That means you'll also need to
@@ -574,8 +572,13 @@ impl MdElem {
         let mdq_children = Self::all(children, lookups)?;
         let mut result = Vec::with_capacity(mdq_children.len());
         for child in mdq_children {
-            let MdElem::Inline(inline) = child else {
-                return Err(InvalidMd::NonInlineWhereInlineExpected(child));
+            let inline = match child {
+                MdElem::Inline(inline) => inline,
+                MdElem::Html(html) => Inline::Text(Text {
+                    variant: TextVariant::Html,
+                    value: html,
+                }),
+                _ => return Err(InvalidMd::NonInlineWhereInlineExpected(child)),
             };
             // If both this and the previous were plain text, then just combine the texts. This can happen if there was
             // a Node::Break between them.
@@ -1030,17 +1033,45 @@ mod tests {
         }
 
         #[test]
-        fn inline_html() {
+        fn block_html() {
+            {
+                let (root, lookups) = parse(indoc! {r#"
+                    <div>
+
+                    Hello, world
+                "#});
+
+                check!(&root.children[0], Node::Html(_), lookups => MdElem::Html(html) = {
+                    assert_eq!(html, "<div>");
+                });
+                check!(&root.children[1], Node::Paragraph(_), lookups => m_node!(MdElem::Paragraph{body}) = {
+                    assert_eq!(body, vec![mdq_inline!("Hello, world")])
+                });
+                assert_eq!(root.children.len(), 2);
+            }
+            {
+                let (root, lookups) = parse(indoc! {r#"
+                    <div Hello
+                    world. />
+                "#});
+
+                check!(&root.children[0], Node::Html(_), lookups => MdElem::Html(html) = {
+                    assert_eq!(html, "<div Hello\nworld. />");
+                });
+                assert_eq!(root.children.len(), 1);
+            }
             {
                 let (root, lookups) = parse("<a href>");
 
-                check!(&root.children[0], Node::Html(_), lookups => MdElem::Inline(inline) = {
-                    assert_eq!(inline, Inline::Text (Text{
-                        variant: TextVariant::Html,
-                        value: "<a href>".to_string(),
-                    }));
+                check!(&root.children[0], Node::Html(_), lookups => MdElem::Html(inline) = {
+                    assert_eq!(inline, "<a href>");
                 });
+                assert_eq!(root.children.len(), 1);
             }
+        }
+
+        #[test]
+        fn inline_html() {
             {
                 // Being in a paragraph shows that it can be inline
                 let (root, lookups) = parse(indoc! {r#"

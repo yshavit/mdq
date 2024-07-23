@@ -162,6 +162,9 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
             }
             MdElemRef::Link(link) => self.inlines_writer.write_linklike(out, link),
             MdElemRef::Image(image) => self.inlines_writer.write_linklike(out, image),
+            MdElemRef::Html(html) => out.with_block(Block::Plain, |out| {
+                out.write_str(html);
+            }),
         }
     }
 
@@ -471,6 +474,7 @@ pub mod tests {
         ListItem(..),
         Link(..),
         Image(..),
+        Html(..),
 
         Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Delete, ..})),
         Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Emphasis, ..})),

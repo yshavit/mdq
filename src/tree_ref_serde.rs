@@ -58,6 +58,9 @@ pub enum SerdeElem<'a> {
         alignments: Vec<AlignSerde>,
         rows: Vec<Vec<String>>,
     },
+    Html {
+        value: &'a String,
+    },
 }
 
 fn serialize_thematic_break<S: Serializer>(ser: S) -> Result<S::Ok, S::Error> {
@@ -278,6 +281,7 @@ impl<'a> SerdeElem<'a> {
                 alt: &img.alt,
                 link: (&img.link).into(),
             },
+            MdElemRef::Html(value) => Self::Html { value },
         }
     }
 }
@@ -303,6 +307,7 @@ mod tests {
     use crate::tree_ref::ListItemRef;
     use crate::variants_checker;
     use crate::{md_elem, mdq_inline};
+    use markdown::mdast::Html;
 
     variants_checker!(CHECKER = MdElemRef {
         Doc(_),
@@ -315,6 +320,7 @@ mod tests {
         Section(_),
         Table(_),
         ThematicBreak,
+        Html(_),
 
         ListItem(_),
         Link(_),
@@ -643,6 +649,20 @@ mod tests {
                             [ "R1C1", "R1C2" ],
                             [ "R2C1", "R2C2" ]
                         ]
+                    }}
+                ]}
+            ),
+        );
+    }
+
+    #[test]
+    fn block_html() {
+        check(
+            MdElem::Html("<div />".to_string()),
+            json_str!(
+                {"items":[
+                    {"html":{
+                        "value": "<div />"
                     }}
                 ]}
             ),
