@@ -572,6 +572,8 @@ impl MdElem {
         let mdq_children = Self::all(children, lookups)?;
         let mut result = Vec::with_capacity(mdq_children.len());
         for child in mdq_children {
+            // Get this child as an Inline, or complain. HTML can be either inline or block; Self::all will always
+            // return it as a block, but we can just extract the String and convert it to an Inline.
             let inline = match child {
                 MdElem::Inline(inline) => inline,
                 MdElem::Html(html) => Inline::Text(Text {
