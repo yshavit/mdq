@@ -16,11 +16,7 @@ fn build_inlines<N: Borrow<Inline>>(out: &mut String, inlines: &[N]) {
 fn build_inline(out: &mut String, elem: &Inline) {
     match elem {
         Inline::Formatting(Formatting { children, .. }) => build_inlines(out, children),
-        Inline::Text(Text { variant, value, .. }) => {
-            if !matches!(variant, TextVariant::Html) {
-                out.push_str(value)
-            }
-        }
+        Inline::Text(Text { variant, value, .. }) => out.push_str(value),
         Inline::Link(Link { text, .. }) => build_inlines(out, text),
         Inline::Image(Image { alt, .. }) => out.push_str(alt),
         Inline::Footnote(footnote) => {
@@ -69,13 +65,14 @@ mod tests {
     }
 
     #[test]
-    fn text_html() {
-        let node = markdown::to_mdast("<foo>", &ParseOptions::gfm()).unwrap();
+    fn inline_html() {
+        let node = markdown::to_mdast("Hello <foo> world", &ParseOptions::gfm()).unwrap();
         let md_elems = MdElem::read(node, &ReadOptions::default()).unwrap();
-        unwrap!(&md_elems[0], MdElem::Inline(inline));
+        unwrap!(&md_elems[0], MdElem::Paragraph(contents));
+        unwrap!(&contents.body[1], inline @ Inline::Text(_));
         VARIANTS_CHECKER.see(inline);
-        let actual = inlines_to_plain_string(&[inline]);
-        assert_eq!(&actual, "");
+        let actual = inlines_to_plain_string(&contents.body);
+        assert_eq!(&actual, "Hello <foo> world");
     }
 
     #[test]
