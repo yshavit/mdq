@@ -86,7 +86,7 @@ You can select...
   ```bash
   $ cat example.md | mdq '- foo'       # find unordered list items containing "foo"
   $ cat example.md | mdq '1. foo'      # find ordered list items containing "foo"
-                                       #(note: the number must be exactly "1.")
+                                       #   (note: the number must be exactly "1.")
   $ cat example.md | mdq '- [ ] foo'   # find uncompleted task items containing "foo"
   $ cat example.md | mdq '- [x] foo'   # find completed task items containing "foo"
   $ cat example.md | mdq '- [?] foo'   # find all task items containing "foo"
@@ -110,6 +110,12 @@ You can select...
 
   ```bash
   $ cat example.md | mdq '```rust fizz'  # find code blocks for rust with "fizz" within them
+  ```
+
+- HTML (inline or block):
+
+  ```bash
+  $ cat example.md | mdq '</> foo'  # find html tags containing "foo"
   ```
 
 The `foo`s and `bar`s above can be:
