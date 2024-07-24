@@ -2028,19 +2028,23 @@ pub mod tests {
         #[test]
         fn inline() {
             check_render(
-                md_elems![Paragraph{
+                md_elems![Paragraph {
                     body: vec![
                         Inline::Text(Text {
-                            variant: TextVariant::Plain, value: "Hello ".to_string()
+                            variant: TextVariant::Plain,
+                            value: "Hello ".to_string()
                         }),
                         Inline::Text(Text {
-                            variant: TextVariant::Html, value: "<span class=\"greeting\">".to_string()
+                            variant: TextVariant::Html,
+                            value: "<span class=\"greeting\">".to_string()
                         }),
                         Inline::Text(Text {
-                            variant: TextVariant::Plain, value: "world".to_string()
+                            variant: TextVariant::Plain,
+                            value: "world".to_string()
                         }),
                         Inline::Text(Text {
-                            variant: TextVariant::Html, value: "</span>".to_string()
+                            variant: TextVariant::Html,
+                            value: "</span>".to_string()
                         }),
                     ]
                 }],
@@ -2051,20 +2055,13 @@ pub mod tests {
 
         #[test]
         fn block_single_line() {
-            check_render(
-                vec![
-                    MdElem::Html("<div>".to_string()),
-                ],
-                indoc! {r#"<div>"#},
-            )
+            check_render(vec![MdElem::Html("<div>".to_string())], indoc! {r#"<div>"#})
         }
 
         #[test]
         fn block_multi_line() {
             check_render(
-                vec![
-                    MdElem::Html("<div\nselected>".to_string()),
-                ],
+                vec![MdElem::Html("<div\nselected>".to_string())],
                 indoc! {r#"
                 <div
                 selected>"#},
