@@ -31,7 +31,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: cargo test
-      run: cargo test --verbose
+      run: |
+        # convert e.g. "thread 'fmt_str::tests::text_html' panicked at src/fmt_str.rs:75:9:" to
+        #              "::error file=src/fmt_str,line=75,col=9,title=test failure:: atfmt_str::tests::text_html"
+        set -o pipefail
+        cargo test --verbose | sed -E "s/thread '([^']+)' panicked at ([^:]+):([0-9]+):([0-9]+):$/::error file=\\2,line=\\3,col=\\4,title=test failure::at \\1/"
     - name: list ignored tests
       run: |
         (find . -name '*.rs' -exec grep --fixed-strings -Hno '#[ignore]' {} \; || true) | sed -E 's/^([^:]+):([^:]+):.*/::warning file=\1,line=\2,title=Ignored test::Regex indicates this test is probably ignored/'

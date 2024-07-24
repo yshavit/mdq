@@ -162,6 +162,9 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
             }
             MdElemRef::Link(link) => self.inlines_writer.write_linklike(out, link),
             MdElemRef::Image(image) => self.inlines_writer.write_linklike(out, image),
+            MdElemRef::Html(html) => out.with_block(Block::Plain, |out| {
+                out.write_str(html);
+            }),
         }
     }
 
@@ -471,6 +474,7 @@ pub mod tests {
         ListItem(..),
         Link(..),
         Image(..),
+        Html(..),
 
         Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Delete, ..})),
         Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Emphasis, ..})),
@@ -2015,6 +2019,53 @@ pub mod tests {
                     body: md_elems!["Second section contents."],
                 },
             ]
+        }
+    }
+
+    mod html {
+        use super::*;
+
+        #[test]
+        fn inline() {
+            check_render(
+                md_elems![Paragraph {
+                    body: vec![
+                        Inline::Text(Text {
+                            variant: TextVariant::Plain,
+                            value: "Hello ".to_string()
+                        }),
+                        Inline::Text(Text {
+                            variant: TextVariant::Html,
+                            value: "<span class=\"greeting\">".to_string()
+                        }),
+                        Inline::Text(Text {
+                            variant: TextVariant::Plain,
+                            value: "world".to_string()
+                        }),
+                        Inline::Text(Text {
+                            variant: TextVariant::Html,
+                            value: "</span>".to_string()
+                        }),
+                    ]
+                }],
+                indoc! {r#"
+                Hello <span class="greeting">world</span>"#},
+            )
+        }
+
+        #[test]
+        fn block_single_line() {
+            check_render(vec![MdElem::Html("<div>".to_string())], indoc! {r#"<div>"#})
+        }
+
+        #[test]
+        fn block_multi_line() {
+            check_render(
+                vec![MdElem::Html("<div\nselected>".to_string())],
+                indoc! {r#"
+                <div
+                selected>"#},
+            )
         }
     }
 

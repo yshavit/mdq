@@ -248,6 +248,7 @@ impl MdqRefSelector {
 
             MdElemRef::Link(Link { text, .. }) => text.iter().map(|child| MdElemRef::Inline(child)).collect(),
             MdElemRef::Image(_) => Vec::new(),
+            MdElemRef::Html(_) => Vec::new(),
         }
     }
 }

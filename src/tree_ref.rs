@@ -15,6 +15,7 @@ pub enum MdElemRef<'a> {
     Paragraph(&'a Paragraph),
     Section(&'a Section),
     Table(&'a Table),
+    Html(&'a String),
     ThematicBreak,
 
     // sub-elements
@@ -37,6 +38,7 @@ impl<'a> From<&'a MdElem> for MdElemRef<'a> {
             MdElem::BlockQuote(block) => Self::BlockQuote(block),
             MdElem::Section(section) => Self::Section(section),
             MdElem::Inline(child) => MdElemRef::Inline(child),
+            MdElem::Html(html) => MdElemRef::Html(html),
         }
     }
 }
