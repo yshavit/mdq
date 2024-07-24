@@ -108,3 +108,14 @@ Block B
 ```
 foo
 ```
+
+## Html Stuff
+
+First some <span>inline</span>.
+
+<div class="then some"
+href="#block-level">
+
+With paragraph text between it.
+
+</div>
