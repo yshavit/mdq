@@ -2022,6 +2022,56 @@ pub mod tests {
         }
     }
 
+    mod html {
+        use super::*;
+
+        #[test]
+        fn inline() {
+            check_render(
+                md_elems![Paragraph{
+                    body: vec![
+                        Inline::Text(Text {
+                            variant: TextVariant::Plain, value: "Hello ".to_string()
+                        }),
+                        Inline::Text(Text {
+                            variant: TextVariant::Html, value: "<span class=\"greeting\">".to_string()
+                        }),
+                        Inline::Text(Text {
+                            variant: TextVariant::Plain, value: "world".to_string()
+                        }),
+                        Inline::Text(Text {
+                            variant: TextVariant::Html, value: "</span>".to_string()
+                        }),
+                    ]
+                }],
+                indoc! {r#"
+                Hello <span class="greeting">world</span>"#},
+            )
+        }
+
+        #[test]
+        fn block_single_line() {
+            check_render(
+                vec![
+                    MdElem::Html("<div>".to_string()),
+                ],
+                indoc! {r#"<div>"#},
+            )
+        }
+
+        #[test]
+        fn block_multi_line() {
+            check_render(
+                vec![
+                    MdElem::Html("<div\nselected>".to_string()),
+                ],
+                indoc! {r#"
+                <div
+                selected>"#},
+            )
+        }
+    }
+
     fn check_render(nodes: Vec<MdElem>, expect: &str) {
         check_render_with(&default_opts(), nodes, expect);
     }

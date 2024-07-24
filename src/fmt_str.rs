@@ -1,4 +1,4 @@
-use crate::tree::{Formatting, Image, Inline, Link, Text, TextVariant};
+use crate::tree::{Formatting, Image, Inline, Link, Text};
 use std::borrow::Borrow;
 
 pub fn inlines_to_plain_string<N: Borrow<Inline>>(inlines: &[N]) -> String {

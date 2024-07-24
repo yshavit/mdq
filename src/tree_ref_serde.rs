@@ -307,7 +307,6 @@ mod tests {
     use crate::tree_ref::ListItemRef;
     use crate::variants_checker;
     use crate::{md_elem, mdq_inline};
-    use markdown::mdast::Html;
 
     variants_checker!(CHECKER = MdElemRef {
         Doc(_),
