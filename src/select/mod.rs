@@ -1,5 +1,4 @@
 mod api;
-mod base;
 mod sel_block_quote;
 mod sel_code_block;
 mod sel_html;
