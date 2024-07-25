@@ -1,6 +1,7 @@
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
-use crate::select::{ParseResult, Selector, SELECTOR_SEPARATOR};
+use crate::select::{ParseResult, SELECTOR_SEPARATOR};
+use crate::select::match_selector::MatchSelector;
 use crate::tree_ref::HtmlRef;
 
 #[derive(Debug, PartialEq)]
@@ -16,7 +17,7 @@ impl HtmlSelector {
     }
 }
 
-impl<'a> Selector<'a, HtmlRef<'a>> for HtmlSelector {
+impl<'a> MatchSelector<'a, HtmlRef<'a>> for HtmlSelector {
     fn matches(&self, html: HtmlRef<'a>) -> bool {
         self.matcher.matches(html.0)
     }

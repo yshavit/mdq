@@ -1,6 +1,7 @@
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
-use crate::select::{ParseResult, Selector, SELECTOR_SEPARATOR};
+use crate::select::{ParseResult, SELECTOR_SEPARATOR};
+use crate::select::match_selector::MatchSelector;
 use crate::tree::Section;
 
 #[derive(Debug, PartialEq)]
@@ -16,7 +17,7 @@ impl SectionSelector {
     }
 }
 
-impl<'a> Selector<'a, &'a Section> for SectionSelector {
+impl<'a> MatchSelector<'a, &'a Section> for SectionSelector {
     fn matches(&self, section: &'a Section) -> bool {
         self.matcher.matches_inlines(&section.title)
     }

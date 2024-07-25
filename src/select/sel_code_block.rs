@@ -1,6 +1,7 @@
 use crate::matcher::{CharEnd, StringMatcher};
 use crate::parsing_iter::ParsingIterator;
-use crate::select::{ParseResult, Selector, SELECTOR_SEPARATOR};
+use crate::select::{ParseResult, SELECTOR_SEPARATOR};
+use crate::select::match_selector::MatchSelector;
 use crate::tree::{CodeBlock, CodeVariant};
 
 #[derive(Debug, PartialEq)]
@@ -26,7 +27,7 @@ impl CodeBlockSelector {
     }
 }
 
-impl<'a> Selector<'a, &'a CodeBlock> for CodeBlockSelector {
+impl<'a> MatchSelector<'a, &'a CodeBlock> for CodeBlockSelector {
     fn matches(&self, code_block: &'a CodeBlock) -> bool {
         let lang_matches = match &code_block.variant {
             CodeVariant::Code(code_opts) => {

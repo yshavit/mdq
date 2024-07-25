@@ -7,5 +7,6 @@ mod sel_link;
 mod sel_list_item;
 mod sel_paragraph;
 mod sel_section;
+mod match_selector;
 
 pub use api::*;

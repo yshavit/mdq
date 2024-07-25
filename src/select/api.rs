@@ -18,15 +18,7 @@ pub type ParseResult<T> = Result<T, ParseErrorReason>;
 pub const SELECTOR_SEPARATOR: char = '|';
 
 pub trait Selector<'a, I: Copy + Into<MdElemRef<'a>>> {
-    fn matches(&self, item: I) -> bool;
-
-    fn try_select(&self, item: I) -> Option<MdElemRef<'a>> {
-        if self.matches(item) {
-            Some(item.into())
-        } else {
-            None
-        }
-    }
+    fn try_select(&self, item: I) -> Option<MdElemRef<'a>>;
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -1,6 +1,7 @@
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
-use crate::select::{ParseErrorReason, ParseResult, Selector, SELECTOR_SEPARATOR};
+use crate::select::{ParseErrorReason, ParseResult, SELECTOR_SEPARATOR};
+use crate::select::match_selector::MatchSelector;
 use crate::tree_ref::ListItemRef;
 
 #[derive(Debug, PartialEq)]
@@ -81,7 +82,7 @@ impl ListItemSelector {
     }
 }
 
-impl<'a> Selector<'a, ListItemRef<'a>> for ListItemSelector {
+impl<'a> MatchSelector<'a, ListItemRef<'a>> for ListItemSelector {
     fn matches(&self, item: ListItemRef<'a>) -> bool {
         let ListItemRef(idx, li) = item;
         self.li_type.matches(&idx) && self.checkbox.matches(&li.checked) && self.string_matcher.matches_any(&li.item)
