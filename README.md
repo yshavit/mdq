@@ -124,8 +124,6 @@ You can select...
   $ cat example.md | mdq 'P: foo'  # find paragraphs containing "foo"
   ```
 
-
-
 The `foo`s and `bar`s above can be:
 
 - an `unquoted string` that starts with a letter, as shown above
