@@ -3,6 +3,8 @@ pub struct IndexRemover {
     to_remove_order_asc: Vec<usize>,
 }
 
+// TODO actually, I should just rm this struct altogether. The one place I need it, I can just construct the Vec<usize>
+// directly, and then invoke retrain_if_with_index
 impl IndexRemover {
     pub fn for_items<I, F>(items: &[I], allow_filter: F) -> Self
     where
@@ -33,13 +35,13 @@ impl IndexRemover {
 }
 
 pub trait ItemRetainer<I> {
-    fn retain_if_with_index<F>(&mut self, f: F)
+    fn retain_with_index<F>(&mut self, f: F)
     where
         F: Fn(usize, &I) -> bool;
 }
 
 impl<I> ItemRetainer<I> for Vec<I> {
-    fn retain_if_with_index<F>(&mut self, f: F)
+    fn retain_with_index<F>(&mut self, f: F)
     where
         F: Fn(usize, &I) -> bool,
     {

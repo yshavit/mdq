@@ -90,7 +90,7 @@ impl<'a> TableSlice<'a> {
         F: Fn(&Line) -> bool,
     {
         self.rows
-            .retain_if_with_index(|idx, row| if idx == 0 { true } else { row.iter().any(|&col| f(col)) });
+            .retain_with_index(|idx, row| if idx == 0 { true } else { row.iter().any(|&col| f(col)) });
 
         // We always keep the first row; but if we then removed all the other rows, this is empty.
         if self.rows.len() <= 1 {
