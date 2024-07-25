@@ -1,7 +1,6 @@
 use crate::parsing_iter::ParsingIterator;
-use crate::select::base::Selector;
 use crate::select::sel_link::LinkMatchers;
-use crate::select::ParseResult;
+use crate::select::{ParseResult, Selector};
 use crate::tree::Image;
 
 #[derive(Debug, PartialEq)]

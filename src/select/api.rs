@@ -1,6 +1,5 @@
 use crate::parse_common::Position;
 use crate::parsing_iter::ParsingIterator;
-use crate::select::base::Selector;
 use crate::select::sel_block_quote::BlockQuoteSelector;
 use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_html::HtmlSelector;
@@ -17,6 +16,18 @@ use std::fmt::{Display, Formatter};
 pub type ParseResult<T> = Result<T, ParseErrorReason>;
 
 pub const SELECTOR_SEPARATOR: char = '|';
+
+pub trait Selector<'a, I: Copy + Into<MdElemRef<'a>>> {
+    fn matches(&self, item: I) -> bool;
+
+    fn try_select(&self, item: I) -> Option<MdElemRef<'a>> {
+        if self.matches(item) {
+            Some(item.into())
+        } else {
+            None
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParseError {
