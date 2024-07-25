@@ -1,7 +1,7 @@
 use crate::tree::{
     BlockQuote, CodeBlock, Image, Inline, Line, Link, List, ListItem, MdElem, Paragraph, Section, Table,
 };
-use crate::vec_utils::IndexRemover;
+use crate::vec_utils::{IndexRemover, ItemRetainer};
 use markdown::mdast;
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
@@ -61,12 +61,13 @@ impl<'a> TableSlice<'a> {
         Some(Self { alignments, rows })
     }
 
-    pub fn filter_columns<F>(mut self, allow_filter: F) -> Option<Self>
+    // TODO rename to "retain_columns"
+    pub fn filter_columns<F>(mut self, f: F) -> Option<Self>
     where
         F: Fn(&Line) -> bool,
     {
         let first_row = self.rows.first()?;
-        let removals = IndexRemover::for_items(first_row, |_, &i| allow_filter(i));
+        let removals = IndexRemover::for_items(first_row, |_, &i| f(i));
 
         if removals.count_removals() == 0 {
             return Some(self);
@@ -83,23 +84,18 @@ impl<'a> TableSlice<'a> {
         Some(self)
     }
 
-    pub fn filter_rows<F>(mut self, allow_filter: F) -> Option<Self>
+    // TODO rename to "retain_rows"
+    pub fn filter_rows<F>(mut self, f: F) -> Option<Self>
     where
         F: Fn(&Line) -> bool,
     {
-        let removals = IndexRemover::for_items(&self.rows, |idx, row| {
-            if idx == 0 {
-                true
-            } else {
-                row.iter().any(|&col| allow_filter(col))
-            }
-        });
+        self.rows
+            .retain_if_with_index(|idx, row| if idx == 0 { true } else { row.iter().any(|&col| f(col)) });
 
         // We always keep the first row; but if we then removed all the other rows, this is empty.
-        if removals.count_removals() >= (self.rows.len() - 1) {
+        if self.rows.len() <= 1 {
             return None;
         }
-        removals.apply(&mut self.rows);
 
         Some(self)
     }

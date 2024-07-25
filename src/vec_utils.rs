@@ -32,6 +32,24 @@ impl IndexRemover {
     }
 }
 
+pub trait ItemRetainer<I> {
+    fn retain_if_with_index<F>(&mut self, f: F)
+    where
+        F: Fn(usize, &I) -> bool;
+}
+
+impl<I> ItemRetainer<I> for Vec<I> {
+    fn retain_if_with_index<F>(&mut self, f: F)
+    where
+        F: Fn(usize, &I) -> bool,
+    {
+        // TODO we don't need the IndexRemover here! We can just do the swapping logic directly here.
+        // In fact, IndexRemover::apply should invoke this method.
+        let remover = IndexRemover::for_items(self, f);
+        remover.apply(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
