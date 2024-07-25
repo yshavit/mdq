@@ -1,0 +1,67 @@
+[given]
+md = '''
+Hello, world.
+
+> Paragraph within a block quote.
+
+This paragraph has _inline_ **formatting**.
+'''
+
+
+[expect."all"]
+cli_args = ["P:"]
+output = '''
+Hello, world.
+
+   -----
+
+Paragraph within a block quote.
+
+   -----
+
+This paragraph has _inline_ **formatting**.
+'''
+
+
+[expect."all but with explicit all-matcher"]
+cli_args = ["P: *"]
+output = '''
+Hello, world.
+
+   -----
+
+Paragraph within a block quote.
+
+   -----
+
+This paragraph has _inline_ **formatting**.
+'''
+
+
+[expect."select within a block quote"]
+cli_args = ["P: block"]
+output = '''
+Paragraph within a block quote.
+'''
+
+
+[expect."matcher ignores inline formatting"]
+cli_args = ["P: has inline"]
+# The markdown is "has _inline_", but the emphasis formatting is ignored for matching. It's still used for output.
+output = '''
+This paragraph has _inline_ **formatting**.
+'''
+
+
+[expect."no colon after p"]
+cli_args = ["P *"]
+expect_success = false
+output = '''
+'''
+
+
+[expect."space before colon"]
+cli_args = ["P : *"]
+expect_success = false
+output = '''
+'''

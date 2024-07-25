@@ -82,6 +82,12 @@ impl<'a> From<&'a Link> for MdElemRef<'a> {
     }
 }
 
+impl<'a> From<&'a Paragraph> for MdElemRef<'a> {
+    fn from(value: &'a Paragraph) -> Self {
+        MdElemRef::Paragraph(value)
+    }
+}
+
 impl<'a> From<&'a Section> for MdElemRef<'a> {
     fn from(value: &'a Section) -> Self {
         MdElemRef::Section(value)
