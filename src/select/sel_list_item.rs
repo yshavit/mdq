@@ -1,7 +1,7 @@
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
-use crate::select::{ParseErrorReason, ParseResult, SELECTOR_SEPARATOR};
 use crate::select::match_selector::MatchSelector;
+use crate::select::{ParseErrorReason, ParseResult, SELECTOR_SEPARATOR};
 use crate::tree_ref::ListItemRef;
 
 #[derive(Debug, PartialEq)]

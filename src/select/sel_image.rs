@@ -1,7 +1,7 @@
 use crate::parsing_iter::ParsingIterator;
-use crate::select::sel_link::LinkMatchers;
-use crate::select::{ParseResult};
 use crate::select::match_selector::MatchSelector;
+use crate::select::sel_link::LinkMatchers;
+use crate::select::ParseResult;
 use crate::tree::Image;
 
 #[derive(Debug, PartialEq)]
