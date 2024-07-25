@@ -3,13 +3,14 @@ use crate::parsing_iter::ParsingIterator;
 use crate::select::base::Selector;
 use crate::select::sel_block_quote::BlockQuoteSelector;
 use crate::select::sel_code_block::CodeBlockSelector;
+use crate::select::sel_html::HtmlSelector;
 use crate::select::sel_image::ImageSelector;
 use crate::select::sel_link::LinkSelector;
 use crate::select::sel_list_item::ListItemSelector;
 use crate::select::sel_list_item::ListItemType;
 use crate::select::sel_section::SectionSelector;
-use crate::tree::{Formatting, Inline, Link, Text};
-use crate::tree_ref::{ListItemRef, MdElemRef};
+use crate::tree::{Formatting, Inline, Link, Text, TextVariant};
+use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use std::fmt::{Display, Formatter};
 
 pub type ParseResult<T> = Result<T, ParseErrorReason>;
@@ -136,6 +137,8 @@ selectors![
     {'>'} BlockQuote,
 
     {'`'} CodeBlock,
+
+    {'<'} Html,
 ];
 
 impl MdqRefSelector {
@@ -243,6 +246,9 @@ impl MdqRefSelector {
                 Inline::Footnote(footnote) => vec![MdElemRef::Doc(&footnote.text)],
                 Inline::Link(link) => vec![MdElemRef::Link(link)],
                 Inline::Image(image) => vec![MdElemRef::Image(image)],
+                Inline::Text(Text { variant, value }) if variant == &TextVariant::Html => {
+                    vec![MdElemRef::Html(HtmlRef(value))]
+                }
                 Inline::Text(Text { .. }) => Vec::new(),
             },
 
@@ -328,6 +334,14 @@ mod test {
         }
 
         #[test]
+        fn html() {
+            let input = "</>";
+            let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
+            let item_parsed = HtmlSelector::read(&mut ParsingIterator::new(&input[1..])).unwrap();
+            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::Html(item_parsed));
+        }
+
+        #[test]
         fn unknown() {
             let input = "\u{2603}";
             let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
@@ -349,6 +363,7 @@ mod test {
             Image(_),
             BlockQuote(_),
             CodeBlock(_),
+            Html(_),
         });
     }
 

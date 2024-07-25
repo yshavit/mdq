@@ -15,7 +15,7 @@ pub enum MdElemRef<'a> {
     Paragraph(&'a Paragraph),
     Section(&'a Section),
     Table(&'a Table),
-    Html(&'a String),
+    Html(HtmlRef<'a>),
     ThematicBreak,
 
     // sub-elements
@@ -26,6 +26,9 @@ pub enum MdElemRef<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ListItemRef<'a>(pub Option<u32>, pub &'a ListItem);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HtmlRef<'a>(pub &'a String);
 
 impl<'a> From<&'a MdElem> for MdElemRef<'a> {
     fn from(value: &'a MdElem) -> Self {
@@ -38,7 +41,7 @@ impl<'a> From<&'a MdElem> for MdElemRef<'a> {
             MdElem::BlockQuote(block) => Self::BlockQuote(block),
             MdElem::Section(section) => Self::Section(section),
             MdElem::Inline(child) => MdElemRef::Inline(child),
-            MdElem::Html(html) => MdElemRef::Html(html),
+            MdElem::Html(html) => MdElemRef::Html(HtmlRef(html)),
         }
     }
 }
@@ -58,6 +61,12 @@ impl<'a> From<&'a CodeBlock> for MdElemRef<'a> {
 impl<'a> From<ListItemRef<'a>> for MdElemRef<'a> {
     fn from(value: ListItemRef<'a>) -> Self {
         MdElemRef::ListItem(value)
+    }
+}
+
+impl<'a> From<HtmlRef<'a>> for MdElemRef<'a> {
+    fn from(value: HtmlRef<'a>) -> Self {
+        Self::Html(HtmlRef(value.0))
     }
 }
 

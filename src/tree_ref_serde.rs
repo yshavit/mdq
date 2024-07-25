@@ -281,7 +281,7 @@ impl<'a> SerdeElem<'a> {
                 alt: &img.alt,
                 link: (&img.link).into(),
             },
-            MdElemRef::Html(value) => Self::Html { value },
+            MdElemRef::Html(value) => Self::Html { value: value.0 },
         }
     }
 }

@@ -1,0 +1,64 @@
+[given]
+md = '''
+Text with <span>inline html</span>.
+
+<div
+class="block>
+
+and a div block
+
+</div>
+'''
+
+
+[expect."select all"]
+cli_args = ['</>']
+output = '''
+<span>
+
+   -----
+
+</span>
+
+   -----
+
+<div
+class="block>
+
+   -----
+
+</div>
+'''
+
+
+[expect."inline with matcher"]
+cli_args = ['</> span']
+output = '''
+<span>
+
+   -----
+
+</span>
+'''
+
+
+[expect."inline with matcher tag"]
+cli_args = ['</> "<span>"']
+output = '''
+<span>
+'''
+
+
+[expect."unquoted tag"]
+cli_args = ['</> <span>']
+expect_success = false # unquoted string must start with a letter, not a '<'
+output = '''
+'''
+
+
+[expect."block with matcher"]
+cli_args = ['</> class']
+output = '''
+<div
+class="block>
+'''
