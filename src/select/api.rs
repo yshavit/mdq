@@ -334,6 +334,14 @@ mod test {
         }
 
         #[test]
+        fn html() {
+            let input = "</>";
+            let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
+            let item_parsed = HtmlSelector::read(&mut ParsingIterator::new(&input[1..])).unwrap();
+            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::Html(item_parsed));
+        }
+
+        #[test]
         fn unknown() {
             let input = "\u{2603}";
             let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
