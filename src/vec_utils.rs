@@ -6,9 +6,9 @@ pub struct IndexRemover {
 // TODO actually, I should just rm this struct altogether. The one place I need it, I can just construct the Vec<usize>
 // directly, and then invoke retrain_if_with_index
 impl IndexRemover {
-    pub fn for_items<I, F>(items: &[I], allow_filter: F) -> Self
+    pub fn for_items<I, F>(items: &[I], mut allow_filter: F) -> Self
     where
-        F: Fn(usize, &I) -> bool,
+        F: FnMut(usize, &I) -> bool,
     {
         let mut indices = Vec::with_capacity(items.len());
         for (idx, item) in items.iter().enumerate() {
@@ -35,18 +35,26 @@ impl IndexRemover {
 }
 
 pub trait ItemRetainer<I> {
+    /// Iterates over the items in order, invoking `f` on each and retaining only those elements for which it returns
+    /// `true`.
+    ///
+    /// This is guaranteed to iterate over items sequentially, and filters can take advantage of that fact.
     fn retain_with_index<F>(&mut self, f: F)
     where
-        F: Fn(usize, &I) -> bool;
+        F: FnMut(usize, &I) -> bool;
 }
 
 impl<I> ItemRetainer<I> for Vec<I> {
     fn retain_with_index<F>(&mut self, f: F)
     where
-        F: Fn(usize, &I) -> bool,
+        F: FnMut(usize, &I) -> bool,
     {
         // TODO we don't need the IndexRemover here! We can just do the swapping logic directly here.
         // In fact, IndexRemover::apply should invoke this method.
+
+        // We want F to be mut because we can then have an efficient way of dealing with an ordered list of indexes:
+        // we can peek at the next one (O(1)), and then if it matches then discard it via next() (also O(1)).
+
         let remover = IndexRemover::for_items(self, f);
         remover.apply(self)
     }
