@@ -1,4 +1,8 @@
-use crate::tree::{BlockQuote, CodeBlock, Image, Inline, Link, List, ListItem, MdElem, Paragraph, Section, Table};
+use crate::tree::{
+    BlockQuote, CodeBlock, Image, Inline, Line, Link, List, ListItem, MdElem, Paragraph, Section, Table,
+};
+use crate::vec_utils::IndexRemover;
+use markdown::mdast;
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
 /// selected.
@@ -29,6 +33,77 @@ pub struct ListItemRef<'a>(pub Option<u32>, pub &'a ListItem);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HtmlRef<'a>(pub &'a String);
+
+pub struct TableSlice<'a> {
+    pub alignments: Vec<mdast::AlignKind>,
+    pub rows: Vec<TableRowSlice<'a>>,
+}
+
+pub type TableRowSlice<'a> = Vec<&'a Line>;
+
+impl<'a> TableSlice<'a> {
+    pub fn from_table(table: &'a Table) -> Option<Self> {
+        if table.alignments.is_empty() {
+            return None;
+        }
+        if table.rows.len() < 2 {
+            return None;
+        }
+        let alignments = table.alignments.clone();
+        let mut rows = Vec::with_capacity(table.rows.len());
+        for table_row in &table.rows {
+            let cols: Vec<_> = table_row.iter().collect();
+            // TODO unify jagged tables; these shouldn't happen, but let's guard against them anyway
+            // TODO add unit tests to cover this. Or maybe we don't actually need to, and unit tests will show it
+            // working without any additional checks? The remover should safely handle it all.
+            rows.push(cols);
+        }
+        Some(Self { alignments, rows })
+    }
+
+    pub fn filter_columns<F>(mut self, allow_filter: F) -> Option<Self>
+    where
+        F: Fn(&Line) -> bool,
+    {
+        let first_row = self.rows.first()?;
+        let removals = IndexRemover::for_items(first_row, |_, &i| allow_filter(i));
+
+        if removals.count_removals() == 0 {
+            return Some(self);
+        }
+        if removals.count_removals() == first_row.len() {
+            // all columns filtered out!
+            return None;
+        }
+
+        removals.apply(&mut self.alignments);
+        for row in self.rows.iter_mut() {
+            removals.apply(row);
+        }
+        Some(self)
+    }
+
+    pub fn filter_rows<F>(mut self, allow_filter: F) -> Option<Self>
+    where
+        F: Fn(&Line) -> bool,
+    {
+        let removals = IndexRemover::for_items(&self.rows, |idx, row| {
+            if idx == 0 {
+                true
+            } else {
+                row.iter().any(|&col| allow_filter(col))
+            }
+        });
+
+        // We always keep the first row; but if we then removed all the other rows, this is empty.
+        if removals.count_removals() >= (self.rows.len() - 1) {
+            return None;
+        }
+        removals.apply(&mut self.rows);
+
+        Some(self)
+    }
+}
 
 impl<'a> From<&'a MdElem> for MdElemRef<'a> {
     fn from(value: &'a MdElem) -> Self {
