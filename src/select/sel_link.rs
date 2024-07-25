@@ -1,6 +1,7 @@
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
-use crate::select::{ParseResult, Selector};
+use crate::select::match_selector::MatchSelector;
+use crate::select::ParseResult;
 use crate::tree::Link;
 
 #[derive(Debug, PartialEq)]
@@ -15,7 +16,7 @@ impl LinkSelector {
     }
 }
 
-impl<'a> Selector<'a, &'a Link> for LinkSelector {
+impl<'a> MatchSelector<'a, &'a Link> for LinkSelector {
     fn matches(&self, item: &'a Link) -> bool {
         self.matchers.display_matcher.matches_inlines(&item.text)
             && self.matchers.url_matcher.matches(&item.link_definition.url)

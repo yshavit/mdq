@@ -1,6 +1,7 @@
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
-use crate::select::{ParseResult, Selector, SELECTOR_SEPARATOR};
+use crate::select::match_selector::MatchSelector;
+use crate::select::{ParseResult, SELECTOR_SEPARATOR};
 use crate::tree::Paragraph;
 
 #[derive(Debug, PartialEq)]
@@ -17,7 +18,7 @@ impl ParagraphSelector {
     }
 }
 
-impl<'a> Selector<'a, &'a Paragraph> for ParagraphSelector {
+impl<'a> MatchSelector<'a, &'a Paragraph> for ParagraphSelector {
     fn matches(&self, paragraph: &'a Paragraph) -> bool {
         self.matcher.matches_inlines(&paragraph.body)
     }

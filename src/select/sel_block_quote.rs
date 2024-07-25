@@ -1,6 +1,7 @@
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
-use crate::select::{ParseResult, Selector, SELECTOR_SEPARATOR};
+use crate::select::match_selector::MatchSelector;
+use crate::select::{ParseResult, SELECTOR_SEPARATOR};
 use crate::tree::BlockQuote;
 
 #[derive(Debug, PartialEq)]
@@ -16,7 +17,7 @@ impl BlockQuoteSelector {
     }
 }
 
-impl<'a> Selector<'a, &'a BlockQuote> for BlockQuoteSelector {
+impl<'a> MatchSelector<'a, &'a BlockQuote> for BlockQuoteSelector {
     fn matches(&self, block_quote: &'a BlockQuote) -> bool {
         self.matcher.matches_any(&block_quote.body)
     }

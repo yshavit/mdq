@@ -1,4 +1,5 @@
 mod api;
+mod match_selector;
 mod sel_block_quote;
 mod sel_code_block;
 mod sel_html;

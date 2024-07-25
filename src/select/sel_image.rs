@@ -1,6 +1,7 @@
 use crate::parsing_iter::ParsingIterator;
+use crate::select::match_selector::MatchSelector;
 use crate::select::sel_link::LinkMatchers;
-use crate::select::{ParseResult, Selector};
+use crate::select::ParseResult;
 use crate::tree::Image;
 
 #[derive(Debug, PartialEq)]
@@ -15,7 +16,7 @@ impl ImageSelector {
     }
 }
 
-impl<'a> Selector<'a, &'a Image> for ImageSelector {
+impl<'a> MatchSelector<'a, &'a Image> for ImageSelector {
     fn matches(&self, item: &'a Image) -> bool {
         self.matchers.display_matcher.matches(&item.alt) && self.matchers.url_matcher.matches(&item.link.url)
     }
