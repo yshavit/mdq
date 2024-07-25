@@ -8,6 +8,7 @@ use crate::select::sel_image::ImageSelector;
 use crate::select::sel_link::LinkSelector;
 use crate::select::sel_list_item::ListItemSelector;
 use crate::select::sel_list_item::ListItemType;
+use crate::select::sel_paragraph::ParagraphSelector;
 use crate::select::sel_section::SectionSelector;
 use crate::tree::{Formatting, Inline, Link, Text, TextVariant};
 use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
@@ -130,6 +131,8 @@ selectors![
         '1' => ListItemType::Ordered,
         '-' => ListItemType::Unordered
     } ListItem,
+
+    {'P'} Paragraph,
 
     {'['} Link,
     ! {'['} Image,
@@ -342,6 +345,22 @@ mod test {
         }
 
         #[test]
+        fn paragraph() {
+            let input = "P: foo";
+            let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
+            let item_parsed = ParagraphSelector::read(&mut ParsingIterator::new(&input[1..])).unwrap();
+            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::Paragraph(item_parsed));
+        }
+
+        #[test]
+        fn paragraph_no_matcher() {
+            let input = "P: |";
+            let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
+            let item_parsed = ParagraphSelector::read(&mut ParsingIterator::new(&input[1..])).unwrap();
+            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::Paragraph(item_parsed));
+        }
+
+        #[test]
         fn unknown() {
             let input = "\u{2603}";
             let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
@@ -364,6 +383,7 @@ mod test {
             BlockQuote(_),
             CodeBlock(_),
             Html(_),
+            Paragraph(_),
         });
     }
 

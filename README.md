@@ -117,6 +117,14 @@ You can select...
   ```bash
   $ cat example.md | mdq '</> foo'  # find html tags containing "foo"
   ```
+  
+- Paragraphs
+
+  ```bash
+  $ cat example.md | mdq 'P: foo'  # find paragraphs containing "foo"
+  ```
+
+
 
 The `foo`s and `bar`s above can be:
 
