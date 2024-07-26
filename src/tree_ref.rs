@@ -61,8 +61,7 @@ impl<'a> TableSlice<'a> {
         Some(Self { alignments, rows })
     }
 
-    // TODO rename to "retain_columns"
-    pub fn filter_columns<F>(mut self, f: F) -> Option<Self>
+    pub fn retain_columns<F>(mut self, f: F) -> Option<Self>
     where
         F: Fn(&Line) -> bool,
     {
@@ -82,8 +81,7 @@ impl<'a> TableSlice<'a> {
         Some(self)
     }
 
-    // TODO rename to "retain_rows"
-    pub fn filter_rows<F>(mut self, f: F) -> Option<Self>
+    pub fn retain_rows<F>(mut self, f: F) -> Option<Self>
     where
         F: Fn(&Line) -> bool,
     {
