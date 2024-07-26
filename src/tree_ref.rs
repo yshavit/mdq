@@ -1,7 +1,7 @@
 use crate::tree::{
     BlockQuote, CodeBlock, Image, Inline, Line, Link, List, ListItem, MdElem, Paragraph, Section, Table,
 };
-use crate::vec_utils::{IndexRemover, ItemRetainer};
+use crate::vec_utils::{IndexKeeper, ItemRetainer};
 use markdown::mdast;
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
@@ -66,17 +66,20 @@ impl<'a> TableSlice<'a> {
         F: Fn(&Line) -> bool,
     {
         let first_row = self.rows.first()?;
-        let removals = IndexRemover::for_items(first_row, |_, &i| f(i));
+        let mut keeper_indices = IndexKeeper::new();
+        for row in &self.rows {
+            keeper_indices.retain_when(row, |_, &line| f(line));
+        }
 
-        match removals.count_keeps() {
+        match keeper_indices.count_keeps() {
             0 => return None,
             n if n == first_row.len() => return Some(self),
             _ => {}
         }
 
-        self.alignments.retain_with_index(removals.retain_fn());
+        self.alignments.retain_with_index(keeper_indices.retain_fn());
         for row in self.rows.iter_mut() {
-            row.retain_with_index(removals.retain_fn());
+            row.retain_with_index(keeper_indices.retain_fn());
         }
         Some(self)
     }
@@ -171,4 +174,132 @@ macro_rules! wrap_mdq_refs {
         }
         result
     }};
+}
+
+#[cfg(test)]
+mod tests {
+    mod tables {
+        use crate::tree::{Inline, Line, Table, Text, TextVariant};
+        use crate::tree_ref::TableSlice;
+        use markdown::mdast;
+
+        #[test]
+        fn table_slice_from_table() {
+            let table = new_table(vec![
+                vec!["header a", "header b"],
+                vec!["data 1 a", "data 1 b"],
+                vec!["data 2 a", "data 2 b"],
+            ]);
+            let slice = TableSlice::from_table(&table).expect("expected Some(TableSlice)");
+            assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right]);
+            assert_eq!(
+                slice.rows,
+                vec![
+                    vec![&cell("header a"), &cell("header b")],
+                    vec![&cell("data 1 a"), &cell("data 1 b")],
+                    vec![&cell("data 2 a"), &cell("data 2 b")],
+                ]
+            );
+        }
+
+        #[test]
+        fn retain_col() {
+            let table = new_table(vec![
+                vec!["KEEPER a", "header b", "header c"],
+                vec!["data 1 a", "data 1 b", "data 1 c"],
+                vec!["data 2 a", "data 2 b", "KEEPER c"],
+            ]);
+            let slice = TableSlice::from_table(&table).expect("expected Some(TableSlice)");
+            let slice = slice
+                .retain_columns(cell_matches("KEEPER"))
+                .expect("expected Some(TableSlice)");
+
+            assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Center]);
+            assert_eq!(
+                slice.rows,
+                vec![
+                    vec![&cell("KEEPER a"), &cell("header c")],
+                    vec![&cell("data 1 a"), &cell("data 1 c")],
+                    vec![&cell("data 2 a"), &cell("KEEPER c")],
+                ]
+            );
+        }
+
+        #[test]
+        fn retain_row() {
+            let table = new_table(vec![
+                vec!["header a", "header b", "header c"],
+                vec!["data 1 a", "data 1 b", "data 1 c"],
+                vec!["data 2 a", "KEEPER b", "data 2 c"],
+            ]);
+            let slice = TableSlice::from_table(&table).expect("expected Some(TableSlice)");
+            let slice = slice
+                .retain_rows(cell_matches("KEEPER"))
+                .expect("expected Some(TableSlice)");
+
+            assert_eq!(
+                slice.alignments,
+                vec![
+                    mdast::AlignKind::Left,
+                    mdast::AlignKind::Right,
+                    mdast::AlignKind::Center
+                ]
+            );
+            // note: header row always gets kept
+            assert_eq!(
+                slice.rows,
+                vec![
+                    vec![&cell("header a"), &cell("header b"), &cell("header c")],
+                    vec![&cell("data 2 a"), &cell("KEEPER b"), &cell("data 2 c")],
+                ]
+            );
+        }
+
+        fn cell_matches(substring: &str) -> impl Fn(&Line) -> bool + '_ {
+            move |line| {
+                let line_str = format!("{:?}", line);
+                line_str.contains(substring)
+            }
+        }
+
+        fn new_table(cells: Vec<Vec<&str>>) -> Table {
+            let mut rows_iter = cells.iter().peekable();
+            let Some(first_row) = rows_iter.peek() else {
+                return Table {
+                    alignments: vec![],
+                    rows: vec![],
+                };
+            };
+
+            // for alignments, just cycle [L, R, C].
+            let alignments = [
+                mdast::AlignKind::Left,
+                mdast::AlignKind::Right,
+                mdast::AlignKind::Center,
+            ]
+            .iter()
+            .cycle()
+            .take(first_row.len())
+            .map(ToOwned::to_owned)
+            .collect();
+            let mut rows = Vec::with_capacity(cells.len());
+
+            while let Some(row_strings) = rows_iter.next() {
+                let mut row = Vec::with_capacity(row_strings.len());
+                for cell_string in row_strings {
+                    row.push(cell(cell_string));
+                }
+                rows.push(row);
+            }
+
+            Table { alignments, rows }
+        }
+
+        fn cell(value: &str) -> Line {
+            vec![Inline::Text(Text {
+                variant: TextVariant::Plain,
+                value: value.to_string(),
+            })]
+        }
+    }
 }

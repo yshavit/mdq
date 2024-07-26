@@ -1,27 +1,30 @@
-pub struct IndexRemover {
-    /// invariant: must be ordered ascending
-    indices_to_keep_ordered_asc: Vec<usize>,
+use std::collections::BTreeSet;
+
+pub struct IndexKeeper {
+    indices_to_keep: BTreeSet<usize>,
 }
 
-impl IndexRemover {
-    pub fn for_items<I, F>(items: &[I], mut allow_filter: F) -> Self
+impl IndexKeeper {
+    pub fn new() -> Self {
+        Self {
+            indices_to_keep: BTreeSet::new(),
+        }
+    }
+
+    pub fn retain_when<I, F>(&mut self, items: &[I], mut allow_filter: F)
     where
         F: FnMut(usize, &I) -> bool,
     {
-        let mut indices_to_keep_ordered_asc = Vec::with_capacity(items.len());
         for (idx, item) in items.iter().enumerate() {
             if allow_filter(idx, item) {
-                indices_to_keep_ordered_asc.push(idx);
+                self.indices_to_keep.insert(idx);
             }
-        }
-        Self {
-            indices_to_keep_ordered_asc,
         }
     }
 
     /// Returns an `FnMut` suitable for use in [ItemRetainer::retain_with_index].
     pub fn retain_fn<I>(&self) -> impl FnMut(usize, &I) -> bool + '_ {
-        let mut next_to_keep = self.indices_to_keep_ordered_asc.iter().peekable();
+        let mut next_to_keep = self.indices_to_keep.iter().peekable();
         move |target, _| {
             while let Some(&&value) = next_to_keep.peek() {
                 if value == target {
@@ -37,7 +40,7 @@ impl IndexRemover {
     }
 
     pub fn count_keeps(&self) -> usize {
-        self.indices_to_keep_ordered_asc.len()
+        self.indices_to_keep.len()
     }
 }
 
@@ -72,12 +75,11 @@ impl<I> ItemRetainer<I> for Vec<I> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
 
     #[test]
     fn empty_remover() {
         let mut items = vec!['a', 'b', 'c', 'd'];
-        let remover: IndexRemover = [].into();
+        let remover: IndexKeeper = [].into();
         items.retain_with_index(remover.retain_fn());
         assert_eq!(items, vec![]);
     }
@@ -85,7 +87,7 @@ mod tests {
     #[test]
     fn remover_has_bigger_indexes_than_items() {
         let mut items = vec!['a', 'b', 'c', 'd'];
-        let remover: IndexRemover = [0, 1, 2, 3, 4, 5, 6].into();
+        let remover: IndexKeeper = [0, 1, 2, 3, 4, 5, 6].into();
         items.retain_with_index(remover.retain_fn());
         assert_eq!(items, vec!['a', 'b', 'c', 'd']);
     }
@@ -93,7 +95,7 @@ mod tests {
     #[test]
     fn keep_head() {
         let mut items = vec!['a', 'b', 'c', 'd'];
-        let remover: IndexRemover = [0].into();
+        let remover: IndexKeeper = [0].into();
         items.retain_with_index(remover.retain_fn());
         assert_eq!(items, vec!['a']);
     }
@@ -101,7 +103,7 @@ mod tests {
     #[test]
     fn keep_middle() {
         let mut items = vec!['a', 'b', 'c', 'd'];
-        let remover: IndexRemover = [2].into();
+        let remover: IndexKeeper = [2].into();
         items.retain_with_index(remover.retain_fn());
         assert_eq!(items, vec!['c']);
     }
@@ -109,21 +111,18 @@ mod tests {
     #[test]
     fn keep_tail() {
         let mut items = vec!['a', 'b', 'c', 'd'];
-        let remover: IndexRemover = [items.len() - 1].into();
+        let remover: IndexKeeper = [items.len() - 1].into();
         items.retain_with_index(remover.retain_fn());
         assert_eq!(items, vec!['d']);
     }
 
-    impl<const N: usize> From<[usize; N]> for IndexRemover {
-        fn from(mut indices: [usize; N]) -> Self {
-            // arr -> set -> vec, to ensure no duplicates
-            let as_set: HashSet<_> = indices.into();
-            let mut as_vec: Vec<_> = as_set.into_iter().collect();
-            as_vec.sort();
-
-            Self {
-                indices_to_keep_ordered_asc: as_vec,
+    impl<const N: usize> From<[usize; N]> for IndexKeeper {
+        fn from(indices: [usize; N]) -> Self {
+            let mut result = Self::new();
+            for idx in indices {
+                result.indices_to_keep.insert(idx);
             }
+            result
         }
     }
 }
