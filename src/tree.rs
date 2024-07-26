@@ -1776,6 +1776,44 @@ mod tests {
             });
         }
 
+        #[test]
+        fn jagged_table() {
+            let (root, lookups) = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                    | Header A | Header B |
+                    |:---------|---------:|
+                    |        1 | 2        |
+                    |        3
+                    |        4 | 5        | 6 |
+                    "#},
+            );
+            assert_eq!(root.children.len(), 1);
+            check!(&root.children[0], Node::Table(_), lookups => m_node!(MdElem::Table{alignments, rows}) = {
+                assert_eq!(alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right]);
+                assert_eq!(rows,
+                    vec![ // rows
+                        vec![// Header row
+                            vec![mdq_inline!("Header A")], // cells, each being a spans of inline
+                            vec![mdq_inline!("Header B")],
+                        ],
+                        vec![// data row
+                            vec![mdq_inline!("1")], // cells, each being a spans of inline
+                            vec![mdq_inline!("2")],
+                        ],
+                        vec![// data row
+                            vec![mdq_inline!("3")], // cells, each being a spans of inline
+                        ],
+                        vec![// data row
+                            vec![mdq_inline!("4")], // cells, each being a spans of inline
+                            vec![mdq_inline!("5")],
+                            vec![mdq_inline!("6")],
+                        ],
+                    ],
+                );
+            });
+        }
+
         fn parse(md: &str) -> (mdast::Root, Lookups) {
             parse_with(&ParseOptions::default(), md)
         }
