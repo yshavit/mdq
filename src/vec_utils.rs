@@ -1,9 +1,6 @@
-use std::iter::Peekable;
-use std::slice::Iter;
-
 pub struct IndexRemover {
     /// invariant: must be ordered ascending
-    to_keep_asc: Vec<usize>,
+    indices_to_keep_ordered_asc: Vec<usize>,
 }
 
 impl IndexRemover {
@@ -11,22 +8,24 @@ impl IndexRemover {
     where
         F: FnMut(usize, &I) -> bool,
     {
-        let mut to_keep_asc = Vec::with_capacity(items.len());
+        let mut indices_to_keep_ordered_asc = Vec::with_capacity(items.len());
         for (idx, item) in items.iter().enumerate() {
             if allow_filter(idx, item) {
-                to_keep_asc.push(idx);
+                indices_to_keep_ordered_asc.push(idx);
             }
         }
-        Self { to_keep_asc }
+        Self {
+            indices_to_keep_ordered_asc,
+        }
     }
 
-    pub fn apply<I>(&self, items: &mut Vec<I>) {
-        /// Returns whether the given `target` value is in the stream. The stream must be ordered, and the target
-        /// must increase on each subsequent call.
-        fn find_value(iter: &mut Peekable<Iter<usize>>, target: usize) -> bool {
-            while let Some(&&value) = iter.peek() {
+    /// Returns an `FnMut` suitable for use in [ItemRetainer::retain_with_index].
+    pub fn retain_fn<I>(&self) -> impl FnMut(usize, &I) -> bool + '_ {
+        let mut next_to_keep = self.indices_to_keep_ordered_asc.iter().peekable();
+        move |target, _| {
+            while let Some(&&value) = next_to_keep.peek() {
                 if value == target {
-                    let _ = iter.next();
+                    let _ = next_to_keep.next();
                     return true;
                 }
                 if value > target {
@@ -35,22 +34,14 @@ impl IndexRemover {
             }
             false
         }
+    }
 
-        // A simple algorithm, which is O(n) in both space and time.
-        // I feel like there's an algorithm out there that's O(n) in time and O(1) in space, but this is good enough,
-        // and it's nice and simple.
-        let mut scratch = Vec::with_capacity(items.len());
-        let mut next_to_keep = self.to_keep_asc.iter().peekable();
-        for (idx, item) in items.drain(..).enumerate() {
-            if find_value(&mut next_to_keep, idx) {
-                scratch.push(item);
-            }
-        }
-        items.append(&mut scratch);
+    pub fn apply<I>(&self, items: &mut Vec<I>) {
+        items.retain_with_index(self.retain_fn());
     }
 
     pub fn count_keeps(&self) -> usize {
-        self.to_keep_asc.len()
+        self.indices_to_keep_ordered_asc.len()
     }
 }
 
@@ -65,11 +56,20 @@ pub trait ItemRetainer<I> {
 }
 
 impl<I> ItemRetainer<I> for Vec<I> {
-    fn retain_with_index<F>(&mut self, f: F)
+    fn retain_with_index<F>(&mut self, mut f: F)
     where
         F: FnMut(usize, &I) -> bool,
     {
-        IndexRemover::for_items(self, f).apply(self)
+        // A simple algorithm, which is O(n) in both space and time.
+        // I feel like there's an algorithm out there that's O(n) in time and O(1) in space, but this is good enough,
+        // and it's nice and simple.
+        let mut scratch = Vec::with_capacity(self.len());
+        for (idx, item) in self.drain(..).enumerate() {
+            if f(idx, &item) {
+                scratch.push(item);
+            }
+        }
+        self.append(&mut scratch);
     }
 }
 
@@ -80,7 +80,10 @@ mod tests {
     #[test]
     fn empty_remover() {
         let mut items = vec!['a', 'b', 'c', 'd'];
-        IndexRemover { to_keep_asc: [].into() }.apply(&mut items);
+        IndexRemover {
+            indices_to_keep_ordered_asc: [].into(),
+        }
+        .apply(&mut items);
         assert_eq!(items, vec![]);
     }
 
@@ -88,7 +91,7 @@ mod tests {
     fn remover_has_bigger_indexes_than_items() {
         let mut items = vec!['a', 'b', 'c', 'd'];
         IndexRemover {
-            to_keep_asc: [0, 1, 2, 3, 4, 5, 6].into(),
+            indices_to_keep_ordered_asc: [0, 1, 2, 3, 4, 5, 6].into(),
         }
         .apply(&mut items);
         assert_eq!(items, vec!['a', 'b', 'c', 'd']);
@@ -98,7 +101,7 @@ mod tests {
     fn keep_head() {
         let mut items = vec!['a', 'b', 'c', 'd'];
         IndexRemover {
-            to_keep_asc: [0].into(),
+            indices_to_keep_ordered_asc: [0].into(),
         }
         .apply(&mut items);
         assert_eq!(items, vec!['a']);
@@ -108,7 +111,7 @@ mod tests {
     fn keep_middle() {
         let mut items = vec!['a', 'b', 'c', 'd'];
         IndexRemover {
-            to_keep_asc: [2].into(),
+            indices_to_keep_ordered_asc: [2].into(),
         }
         .apply(&mut items);
         assert_eq!(items, vec!['c']);
@@ -118,7 +121,7 @@ mod tests {
     fn keep_tail() {
         let mut items = vec!['a', 'b', 'c', 'd'];
         IndexRemover {
-            to_keep_asc: [items.len() - 1].into(),
+            indices_to_keep_ordered_asc: [items.len() - 1].into(),
         }
         .apply(&mut items);
         assert_eq!(items, vec!['d']);

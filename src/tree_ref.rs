@@ -69,12 +69,10 @@ impl<'a> TableSlice<'a> {
         let first_row = self.rows.first()?;
         let removals = IndexRemover::for_items(first_row, |_, &i| f(i));
 
-        if removals.count_keeps() == first_row.len() {
-            return Some(self);
-        }
-        if removals.count_keeps() == 0 {
-            // all columns filtered out!
-            return None;
+        match removals.count_keeps() {
+            0 => return None,
+            n if n == first_row.len() => return Some(self),
+            _ => {}
         }
 
         removals.apply(&mut self.alignments);
