@@ -56,6 +56,12 @@ impl<'a> TableSlice<'a> {
             // TODO unify jagged tables; these shouldn't happen, but let's guard against them anyway
             // TODO add unit tests to cover this. Or maybe we don't actually need to, and unit tests will show it
             // working without any additional checks? The remover should safely handle it all.
+
+            // Maybe for jagged rows, we should extend the header (and other columns) to an implicit cell, with empty
+            // contents. That way, a * matcher will match them, but anything that requires at least one char won't.
+            // So, if you want a normalized table: " :-: . :-:". Though that will also remove cols that are aligned
+            // but whose header is empty.
+            // Maybe I should just always be strict: truncate extra cells, fill missing ones with empty
             rows.push(cols);
         }
         Some(Self { alignments, rows })
@@ -203,6 +209,25 @@ mod tests {
         }
 
         #[test]
+        fn table_slice_from_table_jagged() {
+            let table = new_table(vec![
+                vec!["header a", "header b"],
+                vec!["data 1 a"],
+                vec!["data 2 a", "data 2 b", "data 2 c"],
+            ]);
+            let slice = TableSlice::from_table(&table).expect("expected Some(TableSlice)");
+            assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right]);
+            assert_eq!(
+                slice.rows,
+                vec![
+                    vec![&cell("header a"), &cell("header b")],
+                    vec![&cell("data 1 a"), &vec![]],
+                    vec![&cell("data 2 a"), &cell("data 2 b")],
+                ]
+            );
+        }
+
+        #[test]
         fn retain_col() {
             let table = new_table(vec![
                 vec!["KEEPER a", "header b", "header c"],
@@ -215,12 +240,13 @@ mod tests {
                 .expect("expected Some(TableSlice)");
 
             assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Center]);
+            // note: The "header c" column also contains "KEEPER", but not in the header; only the header counts.
             assert_eq!(
                 slice.rows,
                 vec![
-                    vec![&cell("KEEPER a"), &cell("header c")],
-                    vec![&cell("data 1 a"), &cell("data 1 c")],
-                    vec![&cell("data 2 a"), &cell("KEEPER c")],
+                    vec![&cell("KEEPER a")],
+                    vec![&cell("data 1 a")],
+                    vec![&cell("data 2 a")],
                 ]
             );
         }
