@@ -36,10 +36,6 @@ impl IndexRemover {
         }
     }
 
-    pub fn apply<I>(&self, items: &mut Vec<I>) {
-        items.retain_with_index(self.retain_fn());
-    }
-
     pub fn count_keeps(&self) -> usize {
         self.indices_to_keep_ordered_asc.len()
     }
@@ -76,54 +72,58 @@ impl<I> ItemRetainer<I> for Vec<I> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn empty_remover() {
         let mut items = vec!['a', 'b', 'c', 'd'];
-        IndexRemover {
-            indices_to_keep_ordered_asc: [].into(),
-        }
-        .apply(&mut items);
+        let remover: IndexRemover = [].into();
+        items.retain_with_index(remover.retain_fn());
         assert_eq!(items, vec![]);
     }
 
     #[test]
     fn remover_has_bigger_indexes_than_items() {
         let mut items = vec!['a', 'b', 'c', 'd'];
-        IndexRemover {
-            indices_to_keep_ordered_asc: [0, 1, 2, 3, 4, 5, 6].into(),
-        }
-        .apply(&mut items);
+        let remover: IndexRemover = [0, 1, 2, 3, 4, 5, 6].into();
+        items.retain_with_index(remover.retain_fn());
         assert_eq!(items, vec!['a', 'b', 'c', 'd']);
     }
 
     #[test]
     fn keep_head() {
         let mut items = vec!['a', 'b', 'c', 'd'];
-        IndexRemover {
-            indices_to_keep_ordered_asc: [0].into(),
-        }
-        .apply(&mut items);
+        let remover: IndexRemover = [0].into();
+        items.retain_with_index(remover.retain_fn());
         assert_eq!(items, vec!['a']);
     }
 
     #[test]
     fn keep_middle() {
         let mut items = vec!['a', 'b', 'c', 'd'];
-        IndexRemover {
-            indices_to_keep_ordered_asc: [2].into(),
-        }
-        .apply(&mut items);
+        let remover: IndexRemover = [2].into();
+        items.retain_with_index(remover.retain_fn());
         assert_eq!(items, vec!['c']);
     }
 
     #[test]
     fn keep_tail() {
         let mut items = vec!['a', 'b', 'c', 'd'];
-        IndexRemover {
-            indices_to_keep_ordered_asc: [items.len() - 1].into(),
-        }
-        .apply(&mut items);
+        let remover: IndexRemover = [items.len() - 1].into();
+        items.retain_with_index(remover.retain_fn());
         assert_eq!(items, vec!['d']);
+    }
+
+    impl<const N: usize> From<[usize; N]> for IndexRemover {
+        fn from(mut indices: [usize; N]) -> Self {
+            // arr -> set -> vec, to ensure no duplicates
+            let as_set: HashSet<_> = indices.into();
+            let mut as_vec: Vec<_> = as_set.into_iter().collect();
+            as_vec.sort();
+
+            Self {
+                indices_to_keep_ordered_asc: as_vec,
+            }
+        }
     }
 }

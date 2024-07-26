@@ -75,9 +75,9 @@ impl<'a> TableSlice<'a> {
             _ => {}
         }
 
-        removals.apply(&mut self.alignments);
+        self.alignments.retain_with_index(removals.retain_fn());
         for row in self.rows.iter_mut() {
-            removals.apply(row);
+            row.retain_with_index(removals.retain_fn());
         }
         Some(self)
     }
