@@ -69,10 +69,10 @@ impl<'a> TableSlice<'a> {
         let first_row = self.rows.first()?;
         let removals = IndexRemover::for_items(first_row, |_, &i| f(i));
 
-        if removals.count_removals() == 0 {
+        if removals.count_keeps() == first_row.len() {
             return Some(self);
         }
-        if removals.count_removals() == first_row.len() {
+        if removals.count_keeps() == 0 {
             // all columns filtered out!
             return None;
         }
