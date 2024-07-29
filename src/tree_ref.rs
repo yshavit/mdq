@@ -39,30 +39,37 @@ pub struct TableSlice<'a> {
     pub rows: Vec<TableRowSlice<'a>>,
 }
 
-pub type TableRowSlice<'a> = Vec<&'a Line>;
+pub type TableRowSlice<'a> = Vec<Option<&'a Line>>;
 
 impl<'a> TableSlice<'a> {
+    /// Creates a [TableSlice] from a [Table], or returns [None] if the given table is empty.
+    ///
+    /// If the table is jagged, all jagged rows will be filled in with [None] cells. This is a
+    /// departure from the standard, which specifies that the first row defines the number of rows,
+    /// and extras are discarded.
     pub fn from_table(table: &'a Table) -> Option<Self> {
-        if table.alignments.is_empty() {
-            return None;
-        }
         if table.rows.len() < 2 {
             return None;
         }
-        let alignments = table.alignments.clone();
+        let mut alignments = table.alignments.clone();
         let mut rows = Vec::with_capacity(table.rows.len());
+        let mut max_cols = 0;
         for table_row in &table.rows {
-            let cols: Vec<_> = table_row.iter().collect();
-            // TODO unify jagged tables; these shouldn't happen, but let's guard against them anyway
-            // TODO add unit tests to cover this. Or maybe we don't actually need to, and unit tests will show it
-            // working without any additional checks? The remover should safely handle it all.
-
-            // Maybe for jagged rows, we should extend the header (and other columns) to an implicit cell, with empty
-            // contents. That way, a * matcher will match them, but anything that requires at least one char won't.
-            // So, if you want a normalized table: " :-: . :-:". Though that will also remove cols that are aligned
-            // but whose header is empty.
-            // Maybe I should just always be strict: truncate extra cells, fill missing ones with empty
+            let cols: Vec<_> = table_row.iter().map(Some).collect();
+            max_cols = max_cols.max(cols.len());
             rows.push(cols);
+        }
+        for row in &mut rows {
+            let n_missing = max_cols - row.len();
+            for _ in 0..n_missing {
+                row.push(None);
+            }
+        }
+        if alignments.len() > max_cols {
+            alignments.truncate(max_cols);
+        } else {
+            let nones = [mdast::AlignKind::None].iter().cycle().take(max_cols - alignments.len());
+            alignments.extend(nones);
         }
         Some(Self { alignments, rows })
     }
@@ -74,7 +81,7 @@ impl<'a> TableSlice<'a> {
         let first_row = self.rows.first()?;
         let mut keeper_indices = IndexKeeper::new();
         for row in &self.rows {
-            keeper_indices.retain_when(row, |_, &line| f(line));
+            keeper_indices.retain_when(row, |_, opt_line| opt_line.map(|line| f(line)).unwrap_or(false));
         }
 
         match keeper_indices.count_keeps() {
@@ -95,7 +102,7 @@ impl<'a> TableSlice<'a> {
         F: Fn(&Line) -> bool,
     {
         self.rows
-            .retain_with_index(|idx, row| idx == 0 || row.iter().any(|&col| f(col)));
+            .retain_with_index(|idx, row| idx == 0 || row.iter().any(|opt_line| opt_line.map(|col| f(col)).unwrap_or(false)));
 
         // We always keep the first row; but if we then removed all the other rows, this TableSlice is empty.
         if self.rows.len() <= 1 {
@@ -201,9 +208,9 @@ mod tests {
             assert_eq!(
                 slice.rows,
                 vec![
-                    vec![&cell("header a"), &cell("header b")],
-                    vec![&cell("data 1 a"), &cell("data 1 b")],
-                    vec![&cell("data 2 a"), &cell("data 2 b")],
+                    vec![Some(&cell("header a")), Some(&cell("header b"))],
+                    vec![Some(&cell("data 1 a")), Some(&cell("data 1 b"))],
+                    vec![Some(&cell("data 2 a")), Some(&cell("data 2 b"))],
                 ]
             );
         }
@@ -216,13 +223,13 @@ mod tests {
                 vec!["data 2 a", "data 2 b", "data 2 c"],
             ]);
             let slice = TableSlice::from_table(&table).expect("expected Some(TableSlice)");
-            assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right]);
+            assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]);
             assert_eq!(
                 slice.rows,
                 vec![
-                    vec![&cell("header a"), &cell("header b")],
-                    vec![&cell("data 1 a"), &vec![]],
-                    vec![&cell("data 2 a"), &cell("data 2 b")],
+                    vec![Some(&cell("header a")), Some(&cell("header b")), None],
+                    vec![Some(&cell("data 1 a")), None, None],
+                    vec![Some(&cell("data 2 a")), Some(&cell("data 2 b")), Some(&cell("data 2 c"))],
                 ]
             );
         }
@@ -240,13 +247,12 @@ mod tests {
                 .expect("expected Some(TableSlice)");
 
             assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Center]);
-            // note: The "header c" column also contains "KEEPER", but not in the header; only the header counts.
             assert_eq!(
                 slice.rows,
                 vec![
-                    vec![&cell("KEEPER a")],
-                    vec![&cell("data 1 a")],
-                    vec![&cell("data 2 a")],
+                    vec![Some(&cell("KEEPER a")), Some(&cell("header c"))],
+                    vec![Some(&cell("data 1 a")), Some(&cell("data 1 c"))],
+                    vec![Some(&cell("data 2 a")), Some(&cell("KEEPER c"))],
                 ]
             );
         }
@@ -275,8 +281,8 @@ mod tests {
             assert_eq!(
                 slice.rows,
                 vec![
-                    vec![&cell("header a"), &cell("header b"), &cell("header c")],
-                    vec![&cell("data 2 a"), &cell("KEEPER b"), &cell("data 2 c")],
+                    vec![Some(&cell("header a")), Some(&cell("header b")), Some(&cell("header c"))],
+                    vec![Some(&cell("data 2 a")), Some(&cell("KEEPER b")), Some(&cell("data 2 c"))],
                 ]
             );
         }
