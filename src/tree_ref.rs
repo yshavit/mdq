@@ -1,12 +1,10 @@
-use crate::tree::{
-    BlockQuote, CodeBlock, Image, Inline, Line, Link, List, ListItem, MdElem, Paragraph, Section, Table,
-};
+use crate::tree::{BlockQuote, CodeBlock, Image, Inline, Line, Link, List, ListItem, MdElem, Paragraph, Section, Table};
 use crate::vec_utils::{IndexKeeper, ItemRetainer};
 use markdown::mdast;
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
 /// selected.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MdElemRef<'a> {
     // Multiple elements that form a single area
     Doc(&'a Vec<MdElem>),
@@ -26,6 +24,7 @@ pub enum MdElemRef<'a> {
     ListItem(ListItemRef<'a>),
     Link(&'a Link),
     Image(&'a Image),
+    TableSlice(TableSlice<'a>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -34,12 +33,32 @@ pub struct ListItemRef<'a>(pub Option<u32>, pub &'a ListItem);
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HtmlRef<'a>(pub &'a String);
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct TableSlice<'a> {
-    pub alignments: Vec<mdast::AlignKind>,
-    pub rows: Vec<TableRowSlice<'a>>,
+    alignments: Vec<mdast::AlignKind>,
+    rows: Vec<TableRowSlice<'a>>,
+}
+
+impl<'a> TableSlice<'a> {
+    pub fn alignments(&self) -> &Vec<mdast::AlignKind> {
+        &self.alignments
+    }
+
+    pub fn rows(&self) -> impl Iterator<Item=&TableRowSlice<'a>> {
+        self.rows.iter()
+    }
 }
 
 pub type TableRowSlice<'a> = Vec<Option<&'a Line>>;
+
+impl<'a> From<&'a Table> for TableSlice<'a> {
+    fn from(value: &'a Table) -> Self {
+        Self::from_table(value).unwrap_or_else(|| Self {
+            alignments: Vec::new(),
+            rows: Vec::new(),
+        })
+    }
+}
 
 impl<'a> TableSlice<'a> {
     /// Creates a [TableSlice] from a [Table], or returns [None] if the given table is empty.

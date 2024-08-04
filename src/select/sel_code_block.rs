@@ -27,7 +27,7 @@ impl CodeBlockSelector {
     }
 }
 
-impl<'a> MatchSelector<'a, &'a CodeBlock> for CodeBlockSelector {
+impl<'a> MatchSelector<&'a CodeBlock> for CodeBlockSelector {
     fn matches(&self, code_block: &'a CodeBlock) -> bool {
         let lang_matches = match &code_block.variant {
             CodeVariant::Code(code_opts) => {

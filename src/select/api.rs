@@ -17,7 +17,7 @@ pub type ParseResult<T> = Result<T, ParseErrorReason>;
 
 pub const SELECTOR_SEPARATOR: char = '|';
 
-pub trait Selector<'a, I: Copy + Into<MdElemRef<'a>>> {
+pub trait Selector<'a, I: Into<MdElemRef<'a>>> {
     fn try_select(&self, item: I) -> Option<MdElemRef<'a>>;
 }
 
@@ -192,7 +192,7 @@ impl MdqRefSelector {
 
     fn build_output<'a>(&self, out: &mut Vec<MdElemRef<'a>>, node: MdElemRef<'a>) {
         // try_select_node is defined in macro_helpers::selectors!
-        match self.try_select_node(node) {
+        match self.try_select_node(node.clone()) { // TODO can we remove this? I don't think so, but let's follow up
             Some(found) => out.push(found),
             None => {
                 for child in Self::find_children(node) {
@@ -208,7 +208,7 @@ impl MdqRefSelector {
     /// selector-specific. For example, an [MdqNode::Section] has child nodes both in its title and in its body, but
     /// only the body nodes are relevant for select recursion. `MdqNode` shouldn't need to know about that oddity; it
     /// belongs here.
-    fn find_children<'a>(node: MdElemRef) -> Vec<MdElemRef> {
+    fn find_children(node: MdElemRef) -> Vec<MdElemRef> {
         match node {
             MdElemRef::Doc(body) => {
                 let mut wrapped = Vec::with_capacity(body.len());
@@ -243,6 +243,9 @@ impl MdqRefSelector {
                     }
                 }
                 result
+            }
+            MdElemRef::TableSlice(table) => {
+                todo!()
             }
             MdElemRef::ThematicBreak | MdElemRef::CodeBlock(_) => Vec::new(),
             MdElemRef::Inline(inline) => match inline {

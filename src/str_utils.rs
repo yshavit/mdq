@@ -43,17 +43,17 @@ where
 }
 
 pub trait ToAlignment {
-    fn to_alignment(&self) -> Option<Alignment>;
+    fn to_alignment(self) -> Option<Alignment>;
 }
 
 impl ToAlignment for Alignment {
-    fn to_alignment(&self) -> Option<Alignment> {
-        Some(*self)
+    fn to_alignment(self) -> Option<Alignment> {
+        Some(self)
     }
 }
 
-impl ToAlignment for &AlignKind {
-    fn to_alignment(&self) -> Option<Alignment> {
+impl ToAlignment for AlignKind {
+    fn to_alignment(self) -> Option<Alignment> {
         match self {
             AlignKind::Left => Some(Alignment::Left),
             AlignKind::Right => Some(Alignment::Right),
@@ -64,7 +64,7 @@ impl ToAlignment for &AlignKind {
 }
 
 impl<A: Borrow<AlignKind>> ToAlignment for Option<A> {
-    fn to_alignment(&self) -> Option<Alignment> {
+    fn to_alignment(self) -> Option<Alignment> {
         match self {
             Some(a) => a.borrow().to_alignment(),
             None => None,

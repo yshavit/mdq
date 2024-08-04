@@ -157,7 +157,7 @@ impl<'a> SerdeDoc<'a> {
             footnotes: HashMap::with_capacity(DEFAULT_CAPACITY),
         };
         for elem in elems {
-            let top = SerdeElem::build(*elem, &mut inlines_writer);
+            let top = SerdeElem::build(elem.to_owned(), &mut inlines_writer);
             result.items.push(top);
         }
         for (link_label, url) in inlines_writer.drain_pending_links() {
@@ -262,6 +262,9 @@ impl<'a> SerdeElem<'a> {
                     rows: rendered_rows,
                 }
             }
+            MdElemRef::TableSlice(table) => {
+                todo!()
+            }
             MdElemRef::ThematicBreak => Self::ThematicBreak,
             MdElemRef::ListItem(li) => {
                 let index = match li.0 {
@@ -318,6 +321,7 @@ mod tests {
         Paragraph(_),
         Section(_),
         Table(_),
+        TableSlice(_),
         ThematicBreak,
         Html(_),
 

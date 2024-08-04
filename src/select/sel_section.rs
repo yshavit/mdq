@@ -17,7 +17,7 @@ impl SectionSelector {
     }
 }
 
-impl<'a> MatchSelector<'a, &'a Section> for SectionSelector {
+impl<'a> MatchSelector<&'a Section> for SectionSelector {
     fn matches(&self, section: &'a Section) -> bool {
         self.matcher.matches_inlines(&section.title)
     }

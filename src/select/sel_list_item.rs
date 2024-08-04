@@ -82,7 +82,7 @@ impl ListItemSelector {
     }
 }
 
-impl<'a> MatchSelector<'a, ListItemRef<'a>> for ListItemSelector {
+impl<'a> MatchSelector<ListItemRef<'a>> for ListItemSelector {
     fn matches(&self, item: ListItemRef<'a>) -> bool {
         let ListItemRef(idx, li) = item;
         self.li_type.matches(&idx) && self.checkbox.matches(&li.checked) && self.string_matcher.matches_any(&li.item)
