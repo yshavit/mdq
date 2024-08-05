@@ -18,8 +18,8 @@ impl ParagraphSelector {
     }
 }
 
-impl<'a> MatchSelector<&'a Paragraph> for ParagraphSelector {
-    fn matches(&self, paragraph: &'a Paragraph) -> bool {
+impl MatchSelector<&Paragraph> for ParagraphSelector {
+    fn matches(&self, paragraph: &Paragraph) -> bool {
         self.matcher.matches_inlines(&paragraph.body)
     }
 }

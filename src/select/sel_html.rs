@@ -17,8 +17,8 @@ impl HtmlSelector {
     }
 }
 
-impl<'a> MatchSelector<HtmlRef<'a>> for HtmlSelector { // TODO can I elide the 'a?
-    fn matches(&self, html: HtmlRef<'a>) -> bool {
+impl MatchSelector<HtmlRef<'_>> for HtmlSelector {
+    fn matches(&self, html: HtmlRef) -> bool {
         self.matcher.matches(html.0)
     }
 }

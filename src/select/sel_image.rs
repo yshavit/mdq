@@ -16,8 +16,8 @@ impl ImageSelector {
     }
 }
 
-impl<'a> MatchSelector<&'a Image> for ImageSelector { // TODO can I elide the 'a?
-    fn matches(&self, item: &'a Image) -> bool {
+impl MatchSelector<&Image> for ImageSelector {
+    fn matches(&self, item: &Image) -> bool {
         self.matchers.display_matcher.matches(&item.alt) && self.matchers.url_matcher.matches(&item.link.url)
     }
 }

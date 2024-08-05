@@ -16,8 +16,8 @@ impl LinkSelector {
     }
 }
 
-impl<'a> MatchSelector<&'a Link> for LinkSelector {
-    fn matches(&self, item: &'a Link) -> bool {
+impl MatchSelector<&Link> for LinkSelector {
+    fn matches(&self, item: &Link) -> bool {
         self.matchers.display_matcher.matches_inlines(&item.text)
             && self.matchers.url_matcher.matches(&item.link_definition.url)
     }

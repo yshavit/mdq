@@ -311,7 +311,7 @@ mod tests {
     use crate::md_elems;
     use crate::tree::MdElem;
     use crate::tree::*;
-    use crate::tree_ref::{ListItemRef, TableSlice};
+    use crate::tree_ref::{ListItemRef};
     use crate::variants_checker;
     use crate::{md_elem, mdq_inline};
 

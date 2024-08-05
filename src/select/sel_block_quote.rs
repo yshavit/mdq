@@ -17,8 +17,8 @@ impl BlockQuoteSelector {
     }
 }
 
-impl<'a> MatchSelector<&'a BlockQuote> for BlockQuoteSelector {
-    fn matches(&self, block_quote: &'a BlockQuote) -> bool {
+impl MatchSelector<&BlockQuote> for BlockQuoteSelector {
+    fn matches(&self, block_quote: &BlockQuote) -> bool {
         self.matcher.matches_any(&block_quote.body)
     }
 }
