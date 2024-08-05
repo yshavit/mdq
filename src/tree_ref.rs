@@ -72,11 +72,20 @@ impl<'a> TableSlice<'a> {
         }
         let mut alignments = table.alignments.clone();
         let mut rows = Vec::with_capacity(table.rows.len());
-        let mut max_cols = 0;
         for table_row in &table.rows {
             let cols: Vec<_> = table_row.iter().map(Some).collect();
-            max_cols = max_cols.max(cols.len());
             rows.push(cols);
+        }
+        Some(Self { alignments, rows })
+    }
+
+    pub fn normalize(&self) -> Self {
+        let mut alignments = self.alignments.clone(); // TODO use an RC?
+        let mut rows = Vec::with_capacity(self.rows.len());
+        let mut max_cols = alignments.len();
+        for table_row in &self.rows {
+            max_cols = max_cols.max(table_row.len());
+            rows.push(table_row.clone()); // TODO use an RC?
         }
         for row in &mut rows {
             let n_missing = max_cols - row.len();
@@ -90,7 +99,7 @@ impl<'a> TableSlice<'a> {
             let nones = [mdast::AlignKind::None].iter().cycle().take(max_cols - alignments.len());
             alignments.extend(nones);
         }
-        Some(Self { alignments, rows })
+        Self { alignments, rows }
     }
 
     pub fn retain_columns<F>(mut self, f: F) -> Option<Self>
@@ -241,16 +250,30 @@ mod tests {
                 vec!["data 1 a"],
                 vec!["data 2 a", "data 2 b", "data 2 c"],
             ]);
-            let slice = TableSlice::from_table(&table).expect("expected Some(TableSlice)");
-            assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]);
-            assert_eq!(
-                slice.rows,
-                vec![
-                    vec![Some(&cell("header a")), Some(&cell("header b")), None],
-                    vec![Some(&cell("data 1 a")), None, None],
-                    vec![Some(&cell("data 2 a")), Some(&cell("data 2 b")), Some(&cell("data 2 c"))],
-                ]
-            );
+            {
+                let plain_slice = TableSlice::from_table(&table).expect("expected Some(TableSlice)");
+                assert_eq!(plain_slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right]);
+                assert_eq!(
+                    plain_slice.rows,
+                    vec![
+                        vec![Some(&cell("header a")), Some(&cell("header b"))],
+                        vec![Some(&cell("data 1 a"))],
+                        vec![Some(&cell("data 2 a")), Some(&cell("data 2 b")), Some(&cell("data 2 c"))],
+                    ]
+                );
+            }
+            {
+                let normalized_slice = TableSlice::from_table(&table).expect("expected Some(TableSlice)").normalize();
+                assert_eq!(normalized_slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]);
+                assert_eq!(
+                    normalized_slice.rows,
+                    vec![
+                        vec![Some(&cell("header a")), Some(&cell("header b")), None],
+                        vec![Some(&cell("data 1 a")), None, None],
+                        vec![Some(&cell("data 2 a")), Some(&cell("data 2 b")), Some(&cell("data 2 c"))],
+                    ]
+                );
+            }
         }
 
         #[test]
@@ -293,7 +316,7 @@ mod tests {
                 vec![
                     mdast::AlignKind::Left,
                     mdast::AlignKind::Right,
-                    mdast::AlignKind::Center
+                    mdast::AlignKind::Center,
                 ]
             );
             // note: header row always gets kept
@@ -328,11 +351,11 @@ mod tests {
                 mdast::AlignKind::Right,
                 mdast::AlignKind::Center,
             ]
-            .iter()
-            .cycle()
-            .take(first_row.len())
-            .map(ToOwned::to_owned)
-            .collect();
+                .iter()
+                .cycle()
+                .take(first_row.len())
+                .map(ToOwned::to_owned)
+                .collect();
             let mut rows = Vec::with_capacity(cells.len());
 
             while let Some(row_strings) = rows_iter.next() {
