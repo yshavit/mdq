@@ -985,6 +985,41 @@ pub mod tests {
                 | i | ii | iii |"#},
             );
         }
+
+        /// Test of a table slice, instead of the table ref directly. This is just a smoke test,
+        /// because the implementations are the same (one forwards to the other); this test is
+        /// here just to validate that the delegation happens, as opposed to "oops, I forgot to
+        /// actually implement the delegation."
+        #[test]
+        fn slice() {
+            let table = Table {
+                alignments: vec![
+                    mdast::AlignKind::Left,
+                    mdast::AlignKind::Right,
+                ],
+                rows: vec![
+                    // Header row
+                    vec![
+                        // columns
+                        vec![mdq_inline!("Left")],
+                        vec![mdq_inline!("Right")],
+                    ],
+                    // Data row
+                    vec![
+                        // columns
+                        vec![mdq_inline!("a")],
+                        vec![mdq_inline!("b")],
+                    ],
+                ],
+            };
+            check_render_refs(
+                vec![MdElemRef::TableSlice((&table).into())],
+                indoc! {r#"
+                    | Left | Right |
+                    |:-----|------:|
+                    | a    |     b |"#},
+            );
+        }
     }
 
     mod thematic_break {

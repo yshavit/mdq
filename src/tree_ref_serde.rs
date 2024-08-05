@@ -249,21 +249,25 @@ impl<'a> SerdeElem<'a> {
                 Self::Section { depth, title, body }
             }
             MdElemRef::Table(table) => {
-                let mut rendered_rows = Vec::with_capacity(table.rows.len());
-                for row in &table.rows {
+                Self::build(MdElemRef::TableSlice(table.into()), inlines_writer)
+            }
+            MdElemRef::TableSlice(table) => {
+                let mut rendered_rows = Vec::with_capacity(8); // TODO this is a guess; expose it via the trait?
+                for row in table.rows() {
                     let mut rendered_cells = Vec::with_capacity(row.len());
-                    for cell in row {
-                        rendered_cells.push(inlines_to_string(cell, inlines_writer));
+                    for maybe_cell in row {
+                        let rendered_cell = match maybe_cell {
+                            Some(cell) => inlines_to_string(*cell, inlines_writer),
+                            None => "".to_string()
+                        };
+                        rendered_cells.push(rendered_cell)
                     }
                     rendered_rows.push(rendered_cells);
                 }
                 Self::Table {
-                    alignments: table.alignments.iter().map(|a| a.into()).collect(),
+                    alignments: table.alignments().iter().map(|a| a.into()).collect(),
                     rows: rendered_rows,
                 }
-            }
-            MdElemRef::TableSlice(table) => {
-                todo!()
             }
             MdElemRef::ThematicBreak => Self::ThematicBreak,
             MdElemRef::ListItem(li) => {
@@ -307,7 +311,7 @@ mod tests {
     use crate::md_elems;
     use crate::tree::MdElem;
     use crate::tree::*;
-    use crate::tree_ref::ListItemRef;
+    use crate::tree_ref::{ListItemRef, TableSlice};
     use crate::variants_checker;
     use crate::{md_elem, mdq_inline};
 
@@ -644,6 +648,32 @@ mod tests {
                     vec![vec![mdq_inline!("R2C1")], vec![mdq_inline!("R2C2")]],
                 ]
             }),
+            json_str!(
+                {"items":[
+                    {"table":{
+                        "alignments": ["left", "none"],
+                        "rows": [
+                            [ "R1C1", "R1C2" ],
+                            [ "R2C1", "R2C2" ]
+                        ]
+                    }}
+                ]}
+            ),
+        );
+    }
+
+    #[test]
+    fn table_slice() {
+        let table = Table{
+                alignments: vec![AlignKind::Left, AlignKind::None],
+                rows: vec![
+                    vec![vec![mdq_inline!("R1C1")], vec![mdq_inline!("R1C2")]],
+                    vec![vec![mdq_inline!("R2C1")], vec![mdq_inline!("R2C2")]],
+                ]
+            };
+
+        check_md_ref(
+            MdElemRef::TableSlice((&table).into()),
             json_str!(
                 {"items":[
                     {"table":{

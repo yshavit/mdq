@@ -52,33 +52,24 @@ impl<'a> TableSlice<'a> {
 pub type TableRowSlice<'a> = Vec<Option<&'a Line>>;
 
 impl<'a> From<&'a Table> for TableSlice<'a> {
-    fn from(value: &'a Table) -> Self {
-        Self::from_table(value).unwrap_or_else(|| Self {
-            alignments: Vec::new(),
-            rows: Vec::new(),
-        })
-    }
-}
-
-impl<'a> TableSlice<'a> {
-    /// Creates a [TableSlice] from a [Table], or returns [None] if the given table is empty.
-    ///
-    /// If the table is jagged, all jagged rows will be filled in with [None] cells. This is a
-    /// departure from the standard, which specifies that the first row defines the number of rows,
-    /// and extras are discarded.
-    pub fn from_table(table: &'a Table) -> Option<Self> {
-        if table.rows.len() < 2 {
-            return None;
-        }
-        let mut alignments = table.alignments.clone();
+    fn from(table: &'a Table) -> Self {
+        let alignments = table.alignments.clone();
         let mut rows = Vec::with_capacity(table.rows.len());
         for table_row in &table.rows {
             let cols: Vec<_> = table_row.iter().map(Some).collect();
             rows.push(cols);
         }
-        Some(Self { alignments, rows })
+        Self { alignments, rows }
     }
+}
 
+impl<'a> TableSlice<'a> {
+    /// Creates a normalized version of this slice, where every row has the same number of columns.
+    ///
+    /// If the table is jagged, all jagged rows will be filled in with [None] cells. Any missing
+    /// alignments will be filled in as `None`.
+    /// This is a departure from the Markdown standard, which specifies that the first row defines
+    /// the number of rows, and extras are discarded.
     pub fn normalize(&self) -> Self {
         let mut alignments = self.alignments.clone(); // TODO use an RC?
         let mut rows = Vec::with_capacity(self.rows.len());
@@ -231,7 +222,7 @@ mod tests {
                 vec!["data 1 a", "data 1 b"],
                 vec!["data 2 a", "data 2 b"],
             ]);
-            let slice = TableSlice::from_table(&table).expect("expected Some(TableSlice)");
+            let slice = TableSlice::from(&table);
             assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right]);
             assert_eq!(
                 slice.rows,
@@ -251,7 +242,7 @@ mod tests {
                 vec!["data 2 a", "data 2 b", "data 2 c"],
             ]);
             {
-                let plain_slice = TableSlice::from_table(&table).expect("expected Some(TableSlice)");
+                let plain_slice = TableSlice::from(&table);
                 assert_eq!(plain_slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right]);
                 assert_eq!(
                     plain_slice.rows,
@@ -263,7 +254,7 @@ mod tests {
                 );
             }
             {
-                let normalized_slice = TableSlice::from_table(&table).expect("expected Some(TableSlice)").normalize();
+                let normalized_slice = TableSlice::from(&table).normalize();
                 assert_eq!(normalized_slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]);
                 assert_eq!(
                     normalized_slice.rows,
@@ -283,7 +274,7 @@ mod tests {
                 vec!["data 1 a", "data 1 b", "data 1 c"],
                 vec!["data 2 a", "data 2 b", "KEEPER c"],
             ]);
-            let slice = TableSlice::from_table(&table).expect("expected Some(TableSlice)");
+            let slice = TableSlice::from(&table);
             let slice = slice
                 .retain_columns(cell_matches("KEEPER"))
                 .expect("expected Some(TableSlice)");
@@ -306,7 +297,7 @@ mod tests {
                 vec!["data 1 a", "data 1 b", "data 1 c"],
                 vec!["data 2 a", "KEEPER b", "data 2 c"],
             ]);
-            let slice = TableSlice::from_table(&table).expect("expected Some(TableSlice)");
+            let slice = TableSlice::from(&table);
             let slice = slice
                 .retain_rows(cell_matches("KEEPER"))
                 .expect("expected Some(TableSlice)");

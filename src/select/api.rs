@@ -233,19 +233,23 @@ impl MdqRefSelector {
                 result
             }
             MdElemRef::Table(table) => {
-                let count_estimate = table.rows.len() * table.rows.first().map(|tr| tr.len()).unwrap_or(0);
+                Self::find_children(MdElemRef::TableSlice(table.into()))
+            }
+            MdElemRef::TableSlice(table) => {
+                let table_rows_estimate = 8; // TODO expose this from the table.rows() trait
+                let first_row_cols = table.rows().next().map(Vec::len).unwrap_or(0);
+                let count_estimate = table_rows_estimate * first_row_cols;
                 let mut result = Vec::with_capacity(count_estimate);
-                for row in &table.rows {
-                    for col in row {
-                        for cell in col {
-                            result.push(MdElemRef::Inline(cell));
+                for row in table.rows() {
+                    for maybe_col in row {
+                        if let Some(col) = maybe_col {
+                            for cell in *col {
+                                result.push(MdElemRef::Inline(cell));
+                            }
                         }
                     }
                 }
                 result
-            }
-            MdElemRef::TableSlice(table) => {
-                todo!()
             }
             MdElemRef::ThematicBreak | MdElemRef::CodeBlock(_) => Vec::new(),
             MdElemRef::Inline(inline) => match inline {
