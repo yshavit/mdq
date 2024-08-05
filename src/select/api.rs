@@ -9,6 +9,7 @@ use crate::select::sel_list_item::ListItemSelector;
 use crate::select::sel_list_item::ListItemType;
 use crate::select::sel_paragraph::ParagraphSelector;
 use crate::select::sel_section::SectionSelector;
+use crate::select::sel_table::TableSelector;
 use crate::tree::{Formatting, Inline, Link, Text, TextVariant};
 use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use std::fmt::{Display, Formatter};
@@ -17,7 +18,7 @@ pub type ParseResult<T> = Result<T, ParseErrorReason>;
 
 pub const SELECTOR_SEPARATOR: char = '|';
 
-pub trait Selector<'a, I: Into<MdElemRef<'a>>> {
+pub trait Selector<'a, I: Into<MdElemRef<'a>>> { // TODO I should really rename all these 'a to 'md
     fn try_select(&self, item: I) -> Option<MdElemRef<'a>>;
 }
 
@@ -145,6 +146,8 @@ selectors![
     {'`'} CodeBlock,
 
     {'<'} Html,
+
+    {':'} Table,
 ];
 
 impl MdqRefSelector {
@@ -455,7 +458,7 @@ mod test {
             let inline = Inline::Link(mk_link());
             let node_ref = MdElemRef::Inline(&inline);
             let children = MdqRefSelector::find_children(node_ref);
-            assert_eq!(children, vec![MdElemRef::Link(&mk_link()),]);
+            assert_eq!(children, vec![MdElemRef::Link(&mk_link())]);
         }
     }
 }

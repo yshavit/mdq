@@ -86,7 +86,6 @@ impl StringMatcher {
         match peek_ch {
             '*' => {
                 let _ = chars.next(); // drop the char we peeked
-                chars.drop_whitespace();
                 Ok(StringMatcher::any())
             }
             '/' => {

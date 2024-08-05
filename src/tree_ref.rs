@@ -93,15 +93,13 @@ impl<'a> TableSlice<'a> {
         Self { alignments, rows }
     }
 
-    pub fn retain_columns<F>(mut self, f: F) -> Option<Self>
+    pub fn retain_columns<F>(mut self, f: F) -> Option<Self> // TODO rename to retain_columns_by_header.
     where
         F: Fn(&Line) -> bool,
     {
         let first_row = self.rows.first()?;
         let mut keeper_indices = IndexKeeper::new();
-        for row in &self.rows {
-            keeper_indices.retain_when(row, |_, opt_line| opt_line.map(|line| f(line)).unwrap_or(false));
-        }
+        keeper_indices.retain_when(first_row, |_, opt_line| opt_line.map(|line| f(line)).unwrap_or(false));
 
         match keeper_indices.count_keeps() {
             0 => return None,
@@ -148,6 +146,7 @@ impl<'a> From<&'a MdElem> for MdElemRef<'a> {
     }
 }
 
+// TODO do I need all these explicit 'a lifetimes? I think I can do '_
 impl<'a> From<&'a BlockQuote> for MdElemRef<'a> {
     fn from(value: &'a BlockQuote) -> Self {
         MdElemRef::BlockQuote(value)
@@ -193,6 +192,18 @@ impl<'a> From<&'a Paragraph> for MdElemRef<'a> {
 impl<'a> From<&'a Section> for MdElemRef<'a> {
     fn from(value: &'a Section) -> Self {
         MdElemRef::Section(value)
+    }
+}
+
+impl<'a> From<&'a Table> for MdElemRef<'a> {
+    fn from(value: &'a Table) -> Self {
+        MdElemRef::Table(value)
+    }
+}
+
+impl<'a> From<TableSlice<'a>> for MdElemRef<'a> {
+    fn from(value: TableSlice<'a>) -> Self {
+        MdElemRef::TableSlice(value)
     }
 }
 
