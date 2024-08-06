@@ -32,14 +32,22 @@ impl TableSelector {
 
 impl<'a> Selector<'a, &'a Table> for TableSelector {
     fn try_select(&self, item: &'a Table) -> Option<MdElemRef<'a>> {
-        let slice = TableSlice::from(item);
-        let mut slice = slice.normalize(); // TODO make this a "&mut self" that returns ()
-        let mut slice = slice.retain_columns(|line| {
+        let mut slice = TableSlice::from(item);
+        slice.normalize();
+
+        slice.retain_columns_by_header(|line| {
             let res = self.headers_matcher.matches_inlines(line);
             eprint!("looking for {:?} in {line:?}: {res}\n", self.headers_matcher);
             res
-        })?; // TODO should retain_columns return an Option<()> so I can just ?; it here?
-        let slice = slice.retain_rows(|line| self.rows_matcher.matches_inlines(line))?;
+        });
+        if slice.is_empty() {
+            return None;
+        }
+
+        slice.retain_rows(|line| self.rows_matcher.matches_inlines(line));
+        if slice.is_empty() {
+            return None;
+        }
         Some(slice.into())
     }
 }

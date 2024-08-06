@@ -70,63 +70,69 @@ impl<'a> TableSlice<'a> {
     /// alignments will be filled in as `None`.
     /// This is a departure from the Markdown standard, which specifies that the first row defines
     /// the number of rows, and extras are discarded.
-    pub fn normalize(&self) -> Self {
-        let mut alignments = self.alignments.clone(); // TODO use an RC?
-        let mut rows = Vec::with_capacity(self.rows.len());
-        let mut max_cols = alignments.len();
-        for table_row in &self.rows {
-            max_cols = max_cols.max(table_row.len());
-            rows.push(table_row.clone()); // TODO use an RC?
-        }
-        for row in &mut rows {
+    pub fn normalize(&mut self) {
+        let max_cols = self.rows.iter().map(Vec::len).max().unwrap_or(0);
+
+        for row in &mut self.rows {
             let n_missing = max_cols - row.len();
             for _ in 0..n_missing {
                 row.push(None);
             }
         }
-        if alignments.len() > max_cols {
-            alignments.truncate(max_cols);
+        if self.alignments.len() > max_cols {
+            self.alignments.truncate(max_cols);
         } else {
-            let nones = [mdast::AlignKind::None].iter().cycle().take(max_cols - alignments.len());
-            alignments.extend(nones);
+            let nones = [mdast::AlignKind::None].iter().cycle().take(max_cols - self.alignments.len());
+            self.alignments.extend(nones);
         }
-        Self { alignments, rows }
     }
 
-    pub fn retain_columns<F>(mut self, f: F) -> Option<Self> // TODO rename to retain_columns_by_header.
+    pub fn retain_columns_by_header<F>(&mut self, f: F)
     where
         F: Fn(&Line) -> bool,
     {
-        let first_row = self.rows.first()?;
+        let Some(first_row) = self.rows.first() else {
+            return;
+        };
         let mut keeper_indices = IndexKeeper::new();
         keeper_indices.retain_when(first_row, |_, opt_line| opt_line.map(|line| f(line)).unwrap_or(false));
 
         match keeper_indices.count_keeps() {
-            0 => return None,
-            n if n == first_row.len() => return Some(self),
-            _ => {}
+            0 => {
+                // no columns match: clear everything out
+                self.alignments.clear();
+                self.rows.clear();
+                return;
+            },
+            n if n == first_row.len() => {
+                // all columns match: no need to go one by one, just return without modifications
+                return
+            },
+            _ => {
+                // some columns match: retain those, and discard the rest
+                self.alignments.retain_with_index(keeper_indices.retain_fn());
+                for row in self.rows.iter_mut() {
+                    row.retain_with_index(keeper_indices.retain_fn());
+                }
+            }
         }
-
-        self.alignments.retain_with_index(keeper_indices.retain_fn());
-        for row in self.rows.iter_mut() {
-            row.retain_with_index(keeper_indices.retain_fn());
-        }
-        Some(self)
     }
 
-    pub fn retain_rows<F>(mut self, f: F) -> Option<Self>
+    pub fn retain_rows<F>(&mut self, f: F)
     where
         F: Fn(&Line) -> bool,
     {
         self.rows
             .retain_with_index(|idx, row| idx == 0 || row.iter().any(|opt_line| opt_line.map(|col| f(col)).unwrap_or(false)));
 
+    }
+
+    pub fn is_empty(&self) -> bool {
         // We always keep the first row; but if we then removed all the other rows, this TableSlice is empty.
         if self.rows.len() <= 1 {
-            return None;
+            return true;
         }
-
-        Some(self)
+        self.rows.iter().all(Vec::is_empty)
     }
 }
 
@@ -265,7 +271,8 @@ mod tests {
                 );
             }
             {
-                let normalized_slice = TableSlice::from(&table).normalize();
+                let mut normalized_slice = TableSlice::from(&table);
+                normalized_slice.normalize();
                 assert_eq!(normalized_slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]);
                 assert_eq!(
                     normalized_slice.rows,
@@ -287,7 +294,7 @@ mod tests {
             ]);
             let slice = TableSlice::from(&table);
             let slice = slice
-                .retain_columns(cell_matches("KEEPER"))
+                .retain_columns_by_header(cell_matches("KEEPER"))
                 .expect("expected Some(TableSlice)");
 
             assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Center]);
