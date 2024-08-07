@@ -95,7 +95,11 @@ impl<'a> TableSlice<'a> {
             return;
         };
         let mut keeper_indices = IndexKeeper::new();
-        keeper_indices.retain_when(first_row, |_, opt_line| opt_line.map(|line| f(line)).unwrap_or(false));
+        keeper_indices.retain_when(first_row, |_, opt_cell| {
+            let empty_cell = Line::new();
+            let resolved_cell = opt_cell.unwrap_or(&empty_cell);
+            f(resolved_cell)
+        });
 
         match keeper_indices.count_keeps() {
             0 => {
@@ -123,8 +127,16 @@ impl<'a> TableSlice<'a> {
         F: Fn(&Line) -> bool,
     {
         self.rows
-            .retain_with_index(|idx, row| idx == 0 || row.iter().any(|opt_line| opt_line.map(|col| f(col)).unwrap_or(false)));
-
+            .retain_with_index(|idx, row| {
+                if idx == 0 {
+                    return true
+                }
+                row.iter().any(|opt_cell| {
+                    let empty_cell = Line::new();
+                    let resolved_cell = opt_cell.unwrap_or(&empty_cell);
+                    f(resolved_cell)
+                })
+            });
     }
 
     pub fn is_empty(&self) -> bool {
