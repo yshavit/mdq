@@ -373,6 +373,15 @@ mod test {
             expect_ok(mdq_ref_sel_parsed, MdqRefSelector::Paragraph(item_parsed));
         }
 
+        /// See `mod sel_table::tests` for more extensive tests
+        #[test]
+        fn table_smoke() {
+            let input = ":-: * :-:";
+            let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
+            let item_parsed = TableSelector::read(&mut ParsingIterator::new(&input[1..])).unwrap();
+            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::Table(item_parsed));
+        }
+
         #[test]
         fn unknown() {
             let input = "\u{2603}";

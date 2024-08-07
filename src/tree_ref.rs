@@ -39,16 +39,6 @@ pub struct TableSlice<'a> {
     rows: Vec<TableRowSlice<'a>>,
 }
 
-impl<'a> TableSlice<'a> {
-    pub fn alignments(&self) -> &Vec<mdast::AlignKind> {
-        &self.alignments
-    }
-
-    pub fn rows(&self) -> impl Iterator<Item=&TableRowSlice<'a>> {
-        self.rows.iter()
-    }
-}
-
 pub type TableRowSlice<'a> = Vec<Option<&'a Line>>;
 
 impl<'a> From<&'a Table> for TableSlice<'a> {
@@ -64,7 +54,15 @@ impl<'a> From<&'a Table> for TableSlice<'a> {
 }
 
 impl<'a> TableSlice<'a> {
-    /// Creates a normalized version of this slice, where every row has the same number of columns.
+    pub fn alignments(&self) -> &Vec<mdast::AlignKind> {
+        &self.alignments
+    }
+
+    pub fn rows(&self) -> impl Iterator<Item=&TableRowSlice<'a>> {
+        self.rows.iter()
+    }
+
+    /// Normalizes this slice, so that every row has the same number of columns.
     ///
     /// If the table is jagged, all jagged rows will be filled in with [None] cells. Any missing
     /// alignments will be filled in as `None`.

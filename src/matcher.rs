@@ -10,6 +10,7 @@ pub struct StringMatcher {
     re: Regex,
 }
 
+#[cfg(test)]
 impl PartialEq for StringMatcher {
     fn eq(&self, other: &Self) -> bool {
         self.re.as_str() == other.re.as_str()
@@ -86,6 +87,7 @@ impl StringMatcher {
         match peek_ch {
             '*' => {
                 let _ = chars.next(); // drop the char we peeked
+                chars.drop_whitespace();
                 Ok(StringMatcher::any())
             }
             '/' => {
