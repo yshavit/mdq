@@ -9,7 +9,7 @@ use crate::select::sel_list_item::ListItemSelector;
 use crate::select::sel_list_item::ListItemType;
 use crate::select::sel_paragraph::ParagraphSelector;
 use crate::select::sel_section::SectionSelector;
-use crate::select::sel_table::TableSelector;
+use crate::select::sel_table::TableSliceSelector;
 use crate::tree::{Formatting, Inline, Link, Text, TextVariant};
 use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use std::fmt::{Display, Formatter};
@@ -51,10 +51,13 @@ impl Display for ParseErrorReason {
 
 macro_rules! selectors {
     [
-        $($(#[$meta:meta])*
-        $({$($char:literal $(=>$($read_variant:ident)::+)? ),+})?
-        $(! {$($bang_char:literal $(=>$($bang_read_variant:ident)::+)? ),+})?
-        $name:ident),* $(,)?
+        $(
+            $(#[$meta:meta])*
+            $({$($char:literal $(=>$($read_variant:ident)::+)? ),+})?
+            $(! {$($bang_char:literal $(=>$($bang_read_variant:ident)::+)? ),+})?
+            $name:ident
+            $(| $alias:ident)?
+        ),* $(,)?
     ] => {
         #[derive(Debug, PartialEq)]
         pub enum MdqRefSelector {
@@ -69,6 +72,7 @@ macro_rules! selectors {
                 match (self, node) {
                     $(
                     (Self::$name(selector), MdElemRef::$name(elem)) => selector.try_select(elem),
+                    $( (Self::$name(selector), MdElemRef::$alias(elem)) => selector.try_select(elem.into()), )?
                     )*
                     _ => None
                 }
@@ -147,7 +151,7 @@ selectors![
 
     {'<'} Html,
 
-    {':'} Table,
+    {':'} TableSlice | Table,
 ];
 
 impl MdqRefSelector {
@@ -378,8 +382,8 @@ mod test {
         fn table_smoke() {
             let input = ":-: * :-:";
             let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
-            let item_parsed = TableSelector::read(&mut ParsingIterator::new(&input[1..])).unwrap();
-            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::Table(item_parsed));
+            let item_parsed = TableSliceSelector::read(&mut ParsingIterator::new(&input[1..])).unwrap();
+            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::TableSlice(item_parsed));
         }
 
         #[test]
@@ -406,7 +410,7 @@ mod test {
             CodeBlock(_),
             Html(_),
             Paragraph(_),
-            Table(_),
+            TableSlice(_),
         });
     }
 

@@ -1,16 +1,15 @@
 use crate::matcher::StringMatcher;
 use crate::parsing_iter::ParsingIterator;
 use crate::select::{ParseErrorReason, ParseResult, Selector, SELECTOR_SEPARATOR};
-use crate::tree::Table;
 use crate::tree_ref::{MdElemRef, TableSlice};
 
 #[derive(Debug, PartialEq)]
-pub struct TableSelector {
+pub struct TableSliceSelector {
     headers_matcher: StringMatcher,
     rows_matcher: StringMatcher,
 }
 
-impl TableSelector {
+impl TableSliceSelector {
     pub fn read(iter: &mut ParsingIterator) -> ParseResult<Self> {
         // headers matcher
         iter.require_str("-:")?;
@@ -29,9 +28,9 @@ impl TableSelector {
     }
 }
 
-impl<'a> Selector<'a, &'a Table> for TableSelector {
-    fn try_select(&self, item: &'a Table) -> Option<MdElemRef<'a>> {
-        let mut slice = TableSlice::from(item);
+impl<'a> Selector<'a, TableSlice<'a>> for TableSliceSelector {
+    fn try_select(&self, slice: TableSlice<'a>) -> Option<MdElemRef<'a>> {
+        let mut slice = slice.clone(); // TODO is there any way to avoid this? There may not be.
         slice.normalize();
 
         slice.retain_columns_by_header(|line| {
@@ -83,7 +82,7 @@ mod tests {
                 let mut in_chars = ParsingIterator::new(actual_str);
                 in_chars.require_char(':').expect("test error: bad selector format");
 
-                let actual = TableSelector::read(&mut in_chars).expect("test error: bad selector format");
+                let actual = TableSliceSelector::read(&mut in_chars).expect("test error: bad selector format");
 
                 let expect_headers_matcher = StringMatcher::from(headers_matcher_re);
                 let expect_rows_matcher = StringMatcher::from(rows_matcher_re);
@@ -102,7 +101,7 @@ mod tests {
             let mut in_chars = ParsingIterator::new(in_str);
             in_chars.require_char(':').expect("test error: bad selector format");
 
-            let actual = TableSelector::read(&mut in_chars);
+            let actual = TableSliceSelector::read(&mut in_chars);
             assert_eq!(actual, Err(InvalidSyntax(expect_err.to_string())))
         }
     }
@@ -110,22 +109,22 @@ mod tests {
     mod select {
         use super::*;
         use markdown::mdast;
-        use crate::tree::{Inline, Line, Text, TextVariant};
+        use crate::tree::{Inline, Line, Table, Text, TextVariant};
         use crate::unwrap;
 
         #[test]
         fn select_all_on_normalized_table() {
-            let table = Table{
+            let table: Table = Table{
                 alignments: vec![mdast::AlignKind::Left, mdast::AlignKind::Right],
                 rows: vec![
                     vec![cell("header a"), cell("header b")],
                     vec![cell("data 1 a"), cell("data 1 b")],
                 ],
-            };
-            let maybe_selected = TableSelector {
+            }.into();
+            let maybe_selected = TableSliceSelector {
                 headers_matcher: ".*".into(),
                 rows_matcher: ".*".into(),
-            }.try_select(&table);
+            }.try_select((&table).into());
 
             unwrap!(maybe_selected, Some(MdElemRef::TableSlice(table)));
             assert_eq!(
@@ -143,17 +142,17 @@ mod tests {
 
         #[test]
         fn select_columns_on_normalized_table() {
-            let table = Table{
+            let table: Table = Table{
                 alignments: vec![mdast::AlignKind::Left, mdast::AlignKind::Right],
                 rows: vec![
                     vec![cell("header a"), cell("KEEP b")],
                     vec![cell("data 1 a"), cell("data 1 b")],
                 ],
             };
-            let maybe_selected = TableSelector {
+            let maybe_selected = TableSliceSelector {
                 headers_matcher: "KEEP".into(),
                 rows_matcher: ".*".into(),
-            }.try_select(&table);
+            }.try_select((&table).into());
 
             unwrap!(maybe_selected, Some(MdElemRef::TableSlice(table)));
             assert_eq!(
@@ -171,7 +170,7 @@ mod tests {
 
         #[test]
         fn select_rows_on_normalized_table() {
-            let table = Table{
+            let table: Table = Table{
                 alignments: vec![mdast::AlignKind::Left, mdast::AlignKind::Right],
                 rows: vec![
                     vec![cell("header a"), cell("header b")],
@@ -179,10 +178,10 @@ mod tests {
                     vec![cell("data 2 a"), cell("data 2 b")],
                 ],
             };
-            let maybe_selected = TableSelector {
+            let maybe_selected = TableSliceSelector {
                 headers_matcher: ".*".into(),
                 rows_matcher: "data 2".into(),
-            }.try_select(&table);
+            }.try_select((&table).into());
 
             unwrap!(maybe_selected, Some(MdElemRef::TableSlice(table)));
             assert_eq!(
@@ -203,7 +202,7 @@ mod tests {
         /// More extensive tests for the `retain_*` methods can be found in [TableSlice]'s tests.
         #[test]
         fn jagged_table() {
-            let table = Table{
+            let table: Table = Table{
                 // only 1 align; rest will be filled with None
                 alignments: vec![mdast::AlignKind::Left],
                 rows: vec![
@@ -212,10 +211,10 @@ mod tests {
                     vec![cell("data 2 a"), cell("data 2 b"), cell("data 2 c")],
                 ],
             };
-            let maybe_selected = TableSelector {
+            let maybe_selected = TableSliceSelector {
                 headers_matcher: ".*".into(),
                 rows_matcher: "data 1".into(),
-            }.try_select(&table);
+            }.try_select((&table).into());
 
             unwrap!(maybe_selected, Some(MdElemRef::TableSlice(table)));
             assert_eq!(
