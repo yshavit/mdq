@@ -10,7 +10,6 @@ pub struct StringMatcher {
     re: Regex,
 }
 
-#[cfg(test)]
 impl PartialEq for StringMatcher {
     fn eq(&self, other: &Self) -> bool {
         self.re.as_str() == other.re.as_str()
