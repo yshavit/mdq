@@ -8,5 +8,6 @@ mod sel_link;
 mod sel_list_item;
 mod sel_paragraph;
 mod sel_section;
+mod sel_table;
 
 pub use api::*;

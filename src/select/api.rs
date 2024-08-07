@@ -9,6 +9,7 @@ use crate::select::sel_list_item::ListItemSelector;
 use crate::select::sel_list_item::ListItemType;
 use crate::select::sel_paragraph::ParagraphSelector;
 use crate::select::sel_section::SectionSelector;
+use crate::select::sel_table::TableSliceSelector;
 use crate::tree::{Formatting, Inline, Link, Text, TextVariant};
 use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use std::fmt::{Display, Formatter};
@@ -17,7 +18,8 @@ pub type ParseResult<T> = Result<T, ParseErrorReason>;
 
 pub const SELECTOR_SEPARATOR: char = '|';
 
-pub trait Selector<'a, I: Copy + Into<MdElemRef<'a>>> {
+pub trait Selector<'a, I: Into<MdElemRef<'a>>> {
+    // TODO I should really rename all these 'a to 'md
     fn try_select(&self, item: I) -> Option<MdElemRef<'a>>;
 }
 
@@ -50,10 +52,13 @@ impl Display for ParseErrorReason {
 
 macro_rules! selectors {
     [
-        $($(#[$meta:meta])*
-        $({$($char:literal $(=>$($read_variant:ident)::+)? ),+})?
-        $(! {$($bang_char:literal $(=>$($bang_read_variant:ident)::+)? ),+})?
-        $name:ident),* $(,)?
+        $(
+            $(#[$meta:meta])*
+            $({$($char:literal $(=>$($read_variant:ident)::+)? ),+})?
+            $(! {$($bang_char:literal $(=>$($bang_read_variant:ident)::+)? ),+})?
+            $name:ident
+            $(| $alias:ident)?
+        ),* $(,)?
     ] => {
         #[derive(Debug, PartialEq)]
         pub enum MdqRefSelector {
@@ -68,6 +73,7 @@ macro_rules! selectors {
                 match (self, node) {
                     $(
                     (Self::$name(selector), MdElemRef::$name(elem)) => selector.try_select(elem),
+                    $( (Self::$name(selector), MdElemRef::$alias(elem)) => selector.try_select(elem.into()), )?
                     )*
                     _ => None
                 }
@@ -145,6 +151,8 @@ selectors![
     {'`'} CodeBlock,
 
     {'<'} Html,
+
+    {':'} TableSlice | Table,
 ];
 
 impl MdqRefSelector {
@@ -192,7 +200,8 @@ impl MdqRefSelector {
 
     fn build_output<'a>(&self, out: &mut Vec<MdElemRef<'a>>, node: MdElemRef<'a>) {
         // try_select_node is defined in macro_helpers::selectors!
-        match self.try_select_node(node) {
+        match self.try_select_node(node.clone()) {
+            // TODO can we remove this? I don't think so, but let's follow up
             Some(found) => out.push(found),
             None => {
                 for child in Self::find_children(node) {
@@ -208,7 +217,7 @@ impl MdqRefSelector {
     /// selector-specific. For example, an [MdqNode::Section] has child nodes both in its title and in its body, but
     /// only the body nodes are relevant for select recursion. `MdqNode` shouldn't need to know about that oddity; it
     /// belongs here.
-    fn find_children<'a>(node: MdElemRef) -> Vec<MdElemRef> {
+    fn find_children(node: MdElemRef) -> Vec<MdElemRef> {
         match node {
             MdElemRef::Doc(body) => {
                 let mut wrapped = Vec::with_capacity(body.len());
@@ -232,13 +241,18 @@ impl MdqRefSelector {
                 }
                 result
             }
-            MdElemRef::Table(table) => {
-                let count_estimate = table.rows.len() * table.rows.first().map(|tr| tr.len()).unwrap_or(0);
+            MdElemRef::Table(table) => Self::find_children(MdElemRef::TableSlice(table.into())),
+            MdElemRef::TableSlice(table) => {
+                let table_rows_estimate = 8; // TODO expose this from the table.rows() trait
+                let first_row_cols = table.rows().next().map(Vec::len).unwrap_or(0);
+                let count_estimate = table_rows_estimate * first_row_cols;
                 let mut result = Vec::with_capacity(count_estimate);
-                for row in &table.rows {
-                    for col in row {
-                        for cell in col {
-                            result.push(MdElemRef::Inline(cell));
+                for row in table.rows() {
+                    for maybe_col in row {
+                        if let Some(col) = maybe_col {
+                            for cell in *col {
+                                result.push(MdElemRef::Inline(cell));
+                            }
                         }
                     }
                 }
@@ -363,6 +377,15 @@ mod test {
             expect_ok(mdq_ref_sel_parsed, MdqRefSelector::Paragraph(item_parsed));
         }
 
+        /// See `mod sel_table::tests` for more extensive tests
+        #[test]
+        fn table_smoke() {
+            let input = ":-: * :-:";
+            let mdq_ref_sel_parsed = MdqRefSelector::parse_selector(&mut ParsingIterator::new(input));
+            let item_parsed = TableSliceSelector::read(&mut ParsingIterator::new(&input[1..])).unwrap();
+            expect_ok(mdq_ref_sel_parsed, MdqRefSelector::TableSlice(item_parsed));
+        }
+
         #[test]
         fn unknown() {
             let input = "\u{2603}";
@@ -387,6 +410,7 @@ mod test {
             CodeBlock(_),
             Html(_),
             Paragraph(_),
+            TableSlice(_),
         });
     }
 
@@ -448,7 +472,7 @@ mod test {
             let inline = Inline::Link(mk_link());
             let node_ref = MdElemRef::Inline(&inline);
             let children = MdqRefSelector::find_children(node_ref);
-            assert_eq!(children, vec![MdElemRef::Link(&mk_link()),]);
+            assert_eq!(children, vec![MdElemRef::Link(&mk_link())]);
         }
     }
 }

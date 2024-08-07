@@ -1,0 +1,86 @@
+[given]
+md = '''
+Are you ready for a table?
+
+| Name | Description |
+|:----:|-------------|
+| Foo  | Not a fizz  |
+| Bar  | Not a buzz  |
+| Barn | Big, red.   | And this is an extra column |
+| Fuzz |
+
+Note that the "Barn" row has an extra column, and the "Fuzz" row is missing one.
+'''
+
+
+[expect."table not normalized by default"]
+cli_args = [""]
+output = '''
+Are you ready for a table?
+
+| Name | Description |
+|:----:|-------------|
+| Foo  | Not a fizz  |
+| Bar  | Not a buzz  |
+| Barn | Big, red.   | And this is an extra column |
+| Fuzz |
+
+Note that the "Barn" row has an extra column, and the "Fuzz" row is missing one.
+'''
+
+
+[expect."select all table cells normalizes"]
+cli_args = [":-: * :-:"]
+output = '''
+| Name | Description |                             |
+|:----:|-------------|-----------------------------|
+| Foo  | Not a fizz  |                             |
+| Bar  | Not a buzz  |                             |
+| Barn | Big, red.   | And this is an extra column |
+| Fuzz |             |                             |'''
+
+
+[expect."select only name"]
+# note: "Name" has an 'a', "Description" doesn't. There are other rows that do contain 'a' in the Description column,
+# but the first matcher only checks the header cells (by design).
+cli_args = [":-: a :-:"]
+output = '''
+| Name |
+|:----:|
+| Foo  |
+| Bar  |
+| Barn |
+| Fuzz |'''
+
+
+[expect."select only description"]
+cli_args = [":-: description :-:"]
+output = '''
+| Description |
+|-------------|
+| Not a fizz  |
+| Not a buzz  |
+| Big, red.   |
+|             |'''
+
+
+[expect."select only the big red row"]
+# Note: header row always survives
+cli_args = [":-: * :-: 'Big, red' "]
+output = '''
+| Name | Description |                             |
+|:----:|-------------|-----------------------------|
+| Barn | Big, red.   | And this is an extra column |'''
+
+
+[expect."chained"]
+# chaining onen all-cells selector into another; the second should be a noop
+# TODO need to add "chained" tests for all! And maybe even require it in the build.rs code
+cli_args = [":-: * :-: * | :-: * :-: * | "]
+output = '''
+| Name | Description |                             |
+|:----:|-------------|-----------------------------|
+| Foo  | Not a fizz  |                             |
+| Bar  | Not a buzz  |                             |
+| Barn | Big, red.   | And this is an extra column |
+| Fuzz |             |                             |'''

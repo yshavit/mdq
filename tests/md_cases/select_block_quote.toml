@@ -41,3 +41,10 @@ cli_args = ['> | - *'] # note: space between the - and [ is required
 output = '''
 - Four
 '''
+
+
+[expect."chained"]
+cli_args = ['> two | > two'] # note: space between the - and [ is required
+output = '''
+> Two
+'''

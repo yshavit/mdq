@@ -123,6 +123,14 @@ You can select...
   ```bash
   $ cat example.md | mdq 'P: foo'  # find paragraphs containing "foo"
   ```
+  
+- Tables
+
+  ```bash
+  $ cat example.md | mdq ':-: "some headers" :-: "some rows"'
+  ```
+  (Tables selection differs from other selections in that you can actually select only certain headers and rows.
+  See the wiki for more.)
 
 The `foo`s and `bar`s above can be:
 

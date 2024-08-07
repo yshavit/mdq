@@ -8,7 +8,7 @@ use crate::link_transform::LinkLabel;
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
-use crate::tree_ref::{ListItemRef, MdElemRef};
+use crate::tree_ref::{ListItemRef, MdElemRef, TableSlice};
 
 pub struct MdOptions {
     pub link_reference_placement: ReferencePlacement,
@@ -156,7 +156,8 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
             MdElemRef::Paragraph(para) => self.write_paragraph(out, para),
             MdElemRef::BlockQuote(block) => self.write_block_quote(out, block),
             MdElemRef::List(list) => self.write_list(out, list),
-            MdElemRef::Table(table) => self.write_table(out, table),
+            MdElemRef::Table(table) => self.write_table(out, table.into()), // TODO maybe have a generic table trait, so I don't need to do the copying?
+            MdElemRef::TableSlice(table) => self.write_table(out, table),
             MdElemRef::Inline(inline) => {
                 self.inlines_writer.write_inline_element(out, inline);
             }
@@ -193,15 +194,16 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
         });
     }
 
-    fn write_table<W: SimpleWrite>(&mut self, out: &mut Output<W>, table: &'a Table) {
-        let Table { alignments, rows } = table;
+    fn write_table<W: SimpleWrite>(&mut self, out: &mut Output<W>, table: TableSlice<'a>) {
+        let alignments = table.alignments();
+        let rows = table.rows();
 
-        let mut row_strs = Vec::with_capacity(rows.len());
+        let mut row_strs = Vec::with_capacity(alignments.len());
 
         let mut column_widths = [0].repeat(alignments.len());
         if !alignments.is_empty() {
             for (idx, alignment) in alignments.iter().enumerate() {
-                let width = match standard_align(alignment) {
+                let width = match standard_align(*alignment) {
                     Some(Alignment::Left | Alignment::Right) => 2,
                     Some(Alignment::Center) => 3,
                     None => 1,
@@ -213,8 +215,8 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
         // Pre-calculate all the cells, and also how wide each column needs to be
         for row in rows {
             let mut col_strs = Vec::with_capacity(row.len());
-            for (idx, col) in row.iter().enumerate() {
-                let col_str = self.line_to_string(col);
+            for (idx, &col) in row.iter().enumerate() {
+                let col_str = col.map(|ln| self.line_to_string(ln)).unwrap_or("".to_string());
                 // Extend the row_sizes if needed. This happens if we had fewer alignments than columns in any
                 // row. I'm not sure if that's possible, but it's easy to guard against.
                 while column_widths.len() <= idx {
@@ -266,7 +268,7 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
         // Headers
         if !alignments.is_empty() {
             out.write_char('|');
-            for (idx, align) in alignments.iter().enumerate() {
+            for (idx, &align) in alignments.iter().enumerate() {
                 let width = column_widths
                     .get(idx)
                     .unwrap_or_else(|| match standard_align(align) {
@@ -517,6 +519,7 @@ pub mod tests {
         BlockQuote(_),
         List(_),
         Table(_),
+        TableSlice(_),
     });
 
     #[test]
@@ -980,6 +983,38 @@ pub mod tests {
                 |---|----|
                 | 1 |
                 | i | ii | iii |"#},
+            );
+        }
+
+        /// Test of a table slice, instead of the table ref directly. This is just a smoke test,
+        /// because the implementations are the same (one forwards to the other); this test is
+        /// here just to validate that the delegation happens, as opposed to "oops, I forgot to
+        /// actually implement the delegation."
+        #[test]
+        fn slice() {
+            let table = Table {
+                alignments: vec![mdast::AlignKind::Left, mdast::AlignKind::Right],
+                rows: vec![
+                    // Header row
+                    vec![
+                        // columns
+                        vec![mdq_inline!("Left")],
+                        vec![mdq_inline!("Right")],
+                    ],
+                    // Data row
+                    vec![
+                        // columns
+                        vec![mdq_inline!("a")],
+                        vec![mdq_inline!("b")],
+                    ],
+                ],
+            };
+            check_render_refs(
+                vec![MdElemRef::TableSlice((&table).into())],
+                indoc! {r#"
+                    | Left | Right |
+                    |:-----|------:|
+                    | a    |     b |"#},
             );
         }
     }
