@@ -87,9 +87,9 @@ impl<'a> TableSlice<'a> {
         }
     }
 
-    pub fn retain_columns_by_header<F>(&mut self, f: F)
+    pub fn retain_columns_by_header<F>(&mut self, mut f: F)
     where
-        F: Fn(&Line) -> bool,
+        F: FnMut(&Line) -> bool,
     {
         let Some(first_row) = self.rows.first() else {
             return;
@@ -122,9 +122,9 @@ impl<'a> TableSlice<'a> {
         }
     }
 
-    pub fn retain_rows<F>(&mut self, f: F)
+    pub fn retain_rows<F>(&mut self, mut f: F)
     where
-        F: Fn(&Line) -> bool,
+        F: FnMut(&Line) -> bool,
     {
         self.rows
             .retain_with_index(|idx, row| {
@@ -304,19 +304,55 @@ mod tests {
                 vec!["data 1 a", "data 1 b", "data 1 c"],
                 vec!["data 2 a", "data 2 b", "KEEPER c"],
             ]);
-            let slice = TableSlice::from(&table);
-            let slice = slice
-                .retain_columns_by_header(cell_matches("KEEPER"))
-                .expect("expected Some(TableSlice)");
+            let mut slice = TableSlice::from(&table);
+            slice.retain_columns_by_header(cell_matches("KEEPER"));
 
-            assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Center]);
+            // note: "KEEPER" is in the last column, but not in the header; only the header gets
+            // matched.
+            assert_eq!(slice.alignments, vec![mdast::AlignKind::Left]);
             assert_eq!(
                 slice.rows,
                 vec![
-                    vec![Some(&cell("KEEPER a")), Some(&cell("header c"))],
-                    vec![Some(&cell("data 1 a")), Some(&cell("data 1 c"))],
-                    vec![Some(&cell("data 2 a")), Some(&cell("KEEPER c"))],
+                    vec![Some(&cell("KEEPER a"))],
+                    vec![Some(&cell("data 1 a"))],
+                    vec![Some(&cell("data 2 a"))],
                 ]
+            );
+        }
+
+        #[test]
+        fn retain_all_columns_on_jagged_normalized_table() {
+            let table = new_table(vec![
+                vec!["header a", "header b"],
+                vec!["data 1 a", "data 1 b", "data 1 c"],
+                vec!["data 2 a"],
+            ]);
+            let mut slice = TableSlice::from(&table);
+            slice.normalize();
+
+            let mut seen_lines = Vec::with_capacity(3);
+            slice.retain_columns_by_header(|line| {
+                seen_lines.push(simple_to_string(line));
+                true
+            });
+
+            // normalization
+            assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]);
+            assert_eq!(
+                slice.rows,
+                vec![
+                    vec![Some(&cell("header a")), Some(&cell("header b")), None],
+                    vec![Some(&cell("data 1 a")), Some(&cell("data 1 b")), Some(&cell("data 1 c"))],
+                    vec![Some(&cell("data 2 a")), None, None],
+                ]
+            );
+            assert_eq!(
+                seen_lines,
+                vec![
+                    "header a".to_string(),
+                    "header b".to_string(),
+                    "".to_string(),
+                ],
             );
         }
 
@@ -327,10 +363,8 @@ mod tests {
                 vec!["data 1 a", "data 1 b", "data 1 c"],
                 vec!["data 2 a", "KEEPER b", "data 2 c"],
             ]);
-            let slice = TableSlice::from(&table);
-            let slice = slice
-                .retain_rows(cell_matches("KEEPER"))
-                .expect("expected Some(TableSlice)");
+            let mut slice = TableSlice::from(&table);
+            slice.retain_rows(cell_matches("KEEPER"));
 
             assert_eq!(
                 slice.alignments,
@@ -347,6 +381,49 @@ mod tests {
                     vec![Some(&cell("header a")), Some(&cell("header b")), Some(&cell("header c"))],
                     vec![Some(&cell("data 2 a")), Some(&cell("KEEPER b")), Some(&cell("data 2 c"))],
                 ]
+            );
+        }
+
+        #[test]
+        fn retain_rows_on_jagged_normalized_table() {
+            let table = new_table(vec![
+                vec!["header a", "header b"],
+                vec!["data 1 a", "data 1 b", "data 1 c"],
+                vec!["data 2 a"],
+            ]);
+            let mut slice = TableSlice::from(&table);
+            slice.normalize();
+
+            let mut seen_lines = Vec::with_capacity(3);
+            // retain only the rows with empty cells. This lets us get around the short-circuiting
+            // of retain_rows (it short-circuits within each row as soon as it finds a matching
+            // cell), to validate that the normalization works as expected.
+            slice.retain_rows(|line| {
+                seen_lines.push(simple_to_string(line));
+                line.is_empty()
+            });
+
+            // normalization
+            assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]);
+            assert_eq!(
+                slice.rows,
+                vec![
+                    vec![Some(&cell("header a")), Some(&cell("header b")), None],
+                    vec![Some(&cell("data 2 a")), None, None],
+                ]
+            );
+            assert_eq!(
+                seen_lines,
+                vec![
+                    // header row gets skipped, since it's always retained
+                    // second row:
+                    "data 1 a".to_string(),
+                    "data 1 b".to_string(),
+                    "data 1 c".to_string(),
+                    // third row: note that the 2nd cell short-circuits the row, so there is no 3rd
+                    "data 2 a".to_string(),
+                    "".to_string(),
+                ],
             );
         }
 
@@ -395,6 +472,21 @@ mod tests {
                 variant: TextVariant::Plain,
                 value: value.to_string(),
             })]
+        }
+
+        fn simple_to_string(line: &Line) -> String {
+            let mut result = String::with_capacity(32);
+            for segment in line {
+                match segment {
+                    Inline::Text(Text{ variant, value}) if variant == &TextVariant::Plain => {
+                        result.push_str(value);
+                    }
+                    _ => {
+                        panic!("test error: unimplemented inline segment in simple_to_string");
+                    }
+                }
+            }
+            result
         }
     }
 }

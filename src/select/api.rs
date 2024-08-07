@@ -397,6 +397,7 @@ mod test {
             CodeBlock(_),
             Html(_),
             Paragraph(_),
+            Table(_),
         });
     }
 
