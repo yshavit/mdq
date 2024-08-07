@@ -1,4 +1,6 @@
-use crate::tree::{BlockQuote, CodeBlock, Image, Inline, Line, Link, List, ListItem, MdElem, Paragraph, Section, Table};
+use crate::tree::{
+    BlockQuote, CodeBlock, Image, Inline, Line, Link, List, ListItem, MdElem, Paragraph, Section, Table,
+};
 use crate::vec_utils::{IndexKeeper, ItemRetainer};
 use markdown::mdast;
 
@@ -58,7 +60,7 @@ impl<'a> TableSlice<'a> {
         &self.alignments
     }
 
-    pub fn rows(&self) -> impl Iterator<Item=&TableRowSlice<'a>> {
+    pub fn rows(&self) -> impl Iterator<Item = &TableRowSlice<'a>> {
         self.rows.iter()
     }
 
@@ -80,7 +82,10 @@ impl<'a> TableSlice<'a> {
         if self.alignments.len() > max_cols {
             self.alignments.truncate(max_cols);
         } else {
-            let nones = [mdast::AlignKind::None].iter().cycle().take(max_cols - self.alignments.len());
+            let nones = [mdast::AlignKind::None]
+                .iter()
+                .cycle()
+                .take(max_cols - self.alignments.len());
             self.alignments.extend(nones);
         }
     }
@@ -105,11 +110,11 @@ impl<'a> TableSlice<'a> {
                 self.alignments.clear();
                 self.rows.clear();
                 return;
-            },
+            }
             n if n == first_row.len() => {
                 // all columns match: no need to go one by one, just return without modifications
-                return
-            },
+                return;
+            }
             _ => {
                 // some columns match: retain those, and discard the rest
                 self.alignments.retain_with_index(keeper_indices.retain_fn());
@@ -124,17 +129,16 @@ impl<'a> TableSlice<'a> {
     where
         F: FnMut(&Line) -> bool,
     {
-        self.rows
-            .retain_with_index(|idx, row| {
-                if idx == 0 {
-                    return true
-                }
-                row.iter().any(|opt_cell| {
-                    let empty_cell = Line::new();
-                    let resolved_cell = opt_cell.unwrap_or(&empty_cell);
-                    f(resolved_cell)
-                })
-            });
+        self.rows.retain_with_index(|idx, row| {
+            if idx == 0 {
+                return true;
+            }
+            row.iter().any(|opt_cell| {
+                let empty_cell = Line::new();
+                let resolved_cell = opt_cell.unwrap_or(&empty_cell);
+                f(resolved_cell)
+            })
+        });
     }
 
     pub fn is_empty(&self) -> bool {
@@ -270,26 +274,40 @@ mod tests {
             ]);
             {
                 let plain_slice = TableSlice::from(&table);
-                assert_eq!(plain_slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right]);
+                assert_eq!(
+                    plain_slice.alignments,
+                    vec![mdast::AlignKind::Left, mdast::AlignKind::Right]
+                );
                 assert_eq!(
                     plain_slice.rows,
                     vec![
                         vec![Some(&cell("header a")), Some(&cell("header b"))],
                         vec![Some(&cell("data 1 a"))],
-                        vec![Some(&cell("data 2 a")), Some(&cell("data 2 b")), Some(&cell("data 2 c"))],
+                        vec![
+                            Some(&cell("data 2 a")),
+                            Some(&cell("data 2 b")),
+                            Some(&cell("data 2 c"))
+                        ],
                     ]
                 );
             }
             {
                 let mut normalized_slice = TableSlice::from(&table);
                 normalized_slice.normalize();
-                assert_eq!(normalized_slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]);
+                assert_eq!(
+                    normalized_slice.alignments,
+                    vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]
+                );
                 assert_eq!(
                     normalized_slice.rows,
                     vec![
                         vec![Some(&cell("header a")), Some(&cell("header b")), None],
                         vec![Some(&cell("data 1 a")), None, None],
-                        vec![Some(&cell("data 2 a")), Some(&cell("data 2 b")), Some(&cell("data 2 c"))],
+                        vec![
+                            Some(&cell("data 2 a")),
+                            Some(&cell("data 2 b")),
+                            Some(&cell("data 2 c"))
+                        ],
                     ]
                 );
             }
@@ -335,22 +353,25 @@ mod tests {
             });
 
             // normalization
-            assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]);
+            assert_eq!(
+                slice.alignments,
+                vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]
+            );
             assert_eq!(
                 slice.rows,
                 vec![
                     vec![Some(&cell("header a")), Some(&cell("header b")), None],
-                    vec![Some(&cell("data 1 a")), Some(&cell("data 1 b")), Some(&cell("data 1 c"))],
+                    vec![
+                        Some(&cell("data 1 a")),
+                        Some(&cell("data 1 b")),
+                        Some(&cell("data 1 c"))
+                    ],
                     vec![Some(&cell("data 2 a")), None, None],
                 ]
             );
             assert_eq!(
                 seen_lines,
-                vec![
-                    "header a".to_string(),
-                    "header b".to_string(),
-                    "".to_string(),
-                ],
+                vec!["header a".to_string(), "header b".to_string(), "".to_string(),],
             );
         }
 
@@ -376,8 +397,16 @@ mod tests {
             assert_eq!(
                 slice.rows,
                 vec![
-                    vec![Some(&cell("header a")), Some(&cell("header b")), Some(&cell("header c"))],
-                    vec![Some(&cell("data 2 a")), Some(&cell("KEEPER b")), Some(&cell("data 2 c"))],
+                    vec![
+                        Some(&cell("header a")),
+                        Some(&cell("header b")),
+                        Some(&cell("header c"))
+                    ],
+                    vec![
+                        Some(&cell("data 2 a")),
+                        Some(&cell("KEEPER b")),
+                        Some(&cell("data 2 c"))
+                    ],
                 ]
             );
         }
@@ -402,7 +431,10 @@ mod tests {
             });
 
             // normalization
-            assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]);
+            assert_eq!(
+                slice.alignments,
+                vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]
+            );
             assert_eq!(
                 slice.rows,
                 vec![
@@ -447,11 +479,11 @@ mod tests {
                 mdast::AlignKind::Right,
                 mdast::AlignKind::Center,
             ]
-                .iter()
-                .cycle()
-                .take(first_row.len())
-                .map(ToOwned::to_owned)
-                .collect();
+            .iter()
+            .cycle()
+            .take(first_row.len())
+            .map(ToOwned::to_owned)
+            .collect();
             let mut rows = Vec::with_capacity(cells.len());
 
             while let Some(row_strings) = rows_iter.next() {
@@ -476,7 +508,7 @@ mod tests {
             let mut result = String::with_capacity(32);
             for segment in line {
                 match segment {
-                    Inline::Text(Text{ variant, value}) if variant == &TextVariant::Plain => {
+                    Inline::Text(Text { variant, value }) if variant == &TextVariant::Plain => {
                         result.push_str(value);
                     }
                     _ => {

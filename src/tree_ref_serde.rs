@@ -248,9 +248,7 @@ impl<'a> SerdeElem<'a> {
                 let body = Self::build_multi(body, inlines_writer);
                 Self::Section { depth, title, body }
             }
-            MdElemRef::Table(table) => {
-                Self::build(MdElemRef::TableSlice(table.into()), inlines_writer)
-            }
+            MdElemRef::Table(table) => Self::build(MdElemRef::TableSlice(table.into()), inlines_writer),
             MdElemRef::TableSlice(table) => {
                 let mut rendered_rows = Vec::with_capacity(8); // TODO this is a guess; expose it via the trait?
                 for row in table.rows() {
@@ -258,7 +256,7 @@ impl<'a> SerdeElem<'a> {
                     for maybe_cell in row {
                         let rendered_cell = match maybe_cell {
                             Some(cell) => inlines_to_string(*cell, inlines_writer),
-                            None => "".to_string()
+                            None => "".to_string(),
                         };
                         rendered_cells.push(rendered_cell)
                     }
@@ -311,7 +309,7 @@ mod tests {
     use crate::md_elems;
     use crate::tree::MdElem;
     use crate::tree::*;
-    use crate::tree_ref::{ListItemRef};
+    use crate::tree_ref::ListItemRef;
     use crate::variants_checker;
     use crate::{md_elem, mdq_inline};
 
@@ -664,13 +662,13 @@ mod tests {
 
     #[test]
     fn table_slice() {
-        let table = Table{
-                alignments: vec![AlignKind::Left, AlignKind::None],
-                rows: vec![
-                    vec![vec![mdq_inline!("R1C1")], vec![mdq_inline!("R1C2")]],
-                    vec![vec![mdq_inline!("R2C1")], vec![mdq_inline!("R2C2")]],
-                ]
-            };
+        let table = Table {
+            alignments: vec![AlignKind::Left, AlignKind::None],
+            rows: vec![
+                vec![vec![mdq_inline!("R1C1")], vec![mdq_inline!("R1C2")]],
+                vec![vec![mdq_inline!("R2C1")], vec![mdq_inline!("R2C2")]],
+            ],
+        };
 
         check_md_ref(
             MdElemRef::TableSlice((&table).into()),

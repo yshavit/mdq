@@ -993,10 +993,7 @@ pub mod tests {
         #[test]
         fn slice() {
             let table = Table {
-                alignments: vec![
-                    mdast::AlignKind::Left,
-                    mdast::AlignKind::Right,
-                ],
+                alignments: vec![mdast::AlignKind::Left, mdast::AlignKind::Right],
                 rows: vec![
                     // Header row
                     vec![

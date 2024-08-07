@@ -18,7 +18,8 @@ pub type ParseResult<T> = Result<T, ParseErrorReason>;
 
 pub const SELECTOR_SEPARATOR: char = '|';
 
-pub trait Selector<'a, I: Into<MdElemRef<'a>>> { // TODO I should really rename all these 'a to 'md
+pub trait Selector<'a, I: Into<MdElemRef<'a>>> {
+    // TODO I should really rename all these 'a to 'md
     fn try_select(&self, item: I) -> Option<MdElemRef<'a>>;
 }
 
@@ -199,7 +200,8 @@ impl MdqRefSelector {
 
     fn build_output<'a>(&self, out: &mut Vec<MdElemRef<'a>>, node: MdElemRef<'a>) {
         // try_select_node is defined in macro_helpers::selectors!
-        match self.try_select_node(node.clone()) { // TODO can we remove this? I don't think so, but let's follow up
+        match self.try_select_node(node.clone()) {
+            // TODO can we remove this? I don't think so, but let's follow up
             Some(found) => out.push(found),
             None => {
                 for child in Self::find_children(node) {
@@ -239,9 +241,7 @@ impl MdqRefSelector {
                 }
                 result
             }
-            MdElemRef::Table(table) => {
-                Self::find_children(MdElemRef::TableSlice(table.into()))
-            }
+            MdElemRef::Table(table) => Self::find_children(MdElemRef::TableSlice(table.into())),
             MdElemRef::TableSlice(table) => {
                 let table_rows_estimate = 8; // TODO expose this from the table.rows() trait
                 let first_row_cols = table.rows().next().map(Vec::len).unwrap_or(0);
