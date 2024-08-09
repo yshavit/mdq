@@ -54,12 +54,15 @@ fn generate_integ_test_cases(out_dir: &String) -> Result<(), String> {
 
             match (chained_needed, found_chained_case) {
                 (true, false) => Case::write_failing_test(out, "chained", "missing 'chained' test case"),
-                (false, true) => Case::write_failing_test(out, "chained__extra", "provided 'chained' test case even though it was marked as not needed"),
+                (false, true) => Case::write_failing_test(
+                    out,
+                    "chained__extra",
+                    "provided 'chained' test case even though it was marked as not needed",
+                ),
                 _ => {}
             }
 
-            if !found_chained_case {
-            }
+            if !found_chained_case {}
         });
 
         out.writeln("}");
