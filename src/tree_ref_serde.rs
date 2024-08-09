@@ -250,7 +250,7 @@ impl<'md> SerdeElem<'md> {
             }
             MdElemRef::Table(table) => Self::build(MdElemRef::TableSlice(table.into()), inlines_writer),
             MdElemRef::TableSlice(table) => {
-                let mut rendered_rows = Vec::with_capacity(8); // TODO this is a guess; expose it via the trait?
+                let mut rendered_rows = Vec::with_capacity(table.rows().len());
                 for row in table.rows() {
                     let mut rendered_cells = Vec::with_capacity(row.len());
                     for maybe_cell in row {

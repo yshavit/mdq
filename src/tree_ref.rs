@@ -60,8 +60,8 @@ impl<'md> TableSlice<'md> {
         &self.alignments
     }
 
-    pub fn rows(&self) -> impl Iterator<Item = &TableRowSlice<'md>> {
-        self.rows.iter()
+    pub fn rows(&self) -> &Vec<TableRowSlice<'md>> {
+        &self.rows
     }
 
     /// Normalizes this slice, so that every row has the same number of columns.
