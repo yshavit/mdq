@@ -35,7 +35,7 @@ impl TableSliceSelector {
 
 impl<'md> Selector<'md, TableSlice<'md>> for TableSliceSelector {
     fn try_select(&self, slice: TableSlice<'md>) -> Option<MdElemRef<'md>> {
-        let mut slice = slice.clone(); // TODO is there any way to avoid this? There may not be.
+        let mut slice = slice.clone(); // GH #168 is there any way to avoid this? There may not be.
         slice.normalize();
 
         slice.retain_columns_by_header(|line| self.headers_matcher.matches_inlines(line));

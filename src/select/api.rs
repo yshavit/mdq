@@ -199,8 +199,8 @@ impl MdqRefSelector {
 
     fn build_output<'md>(&self, out: &mut Vec<MdElemRef<'md>>, node: MdElemRef<'md>) {
         // try_select_node is defined in macro_helpers::selectors!
+        // GH #168 can we remove the clone()? Maybe by having try_select_node take a reference.
         match self.try_select_node(node.clone()) {
-            // TODO can we remove this? I don't think so, but let's follow up
             Some(found) => out.push(found),
             None => {
                 for child in Self::find_children(node) {
