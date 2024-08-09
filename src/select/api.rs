@@ -18,9 +18,8 @@ pub type ParseResult<T> = Result<T, ParseErrorReason>;
 
 pub const SELECTOR_SEPARATOR: char = '|';
 
-pub trait Selector<'a, I: Into<MdElemRef<'a>>> {
-    // TODO I should really rename all these 'a to 'md
-    fn try_select(&self, item: I) -> Option<MdElemRef<'a>>;
+pub trait Selector<'md, I: Into<MdElemRef<'md>>> {
+    fn try_select(&self, item: I) -> Option<MdElemRef<'md>>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -69,7 +68,7 @@ macro_rules! selectors {
         }
 
         impl MdqRefSelector {
-            fn try_select_node<'a>(&self, node: MdElemRef<'a>) -> Option<MdElemRef<'a>> {
+            fn try_select_node<'md>(&self, node: MdElemRef<'md>) -> Option<MdElemRef<'md>> {
                 match (self, node) {
                     $(
                     (Self::$name(selector), MdElemRef::$name(elem)) => selector.try_select(elem),
@@ -190,7 +189,7 @@ impl MdqRefSelector {
         Ok(selectors)
     }
 
-    pub fn find_nodes<'a>(&self, nodes: Vec<MdElemRef<'a>>) -> Vec<MdElemRef<'a>> {
+    pub fn find_nodes<'md>(&self, nodes: Vec<MdElemRef<'md>>) -> Vec<MdElemRef<'md>> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
         for node in nodes {
             self.build_output(&mut result, node);
@@ -198,7 +197,7 @@ impl MdqRefSelector {
         result
     }
 
-    fn build_output<'a>(&self, out: &mut Vec<MdElemRef<'a>>, node: MdElemRef<'a>) {
+    fn build_output<'md>(&self, out: &mut Vec<MdElemRef<'md>>, node: MdElemRef<'md>) {
         // try_select_node is defined in macro_helpers::selectors!
         match self.try_select_node(node.clone()) {
             // TODO can we remove this? I don't think so, but let's follow up

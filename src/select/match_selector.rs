@@ -7,12 +7,12 @@ pub trait MatchSelector<I> {
     fn matches(&self, item: I) -> bool;
 }
 
-impl<'a, I, M> Selector<'a, I> for M
+impl<'md, I, M> Selector<'md, I> for M
 where
-    I: Copy + Into<MdElemRef<'a>>,
+    I: Copy + Into<MdElemRef<'md>>,
     M: MatchSelector<I>,
 {
-    fn try_select(&self, item: I) -> Option<MdElemRef<'a>> {
+    fn try_select(&self, item: I) -> Option<MdElemRef<'md>> {
         if self.matches(item) {
             Some(item.into())
         } else {

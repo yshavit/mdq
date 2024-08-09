@@ -27,12 +27,12 @@ pub struct LinkTransformer {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum LinkLabel<'a> {
-    Text(Cow<'a, str>),
-    Inline(&'a Vec<Inline>),
+pub enum LinkLabel<'md> {
+    Text(Cow<'md, str>),
+    Inline(&'md Vec<Inline>),
 }
 
-impl<'a> LinkLabel<'a> {
+impl<'md> LinkLabel<'md> {
     pub fn get_sort_string(&self) -> String {
         // There may be a way to Cow this so that we don't have to copy the ::Text string, but I can't find it.
         match self {
@@ -64,8 +64,8 @@ enum LinkTransformState {
     Reference(ReferenceAssigner),
 }
 
-pub struct LinkTransformation<'a> {
-    link_text: Option<Cow<'a, str>>,
+pub struct LinkTransformation<'md> {
+    link_text: Option<Cow<'md, str>>,
 }
 
 /// A temporary holder to perform link transformations.
@@ -87,10 +87,10 @@ pub struct LinkTransformation<'a> {
 /// ```
 ///
 /// This lets us use the `transform_variant()`'s Copy-ability to release the borrow.
-impl<'a> LinkTransformation<'a> {
-    pub fn new<L>(transform: LinkTransform, inline_writer: &mut MdInlinesWriter<'a>, item: L) -> Self
+impl<'md> LinkTransformation<'md> {
+    pub fn new<L>(transform: LinkTransform, inline_writer: &mut MdInlinesWriter<'md>, item: L) -> Self
     where
-        L: LinkLike<'a> + Copy,
+        L: LinkLike<'md> + Copy,
     {
         let link_text = match transform {
             LinkTransform::Keep | LinkTransform::Inline => None,
@@ -111,10 +111,10 @@ impl<'a> LinkTransformation<'a> {
         Self { link_text }
     }
 
-    // We could in principle return a Cow<'a, LinkReference>, and save some clones in the assigner.
+    // We could in principle return a Cow<'md, LinkReference>, and save some clones in the assigner.
     // To do that, fmt_md_inlines.rs would need to adjust to hold Cows instead of LinkLabels directly. For now, not
     // a high priority.
-    pub fn apply(self, transformer: &mut LinkTransformer, link: &'a LinkReference) -> LinkReference {
+    pub fn apply(self, transformer: &mut LinkTransformer, link: &'md LinkReference) -> LinkReference {
         match &mut transformer.delegate {
             LinkTransformState::Keep => Cow::Borrowed(link),
             LinkTransformState::Inline => Cow::Owned(LinkReference::Inline),
@@ -152,7 +152,7 @@ impl ReferenceAssigner {
         }
     }
 
-    fn assign<'a>(&mut self, state: LinkTransformation<'a>, link: &'a LinkReference) -> Cow<'a, LinkReference> {
+    fn assign<'md>(&mut self, state: LinkTransformation<'md>, link: &'md LinkReference) -> Cow<'md, LinkReference> {
         match &link {
             LinkReference::Inline => self.assign_new(),
             LinkReference::Full(prev) => self.assign_if_numeric(prev).unwrap_or_else(|| Cow::Borrowed(link)),
@@ -166,7 +166,7 @@ impl ReferenceAssigner {
         }
     }
 
-    fn assign_if_numeric<'a>(&mut self, prev: &str) -> Option<Cow<'a, LinkReference>> {
+    fn assign_if_numeric<'md>(&mut self, prev: &str) -> Option<Cow<'md, LinkReference>> {
         if prev.chars().all(|ch| ch.is_numeric()) {
             match self.reorderings.entry(String::from(prev)) {
                 Entry::Occupied(map_to) => Some(Cow::Owned(LinkReference::Full(map_to.get().to_string()))),
@@ -180,7 +180,7 @@ impl ReferenceAssigner {
         }
     }
 
-    fn assign_new<'a>(&mut self) -> Cow<'a, LinkReference> {
+    fn assign_new<'md>(&mut self) -> Cow<'md, LinkReference> {
         let idx_str = self.next_index.to_string();
         self.next_index += 1;
         Cow::Owned(LinkReference::Full(idx_str))
@@ -189,7 +189,7 @@ impl ReferenceAssigner {
 
 /// Turns the inlines into a String. Unlike [crate::fmt_str::inlines_to_plain_string], this respects formatting spans
 /// like emphasis, strong, etc.
-fn inlines_to_string<'a>(inline_writer: &mut MdInlinesWriter<'a>, inlines: &'a Vec<Inline>) -> String {
+fn inlines_to_string<'md>(inline_writer: &mut MdInlinesWriter<'md>, inlines: &'md Vec<Inline>) -> String {
     let mut string_writer = Output::new(String::with_capacity(32)); // guess at capacity
     inline_writer.write_line(&mut string_writer, inlines);
     string_writer
@@ -464,10 +464,10 @@ mod tests {
         );
     }
 
-    fn transform<'a>(
+    fn transform<'md>(
         mut transformer: &mut LinkTransformer,
-        mut iw: &mut MdInlinesWriter<'a>,
-        link: &'a Link,
+        mut iw: &mut MdInlinesWriter<'md>,
+        link: &'md Link,
     ) -> LinkReference {
         let actual = LinkTransformation::new(transformer.transform_variant(), &mut iw, link)
             .apply(&mut transformer, &link.link_definition.reference);

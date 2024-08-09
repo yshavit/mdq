@@ -13,19 +13,19 @@ pub struct MdInlinesWriterOptions {
     pub link_format: LinkTransform,
 }
 
-pub struct MdInlinesWriter<'a> {
-    seen_links: HashSet<LinkLabel<'a>>,
-    seen_footnotes: HashSet<&'a String>,
-    pending_references: PendingReferences<'a>,
+pub struct MdInlinesWriter<'md> {
+    seen_links: HashSet<LinkLabel<'md>>,
+    seen_footnotes: HashSet<&'md String>,
+    pending_references: PendingReferences<'md>,
     link_transformer: LinkTransformer,
 }
 
-struct PendingReferences<'a> {
-    pub links: HashMap<LinkLabel<'a>, UrlAndTitle<'a>>,
-    pub footnotes: HashMap<&'a String, &'a Vec<MdElem>>,
+struct PendingReferences<'md> {
+    pub links: HashMap<LinkLabel<'md>, UrlAndTitle<'md>>,
+    pub footnotes: HashMap<&'md String, &'md Vec<MdElem>>,
 }
 
-impl<'a> PendingReferences<'a> {
+impl<'md> PendingReferences<'md> {
     fn with_capacity(capacity: usize) -> Self {
         Self {
             links: HashMap::with_capacity(capacity),
@@ -35,10 +35,10 @@ impl<'a> PendingReferences<'a> {
 }
 
 #[derive(Serialize, Debug, PartialEq, Eq, Copy, Clone, Hash)]
-pub struct UrlAndTitle<'a> {
-    pub url: &'a String,
+pub struct UrlAndTitle<'md> {
+    pub url: &'md String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: &'a Option<String>,
+    pub title: &'md Option<String>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -47,18 +47,18 @@ pub enum LinkLikeType {
     Image,
 }
 
-pub trait LinkLike<'a> {
-    fn link_info(&self) -> (LinkLikeType, LinkLabel<'a>, &'a LinkDefinition);
+pub trait LinkLike<'md> {
+    fn link_info(&self) -> (LinkLikeType, LinkLabel<'md>, &'md LinkDefinition);
 }
 
-impl<'a> LinkLike<'a> for &'a Link {
-    fn link_info(&self) -> (LinkLikeType, LinkLabel<'a>, &'a LinkDefinition) {
+impl<'md> LinkLike<'md> for &'md Link {
+    fn link_info(&self) -> (LinkLikeType, LinkLabel<'md>, &'md LinkDefinition) {
         (LinkLikeType::Link, LinkLabel::Inline(&self.text), &self.link_definition)
     }
 }
 
-impl<'a> LinkLike<'a> for &'a Image {
-    fn link_info(&self) -> (LinkLikeType, LinkLabel<'a>, &'a LinkDefinition) {
+impl<'md> LinkLike<'md> for &'md Image {
+    fn link_info(&self) -> (LinkLikeType, LinkLabel<'md>, &'md LinkDefinition) {
         (
             LinkLikeType::Image,
             LinkLabel::Text(Cow::Borrowed(&self.alt)),
@@ -67,7 +67,7 @@ impl<'a> LinkLike<'a> for &'a Image {
     }
 }
 
-impl<'a> MdInlinesWriter<'a> {
+impl<'md> MdInlinesWriter<'md> {
     pub fn new(options: MdInlinesWriterOptions) -> Self {
         let pending_refs_capacity = 8; // arbitrary guess
         Self {
@@ -94,17 +94,17 @@ impl<'a> MdInlinesWriter<'a> {
         self.pending_references.footnotes.len()
     }
 
-    pub fn drain_pending_links(&mut self) -> Vec<(LinkLabel<'a>, UrlAndTitle<'a>)> {
+    pub fn drain_pending_links(&mut self) -> Vec<(LinkLabel<'md>, UrlAndTitle<'md>)> {
         self.pending_references.links.drain().collect()
     }
 
-    pub fn drain_pending_footnotes(&mut self) -> Vec<(&'a String, &'a Vec<MdElem>)> {
+    pub fn drain_pending_footnotes(&mut self) -> Vec<(&'md String, &'md Vec<MdElem>)> {
         self.pending_references.footnotes.drain().collect()
     }
 
     pub fn write_line<I, W>(&mut self, out: &mut Output<W>, elems: I)
     where
-        I: IntoIterator<Item = &'a Inline>,
+        I: IntoIterator<Item = &'md Inline>,
         W: SimpleWrite,
     {
         for elem in elems {
@@ -112,7 +112,7 @@ impl<'a> MdInlinesWriter<'a> {
         }
     }
 
-    pub fn write_inline_element<W>(&mut self, out: &mut Output<W>, elem: &'a Inline)
+    pub fn write_inline_element<W>(&mut self, out: &mut Output<W>, elem: &'md Inline)
     where
         W: SimpleWrite,
     {
@@ -165,7 +165,7 @@ impl<'a> MdInlinesWriter<'a> {
     pub fn write_linklike<W, L>(&mut self, out: &mut Output<W>, link_like: L)
     where
         W: SimpleWrite,
-        L: LinkLike<'a> + Copy,
+        L: LinkLike<'md> + Copy,
     {
         let (link_type, label, link) = link_like.link_info();
         if matches!(link_type, LinkLikeType::Image) {

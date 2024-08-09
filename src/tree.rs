@@ -604,16 +604,16 @@ impl MdElem {
     }
 }
 
-struct NodeToMdqIter<'a, I>
+struct NodeToMdqIter<'md, I>
 where
     I: Iterator<Item = mdast::Node>,
 {
     children: I,
     pending: IntoIter<MdElem>,
-    lookups: &'a Lookups,
+    lookups: &'md Lookups,
 }
 
-impl<'a, I> Iterator for NodeToMdqIter<'a, I>
+impl<'md, I> Iterator for NodeToMdqIter<'md, I>
 where
     I: Iterator<Item = mdast::Node>,
 {
@@ -1985,7 +1985,7 @@ mod tests {
         // See [
         #[test]
         fn link_has_conflicting_definition() {
-            fn get<'a>(validate_no_conflicting_links: bool) -> Result<Lookups, InvalidMd> {
+            fn get(validate_no_conflicting_links: bool) -> Result<Lookups, InvalidMd> {
                 lookups_for(
                     &ParseOptions::gfm(),
                     ReadOptions {
