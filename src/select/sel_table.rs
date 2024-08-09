@@ -140,10 +140,10 @@ mod tests {
                 &vec![mdast::AlignKind::Left, mdast::AlignKind::Right]
             );
             assert_eq!(
-                table.rows().collect::<Vec<_>>(),
-                vec![
-                    &vec![Some(&cell("header a")), Some(&cell("header b"))],
-                    &vec![Some(&cell("data 1 a")), Some(&cell("data 1 b"))],
+                table.rows(),
+                &vec![
+                    vec![Some(&cell("header a")), Some(&cell("header b"))],
+                    vec![Some(&cell("data 1 a")), Some(&cell("data 1 b"))],
                 ]
             );
         }
@@ -166,8 +166,8 @@ mod tests {
             unwrap!(maybe_selected, Some(MdElemRef::TableSlice(table)));
             assert_eq!(table.alignments(), &vec![mdast::AlignKind::Right]);
             assert_eq!(
-                table.rows().collect::<Vec<_>>(),
-                vec![&vec![Some(&cell("KEEP b"))], &vec![Some(&cell("data 1 b"))],]
+                table.rows(),
+                &vec![vec![Some(&cell("KEEP b"))], vec![Some(&cell("data 1 b"))],]
             );
         }
 
@@ -193,11 +193,11 @@ mod tests {
                 &vec![mdast::AlignKind::Left, mdast::AlignKind::Right]
             );
             assert_eq!(
-                table.rows().collect::<Vec<_>>(),
-                vec![
+                table.rows(),
+                &vec![
                     // note: header always gets retained
-                    &vec![Some(&cell("header a")), Some(&cell("header b"))],
-                    &vec![Some(&cell("data 2 a")), Some(&cell("data 2 b"))],
+                    vec![Some(&cell("header a")), Some(&cell("header b"))],
+                    vec![Some(&cell("data 2 a")), Some(&cell("data 2 b"))],
                 ]
             );
         }
@@ -227,10 +227,10 @@ mod tests {
                 &vec![mdast::AlignKind::Left, mdast::AlignKind::None, mdast::AlignKind::None]
             );
             assert_eq!(
-                table.rows().collect::<Vec<_>>(),
-                vec![
-                    &vec![Some(&cell("header a")), None, None],
-                    &vec![Some(&cell("data 1 a")), Some(&cell("data 1 b")), None],
+                table.rows(),
+                &vec![
+                    vec![Some(&cell("header a")), None, None],
+                    vec![Some(&cell("data 1 a")), Some(&cell("data 1 b")), None],
                 ]
             );
         }

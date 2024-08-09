@@ -242,9 +242,9 @@ impl MdqRefSelector {
             }
             MdElemRef::Table(table) => Self::find_children(MdElemRef::TableSlice(table.into())),
             MdElemRef::TableSlice(table) => {
-                let table_rows_estimate = 8; // TODO expose this from the table.rows() trait
-                let first_row_cols = table.rows().next().map(Vec::len).unwrap_or(0);
-                let count_estimate = table_rows_estimate * first_row_cols;
+                let rows = table.rows();
+                let first_row_cols = rows.first().map(Vec::len).unwrap_or(0);
+                let count_estimate = rows.len() * first_row_cols;
                 let mut result = Vec::with_capacity(count_estimate);
                 for row in table.rows() {
                     for maybe_col in row {
