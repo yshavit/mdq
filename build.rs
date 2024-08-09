@@ -44,8 +44,18 @@ fn generate_integ_test_cases(out_dir: &String) -> Result<(), String> {
                 }
             });
 
+            let mut found_chained_case = false;
             for case in spec_file_parsed.get_cases() {
+                found_chained_case |= case.case_name.eq("chained");
                 case.write_test_fn_to(out);
+            }
+            if !found_chained_case {
+                out.writeln("#[test]");
+                out.writeln("fn test() {");
+                out.with_indent(|out| {
+                    out.writeln("panic!(\"missing 'chained' test case\");");
+                });
+                out.writeln("}");
             }
         });
 
