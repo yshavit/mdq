@@ -7,44 +7,44 @@ use markdown::mdast;
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
 /// selected.
 #[derive(Debug, Clone, PartialEq)]
-pub enum MdElemRef<'a> {
+pub enum MdElemRef<'md> {
     // Multiple elements that form a single area
-    Doc(&'a Vec<MdElem>),
+    Doc(&'md Vec<MdElem>),
 
     // main elements
-    BlockQuote(&'a BlockQuote),
-    CodeBlock(&'a CodeBlock),
-    Inline(&'a Inline),
-    List(&'a List),
-    Paragraph(&'a Paragraph),
-    Section(&'a Section),
-    Table(&'a Table),
-    Html(HtmlRef<'a>),
+    BlockQuote(&'md BlockQuote),
+    CodeBlock(&'md CodeBlock),
+    Inline(&'md Inline),
+    List(&'md List),
+    Paragraph(&'md Paragraph),
+    Section(&'md Section),
+    Table(&'md Table),
+    Html(HtmlRef<'md>),
     ThematicBreak,
 
     // sub-elements
-    ListItem(ListItemRef<'a>),
-    Link(&'a Link),
-    Image(&'a Image),
-    TableSlice(TableSlice<'a>),
+    ListItem(ListItemRef<'md>),
+    Link(&'md Link),
+    Image(&'md Image),
+    TableSlice(TableSlice<'md>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ListItemRef<'a>(pub Option<u32>, pub &'a ListItem);
+pub struct ListItemRef<'md>(pub Option<u32>, pub &'md ListItem);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct HtmlRef<'a>(pub &'a String);
+pub struct HtmlRef<'md>(pub &'md String);
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TableSlice<'a> {
+pub struct TableSlice<'md> {
     alignments: Vec<mdast::AlignKind>,
-    rows: Vec<TableRowSlice<'a>>,
+    rows: Vec<TableRowSlice<'md>>,
 }
 
-pub type TableRowSlice<'a> = Vec<Option<&'a Line>>;
+pub type TableRowSlice<'md> = Vec<Option<&'md Line>>;
 
-impl<'a> From<&'a Table> for TableSlice<'a> {
-    fn from(table: &'a Table) -> Self {
+impl<'md> From<&'md Table> for TableSlice<'md> {
+    fn from(table: &'md Table) -> Self {
         let alignments = table.alignments.clone();
         let mut rows = Vec::with_capacity(table.rows.len());
         for table_row in &table.rows {
@@ -55,12 +55,12 @@ impl<'a> From<&'a Table> for TableSlice<'a> {
     }
 }
 
-impl<'a> TableSlice<'a> {
+impl<'md> TableSlice<'md> {
     pub fn alignments(&self) -> &Vec<mdast::AlignKind> {
         &self.alignments
     }
 
-    pub fn rows(&self) -> impl Iterator<Item = &TableRowSlice<'a>> {
+    pub fn rows(&self) -> impl Iterator<Item = &TableRowSlice<'md>> {
         self.rows.iter()
     }
 
@@ -150,8 +150,8 @@ impl<'a> TableSlice<'a> {
     }
 }
 
-impl<'a> From<&'a MdElem> for MdElemRef<'a> {
-    fn from(value: &'a MdElem) -> Self {
+impl<'md> From<&'md MdElem> for MdElemRef<'md> {
+    fn from(value: &'md MdElem) -> Self {
         match value {
             MdElem::ThematicBreak => Self::ThematicBreak,
             MdElem::Paragraph(p) => Self::Paragraph(p),
@@ -166,63 +166,62 @@ impl<'a> From<&'a MdElem> for MdElemRef<'a> {
     }
 }
 
-// TODO do I need all these explicit 'a lifetimes? I think I can do '_
-impl<'a> From<&'a BlockQuote> for MdElemRef<'a> {
-    fn from(value: &'a BlockQuote) -> Self {
+impl<'md> From<&'md BlockQuote> for MdElemRef<'md> {
+    fn from(value: &'md BlockQuote) -> Self {
         MdElemRef::BlockQuote(value)
     }
 }
 
-impl<'a> From<&'a CodeBlock> for MdElemRef<'a> {
-    fn from(value: &'a CodeBlock) -> Self {
+impl<'md> From<&'md CodeBlock> for MdElemRef<'md> {
+    fn from(value: &'md CodeBlock) -> Self {
         MdElemRef::CodeBlock(value)
     }
 }
 
-impl<'a> From<ListItemRef<'a>> for MdElemRef<'a> {
-    fn from(value: ListItemRef<'a>) -> Self {
+impl<'md> From<ListItemRef<'md>> for MdElemRef<'md> {
+    fn from(value: ListItemRef<'md>) -> Self {
         MdElemRef::ListItem(value)
     }
 }
 
-impl<'a> From<HtmlRef<'a>> for MdElemRef<'a> {
-    fn from(value: HtmlRef<'a>) -> Self {
+impl<'md> From<HtmlRef<'md>> for MdElemRef<'md> {
+    fn from(value: HtmlRef<'md>) -> Self {
         Self::Html(HtmlRef(value.0))
     }
 }
 
-impl<'a> From<&'a Image> for MdElemRef<'a> {
-    fn from(value: &'a Image) -> Self {
+impl<'md> From<&'md Image> for MdElemRef<'md> {
+    fn from(value: &'md Image) -> Self {
         MdElemRef::Image(value)
     }
 }
 
-impl<'a> From<&'a Link> for MdElemRef<'a> {
-    fn from(value: &'a Link) -> Self {
+impl<'md> From<&'md Link> for MdElemRef<'md> {
+    fn from(value: &'md Link) -> Self {
         MdElemRef::Link(value)
     }
 }
 
-impl<'a> From<&'a Paragraph> for MdElemRef<'a> {
-    fn from(value: &'a Paragraph) -> Self {
+impl<'md> From<&'md Paragraph> for MdElemRef<'md> {
+    fn from(value: &'md Paragraph) -> Self {
         MdElemRef::Paragraph(value)
     }
 }
 
-impl<'a> From<&'a Section> for MdElemRef<'a> {
-    fn from(value: &'a Section) -> Self {
+impl<'md> From<&'md Section> for MdElemRef<'md> {
+    fn from(value: &'md Section) -> Self {
         MdElemRef::Section(value)
     }
 }
 
-impl<'a> From<&'a Table> for MdElemRef<'a> {
-    fn from(value: &'a Table) -> Self {
+impl<'md> From<&'md Table> for MdElemRef<'md> {
+    fn from(value: &'md Table) -> Self {
         MdElemRef::Table(value)
     }
 }
 
-impl<'a> From<TableSlice<'a>> for MdElemRef<'a> {
-    fn from(value: TableSlice<'a>) -> Self {
+impl<'md> From<TableSlice<'md>> for MdElemRef<'md> {
+    fn from(value: TableSlice<'md>) -> Self {
         MdElemRef::TableSlice(value)
     }
 }

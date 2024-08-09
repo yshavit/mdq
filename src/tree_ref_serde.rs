@@ -9,48 +9,48 @@ use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 
 #[derive(Serialize)]
-pub struct SerdeDoc<'a> {
-    items: Vec<SerdeElem<'a>>,
+pub struct SerdeDoc<'md> {
+    items: Vec<SerdeElem<'md>>,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
-    links: HashMap<Cow<'a, str>, UrlAndTitle<'a>>,
+    links: HashMap<Cow<'md, str>, UrlAndTitle<'md>>,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
-    footnotes: HashMap<&'a String, Vec<SerdeElem<'a>>>,
+    footnotes: HashMap<&'md String, Vec<SerdeElem<'md>>>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum SerdeElem<'a> {
-    Document(Vec<SerdeElem<'a>>),
-    BlockQuote(Vec<SerdeElem<'a>>),
+pub enum SerdeElem<'md> {
+    Document(Vec<SerdeElem<'md>>),
+    BlockQuote(Vec<SerdeElem<'md>>),
     CodeBlock {
-        code: &'a String,
+        code: &'md String,
 
         #[serde(rename = "type")]
         code_type: CodeBlockType,
 
         #[serde(skip_serializing_if = "Option::is_none")]
-        language: Option<&'a String>,
+        language: Option<&'md String>,
 
         #[serde(skip_serializing_if = "Option::is_none")]
-        metadata: Option<&'a String>,
+        metadata: Option<&'md String>,
     },
     Paragraph(String),
     Link {
         display: String,
         #[serde(flatten)]
-        link: LinkSerde<'a>,
+        link: LinkSerde<'md>,
     },
     Image {
-        alt: &'a String,
+        alt: &'md String,
         #[serde(flatten)]
-        link: LinkSerde<'a>,
+        link: LinkSerde<'md>,
     },
-    List(Vec<LiSerde<'a>>),
-    ListItem(LiSerde<'a>),
+    List(Vec<LiSerde<'md>>),
+    ListItem(LiSerde<'md>),
     Section {
         depth: u8,
         title: String,
-        body: Vec<SerdeElem<'a>>,
+        body: Vec<SerdeElem<'md>>,
     },
     #[serde(serialize_with = "serialize_thematic_break")]
     ThematicBreak,
@@ -59,7 +59,7 @@ pub enum SerdeElem<'a> {
         rows: Vec<Vec<String>>,
     },
     Html {
-        value: &'a String,
+        value: &'md String,
     },
 }
 
@@ -68,21 +68,21 @@ fn serialize_thematic_break<S: Serializer>(ser: S) -> Result<S::Ok, S::Error> {
 }
 
 #[derive(Serialize)]
-pub struct LinkSerde<'a> {
-    url: &'a String,
+pub struct LinkSerde<'md> {
+    url: &'md String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    title: &'a Option<String>,
+    title: &'md Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    reference: Option<Cow<'a, String>>,
+    reference: Option<Cow<'md, String>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     reference_style: Option<LinkCollapseStyle>,
 }
 
-impl<'a> From<&'a LinkDefinition> for LinkSerde<'a> {
-    fn from(value: &'a LinkDefinition) -> Self {
+impl<'md> From<&'md LinkDefinition> for LinkSerde<'md> {
+    fn from(value: &'md LinkDefinition) -> Self {
         let LinkDefinition { url, title, reference } = value;
 
         let (reference, reference_style) = match reference {
@@ -121,14 +121,14 @@ impl From<&AlignKind> for AlignSerde {
 }
 
 #[derive(Serialize)]
-pub struct LiSerde<'a> {
-    item: Vec<SerdeElem<'a>>,
+pub struct LiSerde<'md> {
+    item: Vec<SerdeElem<'md>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     index: Option<u32>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    checked: &'a Option<bool>,
+    checked: &'md Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -147,8 +147,8 @@ pub enum CodeBlockType {
     Yaml,
 }
 
-impl<'a> SerdeDoc<'a> {
-    pub fn new(elems: &[MdElemRef<'a>], opts: MdInlinesWriterOptions) -> Self {
+impl<'md> SerdeDoc<'md> {
+    pub fn new(elems: &[MdElemRef<'md>], opts: MdInlinesWriterOptions) -> Self {
         let mut inlines_writer = MdInlinesWriter::new(opts);
         const DEFAULT_CAPACITY: usize = 16; // we could compute these, but it's not really worth it
         let mut result = Self {
@@ -177,8 +177,8 @@ impl<'a> SerdeDoc<'a> {
     }
 }
 
-impl<'a> SerdeElem<'a> {
-    fn build_multi<M>(elems: &'a [M], inlines_writer: &mut MdInlinesWriter<'a>) -> Vec<Self>
+impl<'md> SerdeElem<'md> {
+    fn build_multi<M>(elems: &'md [M], inlines_writer: &mut MdInlinesWriter<'md>) -> Vec<Self>
     where
         M: Borrow<MdElem>,
     {
@@ -189,7 +189,7 @@ impl<'a> SerdeElem<'a> {
         result
     }
 
-    fn build(elem: MdElemRef<'a>, inlines_writer: &mut MdInlinesWriter<'a>) -> Self {
+    fn build(elem: MdElemRef<'md>, inlines_writer: &mut MdInlinesWriter<'md>) -> Self {
         match elem {
             MdElemRef::Doc(doc) => Self::Document(Self::build_multi(doc, inlines_writer)),
             MdElemRef::BlockQuote(bq) => Self::BlockQuote(Self::build_multi(&bq.body, inlines_writer)),
@@ -291,9 +291,9 @@ impl<'a> SerdeElem<'a> {
     }
 }
 
-fn inlines_to_string<'a, I>(inlines: I, writer: &mut MdInlinesWriter<'a>) -> String
+fn inlines_to_string<'md, I>(inlines: I, writer: &mut MdInlinesWriter<'md>) -> String
 where
-    I: IntoIterator<Item = &'a Inline>,
+    I: IntoIterator<Item = &'md Inline>,
 {
     let mut output = Output::new(String::with_capacity(16)); // guess
     writer.write_line(&mut output, inlines);

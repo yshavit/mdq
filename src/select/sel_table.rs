@@ -33,8 +33,8 @@ impl TableSliceSelector {
     }
 }
 
-impl<'a> Selector<'a, TableSlice<'a>> for TableSliceSelector {
-    fn try_select(&self, slice: TableSlice<'a>) -> Option<MdElemRef<'a>> {
+impl<'md> Selector<'md, TableSlice<'md>> for TableSliceSelector {
+    fn try_select(&self, slice: TableSlice<'md>) -> Option<MdElemRef<'md>> {
         let mut slice = slice.clone(); // TODO is there any way to avoid this? There may not be.
         slice.normalize();
 

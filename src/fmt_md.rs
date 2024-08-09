@@ -63,9 +63,9 @@ impl Default for ReferencePlacement {
     }
 }
 
-pub fn write_md<'a, I, W>(options: &'a MdOptions, out: &mut Output<W>, nodes: I)
+pub fn write_md<'md, I, W>(options: &'md MdOptions, out: &mut Output<W>, nodes: I)
 where
-    I: Iterator<Item = MdElemRef<'a>>,
+    I: Iterator<Item = MdElemRef<'md>>,
     W: SimpleWrite,
 {
     let mut writer_state = MdWriterState {
@@ -84,16 +84,16 @@ where
     writer_state.write_definitions(out, DefinitionsToWrite::Both, nodes_count > 1);
 }
 
-struct MdWriterState<'s, 'a> {
-    opts: &'a MdOptions,
+struct MdWriterState<'s, 'md> {
+    opts: &'md MdOptions,
     prev_was_thematic_break: bool,
-    inlines_writer: &'s mut MdInlinesWriter<'a>,
+    inlines_writer: &'s mut MdInlinesWriter<'md>,
 }
 
-impl<'s, 'a> MdWriterState<'s, 'a> {
+impl<'s, 'md> MdWriterState<'s, 'md> {
     fn write_md<I, W>(&mut self, out: &mut Output<W>, nodes: I, add_break: bool) -> usize
     where
-        I: Iterator<Item = MdElemRef<'a>>,
+        I: Iterator<Item = MdElemRef<'md>>,
         W: SimpleWrite,
     {
         let mut count = 0;
@@ -108,7 +108,7 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
         count
     }
 
-    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node_ref: MdElemRef<'a>)
+    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node_ref: MdElemRef<'md>)
     where
         W: SimpleWrite,
     {
@@ -169,19 +169,19 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
         }
     }
 
-    fn write_paragraph<W: SimpleWrite>(&mut self, out: &mut Output<W>, paragraph: &'a Paragraph) {
+    fn write_paragraph<W: SimpleWrite>(&mut self, out: &mut Output<W>, paragraph: &'md Paragraph) {
         out.with_block(Block::Plain, |out| {
             self.inlines_writer.write_line(out, &paragraph.body);
         });
     }
 
-    fn write_block_quote<W: SimpleWrite>(&mut self, out: &mut Output<W>, block: &'a BlockQuote) {
+    fn write_block_quote<W: SimpleWrite>(&mut self, out: &mut Output<W>, block: &'md BlockQuote) {
         out.with_block(Block::Quote, |out| {
             self.write_md(out, Self::doc_iter(&block.body), false);
         });
     }
 
-    fn write_list<W: SimpleWrite>(&mut self, out: &mut Output<W>, list: &'a List) {
+    fn write_list<W: SimpleWrite>(&mut self, out: &mut Output<W>, list: &'md List) {
         out.with_block(Block::Plain, |out| {
             let mut index = list.starting_index;
             // let mut prefix = String::with_capacity(8); // enough for "12. [ ] "
@@ -194,7 +194,7 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
         });
     }
 
-    fn write_table<W: SimpleWrite>(&mut self, out: &mut Output<W>, table: TableSlice<'a>) {
+    fn write_table<W: SimpleWrite>(&mut self, out: &mut Output<W>, table: TableSlice<'md>) {
         let alignments = table.alignments();
         let rows = table.rows();
 
@@ -350,7 +350,7 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
         });
     }
 
-    fn write_list_item<W: SimpleWrite>(&mut self, out: &mut Output<W>, index: &Option<u32>, item: &'a ListItem) {
+    fn write_list_item<W: SimpleWrite>(&mut self, out: &mut Output<W>, index: &Option<u32>, item: &'md ListItem) {
         let mut counting_writer = CountingWriter::wrap(out);
         match index {
             None => std::fmt::Write::write_str(&mut counting_writer, "- ").unwrap(),
@@ -434,13 +434,13 @@ impl<'s, 'a> MdWriterState<'s, 'a> {
         });
     }
 
-    fn line_to_string(&mut self, line: &'a Line) -> String {
+    fn line_to_string(&mut self, line: &'md Line) -> String {
         let mut out = Output::new(String::with_capacity(line.len() * 10)); // rough guess
         self.inlines_writer.write_line(&mut out, line);
         out.take_underlying().unwrap()
     }
 
-    fn doc_iter(body: &'a Vec<MdElem>) -> impl Iterator<Item = MdElemRef<'a>> {
+    fn doc_iter(body: &'md Vec<MdElem>) -> impl Iterator<Item = MdElemRef<'md>> {
         [MdElemRef::Doc(body)].into_iter()
     }
 }
@@ -830,7 +830,7 @@ pub mod tests {
             create_li_singleton(Some(3), Some(true), md_elems!("plain text"), "3. [x] plain text");
         }
 
-        fn create_li_singleton<'a>(idx: Option<u32>, checked: Option<bool>, item: Vec<MdElem>, expected: &str) {
+        fn create_li_singleton(idx: Option<u32>, checked: Option<bool>, item: Vec<MdElem>, expected: &str) {
             let li = ListItem { checked, item };
             check_render_refs(vec![MdElemRef::ListItem(ListItemRef(idx, &li))], expected)
         }
@@ -2120,7 +2120,7 @@ pub mod tests {
         check_render_refs_with(&default_opts(), nodes, expect)
     }
 
-    fn check_render_refs_with<'a>(options: &MdOptions, nodes: Vec<MdElemRef<'a>>, expect: &str) {
+    fn check_render_refs_with(options: &MdOptions, nodes: Vec<MdElemRef>, expect: &str) {
         nodes.iter().for_each(|n| VARIANTS_CHECKER.see(n));
 
         let mut out = Output::new(String::default());
