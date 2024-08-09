@@ -160,7 +160,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                 // GH #168 maybe have a trait for tables, so we can parameterize write_table instead of calling into()?
                 // That would let us avoid copying various vecs.
                 self.write_table(out, table.into())
-            },
+            }
             MdElemRef::TableSlice(table) => self.write_table(out, table),
             MdElemRef::Inline(inline) => {
                 self.inlines_writer.write_inline_element(out, inline);
