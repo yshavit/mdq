@@ -6,6 +6,8 @@ md = '''
 - lorem ipsum dolor sit amet.
 '''
 
+[chained]
+needed = false
 
 [expect."bareword"]
 cli_args = ['- world '] # note: trailing space is ignored

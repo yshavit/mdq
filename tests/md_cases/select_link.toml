@@ -36,3 +36,10 @@ output = '''
 ![image alt text](https://example.com/hylas-and-nymphs.png)'''
 
 
+[expect."chained"]
+cli_args = ['[inline]() | [](example.com)']
+output = '''
+[an inline link][1]
+
+[1]: https://example.com/inline
+'''

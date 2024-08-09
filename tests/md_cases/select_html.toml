@@ -62,3 +62,10 @@ output = '''
 <div
 class="block>
 '''
+
+
+[expect."chained"]
+cli_args = ['</> span | </> "<span>"']
+output = '''
+<span>
+'''

@@ -55,3 +55,12 @@ Hello, world.
 
 My second section.
 '''
+
+
+[expect."chained"]
+cli_args = ['# bravo | # bravo']
+output = '''
+# Bravo
+
+My second section.
+'''
