@@ -33,6 +33,8 @@ fn generate_integ_test_cases(out_dir: &String) -> Result<(), String> {
             let spec_file_parsed: TestSpecFile =
                 toml::from_str(&contents).map_err(|e| spec_file.err_string(e)).unwrap();
 
+            let chained_needed = spec_file_parsed.chained.map(|ch| ch.needed).unwrap_or(true);
+
             out.write("const MD: &str = indoc::indoc! {r#\"");
             out.with_indent(|out| {
                 let mut iter = spec_file_parsed.given.md.trim().split('\n').peekable();
@@ -44,9 +46,23 @@ fn generate_integ_test_cases(out_dir: &String) -> Result<(), String> {
                 }
             });
 
+            let mut found_chained_case = false;
             for case in spec_file_parsed.get_cases() {
+                found_chained_case |= case.case_name.eq("chained");
                 case.write_test_fn_to(out);
             }
+
+            match (chained_needed, found_chained_case) {
+                (true, false) => Case::write_failing_test(out, "chained", "missing 'chained' test case"),
+                (false, true) => Case::write_failing_test(
+                    out,
+                    "chained__extra",
+                    "provided 'chained' test case even though it was marked as not needed",
+                ),
+                _ => {}
+            }
+
+            if !found_chained_case {}
         });
 
         out.writeln("}");
@@ -102,6 +118,7 @@ impl DirEntryHelper {
 struct TestSpecFile {
     given: TestGiven,
     expect: HashMap<String, TestExpect>,
+    chained: Option<Chained>,
 }
 
 #[derive(Deserialize)]
@@ -115,6 +132,11 @@ struct TestExpect {
     output: String,
     expect_success: Option<bool>,
     ignore: Option<String>,
+}
+
+#[derive(Deserialize, Copy, Clone)]
+struct Chained {
+    needed: bool,
 }
 
 impl TestSpecFile {
@@ -143,6 +165,15 @@ struct Case {
 }
 
 impl Case {
+    fn write_failing_test(out: &mut Writer, name: &str, err_msg: &str) {
+        out.writeln("#[test]");
+        out.writes(&["fn ", name, "() {"]);
+        out.with_indent(|out| {
+            out.writes(&["panic!(\"", err_msg, "\");"]);
+        });
+        out.writeln("}");
+    }
+
     fn write_test_fn_to(&self, out: &mut Writer) {
         let fn_name = self.case_name.replace(|ch: char| !ch.is_alphanumeric(), "_");
         if self.ignored {

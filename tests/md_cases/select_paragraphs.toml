@@ -65,3 +65,10 @@ cli_args = ["P : *"]
 expect_success = false
 output = '''
 '''
+
+
+[expect."chained"]
+cli_args = ['P: hello | P: world']
+output = '''
+Hello, world.
+'''

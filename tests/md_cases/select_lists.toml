@@ -78,3 +78,10 @@ cli_args = ['1. [?]']
 output = '''
 1. [ ] ordered tasks are possible, too
 '''
+
+
+[expect."chained"]
+cli_args = ['- a point | - a point']
+output = '''
+- a point
+'''

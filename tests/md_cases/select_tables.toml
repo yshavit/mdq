@@ -74,8 +74,6 @@ output = '''
 
 
 [expect."chained"]
-# chaining onen all-cells selector into another; the second should be a noop
-# TODO need to add "chained" tests for all! And maybe even require it in the build.rs code
 cli_args = [":-: * :-: * | :-: * :-: * | "]
 output = '''
 | Name | Description |                             |

@@ -5,6 +5,9 @@ Test _one_ [two][1] three.
 [1]: https://example.com/1
 '''
 
+[chained]
+needed = false
+
 
 [expect."default"]
 cli_args = []

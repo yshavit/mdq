@@ -3,6 +3,9 @@ md = '''
 [fizz](https://example.com/buzz)
 '''
 
+[chained]
+needed = false
+
 
 [expect."match and output"]
 cli_args = ["--link-format", "keep", "[]()"]

@@ -16,6 +16,9 @@ md = '''
 [shortcut link]: https://example.com/shortcut
 '''
 
+[chained]
+needed = false
+
 
 [expect."default"]
 cli_args = []
@@ -72,3 +75,4 @@ output = '''
 - a [link with a title](https://example.com "my title")
 - a [link with a title that contains double-quotes](https://example.com 'my "alleged" title')
 '''
+

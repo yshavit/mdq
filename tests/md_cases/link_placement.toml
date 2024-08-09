@@ -11,6 +11,9 @@ Some section text.
 [1]: https://example.com/interesting
 '''
 
+[chained]
+needed = false
+
 
 [expect."standard link placement"]
 cli_args = []
