@@ -410,6 +410,19 @@ mod test {
     }
 
     #[test]
+    fn anchor_whitespace() {
+        parse_and_check("^foo", re("(?i)^foo"), "");
+        parse_and_check("^     foo", re("(?i)^foo"), "");
+        parse_and_check("^   'foo'", re("^foo"), "");
+
+        parse_and_check("bar$", re("(?i)bar$"), "");
+        parse_and_check("bar     $", re("(?i)bar$"), "");
+        parse_and_check("'bar'   $", re("bar$"), "");
+
+        parse_and_check("  ^  foobar  $  ", re("(?i)^foobar$"), "  ");
+    }
+
+    #[test]
     fn bareword_regex_char() {
         let m = parse_and_check("hello.world", re_insensitive("hello\\.world"), "");
         assert_eq!(true, m.matches("hello.world"));
