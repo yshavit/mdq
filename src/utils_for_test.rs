@@ -1,7 +1,29 @@
+#[cfg(test)]
+pub use test_utils::*;
+
 // We this file's contents from prod by putting them in a submodule guarded by cfg(test), but then "pub use" it to
 // export its contents.
 #[cfg(test)]
 mod test_utils {
+    use std::fmt::Debug;
+
+    pub fn get_only<T: Debug, C: IntoIterator<Item=T>>(col: C) -> T {
+        let mut iter = col.into_iter();
+        let Some(result) = iter.next() else {
+            panic!("expected an element, but was empty");
+        };
+        match iter.next() {
+            None => result,
+            Some(extra) => {
+                let mut all = Vec::new();
+                all.push(result);
+                all.push(extra);
+                all.extend(iter);
+                panic!("expected exactly one element, but found {}: {all:?}", all.len());
+            }
+        }
+    }
+
     /// Turn a pattern match into an `if let ... { else panic! }`.
     #[macro_export]
     macro_rules! unwrap {

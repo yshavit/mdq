@@ -276,6 +276,9 @@ impl TitleQuote {
 mod tests {
     use super::*;
     use crate::output::Output;
+    use crate::tree::ReadOptions;
+    use crate::unwrap;
+    use crate::utils_for_test::get_only;
 
     mod title_quoting {
         use super::*;
@@ -317,5 +320,49 @@ mod tests {
             let actual = writer.take_underlying().unwrap();
             assert_eq!(&actual, expected);
         }
+    }
+
+    mod inline_code {
+        use super::*;
+
+        #[test]
+        fn round_trip_no_backticks() {
+            round_trip_inline("hello world");
+        }
+
+        #[test]
+        fn round_trip_one_backtick() {
+            round_trip_inline("hello ` world");
+        }
+
+        #[test]
+        fn round_trip_three_backticks() {
+            round_trip_inline("hello ``` world");
+        }
+
+        fn round_trip_inline(inline_str: &str) {
+            round_trip(&Inline::Text(Text {
+                variant: TextVariant::Code,
+                value: inline_str.to_string(),
+            }));
+        }
+    }
+
+    /// Not a pure unit test; semi-integ. Checks that writing an inline to markdown and then parsing
+    /// that markdown results in the original inline.
+    fn round_trip(orig: &Inline) {
+        let mut output = Output::new(String::new());
+        let mut writer = MdInlinesWriter::new(MdInlinesWriterOptions {
+            link_format: LinkTransform::Keep,
+        });
+        writer.write_inline_element(&mut output, &orig);
+        let md_str = output.take_underlying().unwrap();
+
+        let ast = markdown::to_mdast(&md_str, &markdown::ParseOptions::gfm()).unwrap();
+        let md_tree = MdElem::read(ast, &ReadOptions::default()).unwrap();
+
+        unwrap!(&md_tree[0], MdElem::Paragraph(p));
+        let parsed = get_only(&p.body);
+        assert_eq!(orig, parsed);
     }
 }
