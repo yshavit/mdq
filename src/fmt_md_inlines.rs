@@ -141,7 +141,7 @@ impl<'md> MdInlinesWriter<'md> {
                             Cow::Owned("`".repeat(backticks_info.count + 1))
                         };
                         (surround_ch, backticks_info.at_either_end)
-                    },
+                    }
                 };
                 out.write_str(&surround_ch);
                 if surround_space {
@@ -262,10 +262,7 @@ impl From<&String> for BackticksInfo {
         }
         let count = max(current_stretch, overall_max);
         let at_either_end = s.starts_with('`') || s.ends_with('`');
-        Self {
-            count,
-            at_either_end,
-        }
+        Self { count, at_either_end }
     }
 }
 

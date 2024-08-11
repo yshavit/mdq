@@ -7,7 +7,7 @@ pub use test_utils::*;
 mod test_utils {
     use std::fmt::Debug;
 
-    pub fn get_only<T: Debug, C: IntoIterator<Item=T>>(col: C) -> T {
+    pub fn get_only<T: Debug, C: IntoIterator<Item = T>>(col: C) -> T {
         let mut iter = col.into_iter();
         let Some(result) = iter.next() else {
             panic!("expected an element, but was empty");
