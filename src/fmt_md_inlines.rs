@@ -6,6 +6,7 @@ use crate::tree::{
 };
 use serde::Serialize;
 use std::borrow::Cow;
+use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Copy, Clone)]
@@ -129,14 +130,19 @@ impl<'md> MdInlinesWriter<'md> {
             }
             Inline::Text(Text { variant, value }) => {
                 let surround = match variant {
-                    TextVariant::Plain => "",
-                    TextVariant::Code => "`",
-                    TextVariant::Math => "$",
-                    TextVariant::Html => "",
+                    TextVariant::Plain => Cow::Borrowed(""),
+                    TextVariant::Math => Cow::Borrowed("$"),
+                    TextVariant::Html => Cow::Borrowed(""),
+                    TextVariant::Code => {
+                        match Self::count_backticks_stretches(value) {
+                            0 => Cow::Borrowed("`"),
+                            n => Cow::Owned("`".repeat(n + 1))
+                        }
+                    },
                 };
-                out.write_str(surround);
+                out.write_str(&surround);
                 out.write_str(value);
-                out.write_str(surround);
+                out.write_str(&surround);
             }
             Inline::Link(link) => self.write_linklike(out, link),
             Inline::Image(image) => self.write_linklike(out, image),
@@ -149,6 +155,23 @@ impl<'md> MdInlinesWriter<'md> {
                 }
             }
         }
+    }
+
+    fn count_backticks_stretches(s: &str) -> usize {
+        let mut overall_max = 0;
+        let mut current_stretch = 0;
+        for c in s.chars() {
+            match c {
+                '`' => current_stretch += 1,
+                _ => {
+                    if current_stretch > 0 {
+                        overall_max = max(current_stretch, overall_max);
+                        current_stretch = 0;
+                    }
+                }
+            }
+        }
+        max(current_stretch, overall_max)
     }
 
     /// Writes the inline portion of the link, which may be the full link if it was originally inlined.
