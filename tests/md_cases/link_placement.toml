@@ -48,10 +48,11 @@ Some section text with [another link][2].
 [2]: https://example.com/another
 '''
 
+
 [expect."separate links positioned by section"]
 cli_args = ["[]()", "--link-pos", "section"]
 output = '''
-[an interesting link][1].
+[an interesting link][1]
 
 [1]: https://example.com/interesting
 
@@ -59,5 +60,20 @@ output = '''
 
 [another link][2]
 
+[2]: https://example.com/another
+'''
+
+[expect."separate links positioned by doc"]
+cli_args = ["[]()", "--link-pos", "doc"]
+output = '''
+[an interesting link][1]
+
+   -----
+
+[another link][2]
+
+   -----
+
+[1]: https://example.com/interesting
 [2]: https://example.com/another
 '''

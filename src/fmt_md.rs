@@ -101,8 +101,11 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
         while let Some(node) = iter.next() {
             count += 1;
             self.write_one_md(out, node);
-            if add_break && iter.peek().is_some() {
-                self.write_one_md(out, MdElemRef::ThematicBreak);
+            if add_break {
+                self.write_link_refs_as_needed(out);
+                if iter.peek().is_some() {
+                    self.write_one_md(out, MdElemRef::ThematicBreak);
+                }
             }
         }
         count
@@ -130,16 +133,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                     }
                 });
                 self.write_md(out, Self::doc_iter(body), false);
-                let which_defs_to_write = match (
-                    &self.opts.link_reference_placement,
-                    &self.opts.footnote_reference_placement,
-                ) {
-                    (ReferencePlacement::Section, ReferencePlacement::Section) => DefinitionsToWrite::Both,
-                    (_, ReferencePlacement::Section) => DefinitionsToWrite::Footnotes,
-                    (ReferencePlacement::Section, _) => DefinitionsToWrite::Links,
-                    (_, _) => DefinitionsToWrite::Neither,
-                };
-                self.write_definitions(out, which_defs_to_write, false);
+                self.write_link_refs_as_needed(out);
             }
             MdElemRef::ListItem(ListItemRef(idx, item)) => {
                 self.write_list_item(out, &idx, item);
@@ -171,6 +165,19 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                 out.write_str(html.0);
             }),
         }
+    }
+
+    fn write_link_refs_as_needed<W: SimpleWrite>(&mut self, out: &mut Output<W>) {
+        let which_defs_to_write = match (
+            &self.opts.link_reference_placement,
+            &self.opts.footnote_reference_placement,
+        ) {
+            (ReferencePlacement::Section, ReferencePlacement::Section) => DefinitionsToWrite::Both,
+            (_, ReferencePlacement::Section) => DefinitionsToWrite::Footnotes,
+            (ReferencePlacement::Section, _) => DefinitionsToWrite::Links,
+            (_, _) => DefinitionsToWrite::Neither,
+        };
+        self.write_definitions(out, which_defs_to_write, false);
     }
 
     fn write_paragraph<W: SimpleWrite>(&mut self, out: &mut Output<W>, paragraph: &'md Paragraph) {
@@ -1774,9 +1781,9 @@ pub mod tests {
                 indoc! {r#"
                     [^a]
 
-                       -----
+                    [^a]: Hello, world.
 
-                    [^a]: Hello, world."#},
+                       -----"#},
             )
         }
 
