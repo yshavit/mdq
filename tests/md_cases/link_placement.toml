@@ -6,9 +6,10 @@ This is [an interesting link][1].
 
 # Second section
 
-Some section text.
+Some section text with [another link][2].
 
 [1]: https://example.com/interesting
+[2]: https://example.com/another
 '''
 
 [chained]
@@ -26,7 +27,9 @@ This is [an interesting link][1].
 
 # Second section
 
-Some section text.
+Some section text with [another link][2].
+
+[2]: https://example.com/another
 '''
 
 
@@ -39,7 +42,8 @@ This is [an interesting link][1].
 
 # Second section
 
-Some section text.
+Some section text with [another link][2].
 
 [1]: https://example.com/interesting
+[2]: https://example.com/another
 '''
