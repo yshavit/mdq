@@ -1271,7 +1271,7 @@ pub mod tests {
 
             #[test]
             fn inline_no_title() {
-                check_link(
+                check_link_and_thematic_break(
                     LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: None,
@@ -1286,7 +1286,7 @@ pub mod tests {
 
             #[test]
             fn full_no_title() {
-                check_link(
+                check_link_and_thematic_break(
                     LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: None,
@@ -1295,15 +1295,15 @@ pub mod tests {
                     indoc! {r#"
                         [hello _world_!][1]
 
-                           -----
+                        [1]: https://example.com
 
-                        [1]: https://example.com"#},
+                           -----"#},
                 );
             }
 
             #[test]
             fn collapsed_no_title() {
-                check_link(
+                check_link_and_thematic_break(
                     LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: None,
@@ -1312,15 +1312,15 @@ pub mod tests {
                     indoc! {r#"
                         [hello _world_!][]
 
-                           -----
+                        [hello _world_!]: https://example.com
 
-                        [hello _world_!]: https://example.com"#},
+                           -----"#},
                 );
             }
 
             #[test]
             fn shortcut_no_title() {
-                check_link(
+                check_link_and_thematic_break(
                     LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: None,
@@ -1329,15 +1329,15 @@ pub mod tests {
                     indoc! {r#"
                         [hello _world_!]
 
-                           -----
+                        [hello _world_!]: https://example.com
 
-                        [hello _world_!]: https://example.com"#},
+                           -----"#},
                 );
             }
 
             #[test]
             fn inline_with_title() {
-                check_link(
+                check_link_and_thematic_break(
                     LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: Some("my title".to_string()),
@@ -1352,7 +1352,7 @@ pub mod tests {
 
             #[test]
             fn full_with_title() {
-                check_link(
+                check_link_and_thematic_break(
                     LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: Some("my title".to_string()),
@@ -1361,15 +1361,15 @@ pub mod tests {
                     indoc! {r#"
                         [hello _world_!][1]
 
-                           -----
+                        [1]: https://example.com "my title"
 
-                        [1]: https://example.com "my title""#},
+                           -----"#},
                 );
             }
 
             #[test]
             fn collapsed_with_title() {
-                check_link(
+                check_link_and_thematic_break(
                     LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: Some("my title".to_string()),
@@ -1378,15 +1378,15 @@ pub mod tests {
                     indoc! {r#"
                         [hello _world_!][]
 
-                           -----
+                        [hello _world_!]: https://example.com "my title"
 
-                        [hello _world_!]: https://example.com "my title""#},
+                           -----"#},
                 );
             }
 
             #[test]
             fn shortcut_with_title() {
-                check_link(
+                check_link_and_thematic_break(
                     LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: Some("my title".to_string()),
@@ -1395,13 +1395,13 @@ pub mod tests {
                     indoc! {r#"
                         [hello _world_!]
 
-                           -----
+                        [hello _world_!]: https://example.com "my title"
 
-                        [hello _world_!]: https://example.com "my title""#},
+                           -----"#},
                 );
             }
 
-            fn check_link(link: LinkDefinition, expect: &str) {
+            fn check_link_and_thematic_break(link: LinkDefinition, expect: &str) {
                 let nodes = vec![
                     MdElem::Inline(Inline::Link(Link {
                         text: vec![
@@ -1448,9 +1448,9 @@ pub mod tests {
                     indoc! {r#"
                         ![hello _world_!][1]
 
-                           -----
+                        [1]: https://example.com
 
-                        [1]: https://example.com"#},
+                           -----"#},
                 );
             }
 
@@ -1465,9 +1465,9 @@ pub mod tests {
                     indoc! {r#"
                         ![hello _world_!][]
 
-                           -----
+                        [hello _world_!]: https://example.com
 
-                        [hello _world_!]: https://example.com"#},
+                           -----"#},
                 );
             }
 
@@ -1482,9 +1482,9 @@ pub mod tests {
                     indoc! {r#"
                         ![hello _world_!]
 
-                           -----
+                        [hello _world_!]: https://example.com
 
-                        [hello _world_!]: https://example.com"#},
+                           -----"#},
                 );
             }
 
@@ -1514,9 +1514,9 @@ pub mod tests {
                     indoc! {r#"
                         ![hello _world_!][1]
 
-                           -----
+                        [1]: https://example.com "my title"
 
-                        [1]: https://example.com "my title""#},
+                           -----"#},
                 );
             }
 
@@ -1531,9 +1531,9 @@ pub mod tests {
                     indoc! {r#"
                         ![hello _world_!][]
 
-                           -----
+                        [hello _world_!]: https://example.com "my title"
 
-                        [hello _world_!]: https://example.com "my title""#},
+                           -----"#},
                 );
             }
 
@@ -1548,9 +1548,9 @@ pub mod tests {
                     indoc! {r#"
                         ![hello _world_!]
 
-                           -----
+                        [hello _world_!]: https://example.com "my title"
 
-                        [hello _world_!]: https://example.com "my title""#},
+                           -----"#},
                 );
             }
 
@@ -1613,13 +1613,12 @@ pub mod tests {
                 indoc! {r#"
                     [link text one][1]
 
+                    [1]: https://example.com/1
+
                        -----
 
                     [link text two][2]
 
-                       -----
-
-                    [1]: https://example.com/1
                     [2]: https://example.com/2"#},
             );
         }
@@ -1727,13 +1726,12 @@ pub mod tests {
                 indoc! {r#"
                     ![alt text one][1]
 
+                    [1]: https://example.com/1.png
+
                        -----
 
                     ![alt text two][2]
 
-                       -----
-
-                    [1]: https://example.com/1.png
                     [2]: https://example.com/2.png"#},
             );
         }
@@ -1800,10 +1798,10 @@ pub mod tests {
                 indoc! {r#"
                     [^a]
 
-                       -----
-
                     [^a]: Hello,
-                      world."#},
+                      world.
+
+                       -----"#},
             )
         }
     }
