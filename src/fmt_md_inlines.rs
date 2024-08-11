@@ -6,6 +6,7 @@ use crate::tree::{
 };
 use serde::Serialize;
 use std::borrow::Cow;
+use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Copy, Clone)]
@@ -128,15 +129,29 @@ impl<'md> MdInlinesWriter<'md> {
                 out.write_str(surround);
             }
             Inline::Text(Text { variant, value }) => {
-                let surround = match variant {
-                    TextVariant::Plain => "",
-                    TextVariant::Code => "`",
-                    TextVariant::Math => "$",
-                    TextVariant::Html => "",
+                let (surround_ch, surround_space) = match variant {
+                    TextVariant::Plain => (Cow::Borrowed(""), false),
+                    TextVariant::Math => (Cow::Borrowed("$"), false),
+                    TextVariant::Html => (Cow::Borrowed(""), false),
+                    TextVariant::Code => {
+                        let backticks_info = BackticksInfo::from(value);
+                        let surround_ch = if backticks_info.count == 0 {
+                            Cow::Borrowed("`")
+                        } else {
+                            Cow::Owned("`".repeat(backticks_info.count + 1))
+                        };
+                        (surround_ch, backticks_info.at_either_end)
+                    }
                 };
-                out.write_str(surround);
+                out.write_str(&surround_ch);
+                if surround_space {
+                    out.write_char(' ');
+                }
                 out.write_str(value);
-                out.write_str(surround);
+                if surround_space {
+                    out.write_char(' ');
+                }
+                out.write_str(&surround_ch);
             }
             Inline::Link(link) => self.write_linklike(out, link),
             Inline::Image(image) => self.write_linklike(out, image),
@@ -225,6 +240,32 @@ impl<'md> MdInlinesWriter<'md> {
     }
 }
 
+struct BackticksInfo {
+    count: usize,
+    at_either_end: bool,
+}
+
+impl From<&String> for BackticksInfo {
+    fn from(s: &String) -> Self {
+        let mut overall_max = 0;
+        let mut current_stretch = 0;
+        for c in s.chars() {
+            match c {
+                '`' => current_stretch += 1,
+                _ => {
+                    if current_stretch > 0 {
+                        overall_max = max(current_stretch, overall_max);
+                        current_stretch = 0;
+                    }
+                }
+            }
+        }
+        let count = max(current_stretch, overall_max);
+        let at_either_end = s.starts_with('`') || s.ends_with('`');
+        Self { count, at_either_end }
+    }
+}
+
 enum TitleQuote {
     Double,
     Single,
@@ -276,6 +317,9 @@ impl TitleQuote {
 mod tests {
     use super::*;
     use crate::output::Output;
+    use crate::tree::ReadOptions;
+    use crate::unwrap;
+    use crate::utils_for_test::get_only;
 
     mod title_quoting {
         use super::*;
@@ -317,5 +361,83 @@ mod tests {
             let actual = writer.take_underlying().unwrap();
             assert_eq!(&actual, expected);
         }
+    }
+
+    mod inline_code {
+        use super::*;
+
+        #[test]
+        fn round_trip_no_backticks() {
+            round_trip_inline("hello world");
+        }
+
+        #[test]
+        fn round_trip_one_backtick() {
+            round_trip_inline("hello ` world");
+        }
+
+        #[test]
+        #[ignore] // #171
+        fn round_trip_one_backtick_at_start() {
+            round_trip_inline("`hello");
+        }
+
+        #[test]
+        #[ignore] // #171
+        fn round_trip_one_backtick_at_end() {
+            round_trip_inline("hello `");
+        }
+
+        #[test]
+        fn round_trip_three_backticks() {
+            round_trip_inline("hello ``` world");
+        }
+
+        #[test]
+        #[ignore] // #171
+        fn round_trip_three_backticks_at_end() {
+            round_trip_inline("hello `");
+        }
+
+        #[test]
+        #[ignore] // #171
+        fn round_trip_three_backticks_at_start() {
+            round_trip_inline("`hello");
+        }
+
+        #[test]
+        fn round_trip_surrounding_whitespace() {
+            round_trip_inline(" hello ");
+        }
+
+        #[test]
+        fn round_trip_backtick_and_surrounding_whitespace() {
+            round_trip_inline(" hello`world ");
+        }
+
+        fn round_trip_inline(inline_str: &str) {
+            round_trip(&Inline::Text(Text {
+                variant: TextVariant::Code,
+                value: inline_str.to_string(),
+            }));
+        }
+    }
+
+    /// Not a pure unit test; semi-integ. Checks that writing an inline to markdown and then parsing
+    /// that markdown results in the original inline.
+    fn round_trip(orig: &Inline) {
+        let mut output = Output::new(String::new());
+        let mut writer = MdInlinesWriter::new(MdInlinesWriterOptions {
+            link_format: LinkTransform::Keep,
+        });
+        writer.write_inline_element(&mut output, &orig);
+        let md_str = output.take_underlying().unwrap();
+
+        let ast = markdown::to_mdast(&md_str, &markdown::ParseOptions::gfm()).unwrap();
+        let md_tree = MdElem::read(ast, &ReadOptions::default()).unwrap();
+
+        unwrap!(&md_tree[0], MdElem::Paragraph(p));
+        let parsed = get_only(&p.body);
+        assert_eq!(parsed, orig);
     }
 }
