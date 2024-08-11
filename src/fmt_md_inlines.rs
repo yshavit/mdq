@@ -129,20 +129,29 @@ impl<'md> MdInlinesWriter<'md> {
                 out.write_str(surround);
             }
             Inline::Text(Text { variant, value }) => {
-                let surround = match variant {
-                    TextVariant::Plain => Cow::Borrowed(""),
-                    TextVariant::Math => Cow::Borrowed("$"),
-                    TextVariant::Html => Cow::Borrowed(""),
+                let (surround_ch, surround_space) = match variant {
+                    TextVariant::Plain => (Cow::Borrowed(""), false),
+                    TextVariant::Math => (Cow::Borrowed("$"), false),
+                    TextVariant::Html => (Cow::Borrowed(""), false),
                     TextVariant::Code => {
-                        match Self::count_backticks_stretches(value) {
-                            0 => Cow::Borrowed("`"),
-                            n => Cow::Owned("`".repeat(n + 1))
-                        }
+                        let backticks_info = BackticksInfo::from(value);
+                        let surround_ch = if backticks_info.count == 0 {
+                            Cow::Borrowed("`")
+                        } else {
+                            Cow::Owned("`".repeat(backticks_info.count + 1))
+                        };
+                        (surround_ch, backticks_info.at_either_end)
                     },
                 };
-                out.write_str(&surround);
+                out.write_str(&surround_ch);
+                if surround_space {
+                    out.write_char(' ');
+                }
                 out.write_str(value);
-                out.write_str(&surround);
+                if surround_space {
+                    out.write_char(' ');
+                }
+                out.write_str(&surround_ch);
             }
             Inline::Link(link) => self.write_linklike(out, link),
             Inline::Image(image) => self.write_linklike(out, image),
@@ -155,23 +164,6 @@ impl<'md> MdInlinesWriter<'md> {
                 }
             }
         }
-    }
-
-    fn count_backticks_stretches(s: &str) -> usize {
-        let mut overall_max = 0;
-        let mut current_stretch = 0;
-        for c in s.chars() {
-            match c {
-                '`' => current_stretch += 1,
-                _ => {
-                    if current_stretch > 0 {
-                        overall_max = max(current_stretch, overall_max);
-                        current_stretch = 0;
-                    }
-                }
-            }
-        }
-        max(current_stretch, overall_max)
     }
 
     /// Writes the inline portion of the link, which may be the full link if it was originally inlined.
@@ -245,6 +237,35 @@ impl<'md> MdInlinesWriter<'md> {
         let Some(title) = title else { return };
         out.write_char(' ');
         TitleQuote::find_best_strategy(title).escape_to(title, out);
+    }
+}
+
+struct BackticksInfo {
+    count: usize,
+    at_either_end: bool,
+}
+
+impl From<&String> for BackticksInfo {
+    fn from(s: &String) -> Self {
+        let mut overall_max = 0;
+        let mut current_stretch = 0;
+        for c in s.chars() {
+            match c {
+                '`' => current_stretch += 1,
+                _ => {
+                    if current_stretch > 0 {
+                        overall_max = max(current_stretch, overall_max);
+                        current_stretch = 0;
+                    }
+                }
+            }
+        }
+        let count = max(current_stretch, overall_max);
+        let at_either_end = s.starts_with('`') || s.ends_with('`');
+        Self {
+            count,
+            at_either_end,
+        }
     }
 }
 
@@ -359,8 +380,42 @@ mod tests {
         }
 
         #[test]
+        #[ignore] // #171
+        fn round_trip_one_backtick_at_start() {
+            round_trip_inline("`hello");
+        }
+
+        #[test]
+        #[ignore] // #171
+        fn round_trip_one_backtick_at_end() {
+            round_trip_inline("hello `");
+        }
+
+        #[test]
         fn round_trip_three_backticks() {
             round_trip_inline("hello ``` world");
+        }
+
+        #[test]
+        #[ignore] // #171
+        fn round_trip_three_backticks_at_end() {
+            round_trip_inline("hello `");
+        }
+
+        #[test]
+        #[ignore] // #171
+        fn round_trip_three_backticks_at_start() {
+            round_trip_inline("`hello");
+        }
+
+        #[test]
+        fn round_trip_surrounding_whitespace() {
+            round_trip_inline(" hello ");
+        }
+
+        #[test]
+        fn round_trip_backtick_and_surrounding_whitespace() {
+            round_trip_inline(" hello`world ");
         }
 
         fn round_trip_inline(inline_str: &str) {
@@ -386,6 +441,6 @@ mod tests {
 
         unwrap!(&md_tree[0], MdElem::Paragraph(p));
         let parsed = get_only(&p.body);
-        assert_eq!(orig, parsed);
+        assert_eq!(parsed, orig);
     }
 }

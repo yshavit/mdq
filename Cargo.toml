@@ -10,7 +10,7 @@ repository = "https://github.com/yshavit/mdq"
 
 [dependencies]
 clap = { version = "4.5.7", features = ["derive"] }
-markdown = "1.0.0-alpha.16"
+markdown = "1.0.0-alpha.19"
 paste = "1.0"
 regex = "1.10.4"
 serde = { version = "1", features = ["derive"] }
