@@ -1,0 +1,38 @@
+[given]
+md = '''
+Hello, _world_
+**in one** paragraph.
+(Note also plaintext behavior.)
+
+
+Second paragraph
+'''
+
+[chained]
+needed = false
+
+
+[expect."echo"]
+cli_args = []
+output = '''
+Hello, _world_
+**in one** paragraph.
+(Note also plaintext behavior.)
+
+Second paragraph
+'''
+
+[expect."paragraphs"]
+cli_args = ["P: *"]
+# Check that everything in the first paragraph is indeed in one paragraph.
+# (The second paragraph is there just so we can see the thematic break between them, to make it even more obvious
+# that the selector has selected two distinct entities.)
+output = '''
+Hello, _world_
+**in one** paragraph.
+(Note also plaintext behavior.)
+
+   -----
+
+Second paragraph
+'''
