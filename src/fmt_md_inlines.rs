@@ -377,13 +377,11 @@ mod tests {
         }
 
         #[test]
-        #[ignore] // #171
         fn round_trip_one_backtick_at_start() {
             round_trip_inline("`hello");
         }
 
         #[test]
-        #[ignore] // #171
         fn round_trip_one_backtick_at_end() {
             round_trip_inline("hello `");
         }
@@ -394,38 +392,46 @@ mod tests {
         }
 
         #[test]
-        #[ignore] // #171
         fn round_trip_three_backticks_at_end() {
             round_trip_inline("hello `");
         }
 
         #[test]
-        #[ignore] // #171
         fn round_trip_three_backticks_at_start() {
             round_trip_inline("`hello");
         }
 
         #[test]
         fn round_trip_surrounding_whitespace() {
-            round_trip_inline(" hello ");
+            round_trip_inline_to(" hello ", "hello");
         }
 
         #[test]
         fn round_trip_backtick_and_surrounding_whitespace() {
-            round_trip_inline(" hello`world ");
+            round_trip_inline_to(" hello`world ", "hello`world");
+        }
+
+        fn round_trip_inline_to(orig: &str, expect: &str) {
+            round_trip(
+                &Inline::Text(Text {
+                    variant: TextVariant::Code,
+                    value: orig.to_string(),
+                }),
+                &Inline::Text(Text {
+                    variant: TextVariant::Code,
+                    value: expect.to_string(),
+                }),
+            );
         }
 
         fn round_trip_inline(inline_str: &str) {
-            round_trip(&Inline::Text(Text {
-                variant: TextVariant::Code,
-                value: inline_str.to_string(),
-            }));
+            round_trip_inline_to(inline_str, inline_str);
         }
     }
 
     /// Not a pure unit test; semi-integ. Checks that writing an inline to markdown and then parsing
     /// that markdown results in the original inline.
-    fn round_trip(orig: &Inline) {
+    fn round_trip(orig: &Inline, expect: &Inline) {
         let mut output = Output::new(String::new());
         let mut writer = MdInlinesWriter::new(MdInlinesWriterOptions {
             link_format: LinkTransform::Keep,
@@ -438,6 +444,6 @@ mod tests {
 
         unwrap!(&md_tree[0], MdElem::Paragraph(p));
         let parsed = get_only(&p.body);
-        assert_eq!(parsed, orig);
+        assert_eq!(parsed, expect);
     }
 }
