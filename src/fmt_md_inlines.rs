@@ -412,13 +412,16 @@ mod tests {
         }
 
         fn round_trip_inline_to(orig: &str, expect: &str) {
-            round_trip(&Inline::Text(Text {
-                variant: TextVariant::Code,
-                value: orig.to_string(),
-            }), &Inline::Text(Text {
-                variant: TextVariant::Code,
-                value: expect.to_string(),
-            }));
+            round_trip(
+                &Inline::Text(Text {
+                    variant: TextVariant::Code,
+                    value: orig.to_string(),
+                }),
+                &Inline::Text(Text {
+                    variant: TextVariant::Code,
+                    value: expect.to_string(),
+                }),
+            );
         }
 
         fn round_trip_inline(inline_str: &str) {
