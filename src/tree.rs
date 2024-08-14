@@ -985,7 +985,7 @@ mod tests {
 
             unwrap!(&root.children[0], Node::Paragraph(p));
             check!(&p.children[0], Node::InlineMath(_), lookups => MdElem::Inline(inline) = {
-                assert_eq!(inline, Inline::Text (Text{ variant: TextVariant::Math, value: r#" 0 \ne 1 "#.to_string() }));
+                assert_eq!(inline, Inline::Text (Text{ variant: TextVariant::Math, value: r#"0 \ne 1"#.to_string() }));
             });
         }
 
