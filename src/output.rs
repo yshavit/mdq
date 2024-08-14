@@ -17,7 +17,7 @@ impl SimpleWrite for String {
     }
 }
 
-pub struct Stream<W: std::io::Write>(pub W);
+pub struct Stream<W>(pub W);
 
 impl<W: std::io::Write> SimpleWrite for Stream<W> {
     fn write_str(&mut self, text: &str) -> std::io::Result<()> {
