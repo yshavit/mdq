@@ -72,7 +72,7 @@ impl<A: Borrow<AlignKind>> ToAlignment for Option<A> {
     }
 }
 
-pub struct CountingWriter<'a, W: SimpleWrite> {
+pub struct CountingWriter<'a, W> {
     underlying: &'a mut W,
     count: usize,
 }
