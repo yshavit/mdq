@@ -491,7 +491,7 @@ impl MdElem {
         let mut headers: Vec<HContainer> = Vec::with_capacity(result.capacity());
         for child_mdq in iter {
             let child_mdq = child_mdq?;
-            if let m_node!(MdElem::Section {
+            if let MdElem::Section(Section {
                 depth,
                 title,
                 body: children,
