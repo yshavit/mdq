@@ -187,10 +187,24 @@ impl<'md> MdInlinesWriter<'md> {
             out.write_char('!');
         }
         out.write_char('[');
+
         match &label {
-            LinkLabel::Text(text) => out.write_str(text),
-            LinkLabel::Inline(text) => self.write_line(out, *text),
+            LinkLabel::Text(text) => self.write_link_descriptions(out, text),
+            LinkLabel::Inline(text) => {
+                // Write to a string, and then dump that to out. This lets us escaping, and will
+                // eventually let us handle matched square brackets.
+                // Note that it's not really worth it to do the transformation "on the fly":
+                // the SimpleWrite trait only writes strings anyway (not chars), so even if we
+                // had an intercepting transform, it would still have to work on allocated strings.
+                // So we may as well just do it once.
+                // This could be output a bit nicer: see #183.
+                let mut sub_out = Output::new(String::with_capacity(64));
+                self.write_line(&mut sub_out, *text);
+                let as_string = sub_out.take_underlying().unwrap();
+                self.write_link_descriptions(out, &as_string);
+            }
         }
+
         out.write_char(']');
 
         let link_ref = LinkTransformation::new(self.link_transformer.transform_variant(), self, link_like)
@@ -228,6 +242,18 @@ impl<'md> MdInlinesWriter<'md> {
                 // else warn?
             }
         }
+    }
+
+    fn write_link_descriptions<W>(&mut self, out: &mut Output<W>, description: &str)
+    where
+        W: SimpleWrite,
+    {
+        description.chars().for_each(|ch| {
+            if ch == '[' || ch == ']' {
+                out.write_char('\\');
+            }
+            out.write_char(ch);
+        });
     }
 
     pub fn write_url_title<W>(&mut self, out: &mut Output<W>, title: &Option<String>)
@@ -426,6 +452,89 @@ mod tests {
 
         fn round_trip_inline(inline_str: &str) {
             round_trip_inline_to(inline_str, inline_str);
+        }
+    }
+
+    mod link_description {
+        use super::*;
+
+        #[test]
+        fn simple() {
+            check_link_description("hello, world", "hello, world");
+        }
+
+        #[test]
+        fn matched_brackets() {
+            check_link_description("link [foo [bar]]", "link \\[foo \\[bar\\]\\]");
+        }
+
+        #[test]
+        fn unmatched_brackets() {
+            check_link_description("link [foo bar", "link \\[foo bar");
+        }
+
+        fn check_link_description(input_description: &str, expected: &str) {
+            let mut output = Output::new(String::new());
+            let mut writer = MdInlinesWriter::new(MdInlinesWriterOptions {
+                link_format: LinkTransform::Keep,
+            });
+            let link = Inline::Link(Link {
+                text: vec![Inline::Text(Text {
+                    variant: TextVariant::Plain,
+                    value: input_description.to_string(),
+                })],
+                link_definition: LinkDefinition {
+                    url: "https://www.example.com".to_string(),
+                    title: None,
+                    reference: LinkReference::Inline,
+                },
+            });
+            writer.write_inline_element(&mut output, &link);
+
+            assert_eq!(
+                output.take_underlying().unwrap(),
+                format!("[{expected}](https://www.example.com)")
+            );
+        }
+    }
+
+    mod img_alt {
+        use super::*;
+
+        #[test]
+        fn simple() {
+            check_img_alt("hello, world", "hello, world");
+        }
+
+        #[test]
+        fn matched_brackets() {
+            check_img_alt("link [foo [bar]]", "link \\[foo \\[bar\\]\\]");
+        }
+
+        #[test]
+        fn unmatched_brackets() {
+            check_img_alt("link [foo bar", "link \\[foo bar");
+        }
+
+        fn check_img_alt(input_description: &str, expected: &str) {
+            let mut output = Output::new(String::new());
+            let mut writer = MdInlinesWriter::new(MdInlinesWriterOptions {
+                link_format: LinkTransform::Keep,
+            });
+            let link = Inline::Image(Image {
+                alt: input_description.to_string(),
+                link: LinkDefinition {
+                    url: "https://www.example.com".to_string(),
+                    title: None,
+                    reference: LinkReference::Inline,
+                },
+            });
+            writer.write_inline_element(&mut output, &link);
+
+            assert_eq!(
+                output.take_underlying().unwrap(),
+                format!("![{expected}](https://www.example.com)")
+            );
         }
     }
 

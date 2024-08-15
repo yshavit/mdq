@@ -770,12 +770,11 @@ mod tests {
     ///
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
+        use super::*;
         use crate::unwrap;
         use indoc::indoc;
         use markdown::mdast::Node;
         use markdown::{mdast, ParseOptions};
-
-        use super::*;
 
         macro_rules! check {
             (error: $enum_value:expr, $enum_variant:pat, $lookups:expr => $err:expr $(, $body:block)? ) => {{
@@ -2308,6 +2307,49 @@ mod tests {
             let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
             assert_eq!(expect, actual);
             Ok(())
+        }
+    }
+
+    mod link_descriptions {
+        use super::*;
+        use markdown::ParseOptions;
+
+        #[test]
+        fn simple() {
+            check("the text", "the text");
+        }
+
+        #[test]
+        fn matched_text_brackets() {
+            check("link [foo [bar]]", "link [foo [bar]]");
+        }
+
+        #[test]
+        fn escaped_text_brackets() {
+            check("link \\[foo bar", "link [foo bar")
+        }
+
+        fn check(in_description: &str, expected: &str) {
+            let md_str = format!("[{in_description}](https://example.com)");
+            let nodes = markdown::to_mdast(&md_str, &ParseOptions::default()).unwrap();
+            let root_elems = MdElem::read(nodes, &ReadOptions::default()).unwrap();
+
+            assert_eq!(
+                root_elems,
+                vec![MdElem::Paragraph(Paragraph {
+                    body: vec![Inline::Link(Link {
+                        text: vec![Inline::Text(Text {
+                            variant: TextVariant::Plain,
+                            value: expected.to_string(),
+                        })],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    })],
+                })]
+            );
         }
     }
 
