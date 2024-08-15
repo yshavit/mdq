@@ -187,10 +187,19 @@ impl<'md> MdInlinesWriter<'md> {
             out.write_char('!');
         }
         out.write_char('[');
+
         match &label {
-            LinkLabel::Text(text) => out.write_str(text),
-            LinkLabel::Inline(text) => self.write_line(out, *text),
+            LinkLabel::Text(text) => self.write_link_descriptions(out, text),
+            LinkLabel::Inline(text) => {
+                // Write to a string, and then dump that to out. This lets us escaping, and will
+                // eventually let us handle matched square brackets.
+                let mut sub_out = Output::new(String::with_capacity(64));
+                self.write_line(&mut sub_out, *text);
+                let as_string = sub_out.take_underlying().unwrap();
+                self.write_link_descriptions(out, &as_string);
+            }
         }
+
         out.write_char(']');
 
         let link_ref = LinkTransformation::new(self.link_transformer.transform_variant(), self, link_like)
@@ -228,6 +237,18 @@ impl<'md> MdInlinesWriter<'md> {
                 // else warn?
             }
         }
+    }
+
+    fn write_link_descriptions<W>(&mut self, out: &mut Output<W>, description: &str)
+    where
+        W: SimpleWrite,
+    {
+        description.chars().for_each(|ch| {
+            if ch == '[' || ch == ']' {
+                out.write_char('\\');
+            }
+            out.write_char(ch);
+        });
     }
 
     pub fn write_url_title<W>(&mut self, out: &mut Output<W>, title: &Option<String>)
