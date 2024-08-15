@@ -429,6 +429,89 @@ mod tests {
         }
     }
 
+    mod link_description {
+        use super::*;
+
+        #[test]
+        fn simple() {
+            check_link_description("hello, world", "hello, world");
+        }
+
+        #[test]
+        fn matched_brackets() {
+            check_link_description("link [foo [bar]]", "link \\[foo \\[bar\\]\\]");
+        }
+
+        #[test]
+        fn unmatched_brackets() {
+            check_link_description("link [foo bar", "link \\[foo bar");
+        }
+
+        fn check_link_description(input_description: &str, expected: &str) {
+            let mut output = Output::new(String::new());
+            let mut writer = MdInlinesWriter::new(MdInlinesWriterOptions {
+                link_format: LinkTransform::Keep,
+            });
+            let link = Inline::Link(Link {
+                text: vec![Inline::Text(Text {
+                    variant: TextVariant::Plain,
+                    value: input_description.to_string(),
+                })],
+                link_definition: LinkDefinition {
+                    url: "https://www.example.com".to_string(),
+                    title: None,
+                    reference: LinkReference::Inline,
+                },
+            });
+            writer.write_inline_element(&mut output, &link);
+
+            assert_eq!(
+                output.take_underlying().unwrap(),
+                format!("[{expected}](https://www.example.com)")
+            );
+        }
+    }
+
+    mod img_alt {
+        use super::*;
+
+        #[test]
+        fn simple() {
+            check_img_alt("hello, world", "hello, world");
+        }
+
+        #[test]
+        fn matched_brackets() {
+            check_img_alt("link [foo [bar]]", "link \\[foo \\[bar\\]\\]");
+        }
+
+        #[test]
+        fn unmatched_brackets() {
+            check_img_alt("link [foo bar", "link \\[foo bar");
+        }
+
+        fn check_img_alt(input_description: &str, expected: &str) {
+            let mut output = Output::new(String::new());
+            let mut writer = MdInlinesWriter::new(MdInlinesWriterOptions {
+                link_format: LinkTransform::Keep,
+            });
+            let link = Inline::Image(Image {
+                alt: input_description.to_string(),
+                link: LinkDefinition {
+                    url: "https://www.example.com".to_string(),
+                    title: None,
+                    reference: LinkReference::Inline,
+                },
+            });
+            writer.write_inline_element(&mut output, &link);
+
+            assert_eq!(
+                output.take_underlying().unwrap(),
+                format!("![{expected}](https://www.example.com)")
+            );
+        }
+    }
+
     /// Not a pure unit test; semi-integ. Checks that writing an inline to markdown and then parsing
     /// that markdown results in the original inline.
     fn round_trip(orig: &Inline, expect: &Inline) {
