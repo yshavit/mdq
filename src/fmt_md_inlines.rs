@@ -193,6 +193,11 @@ impl<'md> MdInlinesWriter<'md> {
             LinkLabel::Inline(text) => {
                 // Write to a string, and then dump that to out. This lets us escaping, and will
                 // eventually let us handle matched square brackets.
+                // Note that it's not really worth it to do the transformation "on the fly":
+                // the SimpleWrite trait only writes strings anyway (not chars), so even if we
+                // had an intercepting transform, it would still have to work on allocated strings.
+                // So we may as well just do it once.
+                // This could be output a bit nicer: see #183.
                 let mut sub_out = Output::new(String::with_capacity(64));
                 self.write_line(&mut sub_out, *text);
                 let as_string = sub_out.take_underlying().unwrap();
