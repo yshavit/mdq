@@ -57,12 +57,6 @@ pub enum ReferencePlacement {
     Doc,
 }
 
-impl Default for ReferencePlacement {
-    fn default() -> Self {
-        Self::Section
-    }
-}
-
 pub fn write_md<'md, I, W>(options: &'md MdOptions, out: &mut Output<W>, nodes: I)
 where
     I: Iterator<Item = MdElemRef<'md>>,
@@ -469,7 +463,6 @@ pub mod tests {
     use indoc::indoc;
 
     use crate::fmt_md::MdOptions;
-    use crate::fmt_md_inlines::MdInlinesWriterOptions;
     use crate::link_transform::LinkTransform;
     use crate::m_node;
     use crate::md_elem;
@@ -1569,7 +1562,6 @@ pub mod tests {
 
     mod link {
         use super::*;
-        use crate::fmt_md_inlines::MdInlinesWriterOptions;
 
         #[test]
         fn single_link() {
@@ -1657,13 +1649,7 @@ pub mod tests {
         #[test]
         fn reference_transform_smoke_test() {
             check_render_refs_with(
-                &MdOptions {
-                    link_reference_placement: ReferencePlacement::Section,
-                    footnote_reference_placement: ReferencePlacement::Section,
-                    inline_options: MdInlinesWriterOptions {
-                        link_format: LinkTransform::Reference,
-                    },
-                },
+                &MdOptions::new_with(|mdo| mdo.inline_options.link_format = LinkTransform::Reference),
                 vec![MdElemRef::Link(&Link {
                     text: vec![mdq_inline!("link text")],
                     link_definition: LinkDefinition {
@@ -1682,7 +1668,6 @@ pub mod tests {
 
     mod image {
         use super::*;
-        use crate::fmt_md_inlines::MdInlinesWriterOptions;
 
         #[test]
         fn single_image() {
@@ -1740,13 +1725,7 @@ pub mod tests {
         #[test]
         fn reference_transform_smoke_test() {
             check_render_refs_with(
-                &MdOptions {
-                    link_reference_placement: ReferencePlacement::Section,
-                    footnote_reference_placement: ReferencePlacement::Section,
-                    inline_options: MdInlinesWriterOptions {
-                        link_format: LinkTransform::Reference,
-                    },
-                },
+                &MdOptions::new_with(|mdo| mdo.inline_options.link_format = LinkTransform::Reference),
                 vec![MdElemRef::Image(&Image {
                     alt: "alt text".to_string(),
                     link: LinkDefinition {
@@ -1808,8 +1787,6 @@ pub mod tests {
 
     mod annotation_and_footnote_layouts {
         use super::*;
-        use crate::fmt_md_inlines::MdInlinesWriterOptions;
-        use crate::link_transform::LinkTransform;
 
         #[test]
         fn link_and_footnote() {
@@ -1844,13 +1821,10 @@ pub mod tests {
         #[test]
         fn both_in_sections() {
             check_render_with(
-                &MdOptions {
-                    link_reference_placement: ReferencePlacement::Section,
-                    footnote_reference_placement: ReferencePlacement::Section,
-                    inline_options: MdInlinesWriterOptions {
-                        link_format: LinkTransform::Keep,
-                    },
-                },
+                &MdOptions::new_with(|mdo| {
+                    mdo.link_reference_placement = ReferencePlacement::Section;
+                    mdo.footnote_reference_placement = ReferencePlacement::Section;
+                }),
                 link_and_footnote_markdown(),
                 indoc! {r#"
                     # First section
@@ -1871,13 +1845,10 @@ pub mod tests {
         #[test]
         fn only_link_in_section() {
             check_render_with(
-                &MdOptions {
-                    link_reference_placement: ReferencePlacement::Section,
-                    footnote_reference_placement: ReferencePlacement::Doc,
-                    inline_options: MdInlinesWriterOptions {
-                        link_format: LinkTransform::Keep,
-                    },
-                },
+                &MdOptions::new_with(|mdo| {
+                    mdo.link_reference_placement = ReferencePlacement::Section;
+                    mdo.footnote_reference_placement = ReferencePlacement::Doc;
+                }),
                 link_and_footnote_markdown(),
                 indoc! {r#"
                     # First section
@@ -1901,13 +1872,10 @@ pub mod tests {
         #[test]
         fn no_sections_but_writing_to_sections() {
             check_render_with(
-                &MdOptions {
-                    link_reference_placement: ReferencePlacement::Section,
-                    footnote_reference_placement: ReferencePlacement::Section,
-                    inline_options: MdInlinesWriterOptions {
-                        link_format: LinkTransform::Keep,
-                    },
-                },
+                &MdOptions::new_with(|mdo| {
+                    mdo.link_reference_placement = ReferencePlacement::Section;
+                    mdo.footnote_reference_placement = ReferencePlacement::Section;
+                }),
                 md_elems![Paragraph {
                     body: vec![m_node!(Inline::Link {
                         text: vec![mdq_inline!("link description")],
@@ -1928,13 +1896,10 @@ pub mod tests {
         #[test]
         fn only_footnote_in_section() {
             check_render_with(
-                &MdOptions {
-                    link_reference_placement: ReferencePlacement::Doc,
-                    footnote_reference_placement: ReferencePlacement::Section,
-                    inline_options: MdInlinesWriterOptions {
-                        link_format: LinkTransform::Keep,
-                    },
-                },
+                &MdOptions::new_with(|mdo| {
+                    mdo.link_reference_placement = ReferencePlacement::Doc;
+                    mdo.footnote_reference_placement = ReferencePlacement::Section;
+                }),
                 link_and_footnote_markdown(),
                 indoc! {r#"
                     # First section
@@ -1958,13 +1923,10 @@ pub mod tests {
         #[test]
         fn both_bottom_of_doc() {
             check_render_with(
-                &MdOptions {
-                    link_reference_placement: ReferencePlacement::Doc,
-                    footnote_reference_placement: ReferencePlacement::Doc,
-                    inline_options: MdInlinesWriterOptions {
-                        link_format: LinkTransform::Keep,
-                    },
-                },
+                &MdOptions::new_with(|mdo| {
+                    mdo.link_reference_placement = ReferencePlacement::Doc;
+                    mdo.footnote_reference_placement = ReferencePlacement::Doc;
+                }),
                 link_and_footnote_markdown(),
                 indoc! {r#"
                     # First section
@@ -1987,13 +1949,10 @@ pub mod tests {
         #[test]
         fn ordering() {
             check_render_with(
-                &MdOptions {
-                    link_reference_placement: ReferencePlacement::Doc,
-                    footnote_reference_placement: ReferencePlacement::Doc,
-                    inline_options: MdInlinesWriterOptions {
-                        link_format: LinkTransform::Keep,
-                    },
-                },
+                &MdOptions::new_with(|mdo| {
+                    mdo.link_reference_placement = ReferencePlacement::Doc;
+                    mdo.footnote_reference_placement = ReferencePlacement::Doc;
+                }),
                 // Define them in the opposite order that we'd expect them
                 md_elems![Paragraph {
                     body: vec![
@@ -2114,7 +2073,7 @@ pub mod tests {
     }
 
     fn check_render(nodes: Vec<MdElem>, expect: &str) {
-        check_render_with(&default_opts(), nodes, expect);
+        check_render_with(&MdOptions::default_for_tests(), nodes, expect);
     }
 
     fn check_render_with(options: &MdOptions, nodes: Vec<MdElem>, expect: &str) {
@@ -2126,7 +2085,7 @@ pub mod tests {
     }
 
     fn check_render_refs(nodes: Vec<MdElemRef>, expect: &str) {
-        check_render_refs_with(&default_opts(), nodes, expect)
+        check_render_refs_with(&MdOptions::default_for_tests(), nodes, expect)
     }
 
     fn check_render_refs_with(options: &MdOptions, nodes: Vec<MdElemRef>, expect: &str) {
@@ -2136,15 +2095,5 @@ pub mod tests {
         write_md(options, &mut out, nodes.into_iter());
         let actual = out.take_underlying().unwrap();
         assert_eq!(&actual, expect);
-    }
-
-    fn default_opts() -> MdOptions {
-        MdOptions {
-            link_reference_placement: Default::default(),
-            footnote_reference_placement: Default::default(),
-            inline_options: MdInlinesWriterOptions {
-                link_format: LinkTransform::Keep,
-            },
-        }
     }
 }
