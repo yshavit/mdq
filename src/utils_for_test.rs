@@ -5,7 +5,43 @@ pub use test_utils::*;
 // export its contents.
 #[cfg(test)]
 mod test_utils {
+    use crate::fmt_md::{MdOptions, ReferencePlacement};
+    use crate::fmt_md_inlines::MdInlinesWriterOptions;
+    use crate::link_transform::LinkTransform;
     use std::fmt::Debug;
+
+    impl LinkTransform {
+        pub fn default_for_tests() -> Self {
+            Self::Keep
+        }
+    }
+
+    impl ReferencePlacement {
+        pub fn default_for_tests() -> Self {
+            Self::Section
+        }
+    }
+
+    impl MdOptions {
+        pub fn default_for_tests() -> Self {
+            Self {
+                link_reference_placement: ReferencePlacement::default_for_tests(),
+                footnote_reference_placement: ReferencePlacement::default_for_tests(),
+                inline_options: MdInlinesWriterOptions {
+                    link_format: LinkTransform::default_for_tests(),
+                },
+            }
+        }
+
+        pub fn new_with<F>(init: F) -> Self
+        where
+            F: FnOnce(&mut MdOptions),
+        {
+            let mut mdo = Self::default_for_tests();
+            init(&mut mdo);
+            mdo
+        }
+    }
 
     pub fn get_only<T: Debug, C: IntoIterator<Item = T>>(col: C) -> T {
         let mut iter = col.into_iter();
