@@ -50,14 +50,26 @@ mod test_utils {
     /// Creates a static object named `$name` that looks for all the variants of enum `E`.
     ///
     /// ```
-    /// variants_checker(CHECKER_NAME = MyEnum { Variant1, Variant2(_), ... })
+    /// use mdq::variants_checker;
+    ///
+    /// enum MyEnum {
+    ///   Variant1,
+    ///   Variant2(usize)
+    /// }
+    /// variants_checker!(CHECKER_NAME = MyEnum { Variant1, Variant2(_) });
     /// ```
     ///
     /// You can also mark some variants as ignored; these will be added to the pattern match, but not be required to
     /// be seen:
     ///
     /// ```
-    /// variants_checker(CHECKER_NAME = MyEnum { Variant1, ... } ignore { Variant2, ... } )
+    /// use mdq::variants_checker;
+    ///
+    /// enum MyEnum {
+    ///   Variant1,
+    ///   Variant2(usize)
+    /// }
+    /// variants_checker!(CHECKER_NAME = MyEnum { Variant1 } ignore { Variant2(_) });
     /// ```
     ///
     /// If you see a compilation failure here, it means the call site is missing variants (or has an unknown
