@@ -25,6 +25,15 @@ output = '''
 [^1]: the link's footnote text
 '''
 
+[expect."just footnote in link: json"]
+cli_args = ['- AAA', '--output', 'json']
+output = '''
+- AAA: [footnote [^1] in a link][1]
+
+[1]: https://example.com
+[^1]: the link's footnote text
+'''
+
 
 [expect."just footnote contains footnote"]
 cli_args = ['- BBB']
