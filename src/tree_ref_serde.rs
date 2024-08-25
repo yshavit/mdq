@@ -703,6 +703,7 @@ mod tests {
     fn check(given: MdElem, expect: &str) {
         let opts = MdInlinesWriterOptions {
             link_format: LinkTransform::Keep,
+            renumber_footnotes: false,
         };
         check_with(opts, MdElemRef::from(&given), expect);
     }
@@ -710,6 +711,7 @@ mod tests {
     fn check_md_ref(given: MdElemRef, expect: &str) {
         let opts = MdInlinesWriterOptions {
             link_format: LinkTransform::Keep,
+            renumber_footnotes: false,
         };
         check_with(opts, given, expect);
     }

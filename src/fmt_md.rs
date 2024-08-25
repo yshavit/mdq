@@ -429,7 +429,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
 
                 for (link_ref, text) in defs_to_write {
                     out.write_str("[^");
-                    out.write_str(link_ref);
+                    self.inlines_writer.write_footnote_label(out, link_ref);
                     out.write_str("]: ");
                     out.with_block(Block::Inlined(2), |out| {
                         self.write_md(out, Self::doc_iter(text), false);
@@ -1782,6 +1782,40 @@ pub mod tests {
 
                        -----"#},
             )
+        }
+
+        /// see [crate::footnote_transform::test] for more extensive tests TODO need to add those tests!
+        #[test]
+        fn footnote_transform_smoke_test() {
+            check_render_refs_with(
+                &MdOptions::new_with(|mdo| mdo.inline_options.renumber_footnotes = true),
+                vec![MdElemRef::Paragraph(&footnote_a_in_paragraph())],
+                indoc! {r#"
+                    [^1]
+
+                    [^1]: the footnote text"#},
+            );
+        }
+
+        #[test]
+        fn footnote_no_transform_smoke_test() {
+            check_render_refs_with(
+                &MdOptions::new_with(|mdo| mdo.inline_options.renumber_footnotes = false),
+                vec![MdElemRef::Paragraph(&footnote_a_in_paragraph())],
+                indoc! {r#"
+                    [^a]
+
+                    [^a]: the footnote text"#},
+            );
+        }
+
+        fn footnote_a_in_paragraph() -> Paragraph {
+            Paragraph {
+                body: vec![Inline::Footnote(Footnote {
+                    label: "a".to_string(),
+                    text: md_elems!("the footnote text"),
+                })],
+            }
         }
     }
 

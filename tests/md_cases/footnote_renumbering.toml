@@ -1,0 +1,26 @@
+[given]
+md = '''
+hello, world[^3] [^a] [^1] [^shortcut] [^collapsed][].
+
+[^a]: a footnote
+[^3]: three footnote
+[^1]: one footnote
+[^shortcut]: shortcut footnote
+[^collapsed]: collapsed footnote
+'''
+
+[chained]
+needed = false
+
+
+[expect."default"]
+cli_args = []
+output = '''
+hello, world[^1] [^2] [^3] [^4] [^5][].
+
+[^1]: three footnote
+[^2]: a footnote
+[^3]: one footnote
+[^4]: shortcut footnote
+[^5]: collapsed footnote
+'''

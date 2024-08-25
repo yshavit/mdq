@@ -40,6 +40,7 @@ impl<'md> LinkLabel<'md> {
             LinkLabel::Inline(inlines) => {
                 let mut inline_writer = MdInlinesWriter::new(MdInlinesWriterOptions {
                     link_format: LinkTransform::Keep,
+                    renumber_footnotes: false,
                 });
                 inlines_to_string(&mut inline_writer, *inlines)
             }
@@ -419,6 +420,7 @@ mod tests {
         let mut transformer = LinkTransformer::from(LinkTransform::Reference);
         let mut iw = MdInlinesWriter::new(MdInlinesWriterOptions {
             link_format: LinkTransform::Keep,
+            renumber_footnotes: false,
         });
 
         // [alpha](https://example.com) ==> [alpha][1]
@@ -505,6 +507,7 @@ mod tests {
             let mut transformer = LinkTransformer::from(transform);
             let mut iw = MdInlinesWriter::new(MdInlinesWriterOptions {
                 link_format: LinkTransform::Keep,
+                renumber_footnotes: false,
             });
             let link = Link {
                 text: vec![label],
