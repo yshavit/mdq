@@ -1,0 +1,48 @@
+[given]
+md = '''
+- AAA: [footnote [^1] in a link](https://example.com)
+- BBB: footnote contains footnote[^2]
+- CCC: footnote contains link[^3]
+
+[^1]: the link's footnote text
+[^2]: this footnote contains[^a] a footnote
+[^3]: this footnote contains a [link][3a]
+[^a]: this is the footnote's footnote
+
+[3a]: https://example.com/3a
+'''
+
+[chained]
+needed = false
+
+
+[expect."just footnote in link"]
+cli_args = ['- AAA']
+output = '''
+- AAA: [footnote [^1] in a link][1]
+
+[1]: https://example.com
+[^1]: the link's footnote text
+'''
+
+
+[expect."just footnote contains footnote"]
+cli_args = ['- BBB']
+output = '''
+- BBB: footnote contains footnote[^1]
+
+[^1]: this footnote contains[^2] a footnote
+
+[^2]: this is the footnote's footnote
+'''
+
+
+[expect."just footnote contains link"]
+cli_args = ['- CCC']
+output = '''
+- CCC: footnote contains link[^1]
+
+[^1]: this footnote contains a [link][3a]
+
+[3a]: https://example.com/3a
+'''
