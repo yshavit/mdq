@@ -130,6 +130,7 @@ struct TestGiven {
 struct TestExpect {
     cli_args: Vec<String>,
     output: String,
+    output_json: Option<bool>,
     expect_success: Option<bool>,
     ignore: Option<String>,
 }
@@ -147,6 +148,7 @@ impl TestSpecFile {
                 case_name,
                 cli_args: test_expect.cli_args,
                 expect_output: test_expect.output,
+                output_json: test_expect.output_json.unwrap_or(false),
                 expect_success: test_expect.expect_success.unwrap_or(true),
                 ignored: test_expect.ignore.is_some(),
             })
@@ -161,6 +163,7 @@ struct Case {
     ignored: bool,
     cli_args: Vec<String>,
     expect_output: String,
+    output_json: bool,
     expect_success: bool,
 }
 
@@ -190,6 +193,7 @@ impl Case {
             out.write("Case {");
             out.with_indent(|out| {
                 out.writeln(&format!("cli_args: {:?},", &self.cli_args));
+                out.writeln(&format!("expect_output_json: {},", self.output_json));
                 if self.expect_output.is_empty() {
                     out.write("expect_output: \"\",");
                 } else {

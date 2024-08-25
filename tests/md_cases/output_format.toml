@@ -38,5 +38,22 @@ Test _one_ [two][1] three.
 
 [expect."json"]
 cli_args = ['--output', 'json']
+output_json = true
 output = '''
-{"items":[{"document":[{"paragraph":"Test _one_ [two][1] three."}]}],"links":{"1":{"url":"https://example.com/1"}}}'''
+{
+    "items": [
+        {
+            "document": [
+                {
+                    "paragraph": "Test _one_ [two][1] three."
+                }
+            ]
+        }
+    ],
+    "links": {
+        "1": {
+            "url": "https://example.com/1"
+        }
+    }
+}
+'''
