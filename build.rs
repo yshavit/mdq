@@ -175,7 +175,10 @@ impl Case {
     }
 
     fn write_test_fn_to(&self, out: &mut Writer) {
-        let fn_name = self.case_name.replace(|ch: char| !ch.is_alphanumeric(), "_");
+        let fn_name = self
+            .case_name
+            .replace(|ch: char| !(ch.is_alphanumeric() || ch.is_whitespace()), "")
+            .replace(|ch: char| ch.is_whitespace(), "_");
         if self.ignored {
             // separate out ign-ore to two lines, so that it doesn't trigger the CI check for ignored tests
             out.write("#[ign");
