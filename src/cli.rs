@@ -21,6 +21,9 @@ pub struct Cli {
     #[arg(long, short, value_enum, default_value_t=LinkTransform::Reference)]
     pub(crate) link_format: LinkTransform,
 
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+    pub(crate) renumber_footnotes: bool,
+
     /// Output the results as a JSON object, instead of as markdown.
     #[arg(long, short, default_value_t = OutputFormat::Markdown)]
     pub(crate) output: OutputFormat,

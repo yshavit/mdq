@@ -83,7 +83,7 @@ where
         footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
         inline_options: MdInlinesWriterOptions {
             link_format: cli.link_format,
-            renumber_footnotes: true, // TODO make optional
+            renumber_footnotes: cli.renumber_footnotes,
         },
     };
 
