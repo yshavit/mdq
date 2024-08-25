@@ -1,14 +1,14 @@
 use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
-use clap::ValueEnum;
-use std::cmp::max;
-use std::fmt::Alignment;
-use std::ops::Deref;
-
 use crate::link_transform::LinkLabel;
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
 use crate::tree::*;
 use crate::tree_ref::{ListItemRef, MdElemRef, TableSlice};
+use clap::ValueEnum;
+use std::borrow::Cow;
+use std::cmp::max;
+use std::fmt::Alignment;
+use std::ops::Deref;
 
 pub struct MdOptions {
     pub link_reference_placement: ReferencePlacement,
@@ -326,7 +326,13 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                 } else {
                     None
                 };
-                ("```", meta)
+                let leading_backticks_count = Self::count_longest_opening_backticks(value);
+                let surround_backticks = if leading_backticks_count < 3 {
+                    Cow::Borrowed("```")
+                } else {
+                    Cow::Owned("`".repeat(leading_backticks_count + 1))
+                };
+                (surround_backticks, meta)
             }
             CodeVariant::Math { metadata } => {
                 let meta = if let Some(meta) = metadata {
@@ -337,22 +343,37 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                 } else {
                     None
                 };
-                ("$$", meta)
+                (Cow::Borrowed("$$"), meta)
             }
-            CodeVariant::Toml => ("+++", None),
-            CodeVariant::Yaml => ("---", None),
+            CodeVariant::Toml => (Cow::Borrowed("+++"), None),
+            CodeVariant::Yaml => (Cow::Borrowed("---"), None),
         };
 
         out.with_pre_block(|out| {
-            out.write_str(surround);
+            out.write_str(&surround);
             if let Some(meta) = meta {
                 out.write_str(&meta);
             }
             out.write_char('\n');
             out.write_str(value);
             out.write_char('\n');
-            out.write_str(surround);
+            out.write_str(&surround);
         });
+    }
+
+    fn count_longest_opening_backticks(contents: &str) -> usize {
+        let mut max_len = 0;
+        for line in contents.split('\n') {
+            let mut len_for_line = 0;
+            for ch in line.chars() {
+                if ch != '`' {
+                    break;
+                }
+                len_for_line += 1;
+            }
+            max_len = max(max_len, len_for_line);
+        }
+        max_len
     }
 
     fn write_list_item<W: SimpleWrite>(&mut self, out: &mut Output<W>, index: &Option<u32>, item: &'md ListItem) {
@@ -1158,6 +1179,28 @@ pub mod tests {
                 one
                 two
                 ---"#},
+            );
+        }
+
+        #[test]
+        fn nested_block() {
+            check_render(
+                md_elems![CodeBlock {
+                    variant: CodeVariant::Code(None),
+                    value: indoc! {r#"
+                        For example:
+                        ```nested
+                        nested contents
+                        ```"#}
+                    .to_string(),
+                }],
+                indoc! {r#"
+                ````
+                For example:
+                ```nested
+                nested contents
+                ```
+                ````"#},
             );
         }
     }
