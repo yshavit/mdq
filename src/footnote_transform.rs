@@ -92,6 +92,20 @@ mod test {
         check("1", &mut transformer, "2", 1);
     }
 
+    #[test]
+    fn active_with_ten_footnotes() {
+        let mut transformer = FootnoteTransformer::new(true);
+
+        // write nine labels; we don't care about the results
+        let nine_labels: Vec<_> = (1..10).map(|i| format!("footnote-{i}")).collect();
+        for label in &nine_labels {
+            transformer.write(&mut Output::new(String::new()), &label);
+        }
+
+        // the tenth label should remap to "10" with an expected len of 2
+        check("z", &mut transformer, "10", 2);
+    }
+
     fn check<'a>(
         input: &'a str,
         transformer: &mut FootnoteTransformer<'a>,
