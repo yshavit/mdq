@@ -114,13 +114,6 @@ impl<'md> MdInlinesWriter<'md> {
         result
     }
 
-    pub fn write_footnote_label<W>(&mut self, out: &mut Output<W>, label: &'md str)
-    where
-        W: SimpleWrite,
-    {
-        self.footnote_transformer.write(out, label)
-    }
-
     pub fn write_line<I, W>(&mut self, out: &mut Output<W>, elems: I)
     where
         I: IntoIterator<Item = &'md Inline>,
