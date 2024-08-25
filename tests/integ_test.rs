@@ -14,14 +14,17 @@ impl<const N: usize> Case<N> {
         let all_cli_args = ["cmd"].iter().chain(&self.cli_args);
         let cli = mdq::cli::Cli::try_parse_from(all_cli_args).unwrap();
         let (actual_success, actual_out) = mdq::run_in_memory(&cli, self.md);
-        if self.expect_output_json {
-            assert_eq!(
-                serde_json::from_str::<serde_json::Value>(&actual_out).unwrap(),
-                serde_json::from_str::<serde_json::Value>(self.expect_output).unwrap()
-            );
+        let (actual_out, expect_out) = if self.expect_output_json {
+            let actual_obj = serde_json::from_str::<serde_json::Value>(&actual_out).unwrap();
+            let expect_obj = serde_json::from_str::<serde_json::Value>(self.expect_output).unwrap();
+            (
+                serde_json::to_string_pretty(&actual_obj).unwrap(),
+                serde_json::to_string_pretty(&expect_obj).unwrap(),
+            )
         } else {
-            assert_eq!(actual_out, self.expect_output);
-        }
+            (actual_out, self.expect_output.to_string())
+        };
+        assert_eq!(actual_out, expect_out);
         assert_eq!(actual_success, self.expect_success);
     }
 }
