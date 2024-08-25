@@ -14,7 +14,7 @@ pub struct SerdeDoc<'md> {
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     links: HashMap<Cow<'md, str>, UrlAndTitle<'md>>,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
-    footnotes: HashMap<&'md String, Vec<SerdeElem<'md>>>,
+    footnotes: HashMap<String, Vec<SerdeElem<'md>>>,
 }
 
 #[derive(Serialize)]

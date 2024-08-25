@@ -103,8 +103,15 @@ impl<'md> MdInlinesWriter<'md> {
         self.pending_references.links.drain().collect()
     }
 
-    pub fn drain_pending_footnotes(&mut self) -> Vec<(&'md String, &'md Vec<MdElem>)> {
-        self.pending_references.footnotes.drain().collect()
+    pub fn drain_pending_footnotes(&mut self) -> Vec<(String, &'md Vec<MdElem>)> {
+        let mut result = Vec::with_capacity(self.pending_references.footnotes.len());
+        let mut to_stringer = self.footnote_transformer.new_to_stringer();
+
+        for (k, v) in self.pending_references.footnotes.drain() {
+            let transformed_k = to_stringer.transform(k);
+            result.push((transformed_k, v))
+        }
+        result
     }
 
     pub fn write_footnote_label<W>(&mut self, out: &mut Output<W>, label: &'md str)

@@ -425,11 +425,11 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
             }
             if matches!(which, DefinitionsToWrite::Footnotes | DefinitionsToWrite::Both) {
                 let mut defs_to_write: Vec<_> = self.inlines_writer.drain_pending_footnotes();
-                defs_to_write.sort_by_key(|&kv| kv.0);
+                defs_to_write.sort_unstable_by(|a, b| (&a.0).cmp(&b.0));
 
                 for (link_ref, text) in defs_to_write {
                     out.write_str("[^");
-                    self.inlines_writer.write_footnote_label(out, link_ref);
+                    out.write_str(&link_ref);
                     out.write_str("]: ");
                     out.with_block(Block::Inlined(2), |out| {
                         self.write_md(out, Self::doc_iter(text), false);
