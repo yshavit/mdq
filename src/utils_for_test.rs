@@ -29,6 +29,7 @@ mod test_utils {
                 footnote_reference_placement: ReferencePlacement::default_for_tests(),
                 inline_options: MdInlinesWriterOptions {
                     link_format: LinkTransform::default_for_tests(),
+                    renumber_footnotes: false,
                 },
             }
         }

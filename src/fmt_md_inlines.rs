@@ -1,3 +1,4 @@
+use crate::footnote_transform::FootnoteTransformer;
 use crate::link_transform::{LinkLabel, LinkTransform, LinkTransformation, LinkTransformer};
 use crate::output::{Output, SimpleWrite};
 use crate::tree::{
@@ -12,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 #[derive(Debug, Copy, Clone)]
 pub struct MdInlinesWriterOptions {
     pub link_format: LinkTransform,
+    pub renumber_footnotes: bool,
 }
 
 pub struct MdInlinesWriter<'md> {
@@ -19,6 +21,7 @@ pub struct MdInlinesWriter<'md> {
     seen_footnotes: HashSet<&'md String>,
     pending_references: PendingReferences<'md>,
     link_transformer: LinkTransformer,
+    footnote_transformer: FootnoteTransformer<'md>,
 }
 
 struct PendingReferences<'md> {
@@ -76,6 +79,7 @@ impl<'md> MdInlinesWriter<'md> {
             seen_footnotes: HashSet::with_capacity(pending_refs_capacity),
             pending_references: PendingReferences::with_capacity(pending_refs_capacity),
             link_transformer: LinkTransformer::from(options.link_format),
+            footnote_transformer: FootnoteTransformer::new(options.renumber_footnotes),
         }
     }
 
@@ -99,8 +103,15 @@ impl<'md> MdInlinesWriter<'md> {
         self.pending_references.links.drain().collect()
     }
 
-    pub fn drain_pending_footnotes(&mut self) -> Vec<(&'md String, &'md Vec<MdElem>)> {
-        self.pending_references.footnotes.drain().collect()
+    pub fn drain_pending_footnotes(&mut self) -> Vec<(String, &'md Vec<MdElem>)> {
+        let mut result = Vec::with_capacity(self.pending_references.footnotes.len());
+        let mut to_stringer = self.footnote_transformer.new_to_stringer();
+
+        for (k, v) in self.pending_references.footnotes.drain() {
+            let transformed_k = to_stringer.transform(k);
+            result.push((transformed_k, v))
+        }
+        result
     }
 
     pub fn write_line<I, W>(&mut self, out: &mut Output<W>, elems: I)
@@ -157,7 +168,7 @@ impl<'md> MdInlinesWriter<'md> {
             Inline::Image(image) => self.write_linklike(out, image),
             Inline::Footnote(Footnote { label, text }) => {
                 out.write_str("[^");
-                out.write_str(label);
+                self.footnote_transformer.write(out, label);
                 out.write_char(']');
                 if self.seen_footnotes.insert(label) {
                     self.pending_references.footnotes.insert(label, text);
@@ -477,6 +488,7 @@ mod tests {
             let mut output = Output::new(String::new());
             let mut writer = MdInlinesWriter::new(MdInlinesWriterOptions {
                 link_format: LinkTransform::Keep,
+                renumber_footnotes: false,
             });
             let link = Inline::Link(Link {
                 text: vec![Inline::Text(Text {
@@ -520,6 +532,7 @@ mod tests {
             let mut output = Output::new(String::new());
             let mut writer = MdInlinesWriter::new(MdInlinesWriterOptions {
                 link_format: LinkTransform::Keep,
+                renumber_footnotes: false,
             });
             let link = Inline::Image(Image {
                 alt: input_description.to_string(),
@@ -544,6 +557,7 @@ mod tests {
         let mut output = Output::new(String::new());
         let mut writer = MdInlinesWriter::new(MdInlinesWriterOptions {
             link_format: LinkTransform::Keep,
+            renumber_footnotes: false,
         });
         writer.write_inline_element(&mut output, &orig);
         let md_str = output.take_underlying().unwrap();

@@ -88,6 +88,11 @@ impl<W: SimpleWrite> Output<W> {
         }
     }
 
+    pub fn replace_underlying(&mut self, new: W) -> std::io::Result<W> {
+        self.stream.flush()?;
+        Ok(std::mem::replace(&mut self.stream, new))
+    }
+
     pub fn with_block<F>(&mut self, block: Block, action: F)
     where
         F: FnOnce(&mut Self),

@@ -16,6 +16,7 @@ pub mod cli;
 mod fmt_md;
 mod fmt_md_inlines;
 mod fmt_str;
+mod footnote_transform;
 mod link_transform;
 mod matcher;
 mod output;
@@ -82,6 +83,7 @@ where
         footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
         inline_options: MdInlinesWriterOptions {
             link_format: cli.link_format,
+            renumber_footnotes: cli.renumber_footnotes,
         },
     };
 
