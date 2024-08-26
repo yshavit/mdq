@@ -876,6 +876,58 @@ mod tests {
         }
 
         #[test]
+        fn footnote_cycle() {
+            let (root, lookups) = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                Body text[^1][^2].
+
+                [^1]: a footnote that references itself[^1].
+                [^2]: a footnote that starts a cycle[^3].
+                [^3]: cycles back[^2].
+                "#},
+            );
+            unwrap!(&root.children[0], Node::Paragraph(p));
+            assert_eq!(p.children.len(), 4);
+            check!(&p.children[0], Node::Text(_), lookups => MdElem::Inline(text) = {
+                assert_eq!(
+                    text,
+                    Inline::Text(Text{
+                        variant: TextVariant::Plain,
+                        value: "Body text".to_string(),
+                    })
+                );
+            });
+            check!(&p.children[1], Node::FootnoteReference(_), lookups => MdElem::Inline(footnote) = {
+                assert_eq!(footnote, Inline::Footnote(Footnote{
+                    label: "1".to_string(),
+                    text: vec![
+                        MdElem::Paragraph(Paragraph {
+                            body: vec![
+                                mdq_inline!("Body text"),
+                                Inline::Footnote(Footnote{
+                                    label: "1".to_string(),
+                                    text: vec![
+                                        MdElem::Paragraph(Paragraph{
+                                            body: vec![
+                                                mdq_inline!("a footnote that references itself")
+                                            ],
+                                        }),
+                                        MdElem::Inline(Inline::Footnote(Footnote{
+                                            label: "1".to_string(),
+                                            text: vec![], // TODO
+                                        }))
+                                    ],
+                                }),
+                            ]
+                        })
+                    ]
+                }))
+            });
+            todo!()
+        }
+
+        #[test]
         fn lists_and_items() {
             let (root, lookups) = parse_with(
                 &ParseOptions::gfm(),
