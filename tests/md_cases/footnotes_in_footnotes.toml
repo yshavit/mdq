@@ -86,3 +86,19 @@ output = '''
   }
 }
 '''
+
+
+[expect."cyclic reference does't cause infinite loop"]
+ignored = true # #188
+# When ready to add this back in, add the following to the input markdown:
+#
+#     - DDD: footnote contains cycle[^cycle]
+#
+#     [^cycle]: this footnote references itself[^cycle]
+#
+cli_args = ['- DDD | P: *']
+output = '''
+- DDD: footnote contains cycle[^cycle]
+
+[^cycle]: this footnote references itself[^cycle]
+'''

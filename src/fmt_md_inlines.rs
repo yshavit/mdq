@@ -178,8 +178,8 @@ impl<'md> MdInlinesWriter<'md> {
     fn add_footnote(&mut self, label: &'md String, text: &'md Vec<MdElem>) {
         if self.seen_footnotes.insert(label) {
             self.pending_references.footnotes.insert(label, text);
+            self.find_references_in_footnote_elems(text);
         }
-        self.find_references_in_footnote_elems(text);
     }
 
     /// Searches the footnote's text to find any link references and additional footnotes.
