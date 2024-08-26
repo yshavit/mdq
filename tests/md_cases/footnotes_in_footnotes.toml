@@ -89,7 +89,7 @@ output = '''
 
 
 [expect."cyclic reference does't cause infinite loop"]
-ignored = true # #188
+ignore = '#188'
 # When ready to add this back in, add the following to the input markdown:
 #
 #     - DDD: footnote contains cycle[^cycle]
