@@ -170,10 +170,14 @@ impl<'md> MdInlinesWriter<'md> {
                 out.write_str("[^");
                 self.footnote_transformer.write(out, label);
                 out.write_char(']');
-                if self.seen_footnotes.insert(label) {
-                    self.pending_references.footnotes.insert(label, text);
-                }
+                self.add_footnote(label, text);
             }
+        }
+    }
+
+    fn add_footnote(&mut self, label: &'md String, text: &'md Vec<MdElem>) {
+        if self.seen_footnotes.insert(label) {
+            self.pending_references.footnotes.insert(label, text);
         }
     }
 
@@ -242,16 +246,20 @@ impl<'md> MdInlinesWriter<'md> {
         };
 
         if let Some(reference_label) = reference_to_add {
-            if self.seen_links.insert(reference_label.clone()) {
-                self.pending_references.links.insert(
-                    reference_label,
-                    UrlAndTitle {
-                        url: &link.url,
-                        title: &link.title,
-                    },
-                );
-                // else warn?
-            }
+            self.add_link_reference(reference_label, link);
+        }
+    }
+
+    fn add_link_reference(&mut self, reference_label: LinkLabel<'md>, link: &'md LinkDefinition) {
+        if self.seen_links.insert(reference_label.clone()) {
+            self.pending_references.links.insert(
+                reference_label,
+                UrlAndTitle {
+                    url: &link.url,
+                    title: &link.title,
+                },
+            );
+            // else warn?
         }
     }
 
