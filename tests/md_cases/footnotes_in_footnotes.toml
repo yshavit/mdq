@@ -22,7 +22,6 @@ output = '''
 - BBB: footnote contains footnote[^1]
 
 [^1]: this footnote contains[^2] a footnote
-
 [^2]: this is the footnote's footnote
 '''
 
@@ -58,14 +57,13 @@ cli_args = ['- CCC']
 output = '''
 - CCC: footnote contains link[^1]
 
-[^1]: this footnote contains a [link][3a]
-
 [3a]: https://example.com/3a
+[^1]: this footnote contains a [link][3a]
 '''
 
 
 [expect."just footnote contains link: json"]
-cli_args = ['- CCC | P:* ', '--output', 'json']
+cli_args = ['- CCC | P: *', '--output', 'json']
 output_json = true
 output = '''
 {
