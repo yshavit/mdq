@@ -1,6 +1,6 @@
 [given]
 md = '''
-- AAA: [footnote [^1] in a link](https://example.com)
+- AAA: (footnotes in links don't work: see https://gist.github.com/yshavit/6af0a784e338dc32e66717aa6f495ffe )
 - BBB: footnote contains footnote[^2]
 - CCC: footnote contains link[^3]
 
@@ -14,46 +14,6 @@ md = '''
 
 [chained]
 needed = false
-
-
-[expect."just link contains footnote"]
-cli_args = ['- AAA']
-output = '''
-- AAA: [footnote [^1] in a link][1]
-
-[1]: https://example.com
-[^1]: the link's footnote text
-'''
-
-[expect."just link contains footnote: json"]
-cli_args = ['- AAA', '--output', 'json']
-output = '''
-{
-    "items": [
-        {
-            "list_item": {
-                "item": [
-                    {
-                        "paragraph": "AAA: [footnote [^1] in a link][1]"
-                    }
-                ]
-            }
-        }
-    ],
-    "links": {
-        "1": {
-            "url": "https://example.com"
-        }
-    },
-    "footnotes": {
-        "1": [
-            {
-                "paragraph": "the link's footnote text"
-            }
-        ]
-    }
-}
-'''
 
 
 [expect."just footnote contains footnote"]
@@ -105,19 +65,13 @@ output = '''
 
 
 [expect."just footnote contains link: json"]
-cli_args = ['- CCC', '--output', 'json']
+cli_args = ['- CCC | P:* ', '--output', 'json']
 output_json = true
 output = '''
 {
   "items": [
     {
-      "list_item": {
-        "item": [
-          {
-            "paragraph": "CCC: footnote contains link[^1]"
-          }
-        ]
-      }
+      "paragraph": "CCC: footnote contains link[^1]"
     }
   ],
   "footnotes": {
