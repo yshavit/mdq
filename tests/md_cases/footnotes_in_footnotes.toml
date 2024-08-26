@@ -1,0 +1,104 @@
+[given]
+md = '''
+- AAA: (footnotes in links don't work: see https://gist.github.com/yshavit/6af0a784e338dc32e66717aa6f495ffe )
+- BBB: footnote contains footnote[^2]
+- CCC: footnote contains link[^3]
+
+[^1]: the link's footnote text
+[^2]: this footnote contains[^a] a footnote
+[^3]: this footnote contains a [link][3a]
+[^a]: this is the footnote's footnote
+
+[3a]: https://example.com/3a
+'''
+
+[chained]
+needed = false
+
+
+[expect."just footnote contains footnote"]
+cli_args = ['- BBB']
+output = '''
+- BBB: footnote contains footnote[^1]
+
+[^1]: this footnote contains[^2] a footnote
+[^2]: this is the footnote's footnote
+'''
+
+
+[expect."just footnote contains footnote: json"]
+cli_args = ['- BBB | P: *', '--output', 'json']
+output_json = true
+output = '''
+{
+  "items": [
+    {
+      "paragraph": "BBB: footnote contains footnote[^1]"
+    }
+  ],
+  "footnotes": {
+    "1": [
+      {
+        "paragraph": "this footnote contains[^2] a footnote"
+      }
+    ],
+    "2": [
+      {
+        "paragraph": "this is the footnote's footnote"
+      }
+    ]
+  }
+}
+'''
+
+
+[expect."just footnote contains link"]
+cli_args = ['- CCC']
+output = '''
+- CCC: footnote contains link[^1]
+
+[3a]: https://example.com/3a
+[^1]: this footnote contains a [link][3a]
+'''
+
+
+[expect."just footnote contains link: json"]
+cli_args = ['- CCC | P: *', '--output', 'json']
+output_json = true
+output = '''
+{
+  "items": [
+    {
+      "paragraph": "CCC: footnote contains link[^1]"
+    }
+  ],
+  "footnotes": {
+    "1": [
+      {
+        "paragraph": "this footnote contains a [link][3a]"
+      }
+    ]
+  },
+  "links": {
+    "3a": {
+      "url": "https://example.com/3a"
+    }
+  }
+}
+'''
+
+
+[expect."cyclic reference does't cause infinite loop"]
+ignore = '#188'
+# When ready to add this back in, add the following to the input markdown:
+#
+#     - DDD: footnote contains cycle[^cycle]
+#
+#     [^cycle]: this footnote references itself[^cycle]
+#
+cli_args = ['- DDD | P: *']
+output = '''
+- DDD: footnote contains cycle[^cycle]
+
+[^cycle]: this footnote references itself[^cycle]
+'''

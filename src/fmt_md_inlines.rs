@@ -170,8 +170,80 @@ impl<'md> MdInlinesWriter<'md> {
                 out.write_str("[^");
                 self.footnote_transformer.write(out, label);
                 out.write_char(']');
-                if self.seen_footnotes.insert(label) {
-                    self.pending_references.footnotes.insert(label, text);
+                self.add_footnote(label, text);
+            }
+        }
+    }
+
+    fn add_footnote(&mut self, label: &'md String, text: &'md Vec<MdElem>) {
+        if self.seen_footnotes.insert(label) {
+            self.pending_references.footnotes.insert(label, text);
+            self.find_references_in_footnote_elems(text);
+        }
+    }
+
+    /// Searches the footnote's text to find any link references and additional footnotes.
+    /// Otherwise, by the time we see them it'll be too late to add them to their respective
+    /// collections.
+    fn find_references_in_footnote_elems(&mut self, text: &'md Vec<MdElem>) {
+        for elem in text {
+            match elem {
+                MdElem::BlockQuote(block) => {
+                    self.find_references_in_footnote_elems(&block.body);
+                }
+                MdElem::List(list) => {
+                    for li in &list.items {
+                        self.find_references_in_footnote_elems(&li.item);
+                    }
+                }
+                MdElem::Section(section) => {
+                    self.find_references_in_footnote_inlines(&section.title);
+                    self.find_references_in_footnote_elems(&section.body);
+                }
+                MdElem::Paragraph(para) => {
+                    self.find_references_in_footnote_inlines(&para.body);
+                }
+                MdElem::Table(table) => {
+                    for row in &table.rows {
+                        for cell in row {
+                            self.find_references_in_footnote_inlines(cell);
+                        }
+                    }
+                }
+                MdElem::Inline(inline) => {
+                    self.find_references_in_footnote_inlines([inline]); // TODO do I need the array?
+                }
+                MdElem::CodeBlock(_) | MdElem::Html(_) | MdElem::ThematicBreak => {
+                    // nothing
+                }
+            }
+        }
+    }
+
+    fn find_references_in_footnote_inlines<I>(&mut self, text: I)
+    where
+        I: IntoIterator<Item = &'md Inline>,
+    {
+        for inline in text.into_iter() {
+            match inline {
+                Inline::Footnote(footnote) => {
+                    self.add_footnote(&footnote.label, &footnote.text);
+                }
+                Inline::Formatting(item) => {
+                    self.find_references_in_footnote_inlines(&item.children);
+                }
+                Inline::Link(link) => {
+                    let link_label = match &link.link_definition.reference {
+                        LinkReference::Inline => None,
+                        LinkReference::Full(reference) => Some(LinkLabel::Text(Cow::Borrowed(reference))),
+                        LinkReference::Collapsed | LinkReference::Shortcut => Some(LinkLabel::Inline(&link.text)),
+                    };
+                    if let Some(label) = link_label {
+                        self.add_link_reference(label, &link.link_definition);
+                    }
+                }
+                Inline::Image(_) | Inline::Text(_) => {
+                    // nothing
                 }
             }
         }
@@ -242,16 +314,20 @@ impl<'md> MdInlinesWriter<'md> {
         };
 
         if let Some(reference_label) = reference_to_add {
-            if self.seen_links.insert(reference_label.clone()) {
-                self.pending_references.links.insert(
-                    reference_label,
-                    UrlAndTitle {
-                        url: &link.url,
-                        title: &link.title,
-                    },
-                );
-                // else warn?
-            }
+            self.add_link_reference(reference_label, link);
+        }
+    }
+
+    fn add_link_reference(&mut self, reference_label: LinkLabel<'md>, link: &'md LinkDefinition) {
+        if self.seen_links.insert(reference_label.clone()) {
+            self.pending_references.links.insert(
+                reference_label,
+                UrlAndTitle {
+                    url: &link.url,
+                    title: &link.title,
+                },
+            );
+            // else warn?
         }
     }
 
