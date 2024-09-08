@@ -2,13 +2,13 @@ use crate::footnote_transform::FootnoteTransformer;
 use crate::link_transform::{LinkLabel, LinkTransform, LinkTransformation, LinkTransformer};
 use crate::output::{Output, SimpleWrite};
 use crate::tree::{
-    Footnote, Formatting, FormattingVariant, Image, Inline, Link, LinkDefinition, LinkReference, MdElem, Text,
-    TextVariant,
+    Formatting, FormattingVariant, Image, Inline, Link, LinkDefinition, LinkReference, MdElem, Text, TextVariant,
 };
 use serde::Serialize;
 use std::borrow::Cow;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
+use std::ops::Deref;
 
 #[derive(Debug, Copy, Clone)]
 pub struct MdInlinesWriterOptions {
@@ -166,11 +166,11 @@ impl<'md> MdInlinesWriter<'md> {
             }
             Inline::Link(link) => self.write_linklike(out, link),
             Inline::Image(image) => self.write_linklike(out, image),
-            Inline::Footnote(Footnote { label, text }) => {
+            Inline::Footnote(footnote_id) => {
                 out.write_str("[^");
-                self.footnote_transformer.write(out, label);
+                self.footnote_transformer.write(out, &footnote_id);
                 out.write_char(']');
-                self.add_footnote(label, text);
+                self.add_footnote(footnote_id.deref(), text);
             }
         }
     }
