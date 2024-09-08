@@ -604,16 +604,16 @@ impl MdElem {
     }
 }
 
-struct NodeToMdqIter<'md, I>
+struct NodeToMdqIter<'a, I>
 where
     I: Iterator<Item = mdast::Node>,
 {
     children: I,
     pending: IntoIter<MdElem>,
-    lookups: &'md Lookups,
+    lookups: &'a Lookups,
 }
 
-impl<'md, I> Iterator for NodeToMdqIter<'md, I>
+impl<'a, I> Iterator for NodeToMdqIter<'a, I>
 where
     I: Iterator<Item = mdast::Node>,
 {
