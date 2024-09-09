@@ -2,7 +2,7 @@ use std::backtrace::Backtrace;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter, Write};
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::ops::Deref;
 use std::vec::IntoIter;
 
@@ -161,7 +161,7 @@ impl Deref for FootnoteId {
     type Target = String;
 
     fn deref(&self) -> &Self::Target {
-        &self
+        &self.id
     }
 }
 
@@ -397,7 +397,7 @@ impl MdElem {
             }
             mdast::Node::FootnoteDefinition(node) => {
                 let footnote_id = FootnoteId::new(node.identifier, node.label);
-                let mut entry = footnotes_repo.entry(footnote_id);
+                let entry = footnotes_repo.entry(footnote_id);
                 return match entry {
                     Entry::Occupied(other) => Err(InvalidMd::ConflictingReferenceDefinition(other.key().id.clone())),
                     Entry::Vacant(entry) => {
@@ -734,23 +734,6 @@ impl Lookups {
         })
     }
 
-    // TODO rm this! it's not needed with the new indirection
-    fn resolve_footnote(
-        &self,
-        identifier: &String,
-        label: &Option<String>,
-        lookups: &Lookups,
-    ) -> Result<&mdast::FootnoteDefinition, InvalidMd> {
-        if label.is_none() {
-            lookups.unknown_markdown("footnote label was None")?;
-        }
-        let Some(definition) = self.footnote_definitions.get(identifier) else {
-            let human_visible_identifier = label.to_owned().unwrap_or_else(|| identifier.to_string());
-            return Err(InvalidMd::MissingReferenceDefinition(human_visible_identifier));
-        };
-        Ok(definition)
-    }
-
     fn build_lookups(&mut self, node: &mdast::Node, read_opts: &ReadOptions) -> Result<(), InvalidMd> {
         let x = format!("{:?}", node);
         let _ = x;
@@ -799,12 +782,9 @@ impl Lookups {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::md_elem;
     use crate::md_elems;
     use crate::mdq_inline;
-    use crate::{md_elem, unwrap};
-    use indoc::indoc;
-    use markdown::mdast::Node;
-    use markdown::ParseOptions;
 
     impl From<&str> for FootnoteId {
         fn from(id: &str) -> Self {

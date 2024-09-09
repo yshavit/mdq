@@ -7,7 +7,7 @@ use crate::fmt_md::MdOptions;
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
 use crate::output::Stream;
 use crate::select::ParseError;
-use crate::tree::{MdDoc, MdElem, ReadOptions};
+use crate::tree::{MdDoc, ReadOptions};
 use crate::tree_ref::MdElemRef;
 use crate::tree_ref_serde::SerdeDoc;
 use select::MdqRefSelector;
