@@ -7,7 +7,7 @@ use crate::fmt_md::MdOptions;
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
 use crate::output::Stream;
 use crate::select::ParseError;
-use crate::tree::{MdElem, ReadOptions};
+use crate::tree::{MdDoc, MdElem, ReadOptions};
 use crate::tree_ref::MdElemRef;
 use crate::tree_ref_serde::SerdeDoc;
 use select::MdqRefSelector;
@@ -55,8 +55,8 @@ where
         validate_no_conflicting_links: false,
         allow_unknown_markdown: cli.allow_unknown_markdown,
     };
-    let mdqs = match MdElem::read(ast, &read_options) {
-        Ok(mdqs) => mdqs,
+    let mdqs = match MdDoc::read(ast, &read_options) {
+        Ok(mdqs) => mdqs.roots,
         Err(err) => {
             eprintln!("error: {}", err);
             return false;

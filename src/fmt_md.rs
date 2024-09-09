@@ -667,7 +667,6 @@ pub mod tests {
     }
 
     mod block_quote {
-
         use super::*;
 
         #[test]
@@ -1792,10 +1791,7 @@ pub mod tests {
         fn single_line() {
             check_render(
                 vec![
-                    MdElem::Inline(Inline::Footnote(Footnote {
-                        label: "a".to_string(),
-                        text: md_elems!["Hello, world."],
-                    })),
+                    MdElem::Inline(Inline::Footnote("a".into())),
                     m_node!(MdElem::ThematicBreak),
                 ],
                 indoc! {r#"
@@ -1811,10 +1807,7 @@ pub mod tests {
         fn two_lines() {
             check_render(
                 vec![
-                    MdElem::Inline(Inline::Footnote(Footnote {
-                        label: "a".to_string(),
-                        text: md_elems!["Hello,\nworld."],
-                    })),
+                    MdElem::Inline(Inline::Footnote("a".into())),
                     m_node!(MdElem::ThematicBreak),
                 ],
                 indoc! {r#"
@@ -1854,16 +1847,15 @@ pub mod tests {
 
         fn footnote_a_in_paragraph() -> Paragraph {
             Paragraph {
-                body: vec![Inline::Footnote(Footnote {
-                    label: "a".to_string(),
-                    text: md_elems!("the footnote text"),
-                })],
+                body: vec![Inline::Footnote("a".into())],
             }
         }
     }
 
     mod annotation_and_footnote_layouts {
         use super::*;
+        use crate::md_elems;
+        use indoc::indoc;
 
         #[test]
         fn link_and_footnote() {
@@ -1880,10 +1872,7 @@ pub mod tests {
                             }
                         }),
                         mdq_inline!("! This is interesting"),
-                        Inline::Footnote(Footnote {
-                            label: "a".to_string(),
-                            text: md_elems!["this is my note"],
-                        }),
+                        Inline::Footnote("a".into()),
                         mdq_inline!("."),
                     ],
                 }],
@@ -2033,14 +2022,8 @@ pub mod tests {
                 // Define them in the opposite order that we'd expect them
                 md_elems![Paragraph {
                     body: vec![
-                        Inline::Footnote(Footnote {
-                            label: "d".to_string(),
-                            text: md_elems!["footnote 1"]
-                        }),
-                        Inline::Footnote(Footnote {
-                            label: "c".to_string(),
-                            text: md_elems!["footnote 2"]
-                        }),
+                        Inline::Footnote("d".into()),
+                        Inline::Footnote("c".into()),
                         m_node!(Inline::Link {
                             text: vec![mdq_inline!("b-text")],
                             link_definition: LinkDefinition {
@@ -2085,10 +2068,7 @@ pub mod tests {
                                 },
                             }),
                             mdq_inline!(" and then a thought"),
-                            Inline::Footnote(Footnote {
-                                label: "a".to_string(),
-                                text: md_elems!["the footnote"],
-                            }),
+                            Inline::Footnote("a".into()),
                             mdq_inline!("."),
                         ],
                     }],
@@ -2104,6 +2084,8 @@ pub mod tests {
 
     mod html {
         use super::*;
+        use crate::md_elems;
+        use indoc::indoc;
 
         #[test]
         fn inline() {
