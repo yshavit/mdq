@@ -8,11 +8,33 @@ use std::vec::IntoIter;
 
 use markdown::mdast;
 
-type MdFootnotes = HashMap<FootnoteId, Vec<MdElem>>;
+// If we ever need any additional document-wide state, we can rename this
+#[derive(Debug, PartialEq)]
+pub struct MdContext {
+    footnotes: HashMap<FootnoteId, Vec<MdElem>>,
+
+    /// useful as a default value
+    empty_md_elems: Vec<MdElem>,
+}
+
+impl MdContext {
+    pub fn get_footnote(&self, footnote_id: &FootnoteId) -> &Vec<MdElem> {
+        self.footnotes.get(footnote_id).unwrap_or(&self.empty_md_elems)
+    }
+}
+
+impl MdContext {
+    fn new() -> Self {
+        Self {
+            footnotes: HashMap::with_capacity(4), // total guess
+            empty_md_elems: Vec::new(),
+        }
+    }
+}
 
 pub struct MdDoc {
-    pub roots: Vec<MdElem>, // TODO need better abstractions here
-    pub footnotes: MdFootnotes,
+    pub roots: Vec<MdElem>,
+    pub ctx: MdContext,
 }
 
 #[derive(Debug, PartialEq)]
@@ -314,22 +336,18 @@ macro_rules! m_node {
 impl MdDoc {
     pub fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
         let lookups = Lookups::new(&node, opts)?;
-        let mut footnotes = HashMap::with_capacity(4); // total guess
-        let roots = MdElem::from_mdast_0(node, &lookups, &mut footnotes)?;
-        Ok(Self { roots, footnotes })
+        let mut ctx = MdContext::new();
+        let roots = MdElem::from_mdast_0(node, &lookups, &mut ctx)?;
+        Ok(Self { roots, ctx: ctx })
     }
 }
 
 impl MdElem {
-    fn from_mdast_0(
-        node: mdast::Node,
-        lookups: &Lookups,
-        footnotes_repo: &mut MdFootnotes,
-    ) -> Result<Vec<Self>, InvalidMd> {
+    fn from_mdast_0(node: mdast::Node, lookups: &Lookups, ctx: &mut MdContext) -> Result<Vec<Self>, InvalidMd> {
         let result = match node {
-            mdast::Node::Root(node) => return MdElem::all(node.children, lookups, footnotes_repo),
+            mdast::Node::Root(node) => return MdElem::all(node.children, lookups, ctx),
             mdast::Node::BlockQuote(node) => m_node!(MdElem::BlockQuote {
-                body: MdElem::all(node.children, lookups, footnotes_repo)?,
+                body: MdElem::all(node.children, lookups, ctx)?,
             }),
             mdast::Node::List(node) => {
                 let mut li_nodes = Vec::with_capacity(node.children.len());
@@ -339,7 +357,7 @@ impl MdElem {
                     };
                     let li_mdq = ListItem {
                         checked: li_node.checked,
-                        item: MdElem::all(li_node.children, lookups, footnotes_repo)?,
+                        item: MdElem::all(li_node.children, lookups, ctx)?,
                     };
                     li_nodes.push(li_mdq);
                 }
@@ -362,11 +380,11 @@ impl MdElem {
             })),
             mdast::Node::Delete(node) => MdElem::Inline(Inline::Formatting(Formatting {
                 variant: FormattingVariant::Delete,
-                children: MdElem::inlines(node.children, lookups, footnotes_repo)?,
+                children: MdElem::inlines(node.children, lookups, ctx)?,
             })),
             mdast::Node::Emphasis(node) => MdElem::Inline(Inline::Formatting(Formatting {
                 variant: FormattingVariant::Emphasis,
-                children: MdElem::inlines(node.children, lookups, footnotes_repo)?,
+                children: MdElem::inlines(node.children, lookups, ctx)?,
             })),
             mdast::Node::Image(node) => MdElem::Inline(Inline::Image(Image {
                 alt: node.alt,
@@ -381,7 +399,7 @@ impl MdElem {
                 link: lookups.resolve_link(node.identifier, node.label, node.reference_kind, lookups)?,
             })),
             mdast::Node::Link(node) => MdElem::Inline(Inline::Link(Link {
-                text: MdElem::inlines(node.children, lookups, footnotes_repo)?,
+                text: MdElem::inlines(node.children, lookups, ctx)?,
                 link_definition: LinkDefinition {
                     url: node.url,
                     title: node.title,
@@ -389,7 +407,7 @@ impl MdElem {
                 },
             })),
             mdast::Node::LinkReference(node) => MdElem::Inline(Inline::Link(Link {
-                text: MdElem::inlines(node.children, lookups, footnotes_repo)?,
+                text: MdElem::inlines(node.children, lookups, ctx)?,
                 link_definition: lookups.resolve_link(node.identifier, node.label, node.reference_kind, lookups)?,
             })),
             mdast::Node::FootnoteReference(node) => {
@@ -397,7 +415,7 @@ impl MdElem {
             }
             mdast::Node::FootnoteDefinition(node) => {
                 let footnote_id = FootnoteId::new(node.identifier, node.label);
-                let entry = footnotes_repo.entry(footnote_id);
+                let entry = ctx.footnotes.entry(footnote_id);
                 return match entry {
                     Entry::Occupied(other) => Err(InvalidMd::ConflictingReferenceDefinition(other.key().id.clone())),
                     Entry::Vacant(entry) => {
@@ -410,7 +428,7 @@ impl MdElem {
             }
             mdast::Node::Strong(node) => MdElem::Inline(Inline::Formatting(Formatting {
                 variant: FormattingVariant::Strong,
-                children: MdElem::inlines(node.children, lookups, footnotes_repo)?,
+                children: MdElem::inlines(node.children, lookups, ctx)?,
             })),
             mdast::Node::Text(node) => MdElem::Inline(Inline::Text(Text {
                 variant: TextVariant::Plain,
@@ -438,7 +456,7 @@ impl MdElem {
             }
             mdast::Node::Heading(node) => m_node!(MdElem::Section {
                 depth: node.depth,
-                title: Self::inlines(node.children, lookups, footnotes_repo)?,
+                title: Self::inlines(node.children, lookups, ctx)?,
                 body: Vec::new(),
             }),
             mdast::Node::Table(node) => {
@@ -456,7 +474,7 @@ impl MdElem {
                         let mdast::Node::TableCell(table_cell) = cell_node else {
                             return Err(InvalidMd::InternalError(PartialEqBacktrace(Backtrace::force_capture())));
                         };
-                        let cell_contents = Self::inlines(table_cell.children, lookups, footnotes_repo)?;
+                        let cell_contents = Self::inlines(table_cell.children, lookups, ctx)?;
                         column.push(cell_contents);
                     }
                     rows.push(column);
@@ -473,7 +491,7 @@ impl MdElem {
             }
             mdast::Node::Definition(_) => return Ok(Vec::new()),
             mdast::Node::Paragraph(node) => m_node!(MdElem::Paragraph {
-                body: Self::inlines(node.children, lookups, footnotes_repo)?,
+                body: Self::inlines(node.children, lookups, ctx)?,
             }),
             mdast::Node::Toml(node) => m_node!(MdElem::CodeBlock {
                 variant: CodeVariant::Toml,
@@ -497,7 +515,7 @@ impl MdElem {
     fn all(
         children: Vec<mdast::Node>,
         lookups: &Lookups,
-        footnotes_repo: &mut MdFootnotes,
+        footnotes_repo: &mut MdContext,
     ) -> Result<Vec<Self>, InvalidMd> {
         Self::all_from_iter(NodeToMdqIter {
             lookups,
@@ -604,7 +622,7 @@ impl MdElem {
     fn inlines(
         children: Vec<mdast::Node>,
         lookups: &Lookups,
-        footnotes_repo: &mut MdFootnotes,
+        footnotes_repo: &mut MdContext,
     ) -> Result<Vec<Inline>, InvalidMd> {
         let mdq_children = Self::all(children, lookups, footnotes_repo)?;
         let mut result = Vec::with_capacity(mdq_children.len());
@@ -648,7 +666,7 @@ where
     children: I,
     pending: IntoIter<MdElem>,
     lookups: &'a Lookups,
-    footnotes_repo: &'a mut MdFootnotes,
+    footnotes_repo: &'a mut MdContext,
 }
 
 impl<'a, I> Iterator for NodeToMdqIter<'a, I>
@@ -810,7 +828,7 @@ mod tests {
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mut footnotes = MdFootnotes::new();
+                let mut footnotes = MdContext::new();
                 let mdq_err = MdElem::from_mdast_0(node_clone, &$lookups, &mut footnotes).err().expect("expected no MdqNode");
                 assert_eq!(mdq_err, $err);
                 $($body)?
@@ -821,7 +839,7 @@ mod tests {
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mut footnotes = MdFootnotes::new();
+                let mut footnotes = MdContext::new();
                 let mdqs = MdElem::from_mdast_0(node_clone, &$lookups, &mut footnotes).unwrap();
                 assert_eq!(mdqs, Vec::new());
             }};
@@ -831,7 +849,7 @@ mod tests {
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mut footnotes = MdFootnotes::new();
+                let mut footnotes = MdContext::new();
                 let mut mdqs = MdElem::from_mdast_0(node_clone, &$lookups, &mut footnotes).unwrap();
                 assert_eq!(mdqs.len(), 1, "expected exactly one element, but found: {:?}", mdqs);
                 let mdq = mdqs.pop().unwrap();
@@ -1747,7 +1765,7 @@ mod tests {
 
             let mdast_root = Node::Root(root); // reconstruct it, since parse_with unwrapped it
             NODES_CHECKER.see(&mdast_root);
-            let mut footnotes = MdFootnotes::new();
+            let mut footnotes = MdContext::new();
             let mdqs = MdElem::from_mdast_0(mdast_root, &lookups, &mut footnotes).unwrap();
 
             assert_eq!(
