@@ -415,13 +415,14 @@ impl MdElem {
             }
             mdast::Node::FootnoteDefinition(node) => {
                 let footnote_id = FootnoteId::new(node.identifier, node.label);
-                let entry = ctx.footnotes.entry(footnote_id);
-                return match entry {
-                    Entry::Occupied(other) => Err(InvalidMd::ConflictingReferenceDefinition(other.key().id.clone())),
-                    Entry::Vacant(entry) => {
-                        // MdElem::all(node.children, lookups, footnotes_repo)?
-                        let footnote_text = todo!();
-                        entry.insert(footnote_text);
+                return if ctx.footnotes.contains_key(&footnote_id) {
+                    Err(InvalidMd::ConflictingReferenceDefinition(footnote_id.id))
+                } else {
+                    let children = MdElem::all(node.children, lookups, ctx)?;
+                    if ctx.footnotes.contains_key(&footnote_id) {
+                        Err(InvalidMd::ConflictingReferenceDefinition(footnote_id.id))
+                    } else {
+                        ctx.footnotes.insert(footnote_id, children);
                         Ok(Vec::new())
                     }
                 };
