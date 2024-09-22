@@ -74,7 +74,7 @@ where
 
     let mut pipeline_nodes = vec![MdElemRef::Doc(&roots)];
     for selector in selectors {
-        let new_pipeline = selector.find_nodes(pipeline_nodes);
+        let new_pipeline = selector.find_nodes(&ctx, pipeline_nodes);
         pipeline_nodes = new_pipeline;
     }
 

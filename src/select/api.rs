@@ -10,8 +10,8 @@ use crate::select::sel_list_item::ListItemType;
 use crate::select::sel_paragraph::ParagraphSelector;
 use crate::select::sel_section::SectionSelector;
 use crate::select::sel_table::TableSliceSelector;
-use crate::tree::{Formatting, Inline, Link, Text, TextVariant};
-use crate::tree_ref::{md_elems_placeholder_BAD, HtmlRef, ListItemRef, MdElemRef};
+use crate::tree::{Formatting, Inline, Link, MdContext, Text, TextVariant};
+use crate::tree_ref::{md_elems_placeholder, HtmlRef, ListItemRef, MdElemRef};
 use std::fmt::{Display, Formatter};
 
 pub type ParseResult<T> = Result<T, ParseErrorReason>;
@@ -189,22 +189,22 @@ impl MdqRefSelector {
         Ok(selectors)
     }
 
-    pub fn find_nodes<'md>(&self, nodes: Vec<MdElemRef<'md>>) -> Vec<MdElemRef<'md>> {
+    pub fn find_nodes<'md>(&self, ctx: &'md MdContext, nodes: Vec<MdElemRef<'md>>) -> Vec<MdElemRef<'md>> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
         for node in nodes {
-            self.build_output(&mut result, node);
+            self.build_output(&mut result, ctx, node);
         }
         result
     }
 
-    fn build_output<'md>(&self, out: &mut Vec<MdElemRef<'md>>, node: MdElemRef<'md>) {
+    fn build_output<'md>(&self, out: &mut Vec<MdElemRef<'md>>, ctx: &'md MdContext, node: MdElemRef<'md>) {
         // try_select_node is defined in macro_helpers::selectors!
         // GH #168 can we remove the clone()? Maybe by having try_select_node take a reference.
         match self.try_select_node(node.clone()) {
             Some(found) => out.push(found),
             None => {
-                for child in Self::find_children(node) {
-                    self.build_output(out, child);
+                for child in Self::find_children(ctx, node) {
+                    self.build_output(out, ctx, child);
                 }
             }
         }
@@ -216,7 +216,7 @@ impl MdqRefSelector {
     /// selector-specific. For example, an [MdqNode::Section] has child nodes both in its title and in its body, but
     /// only the body nodes are relevant for select recursion. `MdqNode` shouldn't need to know about that oddity; it
     /// belongs here.
-    fn find_children(node: MdElemRef) -> Vec<MdElemRef> {
+    fn find_children<'md>(ctx: &'md MdContext, node: MdElemRef<'md>) -> Vec<MdElemRef<'md>> {
         match node {
             MdElemRef::Doc(body) => {
                 let mut wrapped = Vec::with_capacity(body.len());
@@ -240,7 +240,7 @@ impl MdqRefSelector {
                 }
                 result
             }
-            MdElemRef::Table(table) => Self::find_children(MdElemRef::TableSlice(table.into())),
+            MdElemRef::Table(table) => Self::find_children(ctx, MdElemRef::TableSlice(table.into())),
             MdElemRef::TableSlice(table) => {
                 let rows = table.rows();
                 let first_row_cols = rows.first().map(Vec::len).unwrap_or(0);
@@ -262,7 +262,7 @@ impl MdqRefSelector {
                 Inline::Formatting(Formatting { children, .. }) => {
                     children.iter().map(|child| MdElemRef::Inline(child)).collect()
                 }
-                Inline::Footnote(footnote) => vec![MdElemRef::Doc(md_elems_placeholder_BAD(footnote))],
+                Inline::Footnote(footnote) => vec![MdElemRef::Doc(md_elems_placeholder(ctx, footnote))],
                 Inline::Link(link) => vec![MdElemRef::Link(link)],
                 Inline::Image(image) => vec![MdElemRef::Image(image)],
                 Inline::Text(Text { variant, value }) if variant == &TextVariant::Html => {
@@ -432,7 +432,7 @@ mod test {
     mod find_children_smoke {
         use crate::mdq_inline;
         use crate::select::MdqRefSelector;
-        use crate::tree::{Inline, Link, LinkDefinition, LinkReference, Text, TextVariant};
+        use crate::tree::{Inline, Link, LinkDefinition, LinkReference, MdContext, Text, TextVariant};
         use crate::tree_ref::MdElemRef;
 
         #[test]
@@ -446,7 +446,8 @@ mod test {
                 },
             };
             let node_ref = MdElemRef::Link(&link);
-            let children = MdqRefSelector::find_children(node_ref);
+            let ctx = MdContext::empty();
+            let children = MdqRefSelector::find_children(&ctx, node_ref);
             assert_eq!(
                 children,
                 vec![MdElemRef::Inline(&Inline::Text(Text {
@@ -470,7 +471,8 @@ mod test {
             }
             let inline = Inline::Link(mk_link());
             let node_ref = MdElemRef::Inline(&inline);
-            let children = MdqRefSelector::find_children(node_ref);
+            let ctx = MdContext::empty();
+            let children = MdqRefSelector::find_children(&ctx, node_ref);
             assert_eq!(children, vec![MdElemRef::Link(&mk_link())]);
         }
     }
