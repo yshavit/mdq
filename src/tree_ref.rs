@@ -40,21 +40,20 @@ pub enum MdElemRef<'md> {
     TableSlice(TableSlice<'md>),
 }
 
-#[derive(Debug, PartialEq)]
+// TODO do I need this class? maybe not
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct MdRef<'md> {
     pub elem: &'md MdElem,
     pub ctx: &'md MdContext,
 }
 
-impl<'md> MdRef<'md> {
-    // TODO is this fn actually helpful? or should I just inline it?
-    pub fn get_footnote(&self, footnote_id: &'md FootnoteId) -> &'md Vec<MdElem> {
-        self.ctx.get_footnote(footnote_id)
-    }
+pub fn md_elems_placeholder_BAD<'md>(_: &'md FootnoteId) -> &'md Vec<MdElem> {
+    todo!("not yet implemented")
 }
 
-pub fn md_elems_placeholder<'md>(_: &'_ FootnoteId) -> &'md Vec<MdElem> {
-    todo!("replace w/ MdRef::get_footnote")
+pub fn md_elems_placeholder<'md>(ctx: &'md MdContext, footnote: &FootnoteId) -> &'md Vec<MdElem> {
+    // TODO should I inline this?
+    ctx.get_footnote(&footnote)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

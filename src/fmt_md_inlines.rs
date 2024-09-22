@@ -2,8 +2,8 @@ use crate::footnote_transform::FootnoteTransformer;
 use crate::link_transform::{LinkLabel, LinkTransform, LinkTransformation, LinkTransformer};
 use crate::output::{Output, SimpleWrite};
 use crate::tree::{
-    FootnoteId, Formatting, FormattingVariant, Image, Inline, Link, LinkDefinition, LinkReference, MdElem, Text,
-    TextVariant,
+    FootnoteId, Formatting, FormattingVariant, Image, Inline, Link, LinkDefinition, LinkReference, MdContext, MdElem,
+    Text, TextVariant,
 };
 use crate::tree_ref::md_elems_placeholder;
 use serde::Serialize;
@@ -18,6 +18,7 @@ pub struct MdInlinesWriterOptions {
 }
 
 pub struct MdInlinesWriter<'md> {
+    ctx: &'md MdContext,
     seen_links: HashSet<LinkLabel<'md>>,
     seen_footnotes: HashSet<&'md String>,
     pending_references: PendingReferences<'md>,
@@ -73,9 +74,10 @@ impl<'md> LinkLike<'md> for &'md Image {
 }
 
 impl<'md> MdInlinesWriter<'md> {
-    pub fn new(options: MdInlinesWriterOptions) -> Self {
+    pub fn new(ctx: &'md MdContext, options: MdInlinesWriterOptions) -> Self {
         let pending_refs_capacity = 8; // arbitrary guess
         Self {
+            ctx,
             seen_links: HashSet::with_capacity(pending_refs_capacity),
             seen_footnotes: HashSet::with_capacity(pending_refs_capacity),
             pending_references: PendingReferences::with_capacity(pending_refs_capacity),
@@ -110,7 +112,7 @@ impl<'md> MdInlinesWriter<'md> {
 
         for fid in self.pending_references.footnotes.drain() {
             let transformed_k = to_stringer.transform(fid);
-            let footnote_value = md_elems_placeholder(&transformed_k.clone().into());
+            let footnote_value = md_elems_placeholder(self.ctx, &transformed_k.clone().into());
             result.push((transformed_k, footnote_value))
         }
         result
@@ -180,7 +182,7 @@ impl<'md> MdInlinesWriter<'md> {
     fn add_footnote(&mut self, label: &'md FootnoteId) {
         if self.seen_footnotes.insert(label) {
             self.pending_references.footnotes.insert(label);
-            let text = md_elems_placeholder(label); // TODO
+            let text = md_elems_placeholder(self.ctx, label);
             self.find_references_in_footnote_elems(text);
         }
     }
@@ -565,10 +567,14 @@ mod tests {
 
         fn check_link_description(input_description: &str, expected: &str) {
             let mut output = Output::new(String::new());
-            let mut writer = MdInlinesWriter::new(MdInlinesWriterOptions {
-                link_format: LinkTransform::Keep,
-                renumber_footnotes: false,
-            });
+            let ctx = MdContext::empty();
+            let mut writer = MdInlinesWriter::new(
+                &ctx,
+                MdInlinesWriterOptions {
+                    link_format: LinkTransform::Keep,
+                    renumber_footnotes: false,
+                },
+            );
             let link = Inline::Link(Link {
                 text: vec![Inline::Text(Text {
                     variant: TextVariant::Plain,
@@ -609,10 +615,14 @@ mod tests {
 
         fn check_img_alt(input_description: &str, expected: &str) {
             let mut output = Output::new(String::new());
-            let mut writer = MdInlinesWriter::new(MdInlinesWriterOptions {
-                link_format: LinkTransform::Keep,
-                renumber_footnotes: false,
-            });
+            let ctx = MdContext::empty();
+            let mut writer = MdInlinesWriter::new(
+                &ctx,
+                MdInlinesWriterOptions {
+                    link_format: LinkTransform::Keep,
+                    renumber_footnotes: false,
+                },
+            );
             let link = Inline::Image(Image {
                 alt: input_description.to_string(),
                 link: LinkDefinition {
@@ -634,10 +644,14 @@ mod tests {
     /// that markdown results in the original inline.
     fn round_trip(orig: &Inline, expect: &Inline) {
         let mut output = Output::new(String::new());
-        let mut writer = MdInlinesWriter::new(MdInlinesWriterOptions {
-            link_format: LinkTransform::Keep,
-            renumber_footnotes: false,
-        });
+        let ctx = MdContext::empty();
+        let mut writer = MdInlinesWriter::new(
+            &ctx,
+            MdInlinesWriterOptions {
+                link_format: LinkTransform::Keep,
+                renumber_footnotes: false,
+            },
+        );
         writer.write_inline_element(&mut output, &orig);
         let md_str = output.take_underlying().unwrap();
 

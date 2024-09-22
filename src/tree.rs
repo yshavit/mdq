@@ -805,6 +805,15 @@ mod tests {
     use crate::md_elems;
     use crate::mdq_inline;
 
+    impl MdContext {
+        pub fn empty() -> Self {
+            Self {
+                footnotes: Default::default(),
+                empty_md_elems: vec![],
+            }
+        }
+    }
+
     impl From<&str> for FootnoteId {
         fn from(id: &str) -> Self {
             Self { id: id.to_owned() }

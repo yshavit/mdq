@@ -57,15 +57,16 @@ pub enum ReferencePlacement {
     Doc,
 }
 
-pub fn write_md<'md, I, W>(options: &'md MdOptions, out: &mut Output<W>, nodes: I)
+pub fn write_md<'md, I, W>(options: &'md MdOptions, out: &mut Output<W>, ctx: &'md MdContext, nodes: I)
 where
     I: Iterator<Item = MdElemRef<'md>>,
     W: SimpleWrite,
 {
     let mut writer_state = MdWriterState {
+        ctx,
         opts: options,
         prev_was_thematic_break: false,
-        inlines_writer: &mut MdInlinesWriter::new(options.inline_options),
+        inlines_writer: &mut MdInlinesWriter::new(ctx, options.inline_options),
     };
     let nodes_count = writer_state.write_md(out, nodes, true);
 
@@ -79,6 +80,7 @@ where
 }
 
 struct MdWriterState<'s, 'md> {
+    ctx: &'md MdContext,
     opts: &'md MdOptions,
     prev_was_thematic_break: bool,
     inlines_writer: &'s mut MdInlinesWriter<'md>,
@@ -430,7 +432,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
 
             if matches!(which, DefinitionsToWrite::Links | DefinitionsToWrite::Both) {
                 let mut defs_to_write: Vec<_> = self.inlines_writer.drain_pending_links();
-                defs_to_write.sort_by_key(|(k, _)| k.get_sort_string());
+                defs_to_write.sort_by_key(|(k, _)| k.get_sort_string(self.ctx));
 
                 for (link_ref, link_def) in defs_to_write {
                     out.write_char('[');
@@ -2151,7 +2153,7 @@ pub mod tests {
         nodes.iter().for_each(|n| VARIANTS_CHECKER.see(n));
 
         let mut out = Output::new(String::default());
-        write_md(options, &mut out, nodes.into_iter());
+        write_md(options, &mut out, &MdContext::empty(), nodes.into_iter());
         let actual = out.take_underlying().unwrap();
         assert_eq!(&actual, expect);
     }
