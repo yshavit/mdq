@@ -29,7 +29,6 @@ output = '''
 
 
 [expect."just footnote contains footnote: json"]
-# ignore = "broken, but let's not invest in this until / unless we know we want to keep json output; see #190"
 cli_args = ['- BBB | P: *', '--output', 'json']
 output_json = true
 output = '''
