@@ -29,6 +29,7 @@ output = '''
 
 
 [expect."just footnote contains footnote: json"]
+# ignore = "broken, but let's not invest in this until / unless we know we want to keep json output; see #190"
 cli_args = ['- BBB | P: *', '--output', 'json']
 output_json = true
 output = '''
@@ -91,12 +92,17 @@ output = '''
 
 
 [expect."cyclic reference does't cause infinite loop"]
-# When ready to add this back in, add the following to the input markdown:
-#
-#
 cli_args = ['- DDD | P: *']
 output = '''
-- DDD: footnote contains cycle[^cycle]
+DDD: footnote contains cycle[^1]
 
-[^cycle]: this footnote references itself[^cycle]
+[^1]: this footnote references itself[^1]
+'''
+
+[expect."look for elements within a footnote"]
+cli_args = ['[]("/3a"$)']
+output = '''
+[link][3a]
+
+[3a]: https://example.com/3a
 '''

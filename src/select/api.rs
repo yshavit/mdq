@@ -10,8 +10,9 @@ use crate::select::sel_list_item::ListItemType;
 use crate::select::sel_paragraph::ParagraphSelector;
 use crate::select::sel_section::SectionSelector;
 use crate::select::sel_table::TableSliceSelector;
-use crate::tree::{Formatting, Inline, Link, MdContext, Text, TextVariant};
+use crate::tree::{FootnoteId, Formatting, Inline, Link, MdContext, Text, TextVariant};
 use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
+use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 
 pub type ParseResult<T> = Result<T, ParseErrorReason>;
@@ -191,13 +192,14 @@ impl MdqRefSelector {
 
     pub fn find_nodes<'md>(&self, ctx: &'md MdContext, nodes: Vec<MdElemRef<'md>>) -> Vec<MdElemRef<'md>> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
+        let mut search_context = SearchContext::new(ctx);
         for node in nodes {
-            self.build_output(&mut result, ctx, node);
+            self.build_output(&mut result, &mut search_context, node);
         }
         result
     }
 
-    fn build_output<'md>(&self, out: &mut Vec<MdElemRef<'md>>, ctx: &'md MdContext, node: MdElemRef<'md>) {
+    fn build_output<'md>(&self, out: &mut Vec<MdElemRef<'md>>, ctx: &mut SearchContext<'md>, node: MdElemRef<'md>) {
         // try_select_node is defined in macro_helpers::selectors!
         // GH #168 can we remove the clone()? Maybe by having try_select_node take a reference.
         match self.try_select_node(node.clone()) {
@@ -216,7 +218,7 @@ impl MdqRefSelector {
     /// selector-specific. For example, an [MdqNode::Section] has child nodes both in its title and in its body, but
     /// only the body nodes are relevant for select recursion. `MdqNode` shouldn't need to know about that oddity; it
     /// belongs here.
-    fn find_children<'md>(ctx: &'md MdContext, node: MdElemRef<'md>) -> Vec<MdElemRef<'md>> {
+    fn find_children<'md>(ctx: &mut SearchContext<'md>, node: MdElemRef<'md>) -> Vec<MdElemRef<'md>> {
         match node {
             MdElemRef::Doc(body) => {
                 let mut wrapped = Vec::with_capacity(body.len());
@@ -262,7 +264,14 @@ impl MdqRefSelector {
                 Inline::Formatting(Formatting { children, .. }) => {
                     children.iter().map(|child| MdElemRef::Inline(child)).collect()
                 }
-                Inline::Footnote(footnote) => vec![MdElemRef::Doc(ctx.get_footnote(&footnote))],
+                Inline::Footnote(footnote) => {
+                    // guard against cycles
+                    if ctx.seen_footnotes.insert(footnote) {
+                        vec![MdElemRef::Doc(ctx.md_context.get_footnote(&footnote))]
+                    } else {
+                        Vec::new()
+                    }
+                }
                 Inline::Link(link) => vec![MdElemRef::Link(link)],
                 Inline::Image(image) => vec![MdElemRef::Image(image)],
                 Inline::Text(Text { variant, value }) if variant == &TextVariant::Html => {
@@ -274,6 +283,20 @@ impl MdqRefSelector {
             MdElemRef::Link(Link { text, .. }) => text.iter().map(|child| MdElemRef::Inline(child)).collect(),
             MdElemRef::Image(_) => Vec::new(),
             MdElemRef::Html(_) => Vec::new(),
+        }
+    }
+}
+
+struct SearchContext<'md> {
+    md_context: &'md MdContext,
+    seen_footnotes: HashSet<&'md FootnoteId>,
+}
+
+impl<'md> SearchContext<'md> {
+    fn new(ctx: &'md MdContext) -> Self {
+        Self {
+            md_context: ctx,
+            seen_footnotes: HashSet::with_capacity(4), // guess
         }
     }
 }
