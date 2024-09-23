@@ -2110,8 +2110,6 @@ pub mod tests {
 
     mod html {
         use super::*;
-        use crate::md_elems;
-        use indoc::indoc;
 
         #[test]
         fn inline() {
