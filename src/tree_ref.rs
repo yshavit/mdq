@@ -1,6 +1,5 @@
 use crate::tree::{
-    BlockQuote, CodeBlock, FootnoteId, Image, Inline, Line, Link, List, ListItem, MdContext, MdElem, Paragraph,
-    Section, Table,
+    BlockQuote, CodeBlock, Image, Inline, Line, Link, List, ListItem, MdElem, Paragraph, Section, Table,
 };
 use crate::vec_utils::{IndexKeeper, ItemRetainer};
 use markdown::mdast;
@@ -38,11 +37,6 @@ pub enum MdElemRef<'md> {
     Link(&'md Link),
     Image(&'md Image),
     TableSlice(TableSlice<'md>),
-}
-
-pub fn md_elems_placeholder<'md>(ctx: &'md MdContext, footnote: &FootnoteId) -> &'md Vec<MdElem> {
-    // TODO should I inline this?
-    ctx.get_footnote(&footnote)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

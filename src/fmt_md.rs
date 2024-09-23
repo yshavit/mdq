@@ -1791,11 +1791,15 @@ pub mod tests {
 
         #[test]
         fn single_line() {
-            check_render(
-                vec![
-                    MdElem::Inline(Inline::Footnote("a".into())),
-                    m_node!(MdElem::ThematicBreak),
-                ],
+            check_render_with_ctx(
+                &MdOptions::default_for_tests(),
+                (
+                    MdContext::empty().with("a", md_elems!["Hello, world."]),
+                    vec![
+                        MdElem::Inline(Inline::Footnote("a".into())),
+                        m_node!(MdElem::ThematicBreak),
+                    ],
+                ),
                 indoc! {r#"
                     [^a]
 
@@ -1807,11 +1811,15 @@ pub mod tests {
 
         #[test]
         fn two_lines() {
-            check_render(
-                vec![
-                    MdElem::Inline(Inline::Footnote("a".into())),
-                    m_node!(MdElem::ThematicBreak),
-                ],
+            check_render_with_ctx(
+                &MdOptions::default_for_tests(),
+                (
+                    MdContext::empty().with("a", md_elems!["Hello,\nworld."]),
+                    vec![
+                        MdElem::Inline(Inline::Footnote("a".into())),
+                        m_node!(MdElem::ThematicBreak),
+                    ],
+                ),
                 indoc! {r#"
                     [^a]
 
@@ -1825,9 +1833,10 @@ pub mod tests {
         /// see [crate::footnote_transform::test] for more extensive tests TODO need to add those tests!
         #[test]
         fn footnote_transform_smoke_test() {
-            check_render_refs_with(
+            let (ctx, graf) = footnote_a_in_paragraph();
+            check_render_refs_with_ctx(
                 &MdOptions::new_with(|mdo| mdo.inline_options.renumber_footnotes = true),
-                vec![MdElemRef::Paragraph(&footnote_a_in_paragraph())],
+                (ctx, vec![MdElemRef::Paragraph(&graf)]),
                 indoc! {r#"
                     [^1]
 
@@ -1837,9 +1846,10 @@ pub mod tests {
 
         #[test]
         fn footnote_no_transform_smoke_test() {
-            check_render_refs_with(
+            let (ctx, graf) = footnote_a_in_paragraph();
+            check_render_refs_with_ctx(
                 &MdOptions::new_with(|mdo| mdo.inline_options.renumber_footnotes = false),
-                vec![MdElemRef::Paragraph(&footnote_a_in_paragraph())],
+                (ctx, vec![MdElemRef::Paragraph(&graf)]),
                 indoc! {r#"
                     [^a]
 
@@ -1847,10 +1857,13 @@ pub mod tests {
             );
         }
 
-        fn footnote_a_in_paragraph() -> Paragraph {
-            Paragraph {
-                body: vec![Inline::Footnote("a".into())],
-            }
+        fn footnote_a_in_paragraph() -> (MdContext, Paragraph) {
+            (
+                MdContext::empty().with("a", md_elems!("the footnote text")),
+                Paragraph {
+                    body: vec![Inline::Footnote("a".into())],
+                },
+            )
         }
     }
 
@@ -1861,23 +1874,27 @@ pub mod tests {
 
         #[test]
         fn link_and_footnote() {
-            check_render(
-                md_elems![Paragraph {
-                    body: vec![
-                        mdq_inline!("Hello, "),
-                        m_node!(Inline::Link {
-                            text: vec![mdq_inline!("world"),],
-                            link_definition: LinkDefinition {
-                                url: "https://example.com".to_string(),
-                                title: None,
-                                reference: LinkReference::Full("1".to_string()),
-                            }
-                        }),
-                        mdq_inline!("! This is interesting"),
-                        Inline::Footnote("a".into()),
-                        mdq_inline!("."),
-                    ],
-                }],
+            check_render_with_ctx(
+                &MdOptions::default_for_tests(),
+                (
+                    MdContext::empty().with("a", md_elems!["this is my note"]),
+                    md_elems![Paragraph {
+                        body: vec![
+                            mdq_inline!("Hello, "),
+                            m_node!(Inline::Link {
+                                text: vec![mdq_inline!("world"),],
+                                link_definition: LinkDefinition {
+                                    url: "https://example.com".to_string(),
+                                    title: None,
+                                    reference: LinkReference::Full("1".to_string()),
+                                }
+                            }),
+                            mdq_inline!("! This is interesting"),
+                            Inline::Footnote("a".into()),
+                            mdq_inline!("."),
+                        ],
+                    }],
+                ),
                 indoc! {r#"
                     Hello, [world][1]! This is interesting[^a].
 
@@ -1888,7 +1905,7 @@ pub mod tests {
 
         #[test]
         fn both_in_sections() {
-            check_render_with(
+            check_render_with_ctx(
                 &MdOptions::new_with(|mdo| {
                     mdo.link_reference_placement = ReferencePlacement::Section;
                     mdo.footnote_reference_placement = ReferencePlacement::Section;
@@ -1912,7 +1929,7 @@ pub mod tests {
 
         #[test]
         fn only_link_in_section() {
-            check_render_with(
+            check_render_with_ctx(
                 &MdOptions::new_with(|mdo| {
                     mdo.link_reference_placement = ReferencePlacement::Section;
                     mdo.footnote_reference_placement = ReferencePlacement::Doc;
@@ -1963,7 +1980,7 @@ pub mod tests {
 
         #[test]
         fn only_footnote_in_section() {
-            check_render_with(
+            check_render_with_ctx(
                 &MdOptions::new_with(|mdo| {
                     mdo.link_reference_placement = ReferencePlacement::Doc;
                     mdo.footnote_reference_placement = ReferencePlacement::Section;
@@ -1990,7 +2007,7 @@ pub mod tests {
 
         #[test]
         fn both_bottom_of_doc() {
-            check_render_with(
+            check_render_with_ctx(
                 &MdOptions::new_with(|mdo| {
                     mdo.link_reference_placement = ReferencePlacement::Doc;
                     mdo.footnote_reference_placement = ReferencePlacement::Doc;
@@ -2016,34 +2033,39 @@ pub mod tests {
 
         #[test]
         fn ordering() {
-            check_render_with(
+            check_render_with_ctx(
                 &MdOptions::new_with(|mdo| {
                     mdo.link_reference_placement = ReferencePlacement::Doc;
                     mdo.footnote_reference_placement = ReferencePlacement::Doc;
                 }),
-                // Define them in the opposite order that we'd expect them
-                md_elems![Paragraph {
-                    body: vec![
-                        Inline::Footnote("d".into()),
-                        Inline::Footnote("c".into()),
-                        m_node!(Inline::Link {
-                            text: vec![mdq_inline!("b-text")],
-                            link_definition: LinkDefinition {
-                                url: "https://example.com/b".to_string(),
-                                title: None,
-                                reference: LinkReference::Full("b".to_string()),
-                            },
-                        }),
-                        m_node!(Inline::Link {
-                            text: vec![mdq_inline!("a-text")],
-                            link_definition: LinkDefinition {
-                                url: "https://example.com/a".to_string(),
-                                title: None,
-                                reference: LinkReference::Full("a".to_string()),
-                            },
-                        }),
-                    ]
-                }],
+                (
+                    MdContext::empty()
+                        .with("d", md_elems!["footnote 1"])
+                        .with("c", md_elems!["footnote 2"]),
+                    // Define them in the opposite order that we'd expect them
+                    md_elems![Paragraph {
+                        body: vec![
+                            Inline::Footnote("d".into()),
+                            Inline::Footnote("c".into()),
+                            m_node!(Inline::Link {
+                                text: vec![mdq_inline!("b-text")],
+                                link_definition: LinkDefinition {
+                                    url: "https://example.com/b".to_string(),
+                                    title: None,
+                                    reference: LinkReference::Full("b".to_string()),
+                                },
+                            }),
+                            m_node!(Inline::Link {
+                                text: vec![mdq_inline!("a-text")],
+                                link_definition: LinkDefinition {
+                                    url: "https://example.com/a".to_string(),
+                                    title: None,
+                                    reference: LinkReference::Full("a".to_string()),
+                                },
+                            }),
+                        ]
+                    }],
+                ),
                 indoc! {r#"
                     [^d][^c][b-text][b][a-text][a]
 
@@ -2054,8 +2076,8 @@ pub mod tests {
             );
         }
 
-        fn link_and_footnote_markdown() -> Vec<MdElem> {
-            md_elems![
+        fn link_and_footnote_markdown() -> (MdContext, Vec<MdElem>) {
+            let elems = md_elems![
                 Section {
                     depth: 1,
                     title: vec![mdq_inline!("First section")],
@@ -2080,7 +2102,9 @@ pub mod tests {
                     title: vec![mdq_inline!("Second section")],
                     body: md_elems!["Second section contents."],
                 },
-            ]
+            ];
+            let ctx = MdContext::empty().with("a", md_elems!["the footnote"]);
+            (ctx, elems)
         }
     }
 
@@ -2138,11 +2162,16 @@ pub mod tests {
     }
 
     fn check_render_with(options: &MdOptions, nodes: Vec<MdElem>, expect: &str) {
+        check_render_with_ctx(options, (MdContext::empty(), nodes), expect)
+    }
+
+    fn check_render_with_ctx(options: &MdOptions, inputs: (MdContext, Vec<MdElem>), expect: &str) {
+        let (ctx, nodes) = inputs;
         let mut wrapped = Vec::with_capacity(nodes.len());
         for node in &nodes {
             wrapped.push(node.into());
         }
-        check_render_refs_with(options, wrapped, expect)
+        check_render_refs_with_ctx(options, (ctx, wrapped), expect)
     }
 
     fn check_render_refs(nodes: Vec<MdElemRef>, expect: &str) {
@@ -2150,10 +2179,15 @@ pub mod tests {
     }
 
     fn check_render_refs_with(options: &MdOptions, nodes: Vec<MdElemRef>, expect: &str) {
+        check_render_refs_with_ctx(options, (MdContext::empty(), nodes), expect)
+    }
+
+    fn check_render_refs_with_ctx(options: &MdOptions, inputs: (MdContext, Vec<MdElemRef>), expect: &str) {
+        let (ctx, nodes) = inputs;
         nodes.iter().for_each(|n| VARIANTS_CHECKER.see(n));
 
         let mut out = Output::new(String::default());
-        write_md(options, &mut out, &MdContext::empty(), nodes.into_iter());
+        write_md(options, &mut out, &ctx, nodes.into_iter());
         let actual = out.take_underlying().unwrap();
         assert_eq!(&actual, expect);
     }

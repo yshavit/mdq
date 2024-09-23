@@ -11,7 +11,7 @@ use crate::select::sel_paragraph::ParagraphSelector;
 use crate::select::sel_section::SectionSelector;
 use crate::select::sel_table::TableSliceSelector;
 use crate::tree::{Formatting, Inline, Link, MdContext, Text, TextVariant};
-use crate::tree_ref::{md_elems_placeholder, HtmlRef, ListItemRef, MdElemRef};
+use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use std::fmt::{Display, Formatter};
 
 pub type ParseResult<T> = Result<T, ParseErrorReason>;
@@ -262,7 +262,7 @@ impl MdqRefSelector {
                 Inline::Formatting(Formatting { children, .. }) => {
                     children.iter().map(|child| MdElemRef::Inline(child)).collect()
                 }
-                Inline::Footnote(footnote) => vec![MdElemRef::Doc(md_elems_placeholder(ctx, footnote))],
+                Inline::Footnote(footnote) => vec![MdElemRef::Doc(ctx.get_footnote(&footnote))],
                 Inline::Link(link) => vec![MdElemRef::Link(link)],
                 Inline::Image(image) => vec![MdElemRef::Image(image)],
                 Inline::Text(Text { variant, value }) if variant == &TextVariant::Html => {

@@ -812,6 +812,11 @@ mod tests {
                 empty_md_elems: vec![],
             }
         }
+
+        pub fn with<S: Into<FootnoteId>>(mut self, footnote_id: S, body: Vec<MdElem>) -> Self {
+            self.footnotes.insert(footnote_id.into(), body);
+            self
+        }
     }
 
     impl From<&str> for FootnoteId {
@@ -838,20 +843,23 @@ mod tests {
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mut footnotes = MdContext::new();
-                let mdq_err = MdElem::from_mdast_0(node_clone, &$lookups, &mut footnotes).err().expect("expected no MdqNode");
+                let mut ctx = MdContext::new();
+                let mdq_err = MdElem::from_mdast_0(node_clone, &$lookups, &mut ctx).err().expect("expected no MdqNode");
                 assert_eq!(mdq_err, $err);
                 $($body)?
             }};
 
-            (no_node: $enum_value:expr, $enum_variant:pat, $lookups:expr) => {{
+            (no_node: $enum_value:expr, $enum_variant:pat, $lookups:expr $(=> $ctx_expect:expr)?) => {{
                 let node = $enum_value;
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mut footnotes = MdContext::new();
-                let mdqs = MdElem::from_mdast_0(node_clone, &$lookups, &mut footnotes).unwrap();
+                let mut ctx = MdContext::new();
+                let mdqs = MdElem::from_mdast_0(node_clone, &$lookups, &mut ctx).unwrap();
                 assert_eq!(mdqs, Vec::new());
+                $(
+                assert_eq!(ctx, $ctx_expect);
+                )?
             }};
 
             ($enum_value:expr, $enum_variant:pat, $lookups:expr => $mdq_pat:pat = $mdq_body:block ) => {{
@@ -859,8 +867,9 @@ mod tests {
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mut footnotes = MdContext::new();
-                let mut mdqs = MdElem::from_mdast_0(node_clone, &$lookups, &mut footnotes).unwrap();
+                let mut ctx = MdContext::new();
+                let mut mdqs = MdElem::from_mdast_0(node_clone, &$lookups, &mut ctx).unwrap();
+                assert_eq!(&ctx, &MdContext::empty(), "MdContext");
                 assert_eq!(mdqs.len(), 1, "expected exactly one element, but found: {:?}", mdqs);
                 let mdq = mdqs.pop().unwrap();
                 if let $mdq_pat = mdq $mdq_body else {
@@ -932,6 +941,8 @@ mod tests {
             );
             unwrap!(&root.children[0], Node::Paragraph(p));
             assert_eq!(p.children.len(), 4);
+
+            // first child: the paragraph
             check!(&p.children[0], Node::Text(_), lookups => MdElem::Inline(text) = {
                 assert_eq!(
                     text,
@@ -944,7 +955,54 @@ mod tests {
             check!(&p.children[1], Node::FootnoteReference(_), lookups => MdElem::Inline(footnote) = {
                 assert_eq!(footnote, Inline::Footnote("1".into()))
             });
-            todo!()
+            check!(&p.children[2], Node::FootnoteReference(_), lookups => MdElem::Inline(footnote) = {
+                assert_eq!(footnote, Inline::Footnote("2".into()))
+            });
+            check!(&p.children[3], Node::Text(_), lookups => MdElem::Inline(text) = {
+                assert_eq!(
+                    text,
+                    Inline::Text(Text{
+                        variant: TextVariant::Plain,
+                        value: ".".to_string(),
+                    })
+                );
+            });
+
+            // second child: [^1]
+            check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups =>
+                MdContext::empty()
+                    .with("1", vec![MdElem::Paragraph(Paragraph{
+                        body: vec![
+                            mdq_inline!("a footnote that references itself"),
+                            Inline::Footnote("1".into()),
+                            mdq_inline!("."),
+                        ],
+                    })])
+            );
+
+            // third child: [^2]
+            check!(no_node: &root.children[2], Node::FootnoteDefinition(_), lookups =>
+                MdContext::empty()
+                    .with("2", vec![MdElem::Paragraph(Paragraph{
+                        body: vec![
+                            mdq_inline!("a footnote that starts a cycle"),
+                            Inline::Footnote("3".into()),
+                            mdq_inline!("."),
+                        ],
+                    })])
+            );
+
+            // fourth child: [^3]
+            check!(no_node: &root.children[3], Node::FootnoteDefinition(_), lookups =>
+                MdContext::empty()
+                    .with("3", vec![MdElem::Paragraph(Paragraph{
+                        body: vec![
+                            mdq_inline!("cycles back"),
+                            Inline::Footnote("2".into()),
+                            mdq_inline!("."),
+                        ],
+                    })])
+            );
         }
 
         #[test]
