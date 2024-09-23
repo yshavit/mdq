@@ -7,7 +7,7 @@ use crate::fmt_md::MdOptions;
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
 use crate::output::Stream;
 use crate::select::ParseError;
-use crate::tree::{MdElem, ReadOptions};
+use crate::tree::{MdDoc, ReadOptions};
 use crate::tree_ref::MdElemRef;
 use crate::tree_ref_serde::SerdeDoc;
 use select::MdqRefSelector;
@@ -55,7 +55,7 @@ where
         validate_no_conflicting_links: false,
         allow_unknown_markdown: cli.allow_unknown_markdown,
     };
-    let mdqs = match MdElem::read(ast, &read_options) {
+    let MdDoc { roots, ctx } = match MdDoc::read(ast, &read_options) {
         Ok(mdqs) => mdqs,
         Err(err) => {
             eprintln!("error: {}", err);
@@ -72,9 +72,9 @@ where
         }
     };
 
-    let mut pipeline_nodes = vec![MdElemRef::Doc(&mdqs)];
+    let mut pipeline_nodes = vec![MdElemRef::Doc(&roots)];
     for selector in selectors {
-        let new_pipeline = selector.find_nodes(pipeline_nodes);
+        let new_pipeline = selector.find_nodes(&ctx, pipeline_nodes);
         pipeline_nodes = new_pipeline;
     }
 
@@ -94,10 +94,14 @@ where
         match cli.output {
             OutputFormat::Markdown | OutputFormat::Md => {
                 let mut out = Output::new(Stream(&mut stdout));
-                fmt_md::write_md(&md_options, &mut out, pipeline_nodes.into_iter());
+                fmt_md::write_md(&md_options, &mut out, &ctx, pipeline_nodes.into_iter());
             }
             OutputFormat::Json => {
-                serde_json::to_writer(&mut stdout, &SerdeDoc::new(&pipeline_nodes, md_options.inline_options)).unwrap();
+                serde_json::to_writer(
+                    &mut stdout,
+                    &SerdeDoc::new(&pipeline_nodes, &ctx, md_options.inline_options),
+                )
+                .unwrap();
             }
         }
     }

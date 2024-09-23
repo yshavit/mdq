@@ -3,11 +3,13 @@ md = '''
 - AAA: (footnotes in links don't work: see https://gist.github.com/yshavit/6af0a784e338dc32e66717aa6f495ffe )
 - BBB: footnote contains footnote[^2]
 - CCC: footnote contains link[^3]
+- DDD: footnote contains cycle[^cycle]
 
 [^1]: the link's footnote text
 [^2]: this footnote contains[^a] a footnote
 [^3]: this footnote contains a [link][3a]
 [^a]: this is the footnote's footnote
+[^cycle]: this footnote references itself[^cycle]
 
 [3a]: https://example.com/3a
 '''
@@ -89,16 +91,17 @@ output = '''
 
 
 [expect."cyclic reference does't cause infinite loop"]
-ignore = '#188'
-# When ready to add this back in, add the following to the input markdown:
-#
-#     - DDD: footnote contains cycle[^cycle]
-#
-#     [^cycle]: this footnote references itself[^cycle]
-#
 cli_args = ['- DDD | P: *']
 output = '''
-- DDD: footnote contains cycle[^cycle]
+DDD: footnote contains cycle[^1]
 
-[^cycle]: this footnote references itself[^cycle]
+[^1]: this footnote references itself[^1]
+'''
+
+[expect."look for elements within a footnote"]
+cli_args = ['[]("/3a"$)']
+output = '''
+[link][3a]
+
+[3a]: https://example.com/3a
 '''

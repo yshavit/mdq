@@ -6,6 +6,16 @@ use markdown::mdast;
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
 /// selected.
+///
+/// To be useful, this needs to be paired with a [crate::tree::MdContext]; otherwise, there's no
+/// way to resolve footnotes. Because we almost always want that pairing together, the helper struct
+/// [MdRef] does just that.
+///
+/// (We can't have `MdFootnotes` only on the `Inline` variant in this enum, because we sometimes
+/// need to recursively traverse this enum. For example, a `Paragraph` has a `Vec<MdElem>`, but we
+/// wouldn't be able to then create `Inline(&inline, &footnotes)`, because the `Paragraph` doesn't
+/// have access to that. We could just add it to every variant, but at that point that's equivalent
+/// to adding it to `MdRef`.)
 #[derive(Debug, Clone, PartialEq)]
 pub enum MdElemRef<'md> {
     // Multiple elements that form a single area

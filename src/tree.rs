@@ -2,10 +2,40 @@ use std::backtrace::Backtrace;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter, Write};
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
+use std::ops::Deref;
 use std::vec::IntoIter;
 
 use markdown::mdast;
+
+// If we ever need any additional document-wide state, we can rename this
+#[derive(Debug, PartialEq)]
+pub struct MdContext {
+    footnotes: HashMap<FootnoteId, Vec<MdElem>>,
+
+    /// useful as a default value
+    empty_md_elems: Vec<MdElem>,
+}
+
+impl MdContext {
+    pub fn get_footnote(&self, footnote_id: &FootnoteId) -> &Vec<MdElem> {
+        self.footnotes.get(footnote_id).unwrap_or(&self.empty_md_elems)
+    }
+}
+
+impl MdContext {
+    fn new() -> Self {
+        Self {
+            footnotes: HashMap::with_capacity(4), // total guess
+            empty_md_elems: Vec::new(),
+        }
+    }
+}
+
+pub struct MdDoc {
+    pub roots: Vec<MdElem>,
+    pub ctx: MdContext,
+}
 
 #[derive(Debug, PartialEq)]
 pub enum MdElem {
@@ -107,7 +137,7 @@ pub enum CodeVariant {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Inline {
-    Footnote(Footnote),
+    Footnote(FootnoteId),
     Formatting(Formatting),
     Image(Image),
     Link(Link),
@@ -138,27 +168,31 @@ pub struct Image {
     pub link: LinkDefinition,
 }
 
-#[derive(Debug)]
-pub struct Footnote {
-    pub label: String,
-    pub text: Vec<MdElem>,
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct FootnoteId {
+    id: String,
 }
 
-/// Note that [Footnote]'s [Eq] and [Hash] only key off of its label, _not_ its text content.
-impl Hash for Footnote {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.label.hash(state);
+impl From<String> for FootnoteId {
+    fn from(id: String) -> Self {
+        Self { id }
     }
 }
 
-/// Note that [Footnote]'s [Eq] and [Hash] only key off of its label, _not_ its text content.
-impl PartialEq for Footnote {
-    fn eq(&self, other: &Self) -> bool {
-        self.label == other.label
+impl Deref for FootnoteId {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.id
     }
 }
 
-impl Eq for Footnote {}
+impl FootnoteId {
+    fn new(id: String, label: Option<String>) -> FootnoteId {
+        let id = label.unwrap_or(id);
+        Self { id }
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct LinkDefinition {
@@ -299,19 +333,22 @@ macro_rules! m_node {
     };
 }
 
-impl MdElem {
-    pub fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Vec<Self>, InvalidMd> {
+impl MdDoc {
+    pub fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
         let lookups = Lookups::new(&node, opts)?;
-        Self::from_mdast_0(node, &lookups)
+        let mut ctx = MdContext::new();
+        let roots = MdElem::from_mdast_0(node, &lookups, &mut ctx)?;
+        Ok(Self { roots, ctx: ctx })
     }
+}
 
-    fn from_mdast_0(node: mdast::Node, lookups: &Lookups) -> Result<Vec<Self>, InvalidMd> {
+impl MdElem {
+    fn from_mdast_0(node: mdast::Node, lookups: &Lookups, ctx: &mut MdContext) -> Result<Vec<Self>, InvalidMd> {
         let result = match node {
-            mdast::Node::Root(node) => return MdElem::all(node.children, lookups),
+            mdast::Node::Root(node) => return MdElem::all(node.children, lookups, ctx),
             mdast::Node::BlockQuote(node) => m_node!(MdElem::BlockQuote {
-                body: MdElem::all(node.children, lookups)?,
+                body: MdElem::all(node.children, lookups, ctx)?,
             }),
-            mdast::Node::FootnoteDefinition(_) => return Ok(Vec::new()),
             mdast::Node::List(node) => {
                 let mut li_nodes = Vec::with_capacity(node.children.len());
                 for node in node.children {
@@ -320,7 +357,7 @@ impl MdElem {
                     };
                     let li_mdq = ListItem {
                         checked: li_node.checked,
-                        item: MdElem::all(li_node.children, lookups)?,
+                        item: MdElem::all(li_node.children, lookups, ctx)?,
                     };
                     li_nodes.push(li_mdq);
                 }
@@ -343,11 +380,11 @@ impl MdElem {
             })),
             mdast::Node::Delete(node) => MdElem::Inline(Inline::Formatting(Formatting {
                 variant: FormattingVariant::Delete,
-                children: MdElem::inlines(node.children, lookups)?,
+                children: MdElem::inlines(node.children, lookups, ctx)?,
             })),
             mdast::Node::Emphasis(node) => MdElem::Inline(Inline::Formatting(Formatting {
                 variant: FormattingVariant::Emphasis,
-                children: MdElem::inlines(node.children, lookups)?,
+                children: MdElem::inlines(node.children, lookups, ctx)?,
             })),
             mdast::Node::Image(node) => MdElem::Inline(Inline::Image(Image {
                 alt: node.alt,
@@ -362,7 +399,7 @@ impl MdElem {
                 link: lookups.resolve_link(node.identifier, node.label, node.reference_kind, lookups)?,
             })),
             mdast::Node::Link(node) => MdElem::Inline(Inline::Link(Link {
-                text: MdElem::inlines(node.children, lookups)?,
+                text: MdElem::inlines(node.children, lookups, ctx)?,
                 link_definition: LinkDefinition {
                     url: node.url,
                     title: node.title,
@@ -370,19 +407,29 @@ impl MdElem {
                 },
             })),
             mdast::Node::LinkReference(node) => MdElem::Inline(Inline::Link(Link {
-                text: MdElem::inlines(node.children, lookups)?,
+                text: MdElem::inlines(node.children, lookups, ctx)?,
                 link_definition: lookups.resolve_link(node.identifier, node.label, node.reference_kind, lookups)?,
             })),
             mdast::Node::FootnoteReference(node) => {
-                let definition = lookups.resolve_footnote(&node.identifier, &node.label, lookups)?;
-                MdElem::Inline(Inline::Footnote(Footnote {
-                    label: node.label.unwrap_or(node.identifier),
-                    text: MdElem::all(definition.children.clone(), lookups)?,
-                }))
+                MdElem::Inline(Inline::Footnote(FootnoteId::new(node.identifier, node.label)))
+            }
+            mdast::Node::FootnoteDefinition(node) => {
+                let footnote_id = FootnoteId::new(node.identifier, node.label);
+                return if ctx.footnotes.contains_key(&footnote_id) {
+                    Err(InvalidMd::ConflictingReferenceDefinition(footnote_id.id))
+                } else {
+                    let children = MdElem::all(node.children, lookups, ctx)?;
+                    if ctx.footnotes.contains_key(&footnote_id) {
+                        Err(InvalidMd::ConflictingReferenceDefinition(footnote_id.id))
+                    } else {
+                        ctx.footnotes.insert(footnote_id, children);
+                        Ok(Vec::new())
+                    }
+                };
             }
             mdast::Node::Strong(node) => MdElem::Inline(Inline::Formatting(Formatting {
                 variant: FormattingVariant::Strong,
-                children: MdElem::inlines(node.children, lookups)?,
+                children: MdElem::inlines(node.children, lookups, ctx)?,
             })),
             mdast::Node::Text(node) => MdElem::Inline(Inline::Text(Text {
                 variant: TextVariant::Plain,
@@ -410,7 +457,7 @@ impl MdElem {
             }
             mdast::Node::Heading(node) => m_node!(MdElem::Section {
                 depth: node.depth,
-                title: Self::inlines(node.children, lookups)?,
+                title: Self::inlines(node.children, lookups, ctx)?,
                 body: Vec::new(),
             }),
             mdast::Node::Table(node) => {
@@ -428,7 +475,7 @@ impl MdElem {
                         let mdast::Node::TableCell(table_cell) = cell_node else {
                             return Err(InvalidMd::InternalError(PartialEqBacktrace(Backtrace::force_capture())));
                         };
-                        let cell_contents = Self::inlines(table_cell.children, lookups)?;
+                        let cell_contents = Self::inlines(table_cell.children, lookups, ctx)?;
                         column.push(cell_contents);
                     }
                     rows.push(column);
@@ -445,7 +492,7 @@ impl MdElem {
             }
             mdast::Node::Definition(_) => return Ok(Vec::new()),
             mdast::Node::Paragraph(node) => m_node!(MdElem::Paragraph {
-                body: Self::inlines(node.children, lookups)?,
+                body: Self::inlines(node.children, lookups, ctx)?,
             }),
             mdast::Node::Toml(node) => m_node!(MdElem::CodeBlock {
                 variant: CodeVariant::Toml,
@@ -466,9 +513,14 @@ impl MdElem {
         Ok(vec![result])
     }
 
-    fn all(children: Vec<mdast::Node>, lookups: &Lookups) -> Result<Vec<Self>, InvalidMd> {
+    fn all(
+        children: Vec<mdast::Node>,
+        lookups: &Lookups,
+        footnotes_repo: &mut MdContext,
+    ) -> Result<Vec<Self>, InvalidMd> {
         Self::all_from_iter(NodeToMdqIter {
             lookups,
+            footnotes_repo,
             children: children.into_iter(),
             pending: Vec::new().into_iter(),
         })
@@ -568,8 +620,12 @@ impl MdElem {
         Ok(result)
     }
 
-    fn inlines(children: Vec<mdast::Node>, lookups: &Lookups) -> Result<Vec<Inline>, InvalidMd> {
-        let mdq_children = Self::all(children, lookups)?;
+    fn inlines(
+        children: Vec<mdast::Node>,
+        lookups: &Lookups,
+        footnotes_repo: &mut MdContext,
+    ) -> Result<Vec<Inline>, InvalidMd> {
+        let mdq_children = Self::all(children, lookups, footnotes_repo)?;
         let mut result = Vec::with_capacity(mdq_children.len());
         for child in mdq_children {
             // Get this child as an Inline, or complain. HTML can be either inline or block; Self::all will always
@@ -604,16 +660,17 @@ impl MdElem {
     }
 }
 
-struct NodeToMdqIter<'md, I>
+struct NodeToMdqIter<'a, I>
 where
     I: Iterator<Item = mdast::Node>,
 {
     children: I,
     pending: IntoIter<MdElem>,
-    lookups: &'md Lookups,
+    lookups: &'a Lookups,
+    footnotes_repo: &'a mut MdContext,
 }
 
-impl<'md, I> Iterator for NodeToMdqIter<'md, I>
+impl<'a, I> Iterator for NodeToMdqIter<'a, I>
 where
     I: Iterator<Item = mdast::Node>,
 {
@@ -627,7 +684,7 @@ where
             let Some(next_node) = self.children.next() else {
                 return None;
             };
-            match MdElem::from_mdast_0(next_node, self.lookups) {
+            match MdElem::from_mdast_0(next_node, self.lookups, self.footnotes_repo) {
                 Ok(mdq_node) => {
                     self.pending = mdq_node.into_iter();
                 }
@@ -696,22 +753,6 @@ impl Lookups {
         })
     }
 
-    fn resolve_footnote(
-        &self,
-        identifier: &String,
-        label: &Option<String>,
-        lookups: &Lookups,
-    ) -> Result<&mdast::FootnoteDefinition, InvalidMd> {
-        if label.is_none() {
-            lookups.unknown_markdown("footnote label was None")?;
-        }
-        let Some(definition) = self.footnote_definitions.get(identifier) else {
-            let human_visible_identifier = label.to_owned().unwrap_or_else(|| identifier.to_string());
-            return Err(InvalidMd::MissingReferenceDefinition(human_visible_identifier));
-        };
-        Ok(definition)
-    }
-
     fn build_lookups(&mut self, node: &mdast::Node, read_opts: &ReadOptions) -> Result<(), InvalidMd> {
         let x = format!("{:?}", node);
         let _ = x;
@@ -764,6 +805,26 @@ mod tests {
     use crate::md_elems;
     use crate::mdq_inline;
 
+    impl MdContext {
+        pub fn empty() -> Self {
+            Self {
+                footnotes: Default::default(),
+                empty_md_elems: vec![],
+            }
+        }
+
+        pub fn with<S: Into<FootnoteId>>(mut self, footnote_id: S, body: Vec<MdElem>) -> Self {
+            self.footnotes.insert(footnote_id.into(), body);
+            self
+        }
+    }
+
+    impl From<&str> for FootnoteId {
+        fn from(id: &str) -> Self {
+            Self { id: id.to_owned() }
+        }
+    }
+
     ///  tests of each mdast node type
     ///
     /// The purpose of these is not to test the parser (I trust mdast), but to test my understanding of how it works.
@@ -782,18 +843,23 @@ mod tests {
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mdq_err = MdElem::from_mdast_0(node_clone, &$lookups).err().expect("expected no MdqNode");
+                let mut ctx = MdContext::new();
+                let mdq_err = MdElem::from_mdast_0(node_clone, &$lookups, &mut ctx).err().expect("expected no MdqNode");
                 assert_eq!(mdq_err, $err);
                 $($body)?
             }};
 
-            (no_node: $enum_value:expr, $enum_variant:pat, $lookups:expr) => {{
+            (no_node: $enum_value:expr, $enum_variant:pat, $lookups:expr $(=> $ctx_expect:expr)?) => {{
                 let node = $enum_value;
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mdqs = MdElem::from_mdast_0(node_clone, &$lookups).unwrap();
+                let mut ctx = MdContext::new();
+                let mdqs = MdElem::from_mdast_0(node_clone, &$lookups, &mut ctx).unwrap();
                 assert_eq!(mdqs, Vec::new());
+                $(
+                assert_eq!(ctx, $ctx_expect);
+                )?
             }};
 
             ($enum_value:expr, $enum_variant:pat, $lookups:expr => $mdq_pat:pat = $mdq_body:block ) => {{
@@ -801,7 +867,9 @@ mod tests {
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mut mdqs = MdElem::from_mdast_0(node_clone, &$lookups).unwrap();
+                let mut ctx = MdContext::new();
+                let mut mdqs = MdElem::from_mdast_0(node_clone, &$lookups, &mut ctx).unwrap();
+                assert_eq!(&ctx, &MdContext::empty(), "MdContext");
                 assert_eq!(mdqs.len(), 1, "expected exactly one element, but found: {:?}", mdqs);
                 let mdq = mdqs.pop().unwrap();
                 if let $mdq_pat = mdq $mdq_body else {
@@ -838,10 +906,7 @@ mod tests {
                 );
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[1], Node::FootnoteReference(_), lookups => MdElem::Inline(footnote) = {
-                    assert_eq!(footnote, Inline::Footnote(Footnote{
-                        label: "a".to_string(),
-                        text: md_elems!["My footnote\nwith two lines."],
-                    }))
+                    assert_eq!(footnote, Inline::Footnote("a".into()))
                 });
                 check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups);
             }
@@ -856,23 +921,88 @@ mod tests {
                 unwrap!(&root.children[0], Node::Paragraph(p));
 
                 check!(&p.children[1], Node::FootnoteReference(_), lookups => MdElem::Inline(footnote) = {
-                    assert_eq!(footnote, Inline::Footnote(Footnote{
-                        label: "a".to_string(),
-                        text: vec![
-                            m_node!(MdElem::List{
-                                starting_index: None,
-                                items: vec![
-                                    ListItem{
-                                        checked: None,
-                                        item: md_elems!["footnote is a list"],
-                                    }
-                                ],
-                            }),
-                        ],
-                    }))
+                    assert_eq!(footnote, Inline::Footnote("a".into()))
                 });
                 check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups);
             }
+        }
+
+        #[test]
+        fn footnote_cycle() {
+            let (root, lookups) = parse_with(
+                &ParseOptions::gfm(),
+                indoc! {r#"
+                Body text[^1][^2].
+
+                [^1]: a footnote that references itself[^1].
+                [^2]: a footnote that starts a cycle[^3].
+                [^3]: cycles back[^2].
+                "#},
+            );
+            unwrap!(&root.children[0], Node::Paragraph(p));
+            assert_eq!(p.children.len(), 4);
+
+            // first child: the paragraph
+            check!(&p.children[0], Node::Text(_), lookups => MdElem::Inline(text) = {
+                assert_eq!(
+                    text,
+                    Inline::Text(Text{
+                        variant: TextVariant::Plain,
+                        value: "Body text".to_string(),
+                    })
+                );
+            });
+            check!(&p.children[1], Node::FootnoteReference(_), lookups => MdElem::Inline(footnote) = {
+                assert_eq!(footnote, Inline::Footnote("1".into()))
+            });
+            check!(&p.children[2], Node::FootnoteReference(_), lookups => MdElem::Inline(footnote) = {
+                assert_eq!(footnote, Inline::Footnote("2".into()))
+            });
+            check!(&p.children[3], Node::Text(_), lookups => MdElem::Inline(text) = {
+                assert_eq!(
+                    text,
+                    Inline::Text(Text{
+                        variant: TextVariant::Plain,
+                        value: ".".to_string(),
+                    })
+                );
+            });
+
+            // second child: [^1]
+            check!(no_node: &root.children[1], Node::FootnoteDefinition(_), lookups =>
+                MdContext::empty()
+                    .with("1", vec![MdElem::Paragraph(Paragraph{
+                        body: vec![
+                            mdq_inline!("a footnote that references itself"),
+                            Inline::Footnote("1".into()),
+                            mdq_inline!("."),
+                        ],
+                    })])
+            );
+
+            // third child: [^2]
+            check!(no_node: &root.children[2], Node::FootnoteDefinition(_), lookups =>
+                MdContext::empty()
+                    .with("2", vec![MdElem::Paragraph(Paragraph{
+                        body: vec![
+                            mdq_inline!("a footnote that starts a cycle"),
+                            Inline::Footnote("3".into()),
+                            mdq_inline!("."),
+                        ],
+                    })])
+            );
+
+            // fourth child: [^3]
+            check!(no_node: &root.children[3], Node::FootnoteDefinition(_), lookups =>
+                MdContext::empty()
+                    .with("3", vec![MdElem::Paragraph(Paragraph{
+                        body: vec![
+                            mdq_inline!("cycles back"),
+                            Inline::Footnote("2".into()),
+                            mdq_inline!("."),
+                        ],
+                    })])
+            );
         }
 
         #[test]
@@ -1703,7 +1833,8 @@ mod tests {
 
             let mdast_root = Node::Root(root); // reconstruct it, since parse_with unwrapped it
             NODES_CHECKER.see(&mdast_root);
-            let mdqs = MdElem::from_mdast_0(mdast_root, &lookups).unwrap();
+            let mut footnotes = MdContext::new();
+            let mdqs = MdElem::from_mdast_0(mdast_root, &lookups, &mut footnotes).unwrap();
 
             assert_eq!(
                 mdqs,
@@ -2332,7 +2463,7 @@ mod tests {
         fn check(in_description: &str, expected: &str) {
             let md_str = format!("[{in_description}](https://example.com)");
             let nodes = markdown::to_mdast(&md_str, &ParseOptions::default()).unwrap();
-            let root_elems = MdElem::read(nodes, &ReadOptions::default()).unwrap();
+            let root_elems = MdDoc::read(nodes, &ReadOptions::default()).unwrap().roots;
 
             assert_eq!(
                 root_elems,

@@ -1,7 +1,7 @@
 use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions, UrlAndTitle};
 use crate::link_transform::LinkLabel;
 use crate::output::Output;
-use crate::tree::{CodeBlock, CodeVariant, Inline, LinkDefinition, LinkReference, MdElem, Section};
+use crate::tree::{CodeBlock, CodeVariant, Inline, LinkDefinition, LinkReference, MdContext, MdElem, Section};
 use crate::tree_ref::MdElemRef;
 use markdown::mdast::AlignKind;
 use serde::{Serialize, Serializer};
@@ -148,8 +148,8 @@ pub enum CodeBlockType {
 }
 
 impl<'md> SerdeDoc<'md> {
-    pub fn new(elems: &[MdElemRef<'md>], opts: MdInlinesWriterOptions) -> Self {
-        let mut inlines_writer = MdInlinesWriter::new(opts);
+    pub fn new(elems: &[MdElemRef<'md>], ctx: &'md MdContext, opts: MdInlinesWriterOptions) -> Self {
+        let mut inlines_writer = MdInlinesWriter::new(ctx, opts);
         const DEFAULT_CAPACITY: usize = 16; // we could compute these, but it's not really worth it
         let mut result = Self {
             items: Vec::with_capacity(elems.len()),
@@ -719,7 +719,11 @@ mod tests {
     fn check_with(opts: MdInlinesWriterOptions, elem_ref: MdElemRef, expect: &str) {
         CHECKER.see(&elem_ref);
         let mut actual_bytes = Vec::with_capacity(32);
-        serde_json::to_writer(&mut actual_bytes, &SerdeDoc::new(&[elem_ref], opts)).unwrap();
+        serde_json::to_writer(
+            &mut actual_bytes,
+            &SerdeDoc::new(&[elem_ref], &MdContext::empty(), opts),
+        )
+        .unwrap();
         let actual_string = String::from_utf8(actual_bytes).unwrap();
         assert_eq!(actual_string, expect);
     }

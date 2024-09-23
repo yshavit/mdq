@@ -1,6 +1,6 @@
 use crate::fmt_md_inlines::{LinkLike, MdInlinesWriter, MdInlinesWriterOptions};
 use crate::output::Output;
-use crate::tree::{Inline, LinkReference};
+use crate::tree::{Inline, LinkReference, MdContext};
 use clap::ValueEnum;
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
@@ -33,15 +33,18 @@ pub enum LinkLabel<'md> {
 }
 
 impl<'md> LinkLabel<'md> {
-    pub fn get_sort_string(&self) -> String {
+    pub fn get_sort_string(&self, ctx: &'md MdContext) -> String {
         // There may be a way to Cow this so that we don't have to copy the ::Text string, but I can't find it.
         match self {
             LinkLabel::Text(s) => s.to_string(),
             LinkLabel::Inline(inlines) => {
-                let mut inline_writer = MdInlinesWriter::new(MdInlinesWriterOptions {
-                    link_format: LinkTransform::Keep,
-                    renumber_footnotes: false,
-                });
+                let mut inline_writer = MdInlinesWriter::new(
+                    ctx,
+                    MdInlinesWriterOptions {
+                        link_format: LinkTransform::Keep,
+                        renumber_footnotes: false,
+                    },
+                );
                 inlines_to_string(&mut inline_writer, *inlines)
             }
         }
@@ -202,7 +205,7 @@ fn inlines_to_string<'md>(inline_writer: &mut MdInlinesWriter<'md>, inlines: &'m
 mod tests {
     use super::*;
     use crate::mdq_inline;
-    use crate::tree::{Link, LinkDefinition, Text, TextVariant};
+    use crate::tree::{Link, LinkDefinition, MdContext, Text, TextVariant};
     use crate::variants_checker;
 
     enum Combo {
@@ -418,10 +421,14 @@ mod tests {
     #[test]
     fn smoke_test_multi() {
         let mut transformer = LinkTransformer::from(LinkTransform::Reference);
-        let mut iw = MdInlinesWriter::new(MdInlinesWriterOptions {
-            link_format: LinkTransform::Keep,
-            renumber_footnotes: false,
-        });
+        let ctx = MdContext::empty();
+        let mut iw = MdInlinesWriter::new(
+            &ctx,
+            MdInlinesWriterOptions {
+                link_format: LinkTransform::Keep,
+                renumber_footnotes: false,
+            },
+        );
 
         // [alpha](https://example.com) ==> [alpha][1]
         let alpha = make_link("alpha", LinkReference::Inline);
@@ -505,10 +512,14 @@ mod tests {
                 orig_reference: reference,
             } = self;
             let mut transformer = LinkTransformer::from(transform);
-            let mut iw = MdInlinesWriter::new(MdInlinesWriterOptions {
-                link_format: LinkTransform::Keep,
-                renumber_footnotes: false,
-            });
+            let ctx = MdContext::empty();
+            let mut iw = MdInlinesWriter::new(
+                &ctx,
+                MdInlinesWriterOptions {
+                    link_format: LinkTransform::Keep,
+                    renumber_footnotes: false,
+                },
+            );
             let link = Link {
                 text: vec![label],
                 link_definition: LinkDefinition {

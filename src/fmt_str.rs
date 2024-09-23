@@ -21,7 +21,7 @@ fn build_inline(out: &mut String, elem: &Inline) {
         Inline::Image(Image { alt, .. }) => out.push_str(alt),
         Inline::Footnote(footnote) => {
             out.push_str("[^");
-            out.push_str(&footnote.label);
+            out.push_str(&footnote);
             out.push(']');
         }
     }
@@ -32,7 +32,7 @@ mod tests {
     use super::*;
     use indoc::indoc;
 
-    use crate::tree::{FormattingVariant, Inline, MdElem, ReadOptions, TextVariant};
+    use crate::tree::{FormattingVariant, Inline, MdDoc, MdElem, ReadOptions, TextVariant};
     use crate::unwrap;
     use markdown::ParseOptions;
 
@@ -67,7 +67,7 @@ mod tests {
     #[test]
     fn inline_html() {
         let node = markdown::to_mdast("Hello <foo> world", &ParseOptions::gfm()).unwrap();
-        let md_elems = MdElem::read(node, &ReadOptions::default()).unwrap();
+        let md_elems = MdDoc::read(node, &ReadOptions::default()).unwrap().roots;
         unwrap!(&md_elems[0], MdElem::Paragraph(contents));
         unwrap!(&contents.body[1], inline @ Inline::Text(_));
         VARIANTS_CHECKER.see(inline);
@@ -118,7 +118,7 @@ mod tests {
         let mut options = ParseOptions::gfm();
         options.constructs.math_text = true;
         let node = markdown::to_mdast(md, &options).unwrap();
-        let md_elems = MdElem::read(node, &ReadOptions::default()).unwrap();
+        let md_elems = MdDoc::read(node, &ReadOptions::default()).unwrap().roots;
         unwrap!(&md_elems[0], MdElem::Paragraph(p));
         p.body.iter().for_each(|inline| VARIANTS_CHECKER.see(inline));
         let actual = inlines_to_plain_string(&p.body);
