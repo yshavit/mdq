@@ -1,7 +1,8 @@
+use markdown::mdast::AlignKind;
 use std::borrow::Borrow;
 use std::fmt::Alignment;
-
-use markdown::mdast::AlignKind;
+use std::iter::Peekable;
+use std::str::CharIndices;
 
 use crate::output::{Output, SimpleWrite};
 
@@ -108,6 +109,64 @@ impl<'a, W: SimpleWrite> std::fmt::Write for CountingWriter<'a, W> {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum WhitespaceSplit<'a> {
+    /// A stretch of at least one whitespace.
+    Whitespace,
+    /// A word, along with its length in chars.
+    ///
+    /// The length component is the same as `word.chars().count()`, but is provided here for
+    /// convenience and efficiency (since the iterator would have had to find the chars to do the
+    /// split, anyway).
+    Word(&'a str, usize),
+}
+
+pub struct WhitespaceSplitter<'a> {
+    text: &'a str,
+    chars: Peekable<CharIndices<'a>>,
+}
+
+impl<'a> From<&'a str> for WhitespaceSplitter<'a> {
+    fn from(text: &'a str) -> Self {
+        Self {
+            text,
+            chars: text.char_indices().peekable(),
+        }
+    }
+}
+
+impl<'a> Iterator for WhitespaceSplitter<'a> {
+    type Item = WhitespaceSplit<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let Some((next_idx, next_ch)) = self.chars.next() else {
+            return None;
+        };
+        if next_ch.is_ascii_whitespace() {
+            while matches!(self.chars.peek(), Some((_, future_ch)) if future_ch.is_whitespace()) {
+                self.chars.next();
+            }
+            Some(WhitespaceSplit::Whitespace)
+        } else {
+            let start_idx = next_idx;
+            let mut end_idx_inclusive = start_idx;
+            let mut chars_count = 1; // start at 1 since we already have the first char
+            while let Some((future_idx, future_ch)) = self.chars.peek() {
+                if future_ch.is_ascii_whitespace() {
+                    break;
+                }
+                end_idx_inclusive = *future_idx;
+                self.chars.next();
+                chars_count += 1;
+            }
+            Some(WhitespaceSplit::Word(
+                &self.text[start_idx..=end_idx_inclusive],
+                chars_count,
+            ))
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -145,6 +204,53 @@ mod test {
     fn string_already_too_big() {
         for align in [Alignment::Left, Alignment::Center, Alignment::Right] {
             assert_eq!("abcdef", output_and_get(|out| pad_to(out, "abcdef", 3, align)));
+        }
+    }
+
+    mod whitespace_splitter {
+        use super::*;
+
+        #[test]
+        fn empty() {
+            assert_eq!(get_splits(""), vec![]);
+        }
+
+        #[test]
+        fn all_whitespace() {
+            assert_eq!(get_splits(" \t\n\r "), vec![WhitespaceSplit::Whitespace]);
+        }
+
+        #[test]
+        fn all_word() {
+            assert_eq!(get_splits("hello"), vec![WhitespaceSplit::Word("hello", 5)]);
+        }
+
+        #[test]
+        fn mixed_start_and_end_with_whitespace() {
+            assert_eq!(
+                get_splits(" hello "),
+                vec![
+                    WhitespaceSplit::Whitespace,
+                    WhitespaceSplit::Word("hello", 5),
+                    WhitespaceSplit::Whitespace,
+                ]
+            );
+        }
+
+        #[test]
+        fn mixed_start_and_end_with_word() {
+            assert_eq!(
+                get_splits("hello, world"),
+                vec![
+                    WhitespaceSplit::Word("hello,", 6),
+                    WhitespaceSplit::Whitespace,
+                    WhitespaceSplit::Word("world", 5),
+                ]
+            );
+        }
+
+        fn get_splits(text: &str) -> Vec<WhitespaceSplit> {
+            WhitespaceSplitter::from(text).collect()
         }
     }
 

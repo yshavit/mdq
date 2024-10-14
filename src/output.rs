@@ -1,7 +1,7 @@
+use crate::str_utils::{WhitespaceSplit, WhitespaceSplitter};
 use std::borrow::Cow;
 use std::cmp::PartialEq;
-use std::fmt::Write;
-use std::ops::{Index, Range};
+use std::ops::{Deref, Range};
 
 pub trait SimpleWrite {
     fn write_str(&mut self, text: &str) -> std::io::Result<()>;
@@ -39,8 +39,8 @@ pub struct Output<W: SimpleWrite> {
     pending_blocks: Vec<Block>,
     pending_newlines: usize,
     pending_padding_after_indent: usize,
-    chars_written_to_latest_line: usize,
     writing_state: WritingState,
+    current_line_chars: CurrentLineChars,
 }
 
 impl<W: SimpleWrite> SimpleWrite for Output<W> {
@@ -92,8 +92,8 @@ impl<W: SimpleWrite> Output<W> {
             pending_blocks: Vec::default(),
             pending_newlines: 0,
             pending_padding_after_indent: 0,
-            chars_written_to_latest_line: 0,
             writing_state: WritingState::HaveNotWrittenAnything,
+            current_line_chars: CurrentLineChars::default(),
         }
     }
 
@@ -163,7 +163,7 @@ impl<W: SimpleWrite> Output<W> {
         }
     }
 
-    fn rewrap_text<'a>(&self, text: &'a str) -> Cow<'a, str> {
+    fn rewrap_text<'a>(&mut self, text: &'a str) -> Cow<'a, str> {
         let wrap = match self.blocks.last() {
             None => self.text_width, // shouldn't actually happen, but assume a normal paragraph
             Some(Block::Plain(true)) => self.text_width,
@@ -180,21 +180,37 @@ impl<W: SimpleWrite> Output<W> {
         // We can guess the number of newlines we'll need as (total length / line length). Add a bit
         // for a fudge factor, cause under-allocating is more expensive than over-allocating.
         let mut result = String::with_capacity((text.len() / wrap) + 16);
-        let mut current_wrap = wrap - self.chars_written_to_latest_line;
-        let mut chars_written_to_line = 0;
-        for word in without_newlines.split_ascii_whitespace() {
-            let word_chars = word.chars().count();
-            if chars_written_to_line > 0 {
-                if chars_written_to_line + word_chars > current_wrap {
-                    result.push('\n');
-                    chars_written_to_line = 0;
+        let current_line_len = self.current_line_chars.len();
+        let mut current_wrap = if current_line_len >= wrap {
+            result.push('\n');
+            0
+        } else {
+            wrap - current_line_len
+        };
+        let mut chars_written_to_line = self.current_line_chars.len();
+        for word_or_whitespace in WhitespaceSplitter::from(without_newlines.deref()) {
+            match word_or_whitespace {
+                WhitespaceSplit::Whitespace => self.current_line_chars.pending_space = true,
+                WhitespaceSplit::Word(word, word_char_len) => {
+                    let mut required_available_length = word_char_len;
+                    if self.current_line_chars.pending_space {
+                        required_available_length += 1;
+                    }
+
+                    if chars_written_to_line > 0 {
+                        if chars_written_to_line + required_available_length > current_wrap {
+                            result.push('\n');
+                            chars_written_to_line = 0;
+                        } else if self.current_line_chars.pending_space {
+                            result.push(' ');
+                            chars_written_to_line += 1;
+                        }
+                    }
+                    result.push_str(word);
+                    chars_written_to_line += word_char_len;
+                    current_wrap = wrap;
                 }
-            } else {
-                result.push(' ');
-                chars_written_to_line += 1;
             }
-            chars_written_to_line += word_chars;
-            current_wrap = wrap;
         }
         Cow::Owned(result)
     }
@@ -312,17 +328,7 @@ impl<W: SimpleWrite> Output<W> {
         if matches!(self.writing_state, WritingState::HaveNotWrittenAnything) {
             self.writing_state = WritingState::Normal;
         }
-        // You can't get the chars without going left-to-right on the string's bytes, so we can't
-        // just search right-to-left until we get the newline.
-        let mut chars_after_last_newline = 0;
-        for ch in text.chars() {
-            if ch == '\n' || ch == '\r' {
-                chars_after_last_newline = 0
-            } else {
-                chars_after_last_newline += 1;
-            }
-        }
-        self.chars_written_to_latest_line += chars_after_last_newline;
+        self.current_line_chars.see(text);
     }
 }
 
@@ -381,6 +387,37 @@ enum WritingState {
 
     /// There's been an error in writing. From here on in, everything will be a noop.
     Error,
+}
+
+#[derive(Debug, Default)]
+struct CurrentLineChars {
+    count: usize,
+    pending_space: bool,
+}
+
+impl CurrentLineChars {
+    fn len(&self) -> usize {
+        self.count + if self.pending_space { 1 } else { 0 }
+    }
+
+    fn see(&mut self, text: &str) {
+        // You can't get the chars without going left-to-right on the string's bytes, so we can't
+        // just search right-to-left until we get the newline.
+        for ch in text.chars() {
+            if ch == '\n' || ch == '\r' {
+                self.count = 0;
+                self.pending_space = false;
+            } else if ch.is_ascii_whitespace() {
+                self.pending_space = true;
+            } else {
+                if self.pending_space {
+                    self.pending_space = false;
+                    self.count += 1;
+                }
+                self.count += 1;
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -652,6 +689,46 @@ mod tests {
                 ^^^
             "#}
         );
+    }
+
+    mod wrapping {
+        use super::*;
+
+        #[test]
+        fn simple_wrap() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    out.write_str("Hello the world");
+                }),
+                indoc! {r#"
+                Hello the
+                world"#}
+            );
+        }
+
+        #[test]
+        fn incremental_wrap() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    for ch in "Hello the world".chars() {
+                        out.write_char(ch)
+                    }
+                }),
+                indoc! {r#"
+                Hello the
+                world"#}
+            );
+        }
+
+        fn out_to_str_wrapped<F>(wrap: usize, action: F) -> String
+        where
+            F: FnOnce(&mut Output<String>),
+        {
+            let mut out = Output::new(String::new());
+            out.text_width = Some(wrap);
+            action(&mut out);
+            out.take_underlying().unwrap()
+        }
     }
 
     fn out_to_str<F>(action: F) -> String
