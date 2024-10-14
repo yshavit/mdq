@@ -119,7 +119,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                 self.write_md(out, items.iter().map(|elem| elem.into()), false);
             }
             MdElemRef::Section(Section { depth, title, body }) => {
-                out.with_block(Block::Plain, |out| {
+                out.with_block(Block::Plain(false), |out| {
                     for _ in 0..*depth {
                         out.write_str("#");
                     }
@@ -136,7 +136,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
             }
             MdElemRef::ThematicBreak => {
                 if !prev_was_thematic_break {
-                    out.with_block(Block::Plain, |out| out.write_str("   -----"));
+                    out.with_block(Block::Plain(false), |out| out.write_str("   -----"));
                 }
                 self.prev_was_thematic_break = true;
             }
@@ -157,7 +157,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
             }
             MdElemRef::Link(link) => self.inlines_writer.write_linklike(out, link),
             MdElemRef::Image(image) => self.inlines_writer.write_linklike(out, image),
-            MdElemRef::Html(html) => out.with_block(Block::Plain, |out| {
+            MdElemRef::Html(html) => out.with_block(Block::Plain(true), |out| {
                 out.write_str(html.0);
             }),
         }
@@ -177,7 +177,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
     }
 
     fn write_paragraph<W: SimpleWrite>(&mut self, out: &mut Output<W>, paragraph: &'md Paragraph) {
-        out.with_block(Block::Plain, |out| {
+        out.with_block(Block::Plain(true), |out| {
             self.inlines_writer.write_line(out, &paragraph.body);
         });
     }
@@ -189,7 +189,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
     }
 
     fn write_list<W: SimpleWrite>(&mut self, out: &mut Output<W>, list: &'md List) {
-        out.with_block(Block::Plain, |out| {
+        out.with_block(Block::Plain(true), |out| {
             let mut index = list.starting_index;
             // let mut prefix = String::with_capacity(8); // enough for "12. [ ] "
             for item in &list.items {
@@ -415,7 +415,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
         if add_break {
             self.write_one_md(out, MdElemRef::ThematicBreak);
         }
-        out.with_block(Block::Plain, move |out| {
+        out.with_block(Block::Plain(true), move |out| {
             let mut remaining_defs = 0;
             if matches!(which, DefinitionsToWrite::Links | DefinitionsToWrite::Both) {
                 remaining_defs += self.inlines_writer.count_pending_links();

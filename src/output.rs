@@ -31,6 +31,7 @@ impl<W: std::io::Write> SimpleWrite for Stream<W> {
 
 pub struct Output<W: SimpleWrite> {
     stream: W,
+    text_width: Option<usize>,
     pre_mode: bool,
     blocks: Vec<Block>,
     pending_blocks: Vec<Block>,
@@ -56,8 +57,11 @@ pub struct PreWriter<'a, W: SimpleWrite> {
 
 #[derive(Debug, PartialEq)]
 pub enum Block {
-    /// A plain block; just paragraph text.
-    Plain,
+    /// A plain block; just paragraph text. The `bool` controls whether wrapping is enabled.
+    ///
+    /// This only matters if the output has a fixed text width. If it does not, this parameter is
+    /// ignored.
+    Plain(bool),
     /// A quoted block (`> `)
     Quote,
     /// A block that does *not* start with newlines, but does add indentation. It ends in a single newline.
@@ -79,6 +83,7 @@ impl<W: SimpleWrite> Output<W> {
     pub fn new(to: W) -> Self {
         Self {
             stream: to,
+            text_width: None,
             pre_mode: false,
             blocks: Vec::default(),
             pending_blocks: Vec::default(),
@@ -112,7 +117,7 @@ impl<W: SimpleWrite> Output<W> {
     where
         F: for<'a> FnOnce(&mut PreWriter<W>),
     {
-        self.push_block(Block::Plain);
+        self.push_block(Block::Plain(false));
         self.pre_mode = true;
         action(&mut PreWriter { output: self });
         self.pre_mode = false;
@@ -130,7 +135,7 @@ impl<W: SimpleWrite> Output<W> {
         let newlines = match self.blocks.pop() {
             None => 0,
             Some(closing_block) => match closing_block {
-                Block::Plain => 2,
+                Block::Plain(_) => 2,
                 Block::Quote => 2,
                 Block::Inlined(_) => 1,
             },
@@ -157,7 +162,7 @@ impl<W: SimpleWrite> Output<W> {
         self.write_str(&String::from(ch))
     }
 
-    // Writes text which is assumed to not have any nwlines
+    // Writes text which is assumed to not have any newlines
     fn write_line(&mut self, text: &str) {
         // If we have any pending blocks, handle those first. We need to add a paragraph break, unless the first block
         // is an Inlined.
@@ -211,7 +216,7 @@ impl<W: SimpleWrite> Output<W> {
         self.pending_padding_after_indent = 0;
         for idx in range.unwrap_or_else(|| 0..self.blocks.len()) {
             match &self.blocks[idx] {
-                Block::Plain => {}
+                Block::Plain(_) => {}
                 Block::Quote => {
                     self.write_padding_after_indent();
                     self.write_raw(">");
@@ -353,7 +358,7 @@ mod tests {
         assert_eq!(
             out_to_str(|out| {
                 out.write_str("before");
-                out.with_block(Block::Plain, |out| {
+                out.with_block(Block::Plain(false), |out| {
                     out.write_str("hello\nworld");
                 });
                 out.write_str("after");
@@ -410,13 +415,13 @@ mod tests {
         assert_eq!(
             out_to_str(|out| {
                 out.write_str("before");
-                out.with_block(Block::Plain, |out| {
+                out.with_block(Block::Plain(false), |out| {
                     out.with_block(Block::Inlined(3), |out| {
                         out.write_str("directly in\nthe inlined block");
                     });
                     out.with_block(Block::Inlined(3), |out| {
-                        out.with_block(Block::Plain, |out| out.write_str("paragraph 1"));
-                        out.with_block(Block::Plain, |out| out.write_str("paragraph 2"));
+                        out.with_block(Block::Plain(false), |out| out.write_str("paragraph 1"));
+                        out.with_block(Block::Plain(false), |out| out.write_str("paragraph 2"));
                     });
                 });
             }),
@@ -438,22 +443,22 @@ mod tests {
             out_to_str(|out| {
                 out.write_str("1. ");
                 out.with_block(Block::Inlined(3), |out| {
-                    out.with_block(Block::Plain, |out| {
+                    out.with_block(Block::Plain(false), |out| {
                         out.write_str("First item");
                     });
-                    out.with_block(Block::Plain, |out| {
+                    out.with_block(Block::Plain(false), |out| {
                         out.write_str("It has two paragraphs.");
                     });
                 });
                 out.write_str("2. ");
                 out.with_block(Block::Inlined(3), |out| {
-                    out.with_block(Block::Plain, |out| {
+                    out.with_block(Block::Plain(false), |out| {
                         out.write_str("Second item.");
                     });
                 });
                 out.write_str("3. ");
                 out.with_block(Block::Inlined(3), |out| {
-                    out.with_block(Block::Plain, |out| {
+                    out.with_block(Block::Plain(false), |out| {
                         out.write_str("Third item");
                     });
                 });
