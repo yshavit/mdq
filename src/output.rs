@@ -1,5 +1,7 @@
+use std::borrow::Cow;
 use std::cmp::PartialEq;
-use std::ops::Range;
+use std::fmt::Write;
+use std::ops::{Index, Range};
 
 pub trait SimpleWrite {
     fn write_str(&mut self, text: &str) -> std::io::Result<()>;
@@ -37,6 +39,7 @@ pub struct Output<W: SimpleWrite> {
     pending_blocks: Vec<Block>,
     pending_newlines: usize,
     pending_padding_after_indent: usize,
+    chars_written_to_latest_line: usize,
     writing_state: WritingState,
 }
 
@@ -89,6 +92,7 @@ impl<W: SimpleWrite> Output<W> {
             pending_blocks: Vec::default(),
             pending_newlines: 0,
             pending_padding_after_indent: 0,
+            chars_written_to_latest_line: 0,
             writing_state: WritingState::HaveNotWrittenAnything,
         }
     }
@@ -144,9 +148,10 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     pub fn write_str(&mut self, text: &str) {
+        let resolved_text = self.rewrap_text(text);
         let newlines_re = if self.pre_mode { "\n" } else { "\n+" };
         let lines = regex::Regex::new(newlines_re).unwrap();
-        let mut lines = lines.split(text).peekable();
+        let mut lines = lines.split(&resolved_text).peekable();
         while let Some(line) = lines.next() {
             self.write_line(line);
             if !line.is_empty() {
@@ -156,6 +161,42 @@ impl<W: SimpleWrite> Output<W> {
                 self.ensure_newlines(NewlinesRequest::AtLeast(1));
             }
         }
+    }
+
+    fn rewrap_text<'a>(&self, text: &'a str) -> Cow<'a, str> {
+        let wrap = match self.blocks.last() {
+            None => self.text_width, // shouldn't actually happen, but assume a normal paragraph
+            Some(Block::Plain(true)) => self.text_width,
+            Some(Block::Quote) => self.text_width,
+
+            Some(Block::Plain(false)) => None,
+            Some(Block::Inlined(_)) => None,
+        };
+        let Some(wrap) = wrap else { return Cow::Borrowed(text) };
+
+        let re = regex::Regex::new(" *\n *").unwrap();
+        let without_newlines = re.replace_all(text, " ");
+
+        // We can guess the number of newlines we'll need as (total length / line length). Add a bit
+        // for a fudge factor, cause under-allocating is more expensive than over-allocating.
+        let mut result = String::with_capacity((text.len() / wrap) + 16);
+        let mut current_wrap = wrap - self.chars_written_to_latest_line;
+        let mut chars_written_to_line = 0;
+        for word in without_newlines.split_ascii_whitespace() {
+            let word_chars = word.chars().count();
+            if chars_written_to_line > 0 {
+                if chars_written_to_line + word_chars > current_wrap {
+                    result.push('\n');
+                    chars_written_to_line = 0;
+                }
+            } else {
+                result.push(' ');
+                chars_written_to_line += 1;
+            }
+            chars_written_to_line += word_chars;
+            current_wrap = wrap;
+        }
+        Cow::Owned(result)
     }
 
     pub fn write_char(&mut self, ch: char) {
@@ -206,8 +247,8 @@ impl<W: SimpleWrite> Output<W> {
         // Finally, write the text
         if !text.is_empty() {
             self.write_padding_after_indent();
+            self.write_raw(text);
         }
-        self.write_raw(text);
     }
 
     /// Write an indentation for a given range of indentation block. If `include_inlines` is false, `Inlined` blocks
@@ -271,6 +312,17 @@ impl<W: SimpleWrite> Output<W> {
         if matches!(self.writing_state, WritingState::HaveNotWrittenAnything) {
             self.writing_state = WritingState::Normal;
         }
+        // You can't get the chars without going left-to-right on the string's bytes, so we can't
+        // just search right-to-left until we get the newline.
+        let mut chars_after_last_newline = 0;
+        for ch in text.chars() {
+            if ch == '\n' || ch == '\r' {
+                chars_after_last_newline = 0
+            } else {
+                chars_after_last_newline += 1;
+            }
+        }
+        self.chars_written_to_latest_line += chars_after_last_newline;
     }
 }
 

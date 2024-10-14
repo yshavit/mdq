@@ -5,7 +5,6 @@ use crate::select::ParseError;
 use crate::tree::{MdDoc, ReadOptions};
 use crate::tree_ref::MdElemRef;
 use crate::tree_ref_serde::SerdeDoc;
-use clap::CommandFactory;
 use cli::{Cli, OutputFormat};
 use output::Output;
 use select::MdqRefSelector;
