@@ -31,7 +31,7 @@ impl<W: std::io::Write> SimpleWrite for Stream<W> {
 
 pub struct Output<W: SimpleWrite> {
     stream: W,
-    text_width: Option<usize>,
+    pub text_width: Option<usize>,
     pre_mode: bool,
     blocks: Vec<Block>,
     pending_blocks: Vec<Block>,
@@ -59,7 +59,7 @@ pub struct PreWriter<'a, W: SimpleWrite> {
 pub enum Block {
     /// A plain block; just paragraph text. The `bool` controls whether wrapping is enabled.
     ///
-    /// This only matters if the output has a fixed text width. If it does not, this parameter is
+    /// This only matters if the output has a `text_width`. If it does not, this parameter is
     /// ignored.
     Plain(bool),
     /// A quoted block (`> `)
