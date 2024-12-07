@@ -32,8 +32,10 @@ impl<W: std::io::Write> SimpleWrite for Stream<W> {
 }
 
 pub struct Output<W: SimpleWrite> {
-    stream: W,
+    /// The width to which wrappable text (like plain paragraphs) should wrap. This only affects
+    /// text in certain blocks.
     pub text_width: Option<usize>,
+    stream: W,
     pre_mode: bool,
     blocks: Vec<Block>,
     pending_blocks: Vec<Block>,
@@ -718,6 +720,11 @@ mod tests {
                 Hello the
                 world"#}
             );
+            todo!("how do we stop things like URLs from wrapping? they definitely shouldn't!")
+            // "Markdown applications don’t agree on how to handle spaces in the middle of a URL."
+            // from https://www.markdownguide.org/basic-syntax/#link-best-practices
+            // Maybe we need a new block type that doesn't add any newline at all, but just prevents
+            // indentation?
         }
 
         fn out_to_str_wrapped<F>(wrap: usize, action: F) -> String
