@@ -346,7 +346,7 @@ impl MdElem {
     fn from_mdast_0(node: mdast::Node, lookups: &Lookups, ctx: &mut MdContext) -> Result<Vec<Self>, InvalidMd> {
         let result = match node {
             mdast::Node::Root(node) => return MdElem::all(node.children, lookups, ctx),
-            mdast::Node::BlockQuote(node) => m_node!(MdElem::BlockQuote {
+            mdast::Node::Blockquote(node) => m_node!(MdElem::BlockQuote {
                 body: MdElem::all(node.children, lookups, ctx)?,
             }),
             mdast::Node::List(node) => {
@@ -888,7 +888,7 @@ mod tests {
         fn block_quote() {
             let (root, lookups) = parse("> hello");
             let child = &root.children[0];
-            check!(child, Node::BlockQuote(_), lookups => m_node!(MdElem::BlockQuote{body}) = {
+            check!(child, Node::Blockquote(_), lookups => m_node!(MdElem::BlockQuote{body}) = {
                 assert_eq!(body, md_elems!["hello"]);
             });
         }
@@ -1956,7 +1956,7 @@ mod tests {
         }
 
         crate::variants_checker!(NODES_CHECKER = Node {
-            BlockQuote(_),
+            Blockquote(_),
             Break(_),
             Code(_),
             Definition(_),
