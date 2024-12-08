@@ -47,7 +47,7 @@ impl<'a, 'md> FootnoteTransformerToString<'a, 'md> {
     fn new(transformer: &'a mut FootnoteTransformer<'md>) -> Self {
         Self {
             transformer,
-            scratch: Output::new_unwrapped(String::new()),
+            scratch: Output::without_text_wrapping(String::new()),
         }
     }
 
@@ -99,7 +99,7 @@ mod test {
         // write nine labels; we don't care about the results
         let nine_labels: Vec<_> = (1..10).map(|i| format!("footnote-{i}")).collect();
         for label in &nine_labels {
-            transformer.write(&mut Output::new_unwrapped(String::new()), &label);
+            transformer.write(&mut Output::without_text_wrapping(String::new()), &label);
         }
 
         // the tenth label should remap to "10" with an expected len of 2
@@ -119,7 +119,7 @@ mod test {
             expect_transformed_len
         );
 
-        let mut output = Output::new_unwrapped(String::with_capacity(expect.len()));
+        let mut output = Output::without_text_wrapping(String::with_capacity(expect.len()));
         transformer.write(&mut output, input);
         let actual = output.take_underlying().unwrap();
         assert_eq!(&actual, expect);

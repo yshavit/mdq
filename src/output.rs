@@ -103,15 +103,17 @@ pub struct PreWriter<'a, W: SimpleWrite> {
     output: &'a mut Output<W>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Block {
     /// A plain block; just paragraph text. The `bool` controls whether wrapping is enabled.
     ///
     /// This only matters if the output has a `text_width`. If it does not, this parameter is
     /// ignored.
     Plain(bool),
+
     /// A quoted block (`> `)
     Quote,
+
     /// A block that does *not* start with newlines, but does add indentation. It ends in a single newline.
     /// **This block affects its first child block**, in that it suppresses that block's newlines.
     ///
@@ -125,13 +127,12 @@ pub enum Block {
     ///
     /// (where `§` signifies the start and end of an inlined paragraph)
     Inlined(usize),
+
+    /// Not a block, but a marker that the contained text may not be wrapped.
+    NoWrap,
 }
 
 impl<W: SimpleWrite> Output<W> {
-    pub fn new_unwrapped(to: W) -> Self {
-        Self::new(to, OutputOpts { text_width: None })
-    }
-
     pub fn new(to: W, opts: OutputOpts) -> Self {
         Self {
             stream: to,
@@ -144,6 +145,10 @@ impl<W: SimpleWrite> Output<W> {
             writing_state: WritingState::HaveNotWrittenAnything,
             current_line_chars: CurrentLineChars::default(),
         }
+    }
+
+    pub fn without_text_wrapping(to: W) -> Self {
+        Self::new(to, OutputOpts { text_width: None })
     }
 
     pub fn replace_underlying(&mut self, new: W) -> std::io::Result<W> {
@@ -177,6 +182,15 @@ impl<W: SimpleWrite> Output<W> {
         self.pop_block();
     }
 
+    pub fn without_wrapping<F>(&mut self, action: F)
+    where
+        F: for<'a> FnOnce(&mut Self),
+    {
+        self.push_block(Block::NoWrap);
+        action(self);
+        self.pop_block();
+    }
+
     fn push_block(&mut self, block: Block) {
         self.pending_blocks.push(block);
     }
@@ -192,9 +206,12 @@ impl<W: SimpleWrite> Output<W> {
                 Block::Plain(_) => 2,
                 Block::Quote => 2,
                 Block::Inlined(_) => 1,
+                Block::NoWrap => 0,
             },
         };
-        self.ensure_newlines(NewlinesRequest::Exactly(newlines));
+        if newlines > 0 {
+            self.ensure_newlines(NewlinesRequest::Exactly(newlines));
+        }
     }
 
     fn flush_pending_lines(&mut self, add_trailing_newline: bool) {
@@ -212,6 +229,10 @@ impl<W: SimpleWrite> Output<W> {
 
     pub fn write_str(&mut self, text: &str) {
         let resolved_text = self.rewrap_text(text);
+        // TODO here we should also loop on any text from the buffer that's ready -- that is, like
+        // drain_all but without first adding the still-being-built line. Otherwise, a long input
+        // will cause some buffering that won't actually get drained until the block pops. That's
+        // not actually a problem, but we may as well flush it sooner rather than later.
         let newlines_re = if self.pre_mode { "\n" } else { "\n+" };
         let lines = regex::Regex::new(newlines_re).unwrap();
         let mut lines = lines.split(&resolved_text).peekable();
@@ -226,14 +247,19 @@ impl<W: SimpleWrite> Output<W> {
         }
     }
 
+    fn next_block(&self) -> Option<Block> {
+        self.pending_blocks.last().or_else(|| self.blocks.last()).map(|b| *b)
+    }
+
     fn rewrap_text<'a>(&mut self, text: &'a str) -> Cow<'a, str> {
-        let wrap = match &self.blocks.last() {
+        let wrap = match &self.next_block() {
             None // shouldn't happen outside tests, but assume normal paragraph
             | Some(Block::Plain(true))
             | Some(Block::Quote)
             => Some(&mut self.wrap_buffer),
             Some(Block::Plain(false))
-            |Some(Block::Inlined(_))
+            | Some(Block::Inlined(_))
+            | Some(Block::NoWrap)
             => None,
         };
 
@@ -344,7 +370,7 @@ impl<W: SimpleWrite> Output<W> {
         self.pending_padding_after_indent = 0;
         for idx in range.unwrap_or_else(|| 0..self.blocks.len()) {
             match &self.blocks[idx] {
-                Block::Plain(_) => {}
+                Block::Plain(_) | Block::NoWrap => {}
                 Block::Quote => {
                     self.write_padding_after_indent();
                     self.write_raw(">");
@@ -778,6 +804,18 @@ mod tests {
         }
 
         #[test]
+        fn no_wrap() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    out.with_block(Block::NoWrap, |out| {
+                        out.write_str("Hello the world");
+                    });
+                }),
+                "Hello the world"
+            );
+        }
+
+        #[test]
         fn incremental_wrap() {
             assert_eq!(
                 out_to_str_wrapped(9, |out| {
@@ -789,11 +827,20 @@ mod tests {
                 Hello the
                 world"#}
             );
-            todo!("how do we stop things like URLs from wrapping? they definitely shouldn't!")
-            // "Markdown applications don’t agree on how to handle spaces in the middle of a URL."
-            // from https://www.markdownguide.org/basic-syntax/#link-best-practices
-            // Maybe we need a new block type that doesn't add any newline at all, but just prevents
-            // indentation?
+        }
+
+        #[test]
+        fn word_is_longer_than_wrap() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    out.write_str("hello_the_world_1 a hello_the_world_2 b");
+                }),
+                indoc! {r#"
+                hello_the_world_1
+                a
+                hello_the_world_2
+                b"#}
+            );
         }
 
         fn out_to_str_wrapped<F>(wrap: usize, action: F) -> String
@@ -811,7 +858,7 @@ mod tests {
     where
         F: FnOnce(&mut Output<String>),
     {
-        let mut out = Output::new_unwrapped(String::new());
+        let mut out = Output::without_text_wrapping(String::new());
         action(&mut out);
         out.take_underlying().unwrap()
     }

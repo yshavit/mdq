@@ -195,13 +195,16 @@ impl CharCountingStringBuffer {
 
     pub fn push_whitespace(&mut self) {
         if !self.ends_with_space {
-            self.value.push(' ');
+            // defer the actual push(' ') until we have another word; this prevents trailing spaces
             self.char_len += 1;
             self.ends_with_space = true;
         }
     }
 
     pub fn push_str(&mut self, text: &str, text_chars_len: usize, text_ends_with_space: bool) {
+        if self.ends_with_space {
+            self.value.push(' ');
+        }
         self.value.push_str(text);
         self.char_len += text_chars_len;
         self.ends_with_space = text_ends_with_space;
@@ -315,7 +318,7 @@ mod test {
     where
         F: FnOnce(&mut Output<String>),
     {
-        let mut output = Output::new_unwrapped(String::new());
+        let mut output = Output::without_text_wrapping(String::new());
         action(&mut output);
         output.take_underlying().unwrap()
     }

@@ -194,7 +194,7 @@ impl ReferenceAssigner {
 /// Turns the inlines into a String. Unlike [crate::fmt_str::inlines_to_plain_string], this respects formatting spans
 /// like emphasis, strong, etc.
 fn inlines_to_string<'md>(inline_writer: &mut MdInlinesWriter<'md>, inlines: &'md Vec<Inline>) -> String {
-    let mut string_writer = Output::new_unwrapped(String::with_capacity(32)); // guess at capacity
+    let mut string_writer = Output::without_text_wrapping(String::with_capacity(32)); // guess at capacity
     inline_writer.write_line(&mut string_writer, inlines);
     string_writer
         .take_underlying()

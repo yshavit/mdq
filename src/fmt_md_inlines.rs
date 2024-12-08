@@ -271,57 +271,59 @@ impl<'md> MdInlinesWriter<'md> {
         W: SimpleWrite,
         L: LinkLike<'md> + Copy,
     {
-        let (link_type, label, link) = link_like.link_info();
-        if matches!(link_type, LinkLikeType::Image) {
-            out.write_char('!');
-        }
-        out.write_char('[');
-
-        match &label {
-            LinkLabel::Text(text) => self.write_link_descriptions(out, text),
-            LinkLabel::Inline(text) => {
-                // Write to a string, and then dump that to out. This lets us escaping, and will
-                // eventually let us handle matched square brackets.
-                // Note that it's not really worth it to do the transformation "on the fly":
-                // the SimpleWrite trait only writes strings anyway (not chars), so even if we
-                // had an intercepting transform, it would still have to work on allocated strings.
-                // So we may as well just do it once.
-                // This could be output a bit nicer: see #183.
-                let mut sub_out = Output::new_unwrapped(String::with_capacity(64));
-                self.write_line(&mut sub_out, *text);
-                let as_string = sub_out.take_underlying().unwrap();
-                self.write_link_descriptions(out, &as_string);
+        out.without_wrapping(|out| {
+            let (link_type, label, link) = link_like.link_info();
+            if matches!(link_type, LinkLikeType::Image) {
+                out.write_char('!');
             }
-        }
+            out.write_char('[');
 
-        out.write_char(']');
+            match &label {
+                LinkLabel::Text(text) => self.write_link_descriptions(out, text),
+                LinkLabel::Inline(text) => {
+                    // Write to a string, and then dump that to out. This lets us escaping, and will
+                    // eventually let us handle matched square brackets.
+                    // Note that it's not really worth it to do the transformation "on the fly":
+                    // the SimpleWrite trait only writes strings anyway (not chars), so even if we
+                    // had an intercepting transform, it would still have to work on allocated strings.
+                    // So we may as well just do it once.
+                    // This could be output a bit nicer: see #183.
+                    let mut sub_out = Output::without_text_wrapping(String::with_capacity(64));
+                    self.write_line(&mut sub_out, *text);
+                    let as_string = sub_out.take_underlying().unwrap();
+                    self.write_link_descriptions(out, &as_string);
+                }
+            }
 
-        let link_ref = LinkTransformation::new(self.link_transformer.transform_variant(), self, link_like)
-            .apply(&mut self.link_transformer, &link.reference);
-        let reference_to_add = match link_ref {
-            LinkReference::Inline => {
-                out.write_char('(');
-                out.write_str(&link.url);
-                self.write_url_title(out, &link.title);
-                out.write_char(')');
-                None
-            }
-            LinkReference::Full(identifier) => {
-                out.write_char('[');
-                out.write_str(&identifier);
-                out.write_char(']');
-                Some(LinkLabel::Text(Cow::from(identifier)))
-            }
-            LinkReference::Collapsed => {
-                out.write_str("[]");
-                Some(label)
-            }
-            LinkReference::Shortcut => Some(label),
-        };
+            out.write_char(']');
 
-        if let Some(reference_label) = reference_to_add {
-            self.add_link_reference(reference_label, link);
-        }
+            let link_ref = LinkTransformation::new(self.link_transformer.transform_variant(), self, link_like)
+                .apply(&mut self.link_transformer, &link.reference);
+            let reference_to_add = match link_ref {
+                LinkReference::Inline => {
+                    out.write_char('(');
+                    out.write_str(&link.url);
+                    self.write_url_title(out, &link.title);
+                    out.write_char(')');
+                    None
+                }
+                LinkReference::Full(identifier) => {
+                    out.write_char('[');
+                    out.write_str(&identifier);
+                    out.write_char(']');
+                    Some(LinkLabel::Text(Cow::from(identifier)))
+                }
+                LinkReference::Collapsed => {
+                    out.write_str("[]");
+                    Some(label)
+                }
+                LinkReference::Shortcut => Some(label),
+            };
+
+            if let Some(reference_label) = reference_to_add {
+                self.add_link_reference(reference_label, link);
+            }
+        });
     }
 
     fn add_link_reference(&mut self, reference_label: LinkLabel<'md>, link: &'md LinkDefinition) {
@@ -435,7 +437,7 @@ impl TitleQuote {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::output::Output;
+    use crate::output::{Output, OutputOpts};
     use crate::tree::{MdDoc, ReadOptions};
     use crate::unwrap;
     use crate::utils_for_test::get_only;
@@ -475,7 +477,7 @@ mod tests {
             TITLE_QUOTING_CHECKER.see(&strategy);
 
             // +1 to give room for some quotes
-            let mut writer = Output::new_unwrapped(String::with_capacity(input.len() + 4));
+            let mut writer = Output::without_text_wrapping(String::with_capacity(input.len() + 4));
             strategy.escape_to(input, &mut writer);
             let actual = writer.take_underlying().unwrap();
             assert_eq!(&actual, expected);
@@ -567,32 +569,37 @@ mod tests {
         }
 
         fn check_link_description(input_description: &str, expected: &str) {
-            let mut output = Output::new_unwrapped(String::new());
-            let ctx = MdContext::empty();
-            let mut writer = MdInlinesWriter::new(
-                &ctx,
-                MdInlinesWriterOptions {
-                    link_format: LinkTransform::Keep,
-                    renumber_footnotes: false,
-                },
+            check_link(
+                input_description,
+                "https://www.example.com",
+                None,
+                None,
+                format!("[{expected}](https://www.example.com)"),
             );
-            let link = Inline::Link(Link {
-                text: vec![Inline::Text(Text {
-                    variant: TextVariant::Plain,
-                    value: input_description.to_string(),
-                })],
-                link_definition: LinkDefinition {
-                    url: "https://www.example.com".to_string(),
-                    title: None,
-                    reference: LinkReference::Inline,
-                },
-            });
-            writer.write_inline_element(&mut output, &link);
+        }
+    }
 
-            assert_eq!(
-                output.take_underlying().unwrap(),
-                format!("[{expected}](https://www.example.com)")
-            );
+    mod links {
+        use super::*;
+
+        #[test]
+        fn link_text_is_long() {
+            // Wrap at 45 chars. Both the description and the URLs are shorter than
+            // 45 chars, but together they're 50 chars. So, if we went by normal wrapping, the link
+            // would wrap. But, wrapping is disabled within links
+
+            //                                      1         2         3         4
+            //  Whitespace split: 12345678 12345678901234567890123456789012345678901
+            //                             1         2         3         4         5
+            //  Total:            12345678901234567890123456789012345678901234567890
+            let expected: &str = "[19-char description](http://example.com/27-chars)";
+            check_link(
+                "19-char description",
+                "http://example.com/27-chars",
+                None,
+                Some(45),
+                expected,
+            )
         }
     }
 
@@ -615,7 +622,7 @@ mod tests {
         }
 
         fn check_img_alt(input_description: &str, expected: &str) {
-            let mut output = Output::new_unwrapped(String::new());
+            let mut output = Output::without_text_wrapping(String::new());
             let ctx = MdContext::empty();
             let mut writer = MdInlinesWriter::new(
                 &ctx,
@@ -644,7 +651,7 @@ mod tests {
     /// Not a pure unit test; semi-integ. Checks that writing an inline to markdown and then parsing
     /// that markdown results in the original inline.
     fn round_trip(orig: &Inline, expect: &Inline) {
-        let mut output = Output::new_unwrapped(String::new());
+        let mut output = Output::without_text_wrapping(String::new());
         let ctx = MdContext::empty();
         let mut writer = MdInlinesWriter::new(
             &ctx,
@@ -662,5 +669,38 @@ mod tests {
         unwrap!(&md_tree[0], MdElem::Paragraph(p));
         let parsed = get_only(&p.body);
         assert_eq!(parsed, expect);
+    }
+
+    fn check_link(
+        input_description: &str,
+        input_url: &str,
+        link_title: Option<String>,
+        text_width: Option<usize>,
+        expected: impl ToString,
+    ) {
+        let mut output = Output::new(String::new(), OutputOpts { text_width });
+        let ctx = MdContext::empty();
+        let mut writer = MdInlinesWriter::new(
+            &ctx,
+            MdInlinesWriterOptions {
+                link_format: LinkTransform::Keep,
+                renumber_footnotes: false,
+            },
+        );
+        let link = Inline::Link(Link {
+            text: vec![Inline::Text(Text {
+                variant: TextVariant::Plain,
+                value: input_description.to_string(),
+            })],
+            link_definition: LinkDefinition {
+                url: input_url.to_string(),
+                title: link_title,
+                reference: LinkReference::Inline,
+            },
+        });
+
+        writer.write_inline_element(&mut output, &link);
+
+        assert_eq!(output.take_underlying().unwrap(), expected.to_string());
     }
 }
