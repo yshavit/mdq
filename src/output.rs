@@ -317,8 +317,8 @@ impl<W: SimpleWrite> Output<W> {
     // Writes text which is assumed to not have any newlines
     fn write_line(&mut self, text: &str) {
         // If we have any pending blocks, handle those first. We need to add a paragraph break, unless the first block
-        // is an Inlined.
-        match self.pending_blocks.first() {
+        // is an Inlined. Block::NoWrap isn't a real block, so ignore those here.
+        match self.pending_blocks.iter().filter(|b| **b != Block::NoWrap).next() {
             None => {}
             Some(Block::Inlined(_)) => self.set_writing_state(WritingState::IgnoringNewlines),
             Some(_) => self.ensure_newlines(NewlinesRequest::AtLeast(2)),
