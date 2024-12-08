@@ -463,7 +463,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
     }
 
     fn line_to_string(&mut self, line: &'md Line) -> String {
-        let mut out = Output::new(String::with_capacity(line.len() * 10)); // rough guess
+        let mut out = Output::new_unwrapped(String::with_capacity(line.len() * 10)); // rough guess
         self.inlines_writer.write_line(&mut out, line);
         out.take_underlying().unwrap()
     }
@@ -2184,7 +2184,7 @@ pub mod tests {
         let (ctx, nodes) = inputs;
         nodes.iter().for_each(|n| VARIANTS_CHECKER.see(n));
 
-        let mut out = Output::new(String::default());
+        let mut out = Output::new_unwrapped(String::default());
         write_md(options, &mut out, &ctx, nodes.into_iter());
         let actual = out.take_underlying().unwrap();
         assert_eq!(&actual, expect);

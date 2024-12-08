@@ -1,6 +1,6 @@
 use crate::fmt_md::MdOptions;
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
-use crate::output::Stream;
+use crate::output::{OutputOpts, Stream};
 use crate::select::ParseError;
 use crate::tree::{MdDoc, ReadOptions};
 use crate::tree_ref::MdElemRef;
@@ -95,10 +95,10 @@ where
         let mut stdout = get_out();
         match cli.output {
             OutputFormat::Markdown | OutputFormat::Md => {
-                let mut out = Output::new(Stream(&mut stdout));
-                if let some @ Some(_) = cli.wrap_width {
-                    out.text_width = some;
-                }
+                let output_opts = OutputOpts {
+                    text_width: cli.wrap_width,
+                };
+                let mut out = Output::new(Stream(&mut stdout), output_opts);
                 fmt_md::write_md(&md_options, &mut out, &ctx, pipeline_nodes.into_iter());
             }
             OutputFormat::Json => {

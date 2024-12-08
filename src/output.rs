@@ -1,6 +1,7 @@
-use crate::str_utils::{WhitespaceSplit, WhitespaceSplitter};
+use crate::str_utils::{CharCountingStringBuffer, WhitespaceSplit, WhitespaceSplitter};
 use std::borrow::Cow;
 use std::cmp::PartialEq;
+use std::collections::VecDeque;
 use std::ops::{Deref, Range};
 
 pub trait SimpleWrite {
@@ -31,10 +32,12 @@ impl<W: std::io::Write> SimpleWrite for Stream<W> {
     }
 }
 
-pub struct Output<W: SimpleWrite> {
-    /// The width to which wrappable text (like plain paragraphs) should wrap. This only affects
-    /// text in certain blocks.
+pub struct OutputOpts {
     pub text_width: Option<usize>,
+}
+
+pub struct Output<W: SimpleWrite> {
+    wrap_buffer: Option<WrapBuffer>,
     stream: W,
     pre_mode: bool,
     blocks: Vec<Block>,
@@ -43,6 +46,46 @@ pub struct Output<W: SimpleWrite> {
     pending_padding_after_indent: usize,
     writing_state: WritingState,
     current_line_chars: CurrentLineChars,
+}
+
+struct WrapBuffer {
+    wrap_at: usize,
+    pending: VecDeque<String>,
+    buffer: CharCountingStringBuffer,
+}
+
+impl WrapBuffer {
+    fn new(wrap_at: usize) -> Self {
+        Self {
+            wrap_at,
+            pending: VecDeque::with_capacity(4), // guess
+            buffer: CharCountingStringBuffer::with_capacity(wrap_at),
+        }
+    }
+
+    fn accept(&mut self, text: &str) -> Option<String> {
+        for elem in WhitespaceSplitter::from(text) {
+            match elem {
+                WhitespaceSplit::Whitespace => {
+                    self.buffer.push_whitespace();
+                }
+                WhitespaceSplit::Word(word, word_len) => {
+                    if self.buffer.chars_len() + word_len > self.wrap_at {
+                        self.pending.push_back(self.buffer.drain());
+                    }
+                    self.buffer.push_str(word, word_len, false);
+                }
+            }
+        }
+        self.pending.pop_front()
+    }
+
+    fn drain_all(&mut self) -> Vec<String> {
+        if self.buffer.has_non_whitespace() {
+            self.pending.push_back(self.buffer.drain());
+        }
+        self.pending.drain(..).collect()
+    }
 }
 
 impl<W: SimpleWrite> SimpleWrite for Output<W> {
@@ -85,10 +128,14 @@ pub enum Block {
 }
 
 impl<W: SimpleWrite> Output<W> {
-    pub fn new(to: W) -> Self {
+    pub fn new_unwrapped(to: W) -> Self {
+        Self::new(to, OutputOpts { text_width: None })
+    }
+
+    pub fn new(to: W, opts: OutputOpts) -> Self {
         Self {
             stream: to,
-            text_width: None,
+            wrap_buffer: opts.text_width.map(|wrap_at| WrapBuffer::new(wrap_at)),
             pre_mode: false,
             blocks: Vec::default(),
             pending_blocks: Vec::default(),
@@ -135,8 +182,9 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     fn pop_block(&mut self) {
+        self.flush_pending_lines(false);
         if !self.pending_blocks.is_empty() {
-            self.write_str(""); // write a blank line for whatever blocks had been enqueued
+            self.write_line(""); // write a blank line for whatever blocks had been enqueued
         }
         let newlines = match self.blocks.pop() {
             None => 0,
@@ -147,6 +195,19 @@ impl<W: SimpleWrite> Output<W> {
             },
         };
         self.ensure_newlines(NewlinesRequest::Exactly(newlines));
+    }
+
+    fn flush_pending_lines(&mut self, add_trailing_newline: bool) {
+        if let Some(buffer) = &mut self.wrap_buffer {
+            for line in buffer.drain_all() {
+                self.ensure_newlines(NewlinesRequest::AtLeast(1));
+                self.write_line(&line);
+            }
+        }
+        if add_trailing_newline && self.pending_newlines > 0 {
+            self.write_raw("\n");
+            self.pending_newlines = 0;
+        }
     }
 
     pub fn write_str(&mut self, text: &str) {
@@ -166,18 +227,26 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     fn rewrap_text<'a>(&mut self, text: &'a str) -> Cow<'a, str> {
-        let wrap = match self.blocks.last() {
-            None => self.text_width, // shouldn't actually happen, but assume a normal paragraph
-            Some(Block::Plain(true)) => self.text_width,
-            Some(Block::Quote) => self.text_width,
-
-            Some(Block::Plain(false)) => None,
-            Some(Block::Inlined(_)) => None,
+        let wrap = match &self.blocks.last() {
+            None // shouldn't happen outside tests, but assume normal paragraph
+            | Some(Block::Plain(true))
+            | Some(Block::Quote)
+            => Some(&mut self.wrap_buffer),
+            Some(Block::Plain(false))
+            |Some(Block::Inlined(_))
+            => None,
         };
-        let Some(wrap) = wrap else { return Cow::Borrowed(text) };
+
+        let Some(Some(wrap_buffer)) = wrap else {
+            return Cow::Borrowed(text);
+        };
+        let wrap = wrap_buffer.wrap_at;
+        let Some(text_to_unbuffer) = wrap_buffer.accept(text) else {
+            return Cow::Borrowed("");
+        };
 
         let re = regex::Regex::new(" *\n *").unwrap();
-        let without_newlines = re.replace_all(text, " ");
+        let without_newlines = re.replace_all(&text_to_unbuffer, " ");
 
         // We can guess the number of newlines we'll need as (total length / line length). Add a bit
         // for a fudge factor, cause under-allocating is more expensive than over-allocating.
@@ -339,6 +408,9 @@ where
     W: Default,
 {
     pub fn take_underlying(&mut self) -> std::io::Result<W> {
+        // this is used primarily for tests, so to keep them clean, we don't want trailing newline
+        // TODO maybe I should keep it, though -- just to keep things consistent.
+        self.flush_pending_lines(false);
         self.stream.flush()?;
         Ok(std::mem::take(&mut self.stream))
     }
@@ -346,10 +418,7 @@ where
 
 impl<W: SimpleWrite> Drop for Output<W> {
     fn drop(&mut self) {
-        if self.pending_newlines > 0 {
-            self.write_raw("\n");
-            self.pending_newlines = 0;
-        }
+        self.flush_pending_lines(true);
         if let Err(e) = self.stream.flush() {
             if WritingState::Error != self.writing_state {
                 eprintln!("error while writing output: {}", e);
@@ -731,8 +800,8 @@ mod tests {
         where
             F: FnOnce(&mut Output<String>),
         {
-            let mut out = Output::new(String::new());
-            out.text_width = Some(wrap);
+            let opts = OutputOpts { text_width: Some(wrap) };
+            let mut out = Output::new(String::new(), opts);
             action(&mut out);
             out.take_underlying().unwrap()
         }
@@ -742,7 +811,7 @@ mod tests {
     where
         F: FnOnce(&mut Output<String>),
     {
-        let mut out = Output::new(String::new());
+        let mut out = Output::new_unwrapped(String::new());
         action(&mut out);
         out.take_underlying().unwrap()
     }

@@ -126,6 +126,13 @@ pub struct WhitespaceSplitter<'a> {
     chars: Peekable<CharIndices<'a>>,
 }
 
+impl<'a> WhitespaceSplitter<'a> {
+    // Canonical definition of whitespace for WhitespaceSplitter
+    fn is_whitespace(ch: char) -> bool {
+        ch.is_ascii_whitespace()
+    }
+}
+
 impl<'a> From<&'a str> for WhitespaceSplitter<'a> {
     fn from(text: &'a str) -> Self {
         Self {
@@ -142,7 +149,7 @@ impl<'a> Iterator for WhitespaceSplitter<'a> {
         let Some((next_idx, next_ch)) = self.chars.next() else {
             return None;
         };
-        if next_ch.is_ascii_whitespace() {
+        if Self::is_whitespace(next_ch) {
             while matches!(self.chars.peek(), Some((_, future_ch)) if future_ch.is_whitespace()) {
                 self.chars.next();
             }
@@ -152,7 +159,7 @@ impl<'a> Iterator for WhitespaceSplitter<'a> {
             let mut end_idx_inclusive = start_idx;
             let mut chars_count = 1; // start at 1 since we already have the first char
             while let Some((future_idx, future_ch)) = self.chars.peek() {
-                if future_ch.is_ascii_whitespace() {
+                if Self::is_whitespace(*future_ch) {
                     break;
                 }
                 end_idx_inclusive = *future_idx;
@@ -163,6 +170,56 @@ impl<'a> Iterator for WhitespaceSplitter<'a> {
                 &self.text[start_idx..=end_idx_inclusive],
                 chars_count,
             ))
+        }
+    }
+}
+
+pub struct CharCountingStringBuffer {
+    value: String,
+    char_len: usize,
+    ends_with_space: bool,
+}
+
+impl CharCountingStringBuffer {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            value: String::with_capacity(capacity),
+            char_len: 0,
+            ends_with_space: false,
+        }
+    }
+
+    pub fn chars_len(&self) -> usize {
+        self.char_len
+    }
+
+    pub fn push_whitespace(&mut self) {
+        if !self.ends_with_space {
+            self.value.push(' ');
+            self.char_len += 1;
+            self.ends_with_space = true;
+        }
+    }
+
+    pub fn push_str(&mut self, text: &str, text_chars_len: usize, text_ends_with_space: bool) {
+        self.value.push_str(text);
+        self.char_len += text_chars_len;
+        self.ends_with_space = text_ends_with_space;
+    }
+
+    pub fn drain(&mut self) -> String {
+        let result = self.value.to_owned();
+        self.value.clear();
+        self.char_len = 0;
+        self.ends_with_space = false;
+        result
+    }
+
+    pub fn has_non_whitespace(&self) -> bool {
+        if self.ends_with_space {
+            self.char_len > 1
+        } else {
+            self.char_len > 0
         }
     }
 }
@@ -258,7 +315,7 @@ mod test {
     where
         F: FnOnce(&mut Output<String>),
     {
-        let mut output = Output::new(String::new());
+        let mut output = Output::new_unwrapped(String::new());
         action(&mut output);
         output.take_underlying().unwrap()
     }

@@ -287,7 +287,7 @@ impl<'md> MdInlinesWriter<'md> {
                 // had an intercepting transform, it would still have to work on allocated strings.
                 // So we may as well just do it once.
                 // This could be output a bit nicer: see #183.
-                let mut sub_out = Output::new(String::with_capacity(64));
+                let mut sub_out = Output::new_unwrapped(String::with_capacity(64));
                 self.write_line(&mut sub_out, *text);
                 let as_string = sub_out.take_underlying().unwrap();
                 self.write_link_descriptions(out, &as_string);
@@ -475,7 +475,7 @@ mod tests {
             TITLE_QUOTING_CHECKER.see(&strategy);
 
             // +1 to give room for some quotes
-            let mut writer = Output::new(String::with_capacity(input.len() + 4));
+            let mut writer = Output::new_unwrapped(String::with_capacity(input.len() + 4));
             strategy.escape_to(input, &mut writer);
             let actual = writer.take_underlying().unwrap();
             assert_eq!(&actual, expected);
@@ -567,7 +567,7 @@ mod tests {
         }
 
         fn check_link_description(input_description: &str, expected: &str) {
-            let mut output = Output::new(String::new());
+            let mut output = Output::new_unwrapped(String::new());
             let ctx = MdContext::empty();
             let mut writer = MdInlinesWriter::new(
                 &ctx,
@@ -615,7 +615,7 @@ mod tests {
         }
 
         fn check_img_alt(input_description: &str, expected: &str) {
-            let mut output = Output::new(String::new());
+            let mut output = Output::new_unwrapped(String::new());
             let ctx = MdContext::empty();
             let mut writer = MdInlinesWriter::new(
                 &ctx,
@@ -644,7 +644,7 @@ mod tests {
     /// Not a pure unit test; semi-integ. Checks that writing an inline to markdown and then parsing
     /// that markdown results in the original inline.
     fn round_trip(orig: &Inline, expect: &Inline) {
-        let mut output = Output::new(String::new());
+        let mut output = Output::new_unwrapped(String::new());
         let ctx = MdContext::empty();
         let mut writer = MdInlinesWriter::new(
             &ctx,
