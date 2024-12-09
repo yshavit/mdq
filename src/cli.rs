@@ -1,6 +1,7 @@
 use crate::fmt_md::ReferencePlacement;
 use crate::link_transform::LinkTransform;
-use clap::{Parser, ValueEnum};
+use clap::error::ErrorKind;
+use clap::{CommandFactory, Parser, ValueEnum};
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 
@@ -27,6 +28,15 @@ pub struct Cli {
     /// Output the results as a JSON object, instead of as markdown.
     #[arg(long, short, default_value_t = OutputFormat::Markdown)]
     pub(crate) output: OutputFormat,
+
+    /// The number of characters to wrap text at. This is only valid when the output format is
+    /// markdown.
+    ///
+    /// Certain elements (like section headings and link definitions) will never be wrapped, and the
+    /// wrapping will never break a word; it will only ever be along existing whitespace. In
+    /// particular, this means the wrapping will never add hyphens, and it will never break URLs.
+    #[arg(long)]
+    pub(crate) wrap_width: Option<usize>,
 
     #[arg(
         short = ' ',
@@ -62,6 +72,25 @@ impl Cli {
                 }
                 None => Cow::Owned(String::new()),
             },
+        }
+    }
+
+    pub fn extra_validation(&self) -> bool {
+        match self.output {
+            OutputFormat::Json => {
+                if matches!(self.wrap_width, Some(_)) {
+                    let _ = Cli::command()
+                        .error(
+                            ErrorKind::ArgumentConflict,
+                            "Can't set text width with JSON output format",
+                        )
+                        .print();
+                    false
+                } else {
+                    true
+                }
+            }
+            OutputFormat::Markdown | OutputFormat::Md => true,
         }
     }
 }

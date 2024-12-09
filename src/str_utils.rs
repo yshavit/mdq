@@ -1,7 +1,8 @@
+use markdown::mdast::AlignKind;
 use std::borrow::Borrow;
 use std::fmt::Alignment;
-
-use markdown::mdast::AlignKind;
+use std::iter::Peekable;
+use std::str::CharIndices;
 
 use crate::output::{Output, SimpleWrite};
 
@@ -108,6 +109,132 @@ impl<'a, W: SimpleWrite> std::fmt::Write for CountingWriter<'a, W> {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum WhitespaceSplit<'a> {
+    /// A stretch of at least one whitespace.
+    Whitespace,
+    /// A word, along with its length in chars.
+    ///
+    /// The length component is the same as `word.chars().count()`, but is provided here for
+    /// convenience and efficiency (since the iterator would have had to find the chars to do the
+    /// split, anyway).
+    Word(&'a str, usize),
+}
+
+pub struct WhitespaceSplitter<'a> {
+    text: &'a str,
+    chars: Peekable<CharIndices<'a>>,
+}
+
+impl<'a> WhitespaceSplitter<'a> {
+    // Canonical definition of whitespace for WhitespaceSplitter
+    fn is_whitespace(ch: char) -> bool {
+        ch.is_ascii_whitespace()
+    }
+}
+
+impl<'a> From<&'a str> for WhitespaceSplitter<'a> {
+    fn from(text: &'a str) -> Self {
+        Self {
+            text,
+            chars: text.char_indices().peekable(),
+        }
+    }
+}
+
+impl<'a> Iterator for WhitespaceSplitter<'a> {
+    type Item = WhitespaceSplit<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let Some((next_idx, next_ch)) = self.chars.next() else {
+            return None;
+        };
+        if Self::is_whitespace(next_ch) {
+            while matches!(self.chars.peek(), Some((_, future_ch)) if future_ch.is_whitespace()) {
+                self.chars.next();
+            }
+            Some(WhitespaceSplit::Whitespace)
+        } else {
+            let start_idx = next_idx;
+            let mut end_idx_inclusive = start_idx;
+            let mut chars_count = 1; // start at 1 since we already have the first char
+            while let Some((future_idx, future_ch)) = self.chars.peek() {
+                if Self::is_whitespace(*future_ch) {
+                    break;
+                }
+                end_idx_inclusive = *future_idx;
+                self.chars.next();
+                chars_count += 1;
+            }
+            Some(WhitespaceSplit::Word(
+                &self.text[start_idx..=end_idx_inclusive],
+                chars_count,
+            ))
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CharCountingStringBuffer {
+    value: String,
+    char_len: usize,
+    ends_with_space: bool,
+}
+
+impl CharCountingStringBuffer {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            value: String::with_capacity(capacity),
+            char_len: 0,
+            ends_with_space: false,
+        }
+    }
+
+    pub fn chars_len(&self) -> usize {
+        self.char_len
+    }
+
+    pub fn push_whitespace(&mut self) {
+        if !self.ends_with_space {
+            // defer the actual push(' ') until we have another word; this prevents trailing spaces
+            self.char_len += 1;
+            self.ends_with_space = true;
+        }
+    }
+
+    pub fn push_str(&mut self, text: &str, text_chars_len: usize, text_ends_with_space: bool) {
+        if self.ends_with_space {
+            self.value.push(' ');
+        }
+        self.value.push_str(text);
+        self.char_len += text_chars_len;
+        self.ends_with_space = text_ends_with_space;
+    }
+
+    pub fn drain(&mut self) -> String {
+        if self.ends_with_space {
+            self.value.push(' ');
+        }
+        let result = self.value.to_owned();
+        self.reset();
+        result
+    }
+
+    pub fn reset(&mut self) {
+        self.value.clear();
+        self.char_len = 0;
+        self.ends_with_space = false;
+    }
+
+    pub fn has_non_whitespace(&self) -> bool {
+        if self.ends_with_space {
+            self.char_len > 1
+        } else {
+            self.char_len > 0
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -148,11 +275,58 @@ mod test {
         }
     }
 
+    mod whitespace_splitter {
+        use super::*;
+
+        #[test]
+        fn empty() {
+            assert_eq!(get_splits(""), vec![]);
+        }
+
+        #[test]
+        fn all_whitespace() {
+            assert_eq!(get_splits(" \t\n\r "), vec![WhitespaceSplit::Whitespace]);
+        }
+
+        #[test]
+        fn all_word() {
+            assert_eq!(get_splits("hello"), vec![WhitespaceSplit::Word("hello", 5)]);
+        }
+
+        #[test]
+        fn mixed_start_and_end_with_whitespace() {
+            assert_eq!(
+                get_splits(" hello "),
+                vec![
+                    WhitespaceSplit::Whitespace,
+                    WhitespaceSplit::Word("hello", 5),
+                    WhitespaceSplit::Whitespace,
+                ]
+            );
+        }
+
+        #[test]
+        fn mixed_start_and_end_with_word() {
+            assert_eq!(
+                get_splits("hello, world"),
+                vec![
+                    WhitespaceSplit::Word("hello,", 6),
+                    WhitespaceSplit::Whitespace,
+                    WhitespaceSplit::Word("world", 5),
+                ]
+            );
+        }
+
+        fn get_splits(text: &str) -> Vec<WhitespaceSplit> {
+            WhitespaceSplitter::from(text).collect()
+        }
+    }
+
     fn output_and_get<F>(action: F) -> String
     where
         F: FnOnce(&mut Output<String>),
     {
-        let mut output = Output::new(String::new());
+        let mut output = Output::without_text_wrapping(String::new());
         action(&mut output);
         output.take_underlying().unwrap()
     }
