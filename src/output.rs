@@ -185,6 +185,9 @@ impl<W: SimpleWrite> Output<W> {
     where
         F: for<'a> FnOnce(&mut Self),
     {
+        // There may be text that's pending from the wrapping-enabled mode. Flush it before we start
+        // the no-wrap block.
+        self.flush_pending_lines(false);
         self.push_block(Block::NoWrap);
         action(self);
         self.pop_block();
@@ -432,8 +435,6 @@ where
     W: Default,
 {
     pub fn take_underlying(&mut self) -> std::io::Result<W> {
-        // this is used primarily for tests, so to keep them clean, we don't want trailing newline
-        // TODO maybe I should keep it, though -- just to keep things consistent.
         self.flush_pending_lines(false);
         self.stream.flush()?;
         Ok(std::mem::take(&mut self.stream))
@@ -788,6 +789,31 @@ mod tests {
 
     mod wrapping {
         use super::*;
+
+        #[test]
+        fn disable_wrapping_for_span() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    out.write_str("Hello, ");
+                    out.without_wrapping(|out| {
+                        out.write_str("world is a good default");
+                    });
+                    out.write_str(" text to use.")
+                }),
+                // Note that without_wrapping(~) buffers so that if it needs to wrap, it'll wrap
+                // before the without_wrapping span, not after. Basically, the without_wrapping(~)
+                // span counts as a single word.
+                //
+                /* chars counter:
+                123456789 */
+                indoc! {r#"
+                Hello,
+                world is a good default
+                text to
+                use.
+                "#}
+            );
+        }
 
         #[test]
         fn simple_wrap() {

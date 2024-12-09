@@ -211,6 +211,9 @@ impl CharCountingStringBuffer {
     }
 
     pub fn drain(&mut self) -> String {
+        if self.ends_with_space {
+            self.value.push(' ');
+        }
         let result = self.value.to_owned();
         self.value.clear();
         self.char_len = 0;
