@@ -174,6 +174,7 @@ impl<'a> Iterator for WhitespaceSplitter<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct CharCountingStringBuffer {
     value: String,
     char_len: usize,
@@ -215,10 +216,14 @@ impl CharCountingStringBuffer {
             self.value.push(' ');
         }
         let result = self.value.to_owned();
+        self.reset();
+        result
+    }
+
+    pub fn reset(&mut self) {
         self.value.clear();
         self.char_len = 0;
         self.ends_with_space = false;
-        result
     }
 
     pub fn has_non_whitespace(&self) -> bool {

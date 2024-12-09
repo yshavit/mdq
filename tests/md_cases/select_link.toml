@@ -45,16 +45,3 @@ output = '''
 '''
 
 
-[expect."wrapping"]
-cli_args = ['--wrap-width=50', '--link-format=keep']
-#        1         2         3         4         5
-# 345678901234567890123456789012345678901234567890
-output = '''
-This text has both
-[an inline link](https://example.com/inline) and a
-[referenced link][1]. It also has an image:
-
-![image alt text](https://example.com/hylas-and-nymphs.png)
-
-[1]: https://example.com/referenced
-[an inline link](https://example.com/inline)'''

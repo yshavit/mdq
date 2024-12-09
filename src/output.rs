@@ -2,7 +2,9 @@ use crate::str_utils::{CharCountingStringBuffer, WhitespaceSplit, WhitespaceSpli
 use std::borrow::Cow;
 use std::cmp::PartialEq;
 use std::collections::VecDeque;
+use std::iter::once;
 use std::ops::{Deref, Range};
+use termsize::get;
 
 pub trait SimpleWrite {
     fn write_str(&mut self, text: &str) -> std::io::Result<()>;
@@ -32,6 +34,7 @@ impl<W: std::io::Write> SimpleWrite for Stream<W> {
     }
 }
 
+#[derive(Debug)]
 pub struct OutputOpts {
     pub text_width: Option<usize>,
 }
@@ -48,41 +51,114 @@ pub struct Output<W: SimpleWrite> {
     current_line_chars: CurrentLineChars,
 }
 
+#[derive(Debug)]
 struct WrapBuffer {
+    mode: WrapBufferMode,
     wrap_at: usize,
     pending: VecDeque<String>,
     buffer: CharCountingStringBuffer,
+}
+
+#[derive(Debug, Copy, Clone)]
+enum WrapBufferMode {
+    /// Standard wrapping: just wrap as soon as you hit [WrapBuffer::wrap_at].
+    AlwaysWrap,
+
+    /// Wrap the first line if it exceeds [WrapBuffer::wrap_at], but only that first line.
+    /// Use this when we first enter a [Output::without_wrapping] block.
+    OnlyWrapOnce { already_wrote: usize },
+
+    /// Disable the wrap altogether. This gets set after [OnlyWrapOnce] wraps.
+    NeverWrap,
+}
+
+enum WrapBufferOutput<'a> {
+    None,
+    Wrapping(String),
+    NotWrapping(Cow<'a, str>),
 }
 
 impl WrapBuffer {
     fn new(wrap_at: usize) -> Self {
         Self {
             wrap_at,
+            mode: WrapBufferMode::AlwaysWrap,
             pending: VecDeque::with_capacity(4), // guess
             buffer: CharCountingStringBuffer::with_capacity(wrap_at),
         }
     }
 
-    fn accept(&mut self, text: &str) -> Option<String> {
+    fn disable(&mut self, already_wrote: usize) {
+        self.mode = if already_wrote > 0 {
+            WrapBufferMode::OnlyWrapOnce { already_wrote }
+        } else {
+            WrapBufferMode::NeverWrap
+        };
+    }
+
+    fn enable(&mut self) {
+        self.mode = WrapBufferMode::AlwaysWrap;
+    }
+
+    fn accept<'a>(&mut self, text: &'a str) -> WrapBufferOutput<'a> {
+        if matches!(self.mode, WrapBufferMode::NeverWrap) {
+            return WrapBufferOutput::NotWrapping(Cow::Borrowed(text));
+        }
         for elem in WhitespaceSplitter::from(text) {
             match elem {
                 WhitespaceSplit::Whitespace => {
                     self.buffer.push_whitespace();
                 }
                 WhitespaceSplit::Word(word, word_len) => {
-                    if self.buffer.chars_len() + word_len > self.wrap_at {
+                    if self.buffer.chars_len() + word_len > self.wrap_at_len() {
+                        if matches!(self.mode, WrapBufferMode::OnlyWrapOnce { .. }) {
+                            // We hit this when the output had written some text, and then entered
+                            // an Output::without_wrapping. The whole body of the without_wrapping
+                            // effectively counts as one word. So, we first need a newline, to wrap
+                            // that "word" to the next line (since we already had some text on this
+                            // one). Then, we want to enqueue whatever we wrote so far (which we'll
+                            // do in self.pending.push_back, in a sec), and also mark that we're now
+                            // in NeverWrap mode until the user invokes self.enable().
+                            self.pending.push_back("".to_string());
+                            self.mode = WrapBufferMode::NeverWrap;
+                        }
                         self.pending.push_back(self.buffer.drain());
                     }
                     self.buffer.push_str(word, word_len, false);
                 }
             }
         }
-        self.pending.pop_front()
+        match self.mode {
+            WrapBufferMode::OnlyWrapOnce { .. } => {
+                // If we hit here, we haven't yet hit the wrapping limit on that first wrap. So,
+                // nothing to report yet.
+                WrapBufferOutput::None
+            }
+            WrapBufferMode::NeverWrap => match self.pending.pop_front() {
+                None => WrapBufferOutput::None,
+                Some(s) => WrapBufferOutput::NotWrapping(Cow::Owned(s)),
+            },
+            WrapBufferMode::AlwaysWrap => match self.pending.pop_front() {
+                None => WrapBufferOutput::None,
+                Some(s) => WrapBufferOutput::Wrapping(s),
+            },
+        }
+    }
+
+    fn wrap_at_len(&self) -> usize {
+        let already_wrote = match self.mode {
+            WrapBufferMode::OnlyWrapOnce { already_wrote } => already_wrote,
+            WrapBufferMode::AlwaysWrap => 0,
+            WrapBufferMode::NeverWrap => 0, // shouldn't ever happen
+        };
+        self.wrap_at - already_wrote
     }
 
     fn drain_all(&mut self) -> Vec<String> {
         if self.buffer.has_non_whitespace() {
             self.pending.push_back(self.buffer.drain());
+        } else {
+            self.buffer.reset();
         }
         self.pending.drain(..).collect()
     }
@@ -124,9 +200,6 @@ pub enum Block {
     ///
     /// (where `§` signifies the start and end of an inlined paragraph)
     Inlined(usize),
-
-    /// Not a block, but a marker that the contained text may not be wrapped.
-    NoWrap,
 }
 
 impl<W: SimpleWrite> Output<W> {
@@ -173,7 +246,10 @@ impl<W: SimpleWrite> Output<W> {
         F: for<'a> FnOnce(&mut PreWriter<W>),
     {
         self.with_block(Block::Plain, |me| {
-            me.with_block(Block::NoWrap, |me| {
+            // TODO -- the with_block(Plain) won't correctly reset self.current_line, meaning that
+            // the first line of the pre block's text will wrap if it were as long as itself plus
+            // whatever was on the Plain. I need to write a test for that, and fix it.
+            me.without_wrapping(|me| {
                 me.pre_mode = true;
                 action(&mut PreWriter { output: me });
                 me.pre_mode = false;
@@ -185,12 +261,38 @@ impl<W: SimpleWrite> Output<W> {
     where
         F: for<'a> FnOnce(&mut Self),
     {
+        self.flush_pending_lines(false);
+        if let Some(wrap) = &mut self.wrap_buffer {
+            wrap.disable(self.current_line_chars.count);
+        }
+        action(self);
+        if let Some(wrap) = &mut self.wrap_buffer {
+            wrap.enable();
+        }
+        self.flush_pending_lines(false);
+    }
+
+    fn disable_wrapping(&mut self) {
         // There may be text that's pending from the wrapping-enabled mode. Flush it before we start
         // the no-wrap block.
-        self.flush_pending_lines(false);
-        self.push_block(Block::NoWrap);
-        action(self);
-        self.pop_block();
+        if let Some(buffer) = &mut self.wrap_buffer {
+            for line in buffer.drain_all() {
+                self.write_line(&line);
+            }
+        }
+        // has to be in separate if-let for the borrow checker's sake
+        if let Some(buffer) = &mut self.wrap_buffer {
+            buffer.disable(self.current_line_chars.count);
+        }
+    }
+
+    fn enable_wrapping(&mut self) {
+        if let Some(buffer) = &mut self.wrap_buffer {
+            for line in buffer.drain_all() {
+                self.ensure_newlines(NewlinesRequest::AtLeast(1));
+                self.write_line(&line);
+            }
+        }
     }
 
     fn push_block(&mut self, block: Block) {
@@ -208,7 +310,6 @@ impl<W: SimpleWrite> Output<W> {
                 Block::Plain => 2,
                 Block::Quote => 2,
                 Block::Inlined(_) => 1,
-                Block::NoWrap => 0,
             },
         };
         if newlines > 0 {
@@ -217,12 +318,6 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     fn flush_pending_lines(&mut self, add_trailing_newline: bool) {
-        if let Some(buffer) = &mut self.wrap_buffer {
-            for line in buffer.drain_all() {
-                self.ensure_newlines(NewlinesRequest::AtLeast(1));
-                self.write_line(&line);
-            }
-        }
         if add_trailing_newline && self.pending_newlines > 0 {
             self.write_raw("\n");
             self.pending_newlines = 0;
@@ -230,21 +325,18 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     pub fn write_str(&mut self, text: &str) {
-        let resolved_text = self.rewrap_text(text);
-        // TODO here we should also loop on any text from the buffer that's ready -- that is, like
-        // drain_all but without first adding the still-being-built line. Otherwise, a long input
-        // will cause some buffering that won't actually get drained until the block pops. That's
-        // not actually a problem, but we may as well flush it sooner rather than later.
-        let newlines_re = if self.pre_mode { "\n" } else { "\n+" };
-        let lines = regex::Regex::new(newlines_re).unwrap();
-        let mut lines = lines.split(&resolved_text).peekable();
-        while let Some(line) = lines.next() {
-            self.write_line(line);
-            if !line.is_empty() {
-                self.set_writing_state(WritingState::Normal);
-            }
-            if lines.peek().is_some() {
-                self.ensure_newlines(NewlinesRequest::AtLeast(1));
+        for resolved_text in self.rewrap_text(text) {
+            let newlines_re = if self.pre_mode { "\n" } else { "\n+" };
+            let lines = regex::Regex::new(newlines_re).unwrap();
+            let mut lines = lines.split(&resolved_text).peekable();
+            while let Some(line) = lines.next() {
+                self.write_line(line);
+                if !line.is_empty() {
+                    self.set_writing_state(WritingState::Normal);
+                }
+                if lines.peek().is_some() {
+                    self.ensure_newlines(NewlinesRequest::AtLeast(1));
+                }
             }
         }
     }
@@ -253,23 +345,16 @@ impl<W: SimpleWrite> Output<W> {
         self.pending_blocks.last().or_else(|| self.blocks.last()).map(|b| *b)
     }
 
-    fn rewrap_text<'a>(&mut self, text: &'a str) -> Cow<'a, str> {
-        let wrap = match &self.next_block() {
-            None // shouldn't happen outside tests, but assume normal paragraph
-            | Some(Block::Plain)
-            | Some(Block::Quote)
-            => Some(&mut self.wrap_buffer),
-            | Some(Block::Inlined(_))
-            | Some(Block::NoWrap)
-            => None,
-        };
-
-        let Some(Some(wrap_buffer)) = wrap else {
-            return Cow::Borrowed(text);
+    fn rewrap_text<'a>(&mut self, text: &'a str) -> impl Iterator<Item = Cow<'a, str>> {
+        let Some(wrap_buffer) = &mut self.wrap_buffer else {
+            // TODO do I want to do something purely on stack here, for efficiency?
+            return vec![Cow::Borrowed(text)].into_iter();
         };
         let wrap = wrap_buffer.wrap_at;
-        let Some(text_to_unbuffer) = wrap_buffer.accept(text) else {
-            return Cow::Borrowed("");
+        let text_to_unbuffer = match wrap_buffer.accept(text) {
+            WrapBufferOutput::None => return vec![].into_iter(),
+            WrapBufferOutput::NotWrapping(s) => return vec![s].into_iter(), // TODO stack-only here, too?
+            WrapBufferOutput::Wrapping(s) => s,
         };
 
         let re = regex::Regex::new(" *\n *").unwrap();
@@ -285,6 +370,25 @@ impl<W: SimpleWrite> Output<W> {
         } else {
             wrap - current_line_len
         };
+
+        TODO I'm double-buffering -- both here (via result: String) and in the WrapBuffer. I should
+        figure out what the hell I'm actually trying to do here, and do it just once! lol, I mean
+        seriously wth.
+        I think that probably means I should do all the buffering in WrapBuffer, which is anyway
+        splitting on each newline.
+        However, note that I don't actually need the Iterator return value, as I currently have.
+        It doesn't save me any memory, since I'd be building the full Vec in memory anyway. And this
+        method's approach (as opposed to WrapBuffer's) is to store the multiple lines just in a
+        single string, delimited by '\n'. That makes sense, since the calling site is just going to
+        split on newline anyway (and needs to regardless of whatever this method does, because of
+        the non-wrapping case).
+
+        So:
+        - only buffer once
+        - probably in WrapBuffer, not here
+        - but get rid of this Iterator / Vec stuff (including in WrapBuffer) and just return a
+          String instead.
+
         let mut chars_written_to_line = self.current_line_chars.len();
         for word_or_whitespace in WhitespaceSplitter::from(without_newlines.deref()) {
             match word_or_whitespace {
@@ -310,7 +414,7 @@ impl<W: SimpleWrite> Output<W> {
                 }
             }
         }
-        Cow::Owned(result)
+        Some(Cow::Owned(result))
     }
 
     pub fn write_char(&mut self, ch: char) {
@@ -321,7 +425,7 @@ impl<W: SimpleWrite> Output<W> {
     fn write_line(&mut self, text: &str) {
         // If we have any pending blocks, handle those first. We need to add a paragraph break, unless the first block
         // is an Inlined. Block::NoWrap isn't a real block, so ignore those here.
-        match self.pending_blocks.iter().filter(|b| **b != Block::NoWrap).next() {
+        match self.pending_blocks.first() {
             None => {}
             Some(Block::Inlined(_)) => self.set_writing_state(WritingState::IgnoringNewlines),
             Some(_) => self.ensure_newlines(NewlinesRequest::AtLeast(2)),
@@ -371,7 +475,7 @@ impl<W: SimpleWrite> Output<W> {
         self.pending_padding_after_indent = 0;
         for idx in range.unwrap_or_else(|| 0..self.blocks.len()) {
             match &self.blocks[idx] {
-                Block::Plain | Block::NoWrap => {}
+                Block::Plain => {}
                 Block::Quote => {
                     self.write_padding_after_indent();
                     self.write_raw(">");
@@ -791,7 +895,19 @@ mod tests {
         use super::*;
 
         #[test]
-        fn disable_wrapping_for_span() {
+        fn simple_wrap() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    out.write_str("Hello the world");
+                }),
+                indoc! {r#"
+                Hello the
+                world"#}
+            );
+        }
+
+        #[test]
+        fn disable_wrapping_after_nonempty_line() {
             assert_eq!(
                 out_to_str_wrapped(9, |out| {
                     out.write_str("Hello, ");
@@ -816,22 +932,10 @@ mod tests {
         }
 
         #[test]
-        fn simple_wrap() {
+        fn disable_wrapping_at_start_of_line() {
             assert_eq!(
                 out_to_str_wrapped(9, |out| {
-                    out.write_str("Hello the world");
-                }),
-                indoc! {r#"
-                Hello the
-                world"#}
-            );
-        }
-
-        #[test]
-        fn no_wrap() {
-            assert_eq!(
-                out_to_str_wrapped(9, |out| {
-                    out.with_block(Block::NoWrap, |out| {
+                    out.without_wrapping(|out| {
                         out.write_str("Hello the world");
                     });
                 }),
