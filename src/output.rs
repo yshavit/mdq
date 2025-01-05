@@ -31,6 +31,8 @@ impl<W: std::io::Write> SimpleWrite for Stream<W> {
 
 pub struct Output<W: SimpleWrite> {
     stream: W,
+    /// whether the current block is in `<pre>` mode. See [Block] for an explanation as to why this
+    /// exists, and isn't instead a `Block::Pre`.
     pre_mode: bool,
     blocks: Vec<Block>,
     pending_blocks: Vec<Block>,
@@ -54,6 +56,14 @@ pub struct PreWriter<'a, W: SimpleWrite> {
     output: &'a mut Output<W>,
 }
 
+/// Various block modes.
+///
+/// Note that there is no `Pre`. Instead, you must use [Output::with_pre_block]. This is because
+/// a standard block (ie, one represented by this enum) can have nested blocks, while `pre`s cannot.
+/// The way we enforce this is to have standard blocks pushed and popped via [Output::with_block],
+/// which takes a `(&mut Self)` action that can then push additional blocks; while `pre` blocks are
+/// added via [Output::with_pre_block], which takes a [PreWriter] that only implements
+/// [SimpleWrite].
 #[derive(Debug, PartialEq)]
 pub enum Block {
     /// A plain block; just paragraph text.
