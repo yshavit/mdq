@@ -60,8 +60,9 @@ pub enum Block {
     Plain,
     /// A quoted block (`> `)
     Quote,
-    /// A block that does *not* start with newlines, but does add indentation. It ends in a single newline.
-    /// **This block affects its first child block**, in that it suppresses that block's newlines.
+    /// A block that does *not* start with newlines, but does add indentation. It ends in a single
+    /// newline. The indentation does not apply to the first line, and any opening newlines for the
+    /// first line in this block are ignored.
     ///
     /// This is useful for lists:
     ///
@@ -71,8 +72,8 @@ pub enum Block {
     ///    indentation continues.§
     /// ```
     ///
-    /// (where `§` signifies the start and end of an inlined paragraph)
-    Inlined(usize),
+    /// (where `§` signifies the start and end of an indented paragraph)
+    Indent(usize),
 }
 
 impl<W: SimpleWrite> Output<W> {
@@ -132,7 +133,7 @@ impl<W: SimpleWrite> Output<W> {
             Some(closing_block) => match closing_block {
                 Block::Plain => 2,
                 Block::Quote => 2,
-                Block::Inlined(_) => 1,
+                Block::Indent(_) => 1,
             },
         };
         self.ensure_newlines(NewlinesRequest::Exactly(newlines));
@@ -160,10 +161,10 @@ impl<W: SimpleWrite> Output<W> {
     // Writes text which is assumed to not have any nwlines
     fn write_line(&mut self, text: &str) {
         // If we have any pending blocks, handle those first. We need to add a paragraph break, unless the first block
-        // is an Inlined.
+        // is an Indent.
         match self.pending_blocks.first() {
             None => {}
-            Some(Block::Inlined(_)) => self.set_writing_state(WritingState::IgnoringNewlines),
+            Some(Block::Indent(_)) => self.set_writing_state(WritingState::IgnoringNewlines),
             Some(_) => self.ensure_newlines(NewlinesRequest::AtLeast(2)),
         }
 
@@ -181,13 +182,13 @@ impl<W: SimpleWrite> Output<W> {
         };
 
         // Append the new blocks, and then write the indent if we need it
-        // When we write that indent, though, only write it until the first new Inlined (exclusive).
+        // When we write that indent, though, only write it until the first new Indent (exclusive).
         if need_full_indent {
             let indent_end_idx = self.blocks.len()
                 + self
                     .pending_blocks
                     .iter()
-                    .position(|b| matches!(b, Block::Inlined(_)))
+                    .position(|b| matches!(b, Block::Indent(_)))
                     .unwrap_or_else(|| self.pending_blocks.len());
             self.blocks.append(&mut self.pending_blocks);
             self.write_indent(true, Some(0..indent_end_idx));
@@ -205,9 +206,9 @@ impl<W: SimpleWrite> Output<W> {
         self.write_raw(text);
     }
 
-    /// Write an indentation for a given range of indentation block. If `include_inlines` is false, `Inlined` blocks
-    /// will be disregarded. Do this for the first line in which those inlines appear (and only there).
-    fn write_indent(&mut self, include_inlines: bool, range: Option<Range<usize>>) {
+    /// Write an indentation for a given range of indentation block. If `include_indents` is false, `Indent` blocks
+    /// will be disregarded. Do this for the first line in which those indents appear (and only there).
+    fn write_indent(&mut self, include_indents: bool, range: Option<Range<usize>>) {
         self.pending_padding_after_indent = 0;
         for idx in range.unwrap_or_else(|| 0..self.blocks.len()) {
             match &self.blocks[idx] {
@@ -217,8 +218,8 @@ impl<W: SimpleWrite> Output<W> {
                     self.write_raw(">");
                     self.pending_padding_after_indent += 1;
                 }
-                Block::Inlined(size) => {
-                    if include_inlines {
+                Block::Indent(size) => {
+                    if include_indents {
                         self.pending_padding_after_indent += size;
                     }
                 }
@@ -316,7 +317,7 @@ enum WritingState {
     HaveNotWrittenAnything,
 
     /// Any newline requests (via [Output::ensure_newlines] will be ignored. This happens for the first line following a
-    /// new [Block::Inlined].
+    /// new [Block::Indent].
     IgnoringNewlines,
 
     /// No special state. Just write the chars!
@@ -406,15 +407,15 @@ mod tests {
     }
 
     #[test]
-    fn inlined_block() {
+    fn indent_block() {
         assert_eq!(
             out_to_str(|out| {
                 out.write_str("before");
                 out.with_block(Block::Plain, |out| {
-                    out.with_block(Block::Inlined(3), |out| {
-                        out.write_str("directly in\nthe inlined block");
+                    out.with_block(Block::Indent(3), |out| {
+                        out.write_str("directly in\nthe indent block");
                     });
-                    out.with_block(Block::Inlined(3), |out| {
+                    out.with_block(Block::Indent(3), |out| {
                         out.with_block(Block::Plain, |out| out.write_str("paragraph 1"));
                         out.with_block(Block::Plain, |out| out.write_str("paragraph 2"));
                     });
@@ -424,20 +425,59 @@ mod tests {
                 before
 
                 directly in
-                   the inlined block
+                   the indent block
                 paragraph 1
                 
                    paragraph 2"#}
         )
     }
 
+    #[test]
+    fn indent_block_suppresses_opening_newline_in_first_block() {
+        assert_eq!(
+            out_to_str(|out| {
+                out.write_str("[before-1]");
+                out.with_block(Block::Indent(2), |out| {
+                    out.with_block(Block::Plain, |out| {
+                        out.write_str("\nFirst paragraph\n\nhas newlines");
+                        out.with_block(Block::Plain, |out| {
+                            out.write_str("Inner paragraph\nhas a newline");
+                        });
+                    });
+                });
+                out.write_str("[after-1]");
+
+                // even works in pre_mode!
+                out.pre_mode = true;
+                out.write_str("[before-2]");
+                out.with_block(Block::Indent(2), |out| {
+                    out.with_block(Block::Plain, |out| {
+                        out.write_str("\nPre\nparagraph\n\nhas newlines");
+                    });
+                });
+                out.write_str("[after-2]");
+            }),
+            indoc! {r#"
+                [before-1]First paragraph
+                  has newlines
+                
+                  Inner paragraph
+                  has a newline
+                [after-1][before-2]Pre
+                  paragraph
+                
+                  has newlines
+                [after-2]"#}
+        )
+    }
+
     // This example is what we actually expect in practice, from a list item.
     #[test]
-    fn inlined_block_used_like_list_item() {
+    fn indent_block_used_like_list_item() {
         assert_eq!(
             out_to_str(|out| {
                 out.write_str("1. ");
-                out.with_block(Block::Inlined(3), |out| {
+                out.with_block(Block::Indent(3), |out| {
                     out.with_block(Block::Plain, |out| {
                         out.write_str("First item");
                     });
@@ -446,13 +486,13 @@ mod tests {
                     });
                 });
                 out.write_str("2. ");
-                out.with_block(Block::Inlined(3), |out| {
+                out.with_block(Block::Indent(3), |out| {
                     out.with_block(Block::Plain, |out| {
                         out.write_str("Second item.");
                     });
                 });
                 out.write_str("3. ");
-                out.with_block(Block::Inlined(3), |out| {
+                out.with_block(Block::Indent(3), |out| {
                     out.with_block(Block::Plain, |out| {
                         out.write_str("Third item");
                     });
