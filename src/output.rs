@@ -380,6 +380,21 @@ mod tests {
     }
 
     #[test]
+    fn plain_block_with_multiple_newlines() {
+        assert_eq!(
+            out_to_str(|out| {
+                out.with_block(Block::Plain, |out| {
+                    out.write_str("hello\nworld\n\nagain");
+                });
+            }),
+            indoc! {r#"
+                hello
+                world
+                again"#}
+        );
+    }
+
+    #[test]
     fn quote_block() {
         assert_eq!(
             out_to_str(|out| {
