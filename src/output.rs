@@ -179,7 +179,7 @@ impl<W: SimpleWrite> Output<W> {
 
         // Translate a newline char into an ensure_newlines request
         if matches!(ch, Some('\n')) {
-            self.ensure_newlines(NewlinesRequest::AtLeast(1));
+            self.ensure_newlines(NewlinesRequest::Exactly(1));
             return;
         }
 
@@ -254,11 +254,15 @@ impl<W: SimpleWrite> Output<W> {
     fn ensure_newlines(&mut self, request: NewlinesRequest) {
         match self.writing_state {
             WritingState::Normal => match request {
-                NewlinesRequest::Exactly(n) => self.pending_newlines = n,
-                NewlinesRequest::AtLeast(n) => {
+                NewlinesRequest::Exactly(n) => {
                     if self.pre_mode {
                         self.pending_newlines += n;
-                    } else if self.pending_newlines < n {
+                    } else {
+                        self.pending_newlines = n;
+                    }
+                }
+                NewlinesRequest::AtLeast(n) => {
+                    if self.pending_newlines < n {
                         self.pending_newlines = n;
                     }
                 }
@@ -481,7 +485,9 @@ mod tests {
                 });
                 out.write_str("[after-1]");
 
-                // even works in pre_mode!
+                // even works in pre_mode! Note that this has what look like extra newlines, due to how blocks get
+                // newlines. This can't happen in practice, since you can't have blocks inside a `pre` due to how we
+                // do with_pre_block vs with_block. See the docs on Block for mor.
                 out.pre_mode = true;
                 out.write_str("[before-2]");
                 out.with_block(Block::Indent(2), |out| {
@@ -501,6 +507,8 @@ mod tests {
                   paragraph
                 
                   has newlines
+                
+                
                 [after-2]"#}
         )
     }
@@ -538,6 +546,26 @@ mod tests {
                    It has two paragraphs.
                 2. Second item.
                 3. Third item"#}
+        );
+    }
+
+    #[test]
+    fn indent_plain_then_pre() {
+        assert_eq!(
+            out_to_str(|out| {
+                out.with_block(Block::Indent(2), |out| {
+                    out.with_block(Block::Plain, |out| {
+                        out.write_str("A");
+                    });
+                    out.with_pre_block(|out| {
+                        out.write_str("B");
+                    });
+                });
+            }),
+            indoc! {r#"
+                A
+
+                  B"#}
         );
     }
 
