@@ -126,6 +126,7 @@ impl<W: SimpleWrite> Output<W> {
         self.push_block(Block::Plain);
         self.pre_mode = true;
         action(&mut PreWriter { output: self });
+        (0..self.pending_newlines).for_each(|_| self.write_optional_char(None));
         self.pre_mode = false;
         self.pop_block();
     }
@@ -136,7 +137,7 @@ impl<W: SimpleWrite> Output<W> {
 
     fn pop_block(&mut self) {
         if !self.pending_blocks.is_empty() {
-            self.write_str(""); // write a blank line for whatever blocks had been enqueued
+            self.write_optional_char(None); // write a blank line for whatever blocks had been enqueued
         }
         let newlines = match self.blocks.pop() {
             None => 0,
@@ -150,48 +151,54 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     pub fn write_str(&mut self, text: &str) {
-        let newlines_re = if self.pre_mode { "\n" } else { "\n+" };
-        let lines = regex::Regex::new(newlines_re).unwrap();
-        let mut lines = lines.split(text).peekable();
-        while let Some(line) = lines.next() {
-            self.write_line(line);
-            if !line.is_empty() {
-                self.set_writing_state(WritingState::Normal);
-            }
-            if lines.peek().is_some() {
-                self.ensure_newlines(NewlinesRequest::AtLeast(1));
-            }
-        }
+        text.chars().for_each(|ch| self.write_optional_char(Some(ch)));
     }
 
     pub fn write_char(&mut self, ch: char) {
-        self.write_str(&String::from(ch))
+        self.write_optional_char(Some(ch));
     }
 
-    // Writes text which is assumed to not have any nwlines
-    fn write_line(&mut self, text: &str) {
+    /// Writes a char, along with some magic.
+    ///
+    /// - `Some('\n')` is translated to a [Self::ensure_newlines].
+    /// - `None` basically flushes blocks, but doesn't write anything; we use this in
+    ///   [Self::pop_block].
+    fn write_optional_char(&mut self, ch: Option<char>) {
+        // TODO: I have a number of branches here. Can I nest some of them, so that in the happy path of a non-newline
+        // char, I just have a single check?
+
         // If we have any pending blocks, handle those first. We need to add a paragraph break, unless the first block
         // is an Indent.
         match self.pending_blocks.first() {
             None => {}
-            Some(Block::Indent(_)) => self.set_writing_state(WritingState::IgnoringNewlines),
+            Some(Block::Indent(_)) => {
+                self.set_writing_state(WritingState::IgnoringNewlines);
+            }
             Some(_) => self.ensure_newlines(NewlinesRequest::AtLeast(2)),
         }
 
-        // print the newlines before we append the new blocks
+        // Translate a newline char into an ensure_newlines request
+        if matches!(ch, Some('\n')) {
+            self.ensure_newlines(NewlinesRequest::AtLeast(1));
+            return;
+        }
+
+        // print pending newlines before we append any new blocks; also note whether we need to write the full indent
+        // (TODO what actually is "need full indent"?)
         let need_full_indent = if self.pending_newlines > 0 {
             for _ in 0..(self.pending_newlines - 1) {
-                self.write_raw("\n");
+                self.write_raw('\n');
                 self.write_indent(true, None);
             }
-            self.write_raw("\n"); // we'll do this indent after we add the pending blocks
+            self.write_raw('\n'); // we'll do this indent after we add the pending blocks
             self.pending_newlines = 0;
             true
         } else {
             matches!(self.writing_state, WritingState::HaveNotWrittenAnything)
         };
 
-        // Append the new blocks, and then write the indent if we need it
+        // Append the new blocks, and then write the indent if we need it (TODO that's not actually how this code is
+        // organized. Need to clean this up. See the TODO above)
         // When we write that indent, though, only write it until the first new Indent (exclusive).
         if need_full_indent {
             let indent_end_idx = self.blocks.len()
@@ -210,10 +217,12 @@ impl<W: SimpleWrite> Output<W> {
         }
 
         // Finally, write the text
-        if !text.is_empty() {
+        if let Some(ch) = ch {
             self.write_padding_after_indent();
+            self.write_raw(ch); // will not be a '\n', since that got translated to ensure_newlines above.
+            self.set_writing_state(WritingState::Normal);
         }
-        self.write_raw(text);
+        self.pending_padding_after_indent = 0; // TODO this is redundant if we called self.write_padding_after_indent()
     }
 
     /// Write an indentation for a given range of indentation block. If `include_indents` is false, `Indent` blocks
@@ -225,7 +234,7 @@ impl<W: SimpleWrite> Output<W> {
                 Block::Plain => {}
                 Block::Quote => {
                     self.write_padding_after_indent();
-                    self.write_raw(">");
+                    self.write_raw('>');
                     self.pending_padding_after_indent += 1;
                 }
                 Block::Indent(size) => {
@@ -238,7 +247,7 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     fn write_padding_after_indent(&mut self) {
-        (0..self.pending_padding_after_indent).for_each(|_| self.write_raw(" "));
+        (0..self.pending_padding_after_indent).for_each(|_| self.write_raw(' '));
         self.pending_padding_after_indent = 0;
     }
 
@@ -247,7 +256,9 @@ impl<W: SimpleWrite> Output<W> {
             WritingState::Normal => match request {
                 NewlinesRequest::Exactly(n) => self.pending_newlines = n,
                 NewlinesRequest::AtLeast(n) => {
-                    if self.pending_newlines < n {
+                    if self.pre_mode {
+                        self.pending_newlines += n;
+                    } else if self.pending_newlines < n {
                         self.pending_newlines = n;
                     }
                 }
@@ -263,14 +274,12 @@ impl<W: SimpleWrite> Output<W> {
         self.writing_state = state;
     }
 
-    fn write_raw(&mut self, text: &str) {
+    fn write_raw(&mut self, ch: char) {
         if matches!(self.writing_state, WritingState::Error) {
             return;
         }
-        if text.is_empty() {
-            return;
-        }
-        if let Err(e) = self.stream.write_str(text) {
+        // TODO there should be a write_ch instead!
+        if let Err(e) = self.stream.write_str(&String::from(ch)) {
             eprintln!("error while writing output: {}", e);
             self.writing_state = WritingState::Error;
         }
@@ -293,7 +302,7 @@ where
 impl<W: SimpleWrite> Drop for Output<W> {
     fn drop(&mut self) {
         if self.pending_newlines > 0 {
-            self.write_raw("\n");
+            self.write_raw('\n');
             self.pending_newlines = 0;
         }
         if let Err(e) = self.stream.flush() {
@@ -437,7 +446,7 @@ mod tests {
             out_to_str(|out| {
                 out.write_str("before");
                 out.with_block(Block::Plain, |out| {
-                    out.with_block(Block::Indent(3), |out| {
+                    out.with_block(Block::Indent(1), |out| {
                         out.write_str("directly in\nthe indent block");
                     });
                     out.with_block(Block::Indent(3), |out| {
@@ -450,7 +459,7 @@ mod tests {
                 before
 
                 directly in
-                   the indent block
+                 the indent block
                 paragraph 1
                 
                    paragraph 2"#}
@@ -647,17 +656,15 @@ mod tests {
     }
 
     #[test]
-    fn surrounds_without_inner_writes() {
+    fn pre_block_ends_with_newline() {
         assert_eq!(
             out_to_str(|out| {
                 out.with_pre_block(|out| {
-                    out.write_str("vvv\n");
-                    out.write_str("^^^\n");
+                    out.write_str("A\n");
                 });
             }),
             indoc! {r#"
-                vvv
-                ^^^
+                A
             "#}
         );
     }
