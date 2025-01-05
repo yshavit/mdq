@@ -392,7 +392,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
             std::fmt::Write::write_str(&mut counting_writer, "] ").unwrap();
         }
         let count = counting_writer.count();
-        out.with_block(Block::Inlined(count), |out| {
+        out.with_block(Block::Indent(count), |out| {
             self.write_md(out, Self::doc_iter(&item.item), false);
         });
     }
@@ -454,7 +454,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                     out.write_str("[^");
                     out.write_str(&link_ref);
                     out.write_str("]: ");
-                    out.with_block(Block::Inlined(2), |out| {
+                    out.with_block(Block::Indent(2), |out| {
                         self.write_md(out, Self::doc_iter(text), false);
                     });
                 }
