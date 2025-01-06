@@ -2,13 +2,13 @@ use std::cmp::PartialEq;
 use std::ops::Range;
 
 pub trait SimpleWrite {
-    fn write_str(&mut self, text: &str) -> std::io::Result<()>;
+    fn write_char(&mut self, ch: char) -> std::io::Result<()>;
     fn flush(&mut self) -> std::io::Result<()>;
 }
 
 impl SimpleWrite for String {
-    fn write_str(&mut self, text: &str) -> std::io::Result<()> {
-        self.push_str(text);
+    fn write_char(&mut self, ch: char) -> std::io::Result<()> {
+        self.push(ch);
         Ok(())
     }
 
@@ -20,8 +20,9 @@ impl SimpleWrite for String {
 pub struct Stream<W>(pub W);
 
 impl<W: std::io::Write> SimpleWrite for Stream<W> {
-    fn write_str(&mut self, text: &str) -> std::io::Result<()> {
-        self.0.write(&text.as_bytes()).map(|_| ())
+    fn write_char(&mut self, ch: char) -> std::io::Result<()> {
+        self.0.write(ch.encode_utf8(&mut [0u8; 4]).as_bytes())?;
+        Ok(())
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
@@ -42,8 +43,8 @@ pub struct Output<W: SimpleWrite> {
 }
 
 impl<W: SimpleWrite> SimpleWrite for Output<W> {
-    fn write_str(&mut self, text: &str) -> std::io::Result<()> {
-        Self::write_str(self, text);
+    fn write_char(&mut self, ch: char) -> std::io::Result<()> {
+        Self::write_char(self, ch);
         Ok(())
     }
 
@@ -282,8 +283,7 @@ impl<W: SimpleWrite> Output<W> {
         if matches!(self.writing_state, WritingState::Error) {
             return;
         }
-        // TODO there should be a write_ch instead!
-        if let Err(e) = self.stream.write_str(&String::from(ch)) {
+        if let Err(e) = self.stream.write_char(ch) {
             eprintln!("error while writing output: {}", e);
             self.writing_state = WritingState::Error;
         }
@@ -507,8 +507,8 @@ mod tests {
                   paragraph
                 
                   has newlines
-                
-                
+
+
                 [after-2]"#}
         )
     }

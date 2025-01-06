@@ -83,8 +83,10 @@ impl<'a, W: SimpleWrite> CountingWriter<'a, W> {
     }
 
     fn write_str(&mut self, text: &str) -> std::io::Result<()> {
-        self.count += text.len();
-        self.underlying.write_str(text)
+        for ch in text.chars() {
+            self.write_char(ch)?;
+        }
+        Ok(())
     }
 
     pub fn count(&self) -> usize {
@@ -93,8 +95,10 @@ impl<'a, W: SimpleWrite> CountingWriter<'a, W> {
 }
 
 impl<'a, W: SimpleWrite> SimpleWrite for CountingWriter<'a, W> {
-    fn write_str(&mut self, text: &str) -> std::io::Result<()> {
-        Self::write_str(self, text)
+    fn write_char(&mut self, ch: char) -> std::io::Result<()> {
+        self.underlying.write_char(ch)?;
+        self.count += 1;
+        Ok(())
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
