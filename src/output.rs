@@ -165,8 +165,8 @@ impl<W: SimpleWrite> Output<W> {
     /// - `None` basically flushes blocks, but doesn't write anything; we use this in
     ///   [Self::pop_block].
     fn write_optional_char(&mut self, ch: Option<char>) {
-        // TODO: I have a number of branches here. Can I nest some of them, so that in the happy path of a non-newline
-        // char, I just have a single check?
+        // #199: I have a number of branches here. Can I nest some of them, so that in the happy path of a non-newline
+        //       char, I just have a single check?
 
         // If we have any pending blocks, handle those first. We need to add a paragraph break, unless the first block
         // is an Indent.
@@ -185,7 +185,7 @@ impl<W: SimpleWrite> Output<W> {
         }
 
         // print pending newlines before we append any new blocks; also note whether we need to write the full indent
-        // (TODO what actually is "need full indent"?)
+        // (#199: what actually is "need full indent"?)
         let need_full_indent = if self.pending_newlines > 0 {
             for _ in 0..(self.pending_newlines - 1) {
                 self.write_raw('\n');
@@ -198,9 +198,9 @@ impl<W: SimpleWrite> Output<W> {
             matches!(self.writing_state, WritingState::HaveNotWrittenAnything)
         };
 
-        // Append the new blocks, and then write the indent if we need it (TODO that's not actually how this code is
-        // organized. Need to clean this up. See the TODO above)
+        // Append the new blocks, and then write the indent if we need it.
         // When we write that indent, though, only write it until the first new Indent (exclusive).
+        // (#199 that doesn't seem to actually how this code is organized. See the #199 comment above.)
         if need_full_indent {
             let indent_end_idx = self.blocks.len()
                 + self
@@ -223,7 +223,7 @@ impl<W: SimpleWrite> Output<W> {
             self.write_raw(ch); // will not be a '\n', since that got translated to ensure_newlines above.
             self.set_writing_state(WritingState::Normal);
         }
-        self.pending_padding_after_indent = 0; // TODO this is redundant if we called self.write_padding_after_indent()
+        self.pending_padding_after_indent = 0; // #199 this is redundant if we called self.write_padding_after_indent()
     }
 
     /// Write an indentation for a given range of indentation block. If `include_indents` is false, `Indent` blocks
