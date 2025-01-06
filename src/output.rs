@@ -1,3 +1,4 @@
+use crate::words_buffer::{WordBoundary, WordsBuffer};
 use std::cmp::PartialEq;
 use std::ops::Range;
 
@@ -45,6 +46,7 @@ pub struct Output<W: SimpleWrite> {
     pending_newlines: usize,
     pending_padding_after_indent: usize,
     writing_state: WritingState,
+    words_buffer: Option<WordsBuffer>,
 }
 
 impl<W: SimpleWrite> SimpleWrite for Output<W> {
@@ -102,6 +104,7 @@ impl<W: SimpleWrite> Output<W> {
             pending_newlines: 0,
             pending_padding_after_indent: 0,
             writing_state: WritingState::HaveNotWrittenAnything,
+            words_buffer: opts.text_width.map(|width| WordsBuffer::new(width)),
         }
     }
 
@@ -143,10 +146,16 @@ impl<W: SimpleWrite> Output<W> {
 
     pub fn without_wrapping<F>(&mut self, action: F)
     where
-        F: for<'a> FnOnce(&mut Self),
+        F: for<'a> FnOnce(&mut Self), // TODO change this to a PreWriter, so we don't have reentry issues
+                                      //  (that requires more changes downstream than I want to do right now).
     {
-        // TODO
+        self.words_buffer
+            .iter_mut()
+            .for_each(|wb| wb.set_word_boundary(WordBoundary::Never));
         action(self);
+        self.words_buffer
+            .iter_mut()
+            .for_each(|wb| wb.set_word_boundary(WordBoundary::Whitespace));
     }
 
     fn push_block(&mut self, block: Block) {

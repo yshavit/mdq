@@ -29,6 +29,7 @@ mod tree_ref_serde;
 mod tree_test_utils;
 mod utils_for_test;
 mod vec_utils;
+mod words_buffer;
 
 pub fn run_in_memory(cli: &Cli, contents: &str) -> (bool, String) {
     let mut out = Vec::with_capacity(256); // just a guess
