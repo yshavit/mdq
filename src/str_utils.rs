@@ -156,7 +156,7 @@ mod test {
     where
         F: FnOnce(&mut Output<String>),
     {
-        let mut output = Output::new(String::new());
+        let mut output = Output::without_text_wrapping(String::new());
         action(&mut output);
         output.take_underlying().unwrap()
     }

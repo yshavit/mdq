@@ -30,6 +30,11 @@ impl<W: std::io::Write> SimpleWrite for Stream<W> {
     }
 }
 
+#[derive(Debug)]
+pub struct OutputOpts {
+    pub text_width: Option<usize>,
+}
+
 pub struct Output<W: SimpleWrite> {
     stream: W,
     /// whether the current block is in `<pre>` mode. See [Block] for an explanation as to why this
@@ -65,7 +70,7 @@ pub struct PreWriter<'a, W: SimpleWrite> {
 /// which takes a `(&mut Self)` action that can then push additional blocks; while `pre` blocks are
 /// added via [Output::with_pre_block], which takes a [PreWriter] that only implements
 /// [SimpleWrite].
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Block {
     /// A plain block; just paragraph text.
     Plain,
@@ -88,7 +93,7 @@ pub enum Block {
 }
 
 impl<W: SimpleWrite> Output<W> {
-    pub fn new(to: W) -> Self {
+    pub fn new(to: W, opts: OutputOpts) -> Self {
         Self {
             stream: to,
             pre_mode: false,
@@ -98,6 +103,10 @@ impl<W: SimpleWrite> Output<W> {
             pending_padding_after_indent: 0,
             writing_state: WritingState::HaveNotWrittenAnything,
         }
+    }
+
+    pub fn without_text_wrapping(to: W) -> Self {
+        Self::new(to, OutputOpts { text_width: None })
     }
 
     pub fn replace_underlying(&mut self, new: W) -> std::io::Result<W> {
@@ -130,6 +139,14 @@ impl<W: SimpleWrite> Output<W> {
         (0..self.pending_newlines).for_each(|_| self.write_optional_char(None));
         self.pre_mode = false;
         self.pop_block();
+    }
+
+    pub fn without_wrapping<F>(&mut self, action: F)
+    where
+        F: for<'a> FnOnce(&mut Self),
+    {
+        // TODO
+        action(self);
     }
 
     fn push_block(&mut self, block: Block) {
