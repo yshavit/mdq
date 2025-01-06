@@ -1,7 +1,7 @@
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum WordBoundary {
     Whitespace,
-    Never,
+    Never, // TODO should this be "OnlyNewlines"? How do we want to handle newlines, in general? see git commit.
 }
 
 pub struct WordsBuffer {
