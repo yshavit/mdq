@@ -295,7 +295,7 @@ fn inlines_to_string<'md, I>(inlines: I, writer: &mut MdInlinesWriter<'md>) -> S
 where
     I: IntoIterator<Item = &'md Inline>,
 {
-    let mut output = Output::new(String::with_capacity(16)); // guess
+    let mut output = Output::without_text_wrapping(String::with_capacity(16)); // guess
     writer.write_line(&mut output, inlines);
     output.take_underlying().unwrap()
 }

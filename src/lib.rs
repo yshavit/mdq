@@ -1,16 +1,15 @@
-use cli::{Cli, OutputFormat};
-use output::Output;
-use std::io;
-use std::io::{stdin, Read, Write};
-
 use crate::fmt_md::MdOptions;
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
-use crate::output::Stream;
+use crate::output::{OutputOpts, Stream};
 use crate::select::ParseError;
 use crate::tree::{MdDoc, ReadOptions};
 use crate::tree_ref::MdElemRef;
 use crate::tree_ref_serde::SerdeDoc;
+use cli::{Cli, OutputFormat};
+use output::Output;
 use select::MdqRefSelector;
+use std::io;
+use std::io::{stdin, Read, Write};
 
 pub mod cli;
 mod fmt_md;
@@ -40,6 +39,9 @@ pub fn run_in_memory(cli: &Cli, contents: &str) -> (bool, String) {
 }
 
 pub fn run_stdio(cli: &Cli) -> bool {
+    if !cli.extra_validation() {
+        return false;
+    }
     let mut contents = String::new();
     stdin().read_to_string(&mut contents).expect("invalid input (not utf8)");
     run(&cli, contents, || io::stdout().lock())
@@ -93,7 +95,10 @@ where
         let mut stdout = get_out();
         match cli.output {
             OutputFormat::Markdown | OutputFormat::Md => {
-                let mut out = Output::new(Stream(&mut stdout));
+                let output_opts = OutputOpts {
+                    text_width: cli.wrap_width,
+                };
+                let mut out = Output::new(Stream(&mut stdout), output_opts);
                 fmt_md::write_md(&md_options, &mut out, &ctx, pipeline_nodes.into_iter());
             }
             OutputFormat::Json => {

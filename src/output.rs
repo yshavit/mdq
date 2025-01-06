@@ -697,11 +697,102 @@ mod tests {
         );
     }
 
+    mod wrapping {
+        use super::*;
+
+        #[test]
+        fn simple_wrap() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    out.write_str("Hello the world");
+                }),
+                indoc! {r#"
+                Hello the
+                world"#}
+            );
+        }
+
+        #[test]
+        fn disable_wrapping_after_nonempty_line() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    out.write_str("Hello, ");
+                    out.without_wrapping(|out| {
+                        out.write_str("world is a good default");
+                    });
+                    out.write_str(" text to use.")
+                }),
+                // Note that without_wrapping(~) buffers so that if it needs to wrap, it'll wrap
+                // before the without_wrapping span, not after. Basically, the without_wrapping(~)
+                // span counts as a single word.
+                //
+                /* chars counter:
+                123456789 */
+                indoc! {r#"
+                Hello,
+                world is a good default
+                text to
+                use.
+                "#}
+            );
+        }
+
+        #[test]
+        fn disable_wrapping_at_start_of_line() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    out.without_wrapping(|out| {
+                        out.write_str("Hello the world");
+                    });
+                }),
+                "Hello the world"
+            );
+        }
+
+        #[test]
+        fn incremental_wrap() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    for ch in "Hello the world".chars() {
+                        out.write_char(ch)
+                    }
+                }),
+                indoc! {r#"
+                Hello the
+                world"#}
+            );
+        }
+
+        #[test]
+        fn word_is_longer_than_wrap() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    out.write_str("hello_the_world_1 a hello_the_world_2 b");
+                }),
+                indoc! {r#"
+                hello_the_world_1
+                a
+                hello_the_world_2
+                b"#}
+            );
+        }
+
+        fn out_to_str_wrapped<F>(wrap: usize, action: F) -> String
+        where
+            F: FnOnce(&mut Output<String>),
+        {
+            let opts = OutputOpts { text_width: Some(wrap) };
+            let mut out = Output::new(String::new(), opts);
+            action(&mut out);
+            out.take_underlying().unwrap()
+        }
+    }
+
     fn out_to_str<F>(action: F) -> String
     where
         F: FnOnce(&mut Output<String>),
     {
-        let mut out = Output::new(String::new());
+        let mut out = Output::without_text_wrapping(String::new());
         action(&mut out);
         out.take_underlying().unwrap()
     }
