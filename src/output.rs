@@ -182,6 +182,11 @@ impl<W: SimpleWrite> Output<W> {
     /// - `None` basically flushes pending blocks, but doesn't write anything else; we use this in [Self::pop_block],
     ///    and it's particularly useful for empty quote blocks (`">"`) and trailing newlines in `pre` blocks.
     fn write_optional_char(&mut self, ch: Option<char>) {
+        // TODO this is where wrapping will happen
+        self.write_single_optional_char(ch);
+    }
+
+    fn write_single_optional_char(&mut self, ch: Option<char>) {
         // #199: I have a number of branches here. Can I nest some of them, so that in the happy path of a non-newline
         //       char, I just have a single check?
 
