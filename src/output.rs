@@ -179,8 +179,8 @@ impl<W: SimpleWrite> Output<W> {
     /// Writes a char, along with some magic.
     ///
     /// - `Some('\n')` is translated to a [Self::ensure_newlines].
-    /// - `None` basically flushes blocks, but doesn't write anything; we use this in
-    ///   [Self::pop_block].
+    /// - `None` basically flushes pending blocks, but doesn't write anything else; we use this in [Self::pop_block],
+    ///    and it's particularly useful for empty quote blocks (`">"`) and trailing newlines in `pre` blocks.
     fn write_optional_char(&mut self, ch: Option<char>) {
         // #199: I have a number of branches here. Can I nest some of them, so that in the happy path of a non-newline
         //       char, I just have a single check?
