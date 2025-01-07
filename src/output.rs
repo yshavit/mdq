@@ -828,6 +828,36 @@ mod tests {
             );
         }
 
+        #[test]
+        fn wrapping_respects_indentations() {
+            assert_eq!(
+                // line length of 11 is just enough for "hello world". So:
+                // - as a plain paragraph, it should fit without wrapping
+                // - but with quoting, the extra two chars of the "> " will cause it to wrap
+                out_to_str_wrapped(11, |out| {
+                    out.with_block(Block::Plain, |out| out.write_str("hello world"));
+                    out.with_block(Block::Quote, |out| out.write_str("hello world"));
+                }),
+                indoc! {r#"
+                hello world
+                
+                > hello
+                > world
+                "#}
+            );
+        }
+
+        #[test]
+        fn wrapping_ignores_pre() {
+            assert_eq!(
+                // line length of 3 should cause "hello world" to wrap, but that's disabled within `pre`
+                out_to_str_wrapped(3, |out| {
+                    out.with_pre_block(|out| out.write_str("hello world"));
+                }),
+                "hello world",
+            );
+        }
+
         fn out_to_str_wrapped<F>(wrap: usize, action: F) -> String
         where
             F: FnOnce(&mut Output<String>),
