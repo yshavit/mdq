@@ -46,7 +46,7 @@ pub struct Output<W: SimpleWrite> {
     pending_newlines: usize,
     pending_padding_after_indent: usize,
     writing_state: WritingState,
-    words_buffer: Option<WordsBuffer>,
+    words_buffer: WordsBuffer,
 }
 
 impl<W: SimpleWrite> SimpleWrite for Output<W> {
@@ -104,7 +104,9 @@ impl<W: SimpleWrite> Output<W> {
             pending_newlines: 0,
             pending_padding_after_indent: 0,
             writing_state: WritingState::HaveNotWrittenAnything,
-            words_buffer: opts.text_width.map(|width| WordsBuffer::new(width)),
+            words_buffer: opts
+                .text_width
+                .map_or_else(WordsBuffer::disabled, |width| WordsBuffer::new(width)),
         }
     }
 
@@ -149,13 +151,9 @@ impl<W: SimpleWrite> Output<W> {
         F: for<'a> FnOnce(&mut Self), // TODO change this to a PreWriter, so we don't have reentry issues
                                       //  (that requires more changes downstream than I want to do right now).
     {
-        self.words_buffer
-            .iter_mut()
-            .for_each(|wb| wb.set_word_boundary(WordBoundary::Never));
+        let old_boundary_mode = self.words_buffer.set_word_boundary(WordBoundary::Never);
         action(self);
-        self.words_buffer
-            .iter_mut()
-            .for_each(|wb| wb.set_word_boundary(WordBoundary::Whitespace));
+        self.words_buffer.set_word_boundary(old_boundary_mode);
     }
 
     fn push_block(&mut self, block: Block) {
@@ -191,8 +189,24 @@ impl<W: SimpleWrite> Output<W> {
     /// - `None` basically flushes pending blocks, but doesn't write anything else; we use this in [Self::pop_block],
     ///    and it's particularly useful for empty quote blocks (`">"`) and trailing newlines in `pre` blocks.
     fn write_optional_char(&mut self, ch: Option<char>) {
-        // TODO this is where wrapping will happen
-        self.write_single_optional_char(ch);
+        match ch {
+            Some(ch) => {
+                // TODO YUCK!! Maybe words_puffer.push should instead return the &str?
+                let mut chars_to_flush = vec![];
+                self.words_buffer.push(ch, |flushed| chars_to_flush.push(flushed));
+                for flushed in chars_to_flush {
+                    self.write_single_optional_char(Some(flushed));
+                }
+            }
+            None => {
+                // TODO also yuck! also return a &str
+                let mut chars_to_flush = vec![];
+                self.words_buffer.drain(|flushed| chars_to_flush.push(flushed));
+                for flushed in chars_to_flush {
+                    self.write_single_optional_char(Some(flushed));
+                }
+            }
+        }
     }
 
     fn write_single_optional_char(&mut self, ch: Option<char>) {
@@ -336,6 +350,12 @@ where
 
 impl<W: SimpleWrite> Drop for Output<W> {
     fn drop(&mut self) {
+        // TODO also yuck! also return a &str
+        let mut chars_to_flush = vec![];
+        self.words_buffer.drain(|flushed| chars_to_flush.push(flushed));
+        for flushed in chars_to_flush {
+            self.write_single_optional_char(Some(flushed));
+        }
         if self.pending_newlines > 0 {
             self.write_raw('\n');
             self.pending_newlines = 0;

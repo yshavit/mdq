@@ -1,7 +1,7 @@
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum WordBoundary {
     Whitespace,
-    Never, // TODO should this be "OnlyNewlines"? How do we want to handle newlines, in general? see git commit.
+    Never,
 }
 
 pub struct WordsBuffer {
@@ -36,8 +36,18 @@ impl WordsBuffer {
         }
     }
 
-    pub fn set_word_boundary(&mut self, boundary: WordBoundary) {
+    /// Returns a WordBuffer that's "disabled", in that it always just immediately emits everything it gets.
+    pub fn disabled() -> Self {
+        let mut wb = Self::new(0);
+        wb.set_word_boundary(WordBoundary::Never);
+        wb
+    }
+
+    /// sets the word boundary, and returns the old one
+    pub fn set_word_boundary(&mut self, boundary: WordBoundary) -> WordBoundary {
+        let old = self.boundary;
         self.boundary = boundary;
+        old
     }
 
     pub fn push<F>(&mut self, ch: char, mut action: F)
@@ -243,6 +253,16 @@ mod tests {
         );
     }
 
+    #[test]
+    fn newlines_are_whitespace() {
+        assert_eq!(
+            WbHelper::build(11, |wbh| {
+                wbh.push_str("hello\n\nfriendly\r\n\r\t\nox");
+            }),
+            "hello\nfriendly ox"
+        );
+    }
+
     /// Smoke test of [WordsBuffer::set_word_boundary]. We don't actually need a ton of testing, because this only
     /// affects [WordsBuffer::char_is_boundary], which is quite simple.
     mod boundary_is_never {
@@ -274,6 +294,26 @@ mod tests {
                 }),
                 "AB\n12   CD\nEF"
             );
+        }
+
+        #[test]
+        fn never_whitespace_and_no_limit() {
+            let mut wb = WordsBuffer::disabled();
+
+            let mut last_seen = None;
+
+            wb.push('a', |ch| last_seen = Some(ch));
+            assert_eq!(last_seen, Some('a'));
+
+            wb.push(' ', |ch| last_seen = Some(ch));
+            assert_eq!(last_seen, Some(' '));
+
+            wb.push('\n', |ch| last_seen = Some(ch));
+            assert_eq!(last_seen, Some('\n'));
+
+            last_seen = None; // we want to prove that drain is a no-op
+            wb.drain(|ch| last_seen = Some(ch));
+            assert_eq!(last_seen, None);
         }
     }
 
