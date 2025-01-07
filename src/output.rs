@@ -140,7 +140,9 @@ impl<W: SimpleWrite> Output<W> {
     {
         self.push_block(Block::Plain);
         self.pre_mode = true;
-        action(&mut PreWriter { output: self });
+        self.without_wrapping(|me| {
+            action(&mut PreWriter { output: me });
+        });
         (0..self.pending_newlines).for_each(|_| self.write_optional_char(None));
         self.pre_mode = false;
         self.pop_block();
@@ -783,8 +785,7 @@ mod tests {
                 Hello,
                 world is a good default
                 text to
-                use.
-                "#}
+                use."#}
             );
         }
 
