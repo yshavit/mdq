@@ -866,7 +866,7 @@ mod tests {
         }
 
         #[test]
-        fn wrapping_respects_indentations() {
+        fn wrapping_respects_quote_blocks() {
             assert_eq!(
                 // line length of 11 is just enough for "hello world". So:
                 // - as a plain paragraph, it should fit without wrapping
@@ -881,6 +881,55 @@ mod tests {
                 > hello
                 > world
                 "#}
+            );
+        }
+
+        #[test]
+        fn wrapping_respects_indentation_blocks() {
+            assert_eq!(
+                // line length of 11 is just enough for "hello world". So:
+                // - as a plain paragraph, it should fit without wrapping
+                // - but with quoting, the extra two chars of the "> " will cause it to wrap
+                out_to_str_wrapped(11, |out| {
+                    out.with_block(Block::Plain, |out| out.write_str("hello world"));
+
+                    // both write_str calls just barely fit
+                    out.with_block(Block::Indent(2), |out| {
+                        out.write_str("1. hi world "); // 11 chars; "world" will just barely fit
+                        out.write_str("next line"); // "line" will just barely fit
+                    });
+
+                    // first write_str call just barely fits; second just barely wraps
+                    out.with_block(Block::Indent(2), |out| {
+                        out.write_str("2. hi world "); // 11 chars; "world" will just barely fit
+                        out.write_str("next lines"); // "line" will just barely not fit
+                    });
+
+                    // first write_str call just barely wraps; second just barely fits
+                    out.with_block(Block::Indent(2), |out| {
+                        out.write_str("3. hi "); // 11 chars; "worlds" will just barely not fit
+                        out.write_str("  worlds hi"); // "hi" will just barely fit, including the 2-char indent
+                    });
+
+                    // both write_str calls just barely wrap
+                    out.with_block(Block::Indent(2), |out| {
+                        out.write_str("4. hi "); // 11 chars; "worlds" will just barely not fit
+                        out.write_str("  worlds hey"); // "hey" will just not barely fit, with the 2-char indent
+                    });
+                }),
+                indoc! {r#"
+                hello world
+                
+                1. hi world
+                  next line
+                2. hi world
+                  next
+                  lines
+                3. hi
+                  worlds hi
+                4. hi
+                  worlds
+                  hey"#}
             );
         }
 
