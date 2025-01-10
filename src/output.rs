@@ -36,7 +36,7 @@ pub struct OutputOpts {
     pub text_width: Option<usize>,
 }
 
-struct IndentationHandler<W> {
+struct CharsWriter<W> {
     stream: W,
     /// whether the current block is in `<pre>` mode. See [Block] for an explanation as to why this
     /// exists, and isn't instead a `Block::Pre`.
@@ -49,7 +49,7 @@ struct IndentationHandler<W> {
 }
 
 pub struct Output<W: SimpleWrite> {
-    indentation_handler: IndentationHandler<W>,
+    writer: CharsWriter<W>,
     words_buffer: WordsBuffer,
 }
 
@@ -60,7 +60,7 @@ impl<W: SimpleWrite> SimpleWrite for Output<W> {
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.indentation_handler.stream.flush()
+        self.writer.stream.flush()
     }
 }
 
@@ -101,7 +101,7 @@ pub enum Block {
 impl<W: SimpleWrite> Output<W> {
     pub fn new(to: W, opts: OutputOpts) -> Self {
         Self {
-            indentation_handler: IndentationHandler::new(to),
+            writer: CharsWriter::new(to),
             words_buffer: opts
                 .text_width
                 .map_or_else(WordsBuffer::disabled, |width| WordsBuffer::new(width)),
@@ -113,8 +113,8 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     pub fn replace_underlying(&mut self, new: W) -> std::io::Result<W> {
-        self.indentation_handler.stream.flush()?;
-        Ok(std::mem::replace(&mut self.indentation_handler.stream, new))
+        self.writer.stream.flush()?;
+        Ok(std::mem::replace(&mut self.writer.stream, new))
     }
 
     pub fn with_block<F>(&mut self, block: Block, action: F)
@@ -137,12 +137,12 @@ impl<W: SimpleWrite> Output<W> {
         F: for<'a> FnOnce(&mut PreWriter<W>),
     {
         self.push_block(Block::Plain);
-        self.indentation_handler.pre_mode = true;
+        self.writer.pre_mode = true;
         self.without_wrapping(|me| {
             action(&mut PreWriter { output: me });
         });
-        (0..self.indentation_handler.pending_newlines).for_each(|_| self.write_optional_char(None));
-        self.indentation_handler.pre_mode = false;
+        (0..self.writer.pending_newlines).for_each(|_| self.write_optional_char(None));
+        self.writer.pre_mode = false;
         self.pop_block();
     }
 
@@ -157,14 +157,14 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     fn push_block(&mut self, block: Block) {
-        self.indentation_handler.pending_blocks.push(block);
+        self.writer.pending_blocks.push(block);
     }
 
     fn pop_block(&mut self) {
-        if !self.indentation_handler.pending_blocks.is_empty() {
+        if !self.writer.pending_blocks.is_empty() {
             self.write_optional_char(None); // write a blank line for whatever blocks had been enqueued
         }
-        let newlines = match self.indentation_handler.blocks.pop() {
+        let newlines = match self.writer.blocks.pop() {
             None => 0,
             Some(closing_block) => match closing_block {
                 Block::Plain => 2,
@@ -172,8 +172,7 @@ impl<W: SimpleWrite> Output<W> {
                 Block::Indent(_) => 1,
             },
         };
-        self.indentation_handler
-            .ensure_newlines(NewlinesRequest::Exactly(newlines));
+        self.writer.ensure_newlines(NewlinesRequest::Exactly(newlines));
     }
 
     pub fn write_str(&mut self, text: &str) {
@@ -193,12 +192,12 @@ impl<W: SimpleWrite> Output<W> {
         match ch {
             Some(ch) => {
                 self.words_buffer.push(ch, |flushed| {
-                    self.indentation_handler.write_single_optional_char(Some(flushed));
+                    self.writer.write_single_optional_char(Some(flushed));
                 });
             }
             None => {
                 self.words_buffer.drain(|flushed| {
-                    self.indentation_handler.write_single_optional_char(Some(flushed));
+                    self.writer.write_single_optional_char(Some(flushed));
                 });
             }
         }
@@ -210,30 +209,30 @@ where
     W: Default,
 {
     pub fn take_underlying(&mut self) -> std::io::Result<W> {
-        self.indentation_handler.stream.flush()?;
-        Ok(std::mem::take(&mut self.indentation_handler.stream))
+        self.writer.stream.flush()?;
+        Ok(std::mem::take(&mut self.writer.stream))
     }
 }
 
 impl<W: SimpleWrite> Drop for Output<W> {
     fn drop(&mut self) {
         self.words_buffer.drain(|flushed| {
-            self.indentation_handler.write_single_optional_char(Some(flushed));
+            self.writer.write_single_optional_char(Some(flushed));
         });
-        if self.indentation_handler.pending_newlines > 0 {
-            self.indentation_handler.write_raw('\n');
-            self.indentation_handler.pending_newlines = 0;
+        if self.writer.pending_newlines > 0 {
+            self.writer.write_raw('\n');
+            self.writer.pending_newlines = 0;
         }
-        if let Err(e) = self.indentation_handler.stream.flush() {
-            if WritingState::Error != self.indentation_handler.writing_state {
+        if let Err(e) = self.writer.stream.flush() {
+            if WritingState::Error != self.writer.writing_state {
                 eprintln!("error while writing output: {}", e);
-                self.indentation_handler.writing_state = WritingState::Error;
+                self.writer.writing_state = WritingState::Error;
             }
         }
     }
 }
 
-impl<W: SimpleWrite> IndentationHandler<W> {
+impl<W: SimpleWrite> CharsWriter<W> {
     fn new(to: W) -> Self {
         Self {
             stream: to,
@@ -545,7 +544,7 @@ mod tests {
                 // even works in pre_mode! Note that this has what look like extra newlines, due to how blocks get
                 // newlines. This can't happen in practice, since you can't have blocks inside a `pre` due to how we
                 // do with_pre_block vs with_block. See the docs on Block for mor.
-                out.indentation_handler.pre_mode = true;
+                out.writer.pre_mode = true;
                 out.write_str("[before-2]");
                 out.with_block(Block::Indent(2), |out| {
                     out.with_block(Block::Plain, |out| {
