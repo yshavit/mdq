@@ -98,6 +98,13 @@ pub enum Block {
     Indent(usize),
 }
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum WriteAction {
+    Char(char),
+    FlushChars,
+    FlushPendingBlocksAndNewlines,
+}
+
 impl<W: SimpleWrite> Output<W> {
     pub fn new(to: W, opts: OutputOpts) -> Self {
         Self {
@@ -141,7 +148,7 @@ impl<W: SimpleWrite> Output<W> {
         self.without_wrapping(|me| {
             action(&mut PreWriter { output: me });
         });
-        (0..self.writer.pending_newlines).for_each(|_| self.write_optional_char(None));
+        self.perform_write(WriteAction::FlushPendingBlocksAndNewlines); // we want the newlines aspect of this flush
         self.writer.pre_mode = false;
         self.pop_block();
     }
@@ -161,8 +168,10 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     fn pop_block(&mut self) {
+        self.perform_write(WriteAction::FlushChars);
         if !self.writer.pending_blocks.is_empty() {
-            self.write_optional_char(None); // write a blank line for whatever blocks had been enqueued
+            // write a blank line for whatever blocks had been enqueued but didn't have content
+            self.perform_write(WriteAction::FlushPendingBlocksAndNewlines);
         }
         let newlines = match self.writer.blocks.pop() {
             None => 0,
@@ -176,11 +185,11 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     pub fn write_str(&mut self, text: &str) {
-        text.chars().for_each(|ch| self.write_optional_char(Some(ch)));
+        text.chars().for_each(|ch| self.perform_write(WriteAction::Char(ch)));
     }
 
     pub fn write_char(&mut self, ch: char) {
-        self.write_optional_char(Some(ch));
+        self.perform_write(WriteAction::Char(ch));
     }
 
     /// Writes a char, along with some magic.
@@ -188,14 +197,21 @@ impl<W: SimpleWrite> Output<W> {
     /// - `Some('\n')` is translated to a [Self::ensure_newlines].
     /// - `None` basically flushes pending blocks, but doesn't write anything else; we use this in [Self::pop_block],
     ///    and it's particularly useful for empty quote blocks (`">"`) and trailing newlines in `pre` blocks.
-    fn write_optional_char(&mut self, ch: Option<char>) {
-        match ch {
-            Some(ch) => {
+    fn perform_write(&mut self, write: WriteAction) {
+        match write {
+            WriteAction::Char(ch) => {
                 self.words_buffer.push(ch, |flushed| {
                     self.writer.write_single_optional_char(Some(flushed));
                 });
             }
-            None => {
+            WriteAction::FlushChars => {
+                self.words_buffer.drain(|flushed| {
+                    self.writer.write_single_optional_char(Some(flushed));
+                });
+            }
+            WriteAction::FlushPendingBlocksAndNewlines => {
+                // In all the call sites today, the words_buffer should be empty by the time we get here. But, as a
+                // belt-and-suspenders approach, let's flush the words_buffer anyway.
                 self.words_buffer.drain(|flushed| {
                     self.writer.write_single_optional_char(Some(flushed));
                 });
@@ -750,6 +766,22 @@ mod tests {
             }),
             indoc! {r#"
                 A
+            "#}
+        );
+    }
+
+    #[test]
+    fn pre_block_ends_with_three_newlines() {
+        assert_eq!(
+            out_to_str(|out| {
+                out.with_pre_block(|out| {
+                    out.write_str("A\n\n\n");
+                });
+            }),
+            indoc! {r#"
+                A
+                
+                
             "#}
         );
     }
