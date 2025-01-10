@@ -284,6 +284,7 @@ impl<W: SimpleWrite> CharsWriter<W> {
 
         // print pending newlines before we append any new blocks; also note whether we need to write the full indent
         // (#199: what actually is "need full indent"?)
+        // Oh, I see -- it's a flag that toggles whether Block::Indent's indentation gets included in write_indent
         let need_full_indent = if self.pending_newlines > 0 {
             for _ in 0..(self.pending_newlines - 1) {
                 self.write_raw('\n');
@@ -619,6 +620,41 @@ mod tests {
                    It has two paragraphs.
                 2. Second item.
                 3. Third item"#}
+        );
+    }
+
+    #[test]
+    fn nested_indents() {
+        assert_eq!(
+            out_to_str(|out| {
+                out.write_str("1. ");
+                out.with_block(Block::Indent(3), |out| {
+                    out.with_block(Block::Plain, |out| {
+                        out.write_str("First item");
+                    });
+                    out.with_block(Block::Plain, |out| {
+                        out.write_str("It has two paragraphs.");
+                    });
+
+                    out.write_str("A. ");
+                    out.with_block(Block::Indent(3), |out| {
+                        out.with_block(Block::Plain, |out| {
+                            out.write_str("Inner item");
+                        });
+                        out.with_block(Block::Plain, |out| {
+                            out.write_str("It also has two paragraphs.");
+                        });
+                    });
+                });
+            }),
+            indoc! {r#"
+                1. First item
+
+                   It has two paragraphs.
+                
+                   A. Inner item
+                
+                      It also has two paragraphs."#}
         );
     }
 
