@@ -36,7 +36,7 @@ pub struct OutputOpts {
     pub text_width: Option<usize>,
 }
 
-pub struct Output<W: SimpleWrite> {
+struct IndentationHandler<W> {
     stream: W,
     /// whether the current block is in `<pre>` mode. See [Block] for an explanation as to why this
     /// exists, and isn't instead a `Block::Pre`.
@@ -46,6 +46,10 @@ pub struct Output<W: SimpleWrite> {
     pending_newlines: usize,
     pending_padding_after_indent: usize,
     writing_state: WritingState,
+}
+
+pub struct Output<W: SimpleWrite> {
+    indentation_handler: IndentationHandler<W>,
     words_buffer: WordsBuffer,
 }
 
@@ -56,7 +60,7 @@ impl<W: SimpleWrite> SimpleWrite for Output<W> {
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.stream.flush()
+        self.indentation_handler.stream.flush()
     }
 }
 
@@ -97,13 +101,7 @@ pub enum Block {
 impl<W: SimpleWrite> Output<W> {
     pub fn new(to: W, opts: OutputOpts) -> Self {
         Self {
-            stream: to,
-            pre_mode: false,
-            blocks: Vec::default(),
-            pending_blocks: Vec::default(),
-            pending_newlines: 0,
-            pending_padding_after_indent: 0,
-            writing_state: WritingState::HaveNotWrittenAnything,
+            indentation_handler: IndentationHandler::new(to),
             words_buffer: opts
                 .text_width
                 .map_or_else(WordsBuffer::disabled, |width| WordsBuffer::new(width)),
@@ -115,8 +113,8 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     pub fn replace_underlying(&mut self, new: W) -> std::io::Result<W> {
-        self.stream.flush()?;
-        Ok(std::mem::replace(&mut self.stream, new))
+        self.indentation_handler.stream.flush()?;
+        Ok(std::mem::replace(&mut self.indentation_handler.stream, new))
     }
 
     pub fn with_block<F>(&mut self, block: Block, action: F)
@@ -139,12 +137,12 @@ impl<W: SimpleWrite> Output<W> {
         F: for<'a> FnOnce(&mut PreWriter<W>),
     {
         self.push_block(Block::Plain);
-        self.pre_mode = true;
+        self.indentation_handler.pre_mode = true;
         self.without_wrapping(|me| {
             action(&mut PreWriter { output: me });
         });
-        (0..self.pending_newlines).for_each(|_| self.write_optional_char(None));
-        self.pre_mode = false;
+        (0..self.indentation_handler.pending_newlines).for_each(|_| self.write_optional_char(None));
+        self.indentation_handler.pre_mode = false;
         self.pop_block();
     }
 
@@ -159,14 +157,14 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     fn push_block(&mut self, block: Block) {
-        self.pending_blocks.push(block);
+        self.indentation_handler.pending_blocks.push(block);
     }
 
     fn pop_block(&mut self) {
-        if !self.pending_blocks.is_empty() {
+        if !self.indentation_handler.pending_blocks.is_empty() {
             self.write_optional_char(None); // write a blank line for whatever blocks had been enqueued
         }
-        let newlines = match self.blocks.pop() {
+        let newlines = match self.indentation_handler.blocks.pop() {
             None => 0,
             Some(closing_block) => match closing_block {
                 Block::Plain => 2,
@@ -174,7 +172,8 @@ impl<W: SimpleWrite> Output<W> {
                 Block::Indent(_) => 1,
             },
         };
-        self.ensure_newlines(NewlinesRequest::Exactly(newlines));
+        self.indentation_handler
+            .ensure_newlines(NewlinesRequest::Exactly(newlines));
     }
 
     pub fn write_str(&mut self, text: &str) {
@@ -193,21 +192,57 @@ impl<W: SimpleWrite> Output<W> {
     fn write_optional_char(&mut self, ch: Option<char>) {
         match ch {
             Some(ch) => {
-                // TODO YUCK!! Maybe words_puffer.push should instead return the &str?
-                let mut chars_to_flush = vec![];
-                self.words_buffer.push(ch, |flushed| chars_to_flush.push(flushed));
-                for flushed in chars_to_flush {
-                    self.write_single_optional_char(Some(flushed));
-                }
+                self.words_buffer.push(ch, |flushed| {
+                    self.indentation_handler.write_single_optional_char(Some(flushed));
+                });
             }
             None => {
-                // TODO also yuck! also return a &str
-                let mut chars_to_flush = vec![];
-                self.words_buffer.drain(|flushed| chars_to_flush.push(flushed));
-                for flushed in chars_to_flush {
-                    self.write_single_optional_char(Some(flushed));
-                }
+                self.words_buffer.drain(|flushed| {
+                    self.indentation_handler.write_single_optional_char(Some(flushed));
+                });
             }
+        }
+    }
+}
+
+impl<W: SimpleWrite> Output<W>
+where
+    W: Default,
+{
+    pub fn take_underlying(&mut self) -> std::io::Result<W> {
+        self.indentation_handler.stream.flush()?;
+        Ok(std::mem::take(&mut self.indentation_handler.stream))
+    }
+}
+
+impl<W: SimpleWrite> Drop for Output<W> {
+    fn drop(&mut self) {
+        self.words_buffer.drain(|flushed| {
+            self.indentation_handler.write_single_optional_char(Some(flushed));
+        });
+        if self.indentation_handler.pending_newlines > 0 {
+            self.indentation_handler.write_raw('\n');
+            self.indentation_handler.pending_newlines = 0;
+        }
+        if let Err(e) = self.indentation_handler.stream.flush() {
+            if WritingState::Error != self.indentation_handler.writing_state {
+                eprintln!("error while writing output: {}", e);
+                self.indentation_handler.writing_state = WritingState::Error;
+            }
+        }
+    }
+}
+
+impl<W: SimpleWrite> IndentationHandler<W> {
+    fn new(to: W) -> Self {
+        Self {
+            stream: to,
+            pre_mode: false,
+            blocks: Vec::default(),
+            pending_blocks: Vec::default(),
+            pending_newlines: 0,
+            pending_padding_after_indent: 0,
+            writing_state: WritingState::HaveNotWrittenAnything,
         }
     }
 
@@ -273,6 +308,13 @@ impl<W: SimpleWrite> Output<W> {
         self.pending_padding_after_indent = 0; // #199 this is redundant if we called self.write_padding_after_indent()
     }
 
+    fn set_writing_state(&mut self, state: WritingState) {
+        if matches!(self.writing_state, WritingState::Error) {
+            return;
+        }
+        self.writing_state = state;
+    }
+
     /// Write an indentation for a given range of indentation block. If `include_indents` is false, `Indent` blocks
     /// will be disregarded. Do this for the first line in which those indents appear (and only there).
     fn write_indent(&mut self, include_indents: bool, range: Option<Range<usize>>) {
@@ -319,13 +361,6 @@ impl<W: SimpleWrite> Output<W> {
         }
     }
 
-    fn set_writing_state(&mut self, state: WritingState) {
-        if matches!(self.writing_state, WritingState::Error) {
-            return;
-        }
-        self.writing_state = state;
-    }
-
     fn write_raw(&mut self, ch: char) {
         if matches!(self.writing_state, WritingState::Error) {
             return;
@@ -336,37 +371,6 @@ impl<W: SimpleWrite> Output<W> {
         }
         if matches!(self.writing_state, WritingState::HaveNotWrittenAnything) {
             self.writing_state = WritingState::Normal;
-        }
-    }
-}
-
-impl<W: SimpleWrite> Output<W>
-where
-    W: Default,
-{
-    pub fn take_underlying(&mut self) -> std::io::Result<W> {
-        self.stream.flush()?;
-        Ok(std::mem::take(&mut self.stream))
-    }
-}
-
-impl<W: SimpleWrite> Drop for Output<W> {
-    fn drop(&mut self) {
-        // TODO also yuck! also return a &str
-        let mut chars_to_flush = vec![];
-        self.words_buffer.drain(|flushed| chars_to_flush.push(flushed));
-        for flushed in chars_to_flush {
-            self.write_single_optional_char(Some(flushed));
-        }
-        if self.pending_newlines > 0 {
-            self.write_raw('\n');
-            self.pending_newlines = 0;
-        }
-        if let Err(e) = self.stream.flush() {
-            if WritingState::Error != self.writing_state {
-                eprintln!("error while writing output: {}", e);
-                self.writing_state = WritingState::Error;
-            }
         }
     }
 }
@@ -541,7 +545,7 @@ mod tests {
                 // even works in pre_mode! Note that this has what look like extra newlines, due to how blocks get
                 // newlines. This can't happen in practice, since you can't have blocks inside a `pre` due to how we
                 // do with_pre_block vs with_block. See the docs on Block for mor.
-                out.pre_mode = true;
+                out.indentation_handler.pre_mode = true;
                 out.write_str("[before-2]");
                 out.with_block(Block::Indent(2), |out| {
                     out.with_block(Block::Plain, |out| {
