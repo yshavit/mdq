@@ -199,6 +199,7 @@ impl<W: SimpleWrite> Output<W> {
                 self.words_buffer.drain(|flushed| {
                     self.writer.write_single_optional_char(Some(flushed));
                 });
+                self.writer.write_single_optional_char(None);
             }
         }
     }
