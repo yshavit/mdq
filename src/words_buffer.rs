@@ -43,6 +43,10 @@ impl WordsBuffer {
         wb
     }
 
+    pub fn mark_chars_were_written(&mut self, count: usize) {
+        self.chars_written_to_line += count;
+    }
+
     /// sets the word boundary, and returns the old one
     pub fn set_word_boundary(&mut self, boundary: WordBoundary) -> WordBoundary {
         let old = self.boundary;

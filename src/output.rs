@@ -3,6 +3,7 @@ use std::cmp::PartialEq;
 use std::ops::Range;
 
 pub trait SimpleWrite {
+    // TODO should these take a non-mut self, and the impl-for is on the mut?
     fn write_char(&mut self, ch: char) -> std::io::Result<()>;
     fn flush(&mut self) -> std::io::Result<()>;
 }
@@ -36,8 +37,7 @@ pub struct OutputOpts {
     pub text_width: Option<usize>,
 }
 
-struct CharsWriter<W> {
-    stream: W,
+struct CharsWriter {
     /// whether the current block is in `<pre>` mode. See [Block] for an explanation as to why this
     /// exists, and isn't instead a `Block::Pre`.
     pre_mode: bool,
@@ -45,12 +45,13 @@ struct CharsWriter<W> {
     pending_blocks: Vec<Block>,
     pending_newlines: usize,
     pending_padding_after_indent: usize,
-    writing_state: WritingState,
 }
 
 pub struct Output<W: SimpleWrite> {
-    writer: CharsWriter<W>,
+    stream: W,
+    writer: CharsWriter,
     words_buffer: WordsBuffer,
+    writing_state: WritingState,
 }
 
 impl<W: SimpleWrite> SimpleWrite for Output<W> {
@@ -60,7 +61,7 @@ impl<W: SimpleWrite> SimpleWrite for Output<W> {
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.writer.stream.flush()
+        self.stream.flush()
     }
 }
 
@@ -108,10 +109,12 @@ enum WriteAction {
 impl<W: SimpleWrite> Output<W> {
     pub fn new(to: W, opts: OutputOpts) -> Self {
         Self {
-            writer: CharsWriter::new(to),
+            stream: to,
+            writer: CharsWriter::new(),
             words_buffer: opts
                 .text_width
                 .map_or_else(WordsBuffer::disabled, |width| WordsBuffer::new(width)),
+            writing_state: WritingState::HaveNotWrittenAnything,
         }
     }
 
@@ -120,8 +123,8 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     pub fn replace_underlying(&mut self, new: W) -> std::io::Result<W> {
-        self.writer.stream.flush()?;
-        Ok(std::mem::replace(&mut self.writer.stream, new))
+        self.stream.flush()?;
+        Ok(std::mem::replace(&mut self.stream, new))
     }
 
     pub fn with_block<F>(&mut self, block: Block, action: F)
@@ -181,7 +184,8 @@ impl<W: SimpleWrite> Output<W> {
                 Block::Indent(_) => 1,
             },
         };
-        self.writer.ensure_newlines(NewlinesRequest::Exactly(newlines));
+        self.writer
+            .ensure_newlines(self.writing_state, NewlinesRequest::Exactly(newlines));
     }
 
     pub fn write_str(&mut self, text: &str) {
@@ -198,26 +202,50 @@ impl<W: SimpleWrite> Output<W> {
     /// - `None` basically flushes pending blocks, but doesn't write anything else; we use this in [Self::pop_block],
     ///    and it's particularly useful for empty quote blocks (`">"`) and trailing newlines in `pre` blocks.
     fn perform_write(&mut self, write: WriteAction) {
-        match write {
+        let new_state = match write {
             WriteAction::Char(ch) => {
-                self.words_buffer.push(ch, |flushed| {
-                    self.writer.write_single_optional_char(Some(flushed));
-                });
+                self.writer
+                    .write_single_optional_char(Some(ch), self.writing_state, |ch| {
+                        self.words_buffer.push(ch, |ch| {
+                            // (comment just for formatting)
+                            self.writing_state.write_raw(ch, &mut self.stream);
+                        });
+                    })
             }
             WriteAction::FlushChars => {
+                let mut new_state = self.writing_state;
                 self.words_buffer.drain(|flushed| {
-                    self.writer.write_single_optional_char(Some(flushed));
+                    new_state = self
+                        .writer
+                        .write_single_optional_char(Some(flushed), self.writing_state, |ch| {
+                            // (comment just for formatting)
+                            self.writing_state.write_raw(ch, &mut self.stream);
+                        })
                 });
+                new_state
             }
             WriteAction::FlushPendingBlocksAndNewlines => {
+                let mut new_state = self.writing_state;
                 // In all the call sites today, the words_buffer should be empty by the time we get here. But, as a
                 // belt-and-suspenders approach, let's flush the words_buffer anyway.
                 self.words_buffer.drain(|flushed| {
-                    self.writer.write_single_optional_char(Some(flushed));
+                    new_state = self
+                        .writer
+                        .write_single_optional_char(Some(flushed), self.writing_state, |ch| {
+                            // (comment just for formatting)
+                            self.writing_state.write_raw(ch, &mut self.stream);
+                        });
                 });
-                self.writer.write_single_optional_char(None);
+                new_state.update_to(self.writer.write_single_optional_char(None, self.writing_state, |ch| {
+                    self.words_buffer.push(ch, |ch| {
+                        // (comment just for formatting)
+                        self.writing_state.write_raw(ch, &mut self.stream);
+                    });
+                }));
+                new_state
             }
-        }
+        };
+        self.writing_state.update_to(new_state);
     }
 }
 
@@ -226,60 +254,68 @@ where
     W: Default,
 {
     pub fn take_underlying(&mut self) -> std::io::Result<W> {
-        self.writer.stream.flush()?;
-        Ok(std::mem::take(&mut self.writer.stream))
+        self.stream.flush()?;
+        Ok(std::mem::take(&mut self.stream))
     }
 }
 
 impl<W: SimpleWrite> Drop for Output<W> {
     fn drop(&mut self) {
         self.words_buffer.drain(|flushed| {
-            self.writer.write_single_optional_char(Some(flushed));
+            let new_state = self
+                .writer
+                .write_single_optional_char(Some(flushed), self.writing_state, |ch| {
+                    // (comment just for formatting)
+                    self.writing_state.write_raw(ch, &mut self.stream);
+                });
+            self.writing_state.update_to(new_state);
         });
         if self.writer.pending_newlines > 0 {
-            self.writer.write_raw('\n');
+            self.writing_state.write_raw('\n', &mut self.stream);
             self.writer.pending_newlines = 0;
         }
-        if let Err(e) = self.writer.stream.flush() {
-            if WritingState::Error != self.writer.writing_state {
+        if let Err(e) = self.stream.flush() {
+            if WritingState::Error != self.writing_state {
                 eprintln!("error while writing output: {}", e);
-                self.writer.writing_state = WritingState::Error;
+                self.writing_state = WritingState::Error;
             }
         }
     }
 }
 
-impl<W: SimpleWrite> CharsWriter<W> {
-    fn new(to: W) -> Self {
+impl CharsWriter {
+    fn new() -> Self {
         Self {
-            stream: to,
             pre_mode: false,
             blocks: Vec::default(),
             pending_blocks: Vec::default(),
             pending_newlines: 0,
             pending_padding_after_indent: 0,
-            writing_state: WritingState::HaveNotWrittenAnything,
         }
     }
 
-    fn write_single_optional_char(&mut self, ch: Option<char>) {
+    fn write_single_optional_char<F>(&mut self, ch: Option<char>, state: WritingState, mut action: F) -> WritingState
+    where
+        F: FnMut(char),
+    {
         // #199: I have a number of branches here. Can I nest some of them, so that in the happy path of a non-newline
         //       char, I just have a single check?
+        let mut resulting_state = state;
 
         // If we have any pending blocks, handle those first. We need to add a paragraph break, unless the first block
         // is an Indent.
         match self.pending_blocks.first() {
             None => {}
             Some(Block::Indent(_)) => {
-                self.set_writing_state(WritingState::IgnoringNewlines);
+                resulting_state.update_to(WritingState::IgnoringNewlines);
             }
-            Some(_) => self.ensure_newlines(NewlinesRequest::AtLeast(2)),
+            Some(_) => self.ensure_newlines(resulting_state, NewlinesRequest::AtLeast(2)),
         }
 
         // Translate a newline char into an ensure_newlines request
         if matches!(ch, Some('\n')) {
-            self.ensure_newlines(NewlinesRequest::Exactly(1));
-            return;
+            self.ensure_newlines(resulting_state, NewlinesRequest::Exactly(1));
+            return resulting_state;
         }
 
         // print pending newlines before we append any new blocks; also note whether we need to write the full indent
@@ -287,14 +323,14 @@ impl<W: SimpleWrite> CharsWriter<W> {
         // Oh, I see -- it's a flag that toggles whether Block::Indent's indentation gets included in write_indent
         let need_full_indent = if self.pending_newlines > 0 {
             for _ in 0..(self.pending_newlines - 1) {
-                self.write_raw('\n');
-                self.write_indent(true, None);
+                action('\n');
+                self.write_indent(true, None, |ch| action(ch));
             }
-            self.write_raw('\n'); // we'll do this indent after we add the pending blocks
+            action('\n'); // we'll do this indent after we add the pending blocks
             self.pending_newlines = 0;
             true
         } else {
-            matches!(self.writing_state, WritingState::HaveNotWrittenAnything)
+            matches!(state, WritingState::HaveNotWrittenAnything)
         };
 
         // Append the new blocks, and then write the indent if we need it.
@@ -308,40 +344,37 @@ impl<W: SimpleWrite> CharsWriter<W> {
                     .position(|b| matches!(b, Block::Indent(_)))
                     .unwrap_or_else(|| self.pending_blocks.len());
             self.blocks.append(&mut self.pending_blocks);
-            self.write_indent(true, Some(0..indent_end_idx));
+            self.write_indent(true, Some(0..indent_end_idx), |ch| action(ch));
         } else {
-            self.write_padding_after_indent();
+            self.write_padding_after_indent(|ch| action(ch));
             let prev_blocks_len = self.blocks.len();
             self.blocks.append(&mut self.pending_blocks);
-            self.write_indent(false, Some(prev_blocks_len..self.blocks.len()));
+            self.write_indent(false, Some(prev_blocks_len..self.blocks.len()), |ch| action(ch));
         }
 
         // Finally, write the text
         if let Some(ch) = ch {
-            self.write_padding_after_indent();
-            self.write_raw(ch); // will not be a '\n', since that got translated to ensure_newlines above.
-            self.set_writing_state(WritingState::Normal);
+            self.write_padding_after_indent(|ch| action(ch));
+            action(ch); // will not be a '\n', since that got translated to ensure_newlines above.
+            resulting_state.update_to(WritingState::Normal);
         }
         self.pending_padding_after_indent = 0; // #199 this is redundant if we called self.write_padding_after_indent()
-    }
-
-    fn set_writing_state(&mut self, state: WritingState) {
-        if matches!(self.writing_state, WritingState::Error) {
-            return;
-        }
-        self.writing_state = state;
+        resulting_state
     }
 
     /// Write an indentation for a given range of indentation block. If `include_indents` is false, `Indent` blocks
     /// will be disregarded. Do this for the first line in which those indents appear (and only there).
-    fn write_indent(&mut self, include_indents: bool, range: Option<Range<usize>>) {
+    fn write_indent<F>(&mut self, include_indents: bool, range: Option<Range<usize>>, mut action: F)
+    where
+        F: FnMut(char),
+    {
         self.pending_padding_after_indent = 0;
         for idx in range.unwrap_or_else(|| 0..self.blocks.len()) {
             match &self.blocks[idx] {
                 Block::Plain => {}
                 Block::Quote => {
-                    self.write_padding_after_indent();
-                    self.write_raw('>');
+                    self.write_padding_after_indent(|ch| action(ch));
+                    action('>');
                     self.pending_padding_after_indent += 1;
                 }
                 Block::Indent(size) => {
@@ -353,13 +386,16 @@ impl<W: SimpleWrite> CharsWriter<W> {
         }
     }
 
-    fn write_padding_after_indent(&mut self) {
-        (0..self.pending_padding_after_indent).for_each(|_| self.write_raw(' '));
+    fn write_padding_after_indent<F>(&mut self, mut action: F)
+    where
+        F: FnMut(char),
+    {
+        (0..self.pending_padding_after_indent).for_each(|_| action(' '));
         self.pending_padding_after_indent = 0;
     }
 
-    fn ensure_newlines(&mut self, request: NewlinesRequest) {
-        match self.writing_state {
+    fn ensure_newlines(&mut self, writing_state: WritingState, request: NewlinesRequest) {
+        match writing_state {
             WritingState::Normal => match request {
                 NewlinesRequest::Exactly(n) => {
                     if self.pre_mode {
@@ -375,19 +411,6 @@ impl<W: SimpleWrite> CharsWriter<W> {
                 }
             },
             WritingState::HaveNotWrittenAnything | WritingState::IgnoringNewlines | WritingState::Error => {}
-        }
-    }
-
-    fn write_raw(&mut self, ch: char) {
-        if matches!(self.writing_state, WritingState::Error) {
-            return;
-        }
-        if let Err(e) = self.stream.write_char(ch) {
-            eprintln!("error while writing output: {}", e);
-            self.writing_state = WritingState::Error;
-        }
-        if matches!(self.writing_state, WritingState::HaveNotWrittenAnything) {
-            self.writing_state = WritingState::Normal;
         }
     }
 }
@@ -407,7 +430,7 @@ enum NewlinesRequest {
     AtLeast(usize),
 }
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 enum WritingState {
     /// We haven't written any text; that is, there hasn't been any invocation of [Output::write_str] or
     /// [Output::write_char]. We may have queued up some blocks.
@@ -422,6 +445,28 @@ enum WritingState {
 
     /// There's been an error in writing. From here on in, everything will be a noop.
     Error,
+}
+
+impl WritingState {
+    fn update_to(&mut self, new_state: WritingState) {
+        if matches!(self, WritingState::Error) {
+            return;
+        }
+        *self = new_state;
+    }
+
+    fn write_raw<W: SimpleWrite>(&mut self, ch: char, out: &mut W) {
+        if matches!(*self, WritingState::Error) {
+            return;
+        }
+        if let Err(e) = out.write_char(ch) {
+            eprintln!("error while writing output: {}", e);
+            *self = WritingState::Error;
+        }
+        if matches!(*self, WritingState::HaveNotWrittenAnything) {
+            *self = WritingState::Normal;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -651,9 +696,9 @@ mod tests {
                 1. First item
 
                    It has two paragraphs.
-                
+
                    A. Inner item
-                
+
                       It also has two paragraphs."#}
         );
     }
