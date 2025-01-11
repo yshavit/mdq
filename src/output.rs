@@ -37,7 +37,7 @@ pub struct OutputOpts {
     pub text_width: Option<usize>,
 }
 
-struct CharsWriter {
+struct IndentHandler {
     /// whether the current block is in `<pre>` mode. See [Block] for an explanation as to why this
     /// exists, and isn't instead a `Block::Pre`.
     pre_mode: bool,
@@ -49,7 +49,7 @@ struct CharsWriter {
 
 pub struct Output<W: SimpleWrite> {
     stream: W,
-    writer: CharsWriter,
+    indenter: IndentHandler,
     words_buffer: WordsBuffer,
     writing_state: WritingState,
 }
@@ -110,7 +110,7 @@ impl<W: SimpleWrite> Output<W> {
     pub fn new(to: W, opts: OutputOpts) -> Self {
         Self {
             stream: to,
-            writer: CharsWriter::new(),
+            indenter: IndentHandler::new(),
             words_buffer: opts
                 .text_width
                 .map_or_else(WordsBuffer::disabled, |width| WordsBuffer::new(width)),
@@ -147,12 +147,12 @@ impl<W: SimpleWrite> Output<W> {
         F: for<'a> FnOnce(&mut PreWriter<W>),
     {
         self.push_block(Block::Plain);
-        self.writer.pre_mode = true;
+        self.indenter.pre_mode = true;
         self.without_wrapping(|me| {
             action(&mut PreWriter { output: me });
         });
         self.perform_write(WriteAction::FlushPendingBlocksAndNewlines); // we want the newlines aspect of this flush
-        self.writer.pre_mode = false;
+        self.indenter.pre_mode = false;
         self.pop_block();
     }
 
@@ -167,16 +167,16 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     fn push_block(&mut self, block: Block) {
-        self.writer.pending_blocks.push(block);
+        self.indenter.pending_blocks.push(block);
     }
 
     fn pop_block(&mut self) {
         self.perform_write(WriteAction::FlushChars);
-        if !self.writer.pending_blocks.is_empty() {
+        if !self.indenter.pending_blocks.is_empty() {
             // write a blank line for whatever blocks had been enqueued but didn't have content
             self.perform_write(WriteAction::FlushPendingBlocksAndNewlines);
         }
-        let newlines = match self.writer.blocks.pop() {
+        let newlines = match self.indenter.blocks.pop() {
             None => 0,
             Some(closing_block) => match closing_block {
                 Block::Plain => 2,
@@ -184,7 +184,7 @@ impl<W: SimpleWrite> Output<W> {
                 Block::Indent(_) => 1,
             },
         };
-        self.writer
+        self.indenter
             .ensure_newlines(self.writing_state, NewlinesRequest::Exactly(newlines));
     }
 
@@ -204,7 +204,7 @@ impl<W: SimpleWrite> Output<W> {
     fn perform_write(&mut self, write: WriteAction) {
         let new_state = match write {
             WriteAction::Char(ch) => {
-                self.writer
+                self.indenter
                     .write_single_optional_char(Some(ch), self.writing_state, |ch| {
                         self.words_buffer.push(ch, |ch| {
                             // (comment just for formatting)
@@ -216,7 +216,7 @@ impl<W: SimpleWrite> Output<W> {
                 let mut new_state = self.writing_state;
                 self.words_buffer.drain(|flushed| {
                     new_state = self
-                        .writer
+                        .indenter
                         .write_single_optional_char(Some(flushed), self.writing_state, |ch| {
                             // (comment just for formatting)
                             self.writing_state.write_raw(ch, &mut self.stream);
@@ -230,18 +230,21 @@ impl<W: SimpleWrite> Output<W> {
                 // belt-and-suspenders approach, let's flush the words_buffer anyway.
                 self.words_buffer.drain(|flushed| {
                     new_state = self
-                        .writer
+                        .indenter
                         .write_single_optional_char(Some(flushed), self.writing_state, |ch| {
                             // (comment just for formatting)
                             self.writing_state.write_raw(ch, &mut self.stream);
                         });
                 });
-                new_state.update_to(self.writer.write_single_optional_char(None, self.writing_state, |ch| {
-                    self.words_buffer.push(ch, |ch| {
-                        // (comment just for formatting)
-                        self.writing_state.write_raw(ch, &mut self.stream);
-                    });
-                }));
+                new_state.update_to(
+                    self.indenter
+                        .write_single_optional_char(None, self.writing_state, |ch| {
+                            self.words_buffer.push(ch, |ch| {
+                                // (comment just for formatting)
+                                self.writing_state.write_raw(ch, &mut self.stream);
+                            });
+                        }),
+                );
                 new_state
             }
         };
@@ -263,16 +266,16 @@ impl<W: SimpleWrite> Drop for Output<W> {
     fn drop(&mut self) {
         self.words_buffer.drain(|flushed| {
             let new_state = self
-                .writer
+                .indenter
                 .write_single_optional_char(Some(flushed), self.writing_state, |ch| {
                     // (comment just for formatting)
                     self.writing_state.write_raw(ch, &mut self.stream);
                 });
             self.writing_state.update_to(new_state);
         });
-        if self.writer.pending_newlines > 0 {
+        if self.indenter.pending_newlines > 0 {
             self.writing_state.write_raw('\n', &mut self.stream);
-            self.writer.pending_newlines = 0;
+            self.indenter.pending_newlines = 0;
         }
         if let Err(e) = self.stream.flush() {
             if WritingState::Error != self.writing_state {
@@ -283,7 +286,7 @@ impl<W: SimpleWrite> Drop for Output<W> {
     }
 }
 
-impl CharsWriter {
+impl IndentHandler {
     fn new() -> Self {
         Self {
             pre_mode: false,
@@ -607,7 +610,7 @@ mod tests {
                 // even works in pre_mode! Note that this has what look like extra newlines, due to how blocks get
                 // newlines. This can't happen in practice, since you can't have blocks inside a `pre` due to how we
                 // do with_pre_block vs with_block. See the docs on Block for mor.
-                out.writer.pre_mode = true;
+                out.indenter.pre_mode = true;
                 out.write_str("[before-2]");
                 out.with_block(Block::Indent(2), |out| {
                     out.with_block(Block::Plain, |out| {
