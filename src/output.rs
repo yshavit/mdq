@@ -203,9 +203,11 @@ impl<W: SimpleWrite> Output<W> {
     fn perform_write(&mut self, write: WriteAction) {
         match write {
             WriteAction::Char(ch) => {
-                let indentation = self.indenter.get_indentation_info(Some(ch), self.writing_state);
-                indentation.pre_write(&mut self.writing_state, true, &mut self.stream);
-                indentation.write_char(&mut self.writing_state, &mut self.stream, ch);
+                self.words_buffer.push(ch, |ch| {
+                    let indentation = self.indenter.get_indentation_info(Some(ch), self.writing_state);
+                    indentation.pre_write(&mut self.writing_state, true, &mut self.stream);
+                    indentation.write_char(&mut self.writing_state, &mut self.stream, ch);
+                });
             }
             WriteAction::FlushChars => {
                 // todo If I change write_single_optional_char to write_paragraphs_and_indentations, the problem will be
@@ -341,6 +343,7 @@ impl Indent {
 
 impl<'a> IndentInfo<'a> {
     // newlines and first indent; todo need better name
+    // todo also, is trailing_padding really needed?
     fn pre_write(&self, writing_state: &mut WritingState, trailing_padding: bool, out: &mut impl SimpleWrite) {
         if self.static_info.newlines > 0 {
             for _ in 0..(self.static_info.newlines - 1) {
