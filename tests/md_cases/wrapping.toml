@@ -10,7 +10,7 @@ This text has both [an inline link](https://example.com/inline) and a [reference
 
 > We can also have text that wraps within quoted text.
 
-- Or we can have text taht wraps within ordered lists
+- Or we can have text that wraps within ordered lists
   - including sublists, which should take the indentation into account
 '''
 
@@ -30,10 +30,9 @@ This text has both
 > We can also have text that wraps within quoted
 > text.
 
-- Or we can have text taht wraps within ordered
+- Or we can have text that wraps within ordered
   lists
   - including sublists, which should take the
     indentation into account
 
-[1]: https://example.com/referenced
-[an inline link](https://example.com/inline)'''
+[1]: https://example.com/referenced'''
