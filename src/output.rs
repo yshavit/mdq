@@ -203,11 +203,21 @@ impl<W: SimpleWrite> Output<W> {
     fn perform_write(&mut self, write: WriteAction) {
         match write {
             WriteAction::Char(ch) => {
-                self.words_buffer.push(ch, |ch| {
-                    let indentation = self.indenter.get_indentation_info(Some(ch), self.writing_state);
-                    indentation.pre_write(&mut self.writing_state, true, &mut self.stream);
-                    indentation.write_char(&mut self.writing_state, &mut self.stream, ch);
-                });
+                let indentation = self.indenter.get_indentation_info(Some(ch), self.writing_state);
+                let indent_len = indentation.pre_write(&mut self.writing_state, true, &mut self.stream);
+                self.words_buffer.shorten_current_line(indent_len);
+                if ch != '\n' {
+                    // TODO put this "if" check somewhere else that's nicer. It's here so we don't double-newline,
+                    // since this already gets turned into an ensure_newlines(~) call.
+                    self.words_buffer.push0(ch, |ch| {
+                        if ch == '\n' {
+                            indentation.write_newline(&mut self.writing_state, &mut self.stream)
+                        } else {
+                            indentation.write_char(&mut self.writing_state, &mut self.stream, ch);
+                            0
+                        }
+                    });
+                }
             }
             WriteAction::FlushChars => {
                 // todo If I change write_single_optional_char to write_paragraphs_and_indentations, the problem will be
@@ -231,6 +241,7 @@ impl<W: SimpleWrite> Output<W> {
                     //  if so, do we want to rename it to something like EndBlock?
                     self.words_buffer.drain_pending_word(|flushed| {
                         indentation.write_char(&mut self.writing_state, &mut self.stream, flushed);
+                        0
                     });
                 }
                 self.words_buffer.reset();
@@ -247,6 +258,7 @@ impl<W: SimpleWrite> Output<W> {
                 // belt-and-suspenders approach, let's flush the words_buffer anyway.
                 self.words_buffer.drain_pending_word(|flushed| {
                     indentation.write_char(&mut self.writing_state, &mut self.stream, flushed);
+                    0
                 });
                 // TODO are these next two lines necessary? If not, is this just the same as FlushChars?
                 let indentation = self.indenter.get_indentation_info(None, self.writing_state);
@@ -316,13 +328,15 @@ impl Indent {
         blocks: &[Block],
         trailing_padding: bool,
         out: &mut impl SimpleWrite,
-    ) {
+    ) -> usize {
+        let mut wrote = 0;
         // see https://github.com/rust-lang/rust/pull/27186 for why we have to build the range manually
         let mut pending_padding = 0;
         for idx in self.block_range.start..self.block_range.end {
             match blocks[idx] {
                 Block::Plain => {}
                 Block::Quote => {
+                    wrote += pending_padding + 1; // +1 for the '>'
                     (0..pending_padding).for_each(|_| writing_state.write_raw(' ', out));
                     pending_padding = 0;
                     writing_state.write_raw('>', out);
@@ -337,14 +351,16 @@ impl Indent {
         }
         if trailing_padding {
             (0..pending_padding).for_each(|_| writing_state.write_raw(' ', out));
+            wrote += pending_padding;
         }
+        wrote
     }
 }
 
 impl<'a> IndentInfo<'a> {
     // newlines and first indent; todo need better name
     // todo also, is trailing_padding really needed?
-    fn pre_write(&self, writing_state: &mut WritingState, trailing_padding: bool, out: &mut impl SimpleWrite) {
+    fn pre_write(&self, writing_state: &mut WritingState, trailing_padding: bool, out: &mut impl SimpleWrite) -> usize {
         if self.static_info.newlines > 0 {
             for _ in 0..(self.static_info.newlines - 1) {
                 writing_state.write_raw('\n', out);
@@ -356,7 +372,16 @@ impl<'a> IndentInfo<'a> {
         }
         self.static_info
             .last_indent
-            .write(writing_state, self.blocks, trailing_padding, out);
+            .write(writing_state, self.blocks, trailing_padding, out)
+    }
+
+    fn write_newline(&self, writing_state: &mut WritingState, out: &mut impl SimpleWrite) -> usize {
+        let full_indent = Indent {
+            include_indents: true,
+            block_range: 0..self.blocks.len(),
+        };
+        writing_state.write_raw('\n', out);
+        full_indent.write(writing_state, self.blocks, true, out)
     }
 
     fn write_char(&self, writing_state: &mut WritingState, out: &mut impl SimpleWrite, ch: char) {
@@ -1055,8 +1080,7 @@ mod tests {
                 hello world
                 
                 > hello
-                > world
-                "#}
+                > world"#}
             );
         }
 
