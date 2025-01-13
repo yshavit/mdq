@@ -35,4 +35,5 @@ This text has both
   - including sublists, which should take the
     indentation into account
 
-[1]: https://example.com/referenced'''
+[1]: https://example.com/referenced
+'''
