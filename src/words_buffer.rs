@@ -97,7 +97,7 @@ impl WordsBuffer {
             }
         } else if self.writing_first_word {
             // Just action it directly
-            action(ch);
+            self.shorten_current_line_by += action(ch);
             self.chars_written_to_line += 1;
         } else {
             // How many chars have we already allocated? That's (what we've written) + (what's pending) + (2).
@@ -107,7 +107,7 @@ impl WordsBuffer {
             if allocated_chars > self.current_line_length() {
                 self.start_new_line(|ch| action(ch));
                 self.drain_without_leading_space(|ch| action(ch));
-                action(ch);
+                self.shorten_current_line_by += action(ch);
                 self.chars_written_to_line += 1;
             } else {
                 self.pending_word.push(ch);
@@ -139,7 +139,7 @@ impl WordsBuffer {
 
         // If we have a pending word, it's not the first word (that gets actioned directly). That means we need to add
         // a space first.
-        drain_action(' ');
+        self.shorten_current_line_by += drain_action(' ');
         self.chars_written_to_line += 1;
 
         self.drain_without_leading_space(drain_action);
