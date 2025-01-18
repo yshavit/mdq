@@ -61,7 +61,7 @@ impl WordsBuffer {
 
     pub fn push(&mut self, ch: char, mut action: impl BufferedCharWrite) {
         if ch == '\n' {
-            self.start_new_line(action) // todo need to test this
+            self.start_new_line(action)
         } else if self.char_is_boundary(ch) {
             // Ignore spaces at the start of the line.
             if self.chars_written_to_line == 0 {
@@ -69,7 +69,7 @@ impl WordsBuffer {
             }
             // At this point, we know there's been at least one word already written, and now we have a space. We may
             // need to eventually write that space, but we may not:
-            //   - This could be the end of stream (trailing spaces are trimmed) TODO need to unit test that
+            //   - This could be the end of stream (trailing spaces are trimmed)
             //   - The next word could wrap, meaning that this space becomes a newline instead
             //   - There could be multiple spaces in a row (we need to consolidate them)
             //

@@ -217,7 +217,7 @@ impl<'md> MdInlinesWriter<'md> {
                     }
                 }
                 MdElem::Inline(inline) => {
-                    self.find_references_in_footnote_inlines([inline]); // TODO do I need the array?
+                    self.find_references_in_footnote_inlines([inline]);
                 }
                 MdElem::CodeBlock(_) | MdElem::Html(_) | MdElem::ThematicBreak => {
                     // nothing
