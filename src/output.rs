@@ -101,7 +101,7 @@ pub enum Block {
 #[derive(Debug, PartialEq, Copy, Clone)]
 enum WriteAction {
     Char(char),
-    FlushChars,
+    EndBlock,
     FlushPendingBlocksAndNewlines,
 }
 
@@ -170,7 +170,7 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     fn pop_block(&mut self) {
-        self.perform_write(WriteAction::FlushChars);
+        self.perform_write(WriteAction::EndBlock);
         if !self.indenter.pending_blocks.is_empty() {
             // write a blank line for whatever blocks had been enqueued but didn't have content
             self.perform_write(WriteAction::FlushPendingBlocksAndNewlines);
@@ -207,38 +207,16 @@ impl<W: SimpleWrite> Output<W> {
                 let indent_len = indentation.pre_write(&mut self.writing_state, true, &mut self.stream);
                 self.words_buffer.shorten_current_line(indent_len);
                 if ch != '\n' {
-                    // TODO put this "if" check somewhere else that's nicer. It's here so we don't double-newline,
-                    // since this already gets turned into an ensure_newlines(~) call.
+                    // get_indentation_info would have already handled ch if it's a newline
                     self.words_buffer.push(ch, |ch| {
-                        if ch == '\n' {
-                            indentation.write_newline(&mut self.writing_state, &mut self.stream)
-                        } else {
-                            indentation.write_char(&mut self.writing_state, &mut self.stream, ch);
-                            0
-                        }
+                        indentation.write_char(&mut self.writing_state, &mut self.stream, ch)
                     });
                 }
             }
-            WriteAction::FlushChars => {
-                // todo If I change write_single_optional_char to write_paragraphs_and_indentations, the problem will be
-                //  in this `drain`: it may include newlines, and those may change the indentation. But indentation
-                //  needs to be written with words_buffer in WordBoundary::Never mode, but I can't set that from within
-                //  the drain callback, since that would be a double mut.
-                //  Note that this `drain` may contain newlines even if I ensure that \n never gets pushed to
-                //  words_buffer, since the newline may just be from the wrap.
-                //  Maybe I need to have drain_until_newline, and it returns a bool saying whether there's a newline
-                //  (and potentially more to drain)? Then I put that in a loop. hmm, that might work!
-                //  .
-                //  Actually, no! The drain will only ever contain one word, and never a newline: that gets added during
-                //  push.
+            WriteAction::EndBlock => {
                 if self.words_buffer.has_pending_word() {
                     let indentation = self.indenter.get_indentation_info(None, self.writing_state);
                     indentation.pre_write(&mut self.writing_state, true, &mut self.stream);
-
-                    // we're about to pop out of a block, so no need to worry about keeping the words_buffer up to date;
-                    // it's about to get reset anyway.
-                    // todo how do we validate that this is always valid? or maybe it's just what FlushChars means?
-                    //  if so, do we want to rename it to something like EndBlock?
                     self.words_buffer.drain_pending_word(|flushed| {
                         indentation.write_char(&mut self.writing_state, &mut self.stream, flushed);
                         0
@@ -247,23 +225,11 @@ impl<W: SimpleWrite> Output<W> {
                 self.words_buffer.reset();
             }
             WriteAction::FlushPendingBlocksAndNewlines => {
-                let indentation = self.indenter.get_indentation_info(None, self.writing_state);
-                indentation.pre_write(
+                self.indenter.get_indentation_info(None, self.writing_state).pre_write(
                     &mut self.writing_state,
                     self.words_buffer.has_pending_word(),
                     &mut self.stream,
                 );
-
-                // In all the call sites today, the words_buffer should be empty by the time we get here. But, as a
-                // belt-and-suspenders approach, let's flush the words_buffer anyway.
-                self.words_buffer.drain_pending_word(|flushed| {
-                    indentation.write_char(&mut self.writing_state, &mut self.stream, flushed);
-                    0
-                });
-                // TODO are these next two lines necessary? If not, is this just the same as FlushChars?
-                let indentation = self.indenter.get_indentation_info(None, self.writing_state);
-                indentation.pre_write(&mut self.writing_state, false, &mut self.stream);
-                self.words_buffer.reset();
             }
         };
     }
@@ -309,7 +275,6 @@ impl<W: SimpleWrite> Drop for Output<W> {
 
 #[derive(Debug, Default)]
 struct Indent {
-    // definitional
     include_indents: bool,
     block_range: Range<usize>,
 }
@@ -358,8 +323,6 @@ impl Indent {
 }
 
 impl<'a> IndentInfo<'a> {
-    // newlines and first indent; todo need better name
-    // todo also, is trailing_padding really needed?
     fn pre_write(&self, writing_state: &mut WritingState, trailing_padding: bool, out: &mut impl SimpleWrite) -> usize {
         if self.static_info.newlines > 0 {
             for _ in 0..(self.static_info.newlines - 1) {
@@ -375,21 +338,15 @@ impl<'a> IndentInfo<'a> {
             .write(writing_state, self.blocks, trailing_padding, out)
     }
 
-    fn write_newline(&self, writing_state: &mut WritingState, out: &mut impl SimpleWrite) -> usize {
-        let full_indent = Indent {
-            include_indents: true,
-            block_range: 0..self.blocks.len(),
-        };
-        writing_state.write_raw('\n', out);
-        full_indent.write(writing_state, self.blocks, true, out)
-    }
-
-    fn write_char(&self, writing_state: &mut WritingState, out: &mut impl SimpleWrite, ch: char) {
+    fn write_char(&self, writing_state: &mut WritingState, out: &mut impl SimpleWrite, ch: char) -> usize {
         if ch == '\n' {
-            return;
+            writing_state.write_raw('\n', out);
+            Indent::new(true, 0..self.blocks.len()).write(writing_state, self.blocks, true, out)
+        } else {
+            writing_state.write_raw(ch, out);
+            writing_state.update_to(WritingState::Normal);
+            0
         }
-        writing_state.write_raw(ch, out);
-        writing_state.update_to(WritingState::Normal);
     }
 }
 
@@ -433,13 +390,7 @@ impl IndentHandler {
         }
     }
 
-    // todo This fn is really just "write newlines and indentations.", plus trivially writing the char at the end. I
-    //  should just make it really be `write_paragraph_breaks_and_indentations`, and leave the rest to the caller. That
-    //  way, I can wrap the call with `words_buffer.set_word_boundary` calls.
-    fn get_indentation_info(&mut self, ch: Option<char>, state: WritingState) -> IndentInfo
-// todo if I have this return some immutable info, then I can probably move WritingState back into this struct
-    //  and have that be part of the return
-    {
+    fn get_indentation_info(&mut self, ch: Option<char>, state: WritingState) -> IndentInfo {
         // #199: I have a number of branches here. Can I nest some of them, so that in the happy path of a non-newline
         //       char, I just have a single check?
         let mut indent_builder = StaticIndentInfo::new(state);
@@ -460,20 +411,13 @@ impl IndentHandler {
             return indent_builder.build(&self.blocks);
         }
 
-        // print pending newlines before we append any new blocks; also note whether we need to write the full indent
-        // (#199: what actually is "need full indent"?)
-        // Oh, I see -- it's a flag that toggles whether Block::Indent's indentation gets included in write_indent
-
+        // need_full_indent tells us whether Block::Indent's indentation gets included in write_indent. It's false for
+        // the first line that includes a new Indent, and then true for subsequent lines in that block.
         let need_full_indent = if self.pending_newlines > 0 {
             indent_builder.newlines = self.pending_newlines;
             self.pending_newlines = 0;
             let range = 0..self.blocks.len();
             indent_builder.indents_between_newlines = Indent::new(true, range);
-            // for _ in 0..(self.pending_newlines - 1) {
-            //     action('\n');
-            //     self.write_indent(true, None, |ch| action(ch));
-            // }
-            // action('\n'); // we'll do this indent after we add the pending blocks
             true
         } else {
             matches!(state, WritingState::HaveNotWrittenAnything)
@@ -493,7 +437,6 @@ impl IndentHandler {
             let range = 0..indent_end_idx;
             indent_builder.last_indent = Indent::new(true, range);
         } else {
-            // self.write_padding_after_indent(|ch| action(ch)); // todo do we need this back?
             let prev_blocks_len = self.blocks.len();
             self.blocks.append(&mut self.pending_blocks);
             let range = prev_blocks_len..self.blocks.len();
@@ -501,15 +444,6 @@ impl IndentHandler {
         };
 
         indent_builder.build(&self.blocks)
-
-        // // Finally, write the text
-        // if let Some(ch) = ch {
-        //     self.write_padding_after_indent(|ch| action(ch));
-        //     action(ch); // will not be a '\n', since that got translated to ensure_newlines above.
-        //     resulting_state.update_to(WritingState::Normal);
-        // }
-        // self.pending_padding_after_indent = 0; // #199 this is redundant if we called self.write_padding_after_indent()
-        // resulting_state
     }
 
     fn ensure_newlines(&mut self, writing_state: WritingState, request: NewlinesRequest) {
