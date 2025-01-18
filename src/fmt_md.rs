@@ -120,13 +120,15 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
             }
             MdElemRef::Section(Section { depth, title, body }) => {
                 out.with_block(Block::Plain, |out| {
-                    for _ in 0..*depth {
-                        out.write_str("#");
-                    }
-                    if !title.is_empty() {
-                        out.write_str(" ");
-                        self.inlines_writer.write_line(out, title);
-                    }
+                    out.without_wrapping(|out| {
+                        for _ in 0..*depth {
+                            out.write_str("#");
+                        }
+                        if !title.is_empty() {
+                            out.write_str(" ");
+                            self.inlines_writer.write_line(out, title);
+                        }
+                    });
                 });
                 self.write_md(out, Self::doc_iter(body), false);
                 self.write_link_refs_as_needed(out);
@@ -136,7 +138,9 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
             }
             MdElemRef::ThematicBreak => {
                 if !prev_was_thematic_break {
-                    out.with_block(Block::Plain, |out| out.write_str("   -----"));
+                    out.with_block(Block::Plain, |out| {
+                        out.without_wrapping(|out| out.write_str("   -----"));
+                    });
                 }
                 self.prev_was_thematic_break = true;
             }
@@ -440,9 +444,11 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                         LinkLabel::Text(identifier) => out.write_str(identifier.deref()),
                         LinkLabel::Inline(text) => self.inlines_writer.write_line(out, text),
                     }
-                    out.write_str("]: ");
-                    out.write_str(&link_def.url);
-                    self.inlines_writer.write_url_title(out, &link_def.title);
+                    out.without_wrapping(|out| {
+                        out.write_str("]: ");
+                        out.write_str(&link_def.url);
+                        self.inlines_writer.write_url_title(out, &link_def.title);
+                    });
                     newline(out);
                 }
             }
@@ -463,7 +469,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
     }
 
     fn line_to_string(&mut self, line: &'md Line) -> String {
-        let mut out = Output::new(String::with_capacity(line.len() * 10)); // rough guess
+        let mut out = Output::without_text_wrapping(String::with_capacity(line.len() * 10)); // rough guess
         self.inlines_writer.write_line(&mut out, line);
         out.take_underlying().unwrap()
     }
@@ -2184,7 +2190,7 @@ pub mod tests {
         let (ctx, nodes) = inputs;
         nodes.iter().for_each(|n| VARIANTS_CHECKER.see(n));
 
-        let mut out = Output::new(String::default());
+        let mut out = Output::without_text_wrapping(String::default());
         write_md(options, &mut out, &ctx, nodes.into_iter());
         let actual = out.take_underlying().unwrap();
         assert_eq!(&actual, expect);

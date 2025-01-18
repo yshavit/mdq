@@ -1,7 +1,9 @@
+use crate::words_buffer::{WordBoundary, WordsBuffer};
 use std::cmp::PartialEq;
 use std::ops::Range;
 
 pub trait SimpleWrite {
+    // TODO should these take a non-mut self, and the impl-for is on the mut?
     fn write_char(&mut self, ch: char) -> std::io::Result<()>;
     fn flush(&mut self) -> std::io::Result<()>;
 }
@@ -30,15 +32,24 @@ impl<W: std::io::Write> SimpleWrite for Stream<W> {
     }
 }
 
-pub struct Output<W: SimpleWrite> {
-    stream: W,
+#[derive(Debug)]
+pub struct OutputOpts {
+    pub text_width: Option<usize>,
+}
+
+struct IndentHandler {
     /// whether the current block is in `<pre>` mode. See [Block] for an explanation as to why this
     /// exists, and isn't instead a `Block::Pre`.
     pre_mode: bool,
     blocks: Vec<Block>,
     pending_blocks: Vec<Block>,
     pending_newlines: usize,
-    pending_padding_after_indent: usize,
+}
+
+pub struct Output<W: SimpleWrite> {
+    stream: W,
+    indenter: IndentHandler,
+    words_buffer: WordsBuffer,
     writing_state: WritingState,
 }
 
@@ -65,7 +76,7 @@ pub struct PreWriter<'a, W: SimpleWrite> {
 /// which takes a `(&mut Self)` action that can then push additional blocks; while `pre` blocks are
 /// added via [Output::with_pre_block], which takes a [PreWriter] that only implements
 /// [SimpleWrite].
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Block {
     /// A plain block; just paragraph text.
     Plain,
@@ -87,17 +98,27 @@ pub enum Block {
     Indent(usize),
 }
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum WriteAction {
+    Char(char),
+    EndBlock,
+    FlushPendingBlocksAndNewlines,
+}
+
 impl<W: SimpleWrite> Output<W> {
-    pub fn new(to: W) -> Self {
+    pub fn new(to: W, opts: OutputOpts) -> Self {
         Self {
             stream: to,
-            pre_mode: false,
-            blocks: Vec::default(),
-            pending_blocks: Vec::default(),
-            pending_newlines: 0,
-            pending_padding_after_indent: 0,
+            indenter: IndentHandler::new(),
+            words_buffer: opts
+                .text_width
+                .map_or_else(WordsBuffer::disabled, |width| WordsBuffer::new(width)),
             writing_state: WritingState::HaveNotWrittenAnything,
         }
+    }
+
+    pub fn without_text_wrapping(to: W) -> Self {
+        Self::new(to, OutputOpts { text_width: None })
     }
 
     pub fn replace_underlying(&mut self, new: W) -> std::io::Result<W> {
@@ -125,22 +146,38 @@ impl<W: SimpleWrite> Output<W> {
         F: for<'a> FnOnce(&mut PreWriter<W>),
     {
         self.push_block(Block::Plain);
-        self.pre_mode = true;
-        action(&mut PreWriter { output: self });
-        (0..self.pending_newlines).for_each(|_| self.write_optional_char(None));
-        self.pre_mode = false;
+        self.indenter.pre_mode = true;
+        self.without_wrapping(|me| {
+            action(&mut PreWriter { output: me });
+        });
+        self.perform_write(WriteAction::FlushPendingBlocksAndNewlines); // we want the newlines aspect of this flush
+        self.indenter.pre_mode = false;
         self.pop_block();
     }
 
+    pub fn without_wrapping<F>(&mut self, action: F)
+    where
+        F: for<'a> FnOnce(&mut Self), // TODO change this to a PreWriter, so we don't have reentry issues
+                                      //  (that requires more changes downstream than I want to do right now).
+                                      //  Once I do that, I may be able to replace set_word_boundary with a safer
+                                      //  with_boundary(..., impl FnMut())
+    {
+        let old_boundary_mode = self.words_buffer.set_word_boundary(WordBoundary::OnlyAtNewline);
+        action(self);
+        self.words_buffer.set_word_boundary(old_boundary_mode);
+    }
+
     fn push_block(&mut self, block: Block) {
-        self.pending_blocks.push(block);
+        self.indenter.pending_blocks.push(block);
     }
 
     fn pop_block(&mut self) {
-        if !self.pending_blocks.is_empty() {
-            self.write_optional_char(None); // write a blank line for whatever blocks had been enqueued
+        self.perform_write(WriteAction::EndBlock);
+        if !self.indenter.pending_blocks.is_empty() {
+            // write a blank line for whatever blocks had been enqueued but didn't have content
+            self.perform_write(WriteAction::FlushPendingBlocksAndNewlines);
         }
-        let newlines = match self.blocks.pop() {
+        let newlines = match self.indenter.blocks.pop() {
             None => 0,
             Some(closing_block) => match closing_block {
                 Block::Plain => 2,
@@ -148,148 +185,55 @@ impl<W: SimpleWrite> Output<W> {
                 Block::Indent(_) => 1,
             },
         };
-        self.ensure_newlines(NewlinesRequest::Exactly(newlines));
+        self.indenter
+            .ensure_newlines(self.writing_state, NewlinesRequest::Exactly(newlines));
     }
 
     pub fn write_str(&mut self, text: &str) {
-        text.chars().for_each(|ch| self.write_optional_char(Some(ch)));
+        text.chars().for_each(|ch| self.perform_write(WriteAction::Char(ch)));
     }
 
     pub fn write_char(&mut self, ch: char) {
-        self.write_optional_char(Some(ch));
+        self.perform_write(WriteAction::Char(ch));
     }
 
     /// Writes a char, along with some magic.
     ///
     /// - `Some('\n')` is translated to a [Self::ensure_newlines].
-    /// - `None` basically flushes blocks, but doesn't write anything; we use this in
-    ///   [Self::pop_block].
-    fn write_optional_char(&mut self, ch: Option<char>) {
-        // #199: I have a number of branches here. Can I nest some of them, so that in the happy path of a non-newline
-        //       char, I just have a single check?
-
-        // If we have any pending blocks, handle those first. We need to add a paragraph break, unless the first block
-        // is an Indent.
-        match self.pending_blocks.first() {
-            None => {}
-            Some(Block::Indent(_)) => {
-                self.set_writing_state(WritingState::IgnoringNewlines);
+    /// - `None` basically flushes pending blocks, but doesn't write anything else; we use this in [Self::pop_block],
+    ///    and it's particularly useful for empty quote blocks (`">"`) and trailing newlines in `pre` blocks.
+    fn perform_write(&mut self, write: WriteAction) {
+        match write {
+            WriteAction::Char(ch) => {
+                let indentation = self.indenter.get_indentation_info(Some(ch), self.writing_state);
+                let indent_len = indentation.pre_write(&mut self.writing_state, true, &mut self.stream);
+                self.words_buffer.shorten_current_line(indent_len);
+                if ch != '\n' {
+                    // get_indentation_info would have already handled ch if it's a newline
+                    self.words_buffer.push(ch, |ch| {
+                        indentation.write(&mut self.writing_state, &mut self.stream, ch)
+                    });
+                }
             }
-            Some(_) => self.ensure_newlines(NewlinesRequest::AtLeast(2)),
-        }
-
-        // Translate a newline char into an ensure_newlines request
-        if matches!(ch, Some('\n')) {
-            self.ensure_newlines(NewlinesRequest::Exactly(1));
-            return;
-        }
-
-        // print pending newlines before we append any new blocks; also note whether we need to write the full indent
-        // (#199: what actually is "need full indent"?)
-        let need_full_indent = if self.pending_newlines > 0 {
-            for _ in 0..(self.pending_newlines - 1) {
-                self.write_raw('\n');
-                self.write_indent(true, None);
+            WriteAction::EndBlock => {
+                if self.words_buffer.has_pending_word() {
+                    let indentation = self.indenter.get_indentation_info(None, self.writing_state);
+                    indentation.pre_write(&mut self.writing_state, true, &mut self.stream);
+                    self.words_buffer.drain_pending_word(|flushed| {
+                        indentation.write(&mut self.writing_state, &mut self.stream, flushed);
+                        0
+                    });
+                }
+                self.words_buffer.reset();
             }
-            self.write_raw('\n'); // we'll do this indent after we add the pending blocks
-            self.pending_newlines = 0;
-            true
-        } else {
-            matches!(self.writing_state, WritingState::HaveNotWrittenAnything)
+            WriteAction::FlushPendingBlocksAndNewlines => {
+                self.indenter.get_indentation_info(None, self.writing_state).pre_write(
+                    &mut self.writing_state,
+                    self.words_buffer.has_pending_word(),
+                    &mut self.stream,
+                );
+            }
         };
-
-        // Append the new blocks, and then write the indent if we need it.
-        // When we write that indent, though, only write it until the first new Indent (exclusive).
-        // (#199 that doesn't seem to actually how this code is organized. See the #199 comment above.)
-        if need_full_indent {
-            let indent_end_idx = self.blocks.len()
-                + self
-                    .pending_blocks
-                    .iter()
-                    .position(|b| matches!(b, Block::Indent(_)))
-                    .unwrap_or_else(|| self.pending_blocks.len());
-            self.blocks.append(&mut self.pending_blocks);
-            self.write_indent(true, Some(0..indent_end_idx));
-        } else {
-            self.write_padding_after_indent();
-            let prev_blocks_len = self.blocks.len();
-            self.blocks.append(&mut self.pending_blocks);
-            self.write_indent(false, Some(prev_blocks_len..self.blocks.len()));
-        }
-
-        // Finally, write the text
-        if let Some(ch) = ch {
-            self.write_padding_after_indent();
-            self.write_raw(ch); // will not be a '\n', since that got translated to ensure_newlines above.
-            self.set_writing_state(WritingState::Normal);
-        }
-        self.pending_padding_after_indent = 0; // #199 this is redundant if we called self.write_padding_after_indent()
-    }
-
-    /// Write an indentation for a given range of indentation block. If `include_indents` is false, `Indent` blocks
-    /// will be disregarded. Do this for the first line in which those indents appear (and only there).
-    fn write_indent(&mut self, include_indents: bool, range: Option<Range<usize>>) {
-        self.pending_padding_after_indent = 0;
-        for idx in range.unwrap_or_else(|| 0..self.blocks.len()) {
-            match &self.blocks[idx] {
-                Block::Plain => {}
-                Block::Quote => {
-                    self.write_padding_after_indent();
-                    self.write_raw('>');
-                    self.pending_padding_after_indent += 1;
-                }
-                Block::Indent(size) => {
-                    if include_indents {
-                        self.pending_padding_after_indent += size;
-                    }
-                }
-            }
-        }
-    }
-
-    fn write_padding_after_indent(&mut self) {
-        (0..self.pending_padding_after_indent).for_each(|_| self.write_raw(' '));
-        self.pending_padding_after_indent = 0;
-    }
-
-    fn ensure_newlines(&mut self, request: NewlinesRequest) {
-        match self.writing_state {
-            WritingState::Normal => match request {
-                NewlinesRequest::Exactly(n) => {
-                    if self.pre_mode {
-                        self.pending_newlines += n;
-                    } else {
-                        self.pending_newlines = n;
-                    }
-                }
-                NewlinesRequest::AtLeast(n) => {
-                    if self.pending_newlines < n {
-                        self.pending_newlines = n;
-                    }
-                }
-            },
-            WritingState::HaveNotWrittenAnything | WritingState::IgnoringNewlines | WritingState::Error => {}
-        }
-    }
-
-    fn set_writing_state(&mut self, state: WritingState) {
-        if matches!(self.writing_state, WritingState::Error) {
-            return;
-        }
-        self.writing_state = state;
-    }
-
-    fn write_raw(&mut self, ch: char) {
-        if matches!(self.writing_state, WritingState::Error) {
-            return;
-        }
-        if let Err(e) = self.stream.write_char(ch) {
-            eprintln!("error while writing output: {}", e);
-            self.writing_state = WritingState::Error;
-        }
-        if matches!(self.writing_state, WritingState::HaveNotWrittenAnything) {
-            self.writing_state = WritingState::Normal;
-        }
     }
 }
 
@@ -305,15 +249,210 @@ where
 
 impl<W: SimpleWrite> Drop for Output<W> {
     fn drop(&mut self) {
-        if self.pending_newlines > 0 {
-            self.write_raw('\n');
-            self.pending_newlines = 0;
+        if self.indenter.pending_newlines > 0 {
+            self.writing_state.write('\n', &mut self.stream);
+            self.indenter.pending_newlines = 0;
         }
         if let Err(e) = self.stream.flush() {
             if WritingState::Error != self.writing_state {
                 eprintln!("error while writing output: {}", e);
                 self.writing_state = WritingState::Error;
             }
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct IndentationRange {
+    /// Whether to include [Block::Indent]] blocks. This will be false for the first line in which we see those blocks.
+    include_indent_blocks: bool,
+    block_range: Range<usize>,
+}
+
+impl IndentationRange {
+    fn new(include_indents: bool, block_range: Range<usize>) -> Self {
+        Self {
+            include_indent_blocks: include_indents,
+            block_range,
+        }
+    }
+
+    fn write(
+        &self,
+        writing_state: &mut WritingState,
+        blocks: &[Block],
+        trailing_padding: bool,
+        out: &mut impl SimpleWrite,
+    ) -> usize {
+        let mut wrote = 0;
+        // see https://github.com/rust-lang/rust/pull/27186 for why we have to build the range manually
+        let mut pending_padding = 0;
+        for idx in self.block_range.start..self.block_range.end {
+            match blocks[idx] {
+                Block::Plain => {}
+                Block::Quote => {
+                    wrote += pending_padding + 1; // +1 for the '>'
+                    (0..pending_padding).for_each(|_| writing_state.write(' ', out));
+                    pending_padding = 0;
+                    writing_state.write('>', out);
+                    pending_padding += 1;
+                }
+                Block::Indent(size) => {
+                    if self.include_indent_blocks {
+                        pending_padding += size
+                    }
+                }
+            }
+        }
+        if trailing_padding {
+            (0..pending_padding).for_each(|_| writing_state.write(' ', out));
+            wrote += pending_padding;
+        }
+        wrote
+    }
+}
+
+impl<'a> IndentInfo<'a> {
+    fn pre_write(&self, writing_state: &mut WritingState, trailing_padding: bool, out: &mut impl SimpleWrite) -> usize {
+        if self.static_info.newlines > 0 {
+            for _ in 0..(self.static_info.newlines - 1) {
+                writing_state.write('\n', out);
+                self.static_info
+                    .indents_between_newlines
+                    .write(writing_state, self.blocks, false, out);
+            }
+            writing_state.write('\n', out);
+        }
+        self.static_info
+            .last_indent
+            .write(writing_state, self.blocks, trailing_padding, out)
+    }
+
+    fn write(&self, writing_state: &mut WritingState, out: &mut impl SimpleWrite, ch: char) -> usize {
+        if ch == '\n' {
+            writing_state.write('\n', out);
+            let indentation = IndentationRange::new(true, 0..self.blocks.len());
+            indentation.write(writing_state, self.blocks, true, out)
+        } else {
+            writing_state.write(ch, out);
+            writing_state.update_to(WritingState::Normal);
+            0
+        }
+    }
+}
+
+struct StaticIndentInfo {
+    writing_state: WritingState,
+    newlines: usize,
+    indents_between_newlines: IndentationRange,
+    last_indent: IndentationRange,
+}
+
+impl StaticIndentInfo {
+    fn new(writing_state: WritingState) -> Self {
+        Self {
+            writing_state,
+            newlines: 0,
+            indents_between_newlines: IndentationRange::default(),
+            last_indent: IndentationRange::default(),
+        }
+    }
+
+    fn build(self, blocks: &[Block]) -> IndentInfo {
+        IndentInfo {
+            blocks,
+            static_info: self,
+        }
+    }
+}
+
+struct IndentInfo<'a> {
+    blocks: &'a [Block],
+    static_info: StaticIndentInfo,
+}
+
+impl IndentHandler {
+    fn new() -> Self {
+        Self {
+            pre_mode: false,
+            blocks: Vec::default(),
+            pending_blocks: Vec::default(),
+            pending_newlines: 0,
+        }
+    }
+
+    fn get_indentation_info(&mut self, ch: Option<char>, state: WritingState) -> IndentInfo {
+        // #199: I have a number of branches here. Can I nest some of them, so that in the happy path of a non-newline
+        //       char, I just have a single check?
+        let mut indent_builder = StaticIndentInfo::new(state);
+
+        // If we have any pending blocks, handle those first. We need to add a paragraph break, unless the first block
+        // is an Indent.
+        match self.pending_blocks.first() {
+            None => {}
+            Some(Block::Indent(_)) => {
+                indent_builder.writing_state.update_to(WritingState::IgnoringNewlines);
+            }
+            Some(_) => self.ensure_newlines(indent_builder.writing_state, NewlinesRequest::AtLeast(2)),
+        }
+
+        // Translate a newline char into an ensure_newlines request
+        if matches!(ch, Some('\n')) {
+            self.ensure_newlines(indent_builder.writing_state, NewlinesRequest::Exactly(1));
+            return indent_builder.build(&self.blocks);
+        }
+
+        // need_full_indent tells us whether Block::Indent's indentation gets included in write_indent. It's false for
+        // the first line that includes a new Indent, and then true for subsequent lines in that block.
+        let need_full_indent = if self.pending_newlines > 0 {
+            indent_builder.newlines = self.pending_newlines;
+            self.pending_newlines = 0;
+            let range = 0..self.blocks.len();
+            indent_builder.indents_between_newlines = IndentationRange::new(true, range);
+            true
+        } else {
+            matches!(state, WritingState::HaveNotWrittenAnything)
+        };
+
+        // Append the new blocks, and then write the indent if we need it.
+        // When we write that indent, though, only write it until the first new Indent (exclusive).
+        // (#199 that doesn't seem to actually how this code is organized. See the #199 comment above.)
+        let range = if need_full_indent {
+            let indent_end_idx = self.blocks.len()
+                + self
+                    .pending_blocks
+                    .iter()
+                    .position(|b| matches!(b, Block::Indent(_)))
+                    .unwrap_or_else(|| self.pending_blocks.len());
+            self.blocks.append(&mut self.pending_blocks);
+            0..indent_end_idx
+        } else {
+            let prev_blocks_len = self.blocks.len();
+            self.blocks.append(&mut self.pending_blocks);
+            prev_blocks_len..self.blocks.len()
+        };
+        indent_builder.last_indent = IndentationRange::new(need_full_indent, range);
+
+        indent_builder.build(&self.blocks)
+    }
+
+    fn ensure_newlines(&mut self, writing_state: WritingState, request: NewlinesRequest) {
+        match writing_state {
+            WritingState::Normal => match request {
+                NewlinesRequest::Exactly(n) => {
+                    if self.pre_mode {
+                        self.pending_newlines += n;
+                    } else {
+                        self.pending_newlines = n;
+                    }
+                }
+                NewlinesRequest::AtLeast(n) => {
+                    if self.pending_newlines < n {
+                        self.pending_newlines = n;
+                    }
+                }
+            },
+            WritingState::HaveNotWrittenAnything | WritingState::IgnoringNewlines | WritingState::Error => {}
         }
     }
 }
@@ -333,7 +472,7 @@ enum NewlinesRequest {
     AtLeast(usize),
 }
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 enum WritingState {
     /// We haven't written any text; that is, there hasn't been any invocation of [Output::write_str] or
     /// [Output::write_char]. We may have queued up some blocks.
@@ -348,6 +487,28 @@ enum WritingState {
 
     /// There's been an error in writing. From here on in, everything will be a noop.
     Error,
+}
+
+impl WritingState {
+    fn update_to(&mut self, new_state: WritingState) {
+        if matches!(self, WritingState::Error) {
+            return;
+        }
+        *self = new_state;
+    }
+
+    fn write(&mut self, ch: char, out: &mut impl SimpleWrite) {
+        if matches!(*self, WritingState::Error) {
+            return;
+        }
+        if let Err(e) = out.write_char(ch) {
+            eprintln!("error while writing output: {}", e);
+            *self = WritingState::Error;
+        }
+        if matches!(*self, WritingState::HaveNotWrittenAnything) {
+            *self = WritingState::Normal;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -488,7 +649,7 @@ mod tests {
                 // even works in pre_mode! Note that this has what look like extra newlines, due to how blocks get
                 // newlines. This can't happen in practice, since you can't have blocks inside a `pre` due to how we
                 // do with_pre_block vs with_block. See the docs on Block for mor.
-                out.pre_mode = true;
+                out.indenter.pre_mode = true;
                 out.write_str("[before-2]");
                 out.with_block(Block::Indent(2), |out| {
                     out.with_block(Block::Plain, |out| {
@@ -546,6 +707,41 @@ mod tests {
                    It has two paragraphs.
                 2. Second item.
                 3. Third item"#}
+        );
+    }
+
+    #[test]
+    fn nested_indents() {
+        assert_eq!(
+            out_to_str(|out| {
+                out.write_str("1. ");
+                out.with_block(Block::Indent(3), |out| {
+                    out.with_block(Block::Plain, |out| {
+                        out.write_str("First item");
+                    });
+                    out.with_block(Block::Plain, |out| {
+                        out.write_str("It has two paragraphs.");
+                    });
+
+                    out.write_str("A. ");
+                    out.with_block(Block::Indent(3), |out| {
+                        out.with_block(Block::Plain, |out| {
+                            out.write_str("Inner item");
+                        });
+                        out.with_block(Block::Plain, |out| {
+                            out.write_str("It also has two paragraphs.");
+                        });
+                    });
+                });
+            }),
+            indoc! {r#"
+                1. First item
+
+                   It has two paragraphs.
+
+                   A. Inner item
+
+                      It also has two paragraphs."#}
         );
     }
 
@@ -697,11 +893,195 @@ mod tests {
         );
     }
 
+    #[test]
+    fn pre_block_ends_with_three_newlines() {
+        assert_eq!(
+            out_to_str(|out| {
+                out.with_pre_block(|out| {
+                    out.write_str("A\n\n\n");
+                });
+            }),
+            indoc! {r#"
+                A
+                
+                
+            "#}
+        );
+    }
+
+    mod wrapping {
+        use super::*;
+
+        #[test]
+        fn simple_wrap() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    out.write_str("Hello the world");
+                }),
+                indoc! {r#"
+                Hello the
+                world"#}
+            );
+        }
+
+        #[test]
+        fn disable_wrapping_after_nonempty_line() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    out.write_str("Hello, ");
+                    out.without_wrapping(|out| {
+                        out.write_str("world is a good default");
+                    });
+                    out.write_str(" text to use.")
+                }),
+                // Note that without_wrapping(~) buffers so that if it needs to wrap, it'll wrap
+                // before the without_wrapping span, not after. Basically, the without_wrapping(~)
+                // span counts as a single word.
+                //
+                /* chars counter:
+                123456789 */
+                indoc! {r#"
+                Hello,
+                world is a good default
+                text to
+                use."#}
+            );
+        }
+
+        #[test]
+        fn disable_wrapping_at_start_of_line() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    out.without_wrapping(|out| {
+                        out.write_str("Hello the world");
+                    });
+                }),
+                "Hello the world"
+            );
+        }
+
+        #[test]
+        fn incremental_wrap() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    for ch in "Hello the world".chars() {
+                        out.write_char(ch)
+                    }
+                }),
+                indoc! {r#"
+                Hello the
+                world"#}
+            );
+        }
+
+        #[test]
+        fn word_is_longer_than_wrap() {
+            assert_eq!(
+                out_to_str_wrapped(9, |out| {
+                    out.write_str("hello_the_world_1 a hello_the_world_2 b");
+                }),
+                indoc! {r#"
+                hello_the_world_1
+                a
+                hello_the_world_2
+                b"#}
+            );
+        }
+
+        #[test]
+        fn wrapping_respects_quote_blocks() {
+            assert_eq!(
+                // line length of 11 is just enough for "hello world". So:
+                // - as a plain paragraph, it should fit without wrapping
+                // - but with quoting, the extra two chars of the "> " will cause it to wrap
+                out_to_str_wrapped(11, |out| {
+                    out.with_block(Block::Plain, |out| out.write_str("hello world"));
+                    out.with_block(Block::Quote, |out| out.write_str("hello world"));
+                }),
+                indoc! {r#"
+                hello world
+                
+                > hello
+                > world"#}
+            );
+        }
+
+        #[test]
+        fn wrapping_respects_indentation_blocks() {
+            assert_eq!(
+                // line length of 11 is just enough for "hello world". So:
+                // - as a plain paragraph, it should fit without wrapping
+                // - but with quoting, the extra two chars of the "> " will cause it to wrap
+                out_to_str_wrapped(11, |out| {
+                    out.with_block(Block::Plain, |out| out.write_str("hello world"));
+
+                    // both write_str calls just barely fit
+                    out.with_block(Block::Indent(2), |out| {
+                        out.write_str("1. hi world "); // 11 chars; "world" will just barely fit
+                        out.write_str("next line"); // "line" will just barely fit
+                    });
+
+                    // first write_str call just barely fits; second just barely wraps
+                    out.with_block(Block::Indent(2), |out| {
+                        out.write_str("2. hi world "); // 11 chars; "world" will just barely fit
+                        out.write_str("next lines"); // "line" will just barely not fit
+                    });
+
+                    // first write_str call just barely wraps; second just barely fits
+                    out.with_block(Block::Indent(2), |out| {
+                        out.write_str("3. hi "); // 11 chars; "worlds" will just barely not fit
+                        out.write_str("  worlds hi"); // "hi" will just barely fit, including the 2-char indent
+                    });
+
+                    // both write_str calls just barely wrap
+                    out.with_block(Block::Indent(2), |out| {
+                        out.write_str("4. hi "); // 11 chars; "worlds" will just barely not fit
+                        out.write_str("  worlds hey"); // "hey" will just not barely fit, with the 2-char indent
+                    });
+                }),
+                indoc! {r#"
+                hello world
+                
+                1. hi world
+                  next line
+                2. hi world
+                  next
+                  lines
+                3. hi
+                  worlds hi
+                4. hi
+                  worlds
+                  hey"#}
+            );
+        }
+
+        #[test]
+        fn wrapping_ignores_pre() {
+            assert_eq!(
+                // line length of 3 should cause "hello world" to wrap, but that's disabled within `pre`
+                out_to_str_wrapped(3, |out| {
+                    out.with_pre_block(|out| out.write_str("hello world"));
+                }),
+                "hello world",
+            );
+        }
+
+        fn out_to_str_wrapped<F>(wrap: usize, action: F) -> String
+        where
+            F: FnOnce(&mut Output<String>),
+        {
+            let opts = OutputOpts { text_width: Some(wrap) };
+            let mut out = Output::new(String::new(), opts);
+            action(&mut out);
+            out.take_underlying().unwrap()
+        }
+    }
+
     fn out_to_str<F>(action: F) -> String
     where
         F: FnOnce(&mut Output<String>),
     {
-        let mut out = Output::new(String::new());
+        let mut out = Output::without_text_wrapping(String::new());
         action(&mut out);
         out.take_underlying().unwrap()
     }
