@@ -53,14 +53,7 @@ impl WordsBuffer {
         self.shorten_current_line_by += by;
     }
 
-    pub fn push(&mut self, ch: char, mut action: impl FnMut(char)) {
-        self.push0(ch, |ch| {
-            action(ch);
-            0
-        });
-    }
-
-    pub fn push0(&mut self, ch: char, mut action: impl FnMut(char) -> usize) {
+    pub fn push(&mut self, ch: char, mut action: impl FnMut(char) -> usize) {
         // todo remove this push0 variant?
         //  yeah, we probably don't need this, after all.
         if ch == '\n' {
@@ -346,13 +339,22 @@ mod tests {
 
             let mut last_seen = None;
 
-            wb.push('a', |ch| last_seen = Some(ch));
+            wb.push('a', |ch| {
+                last_seen = Some(ch);
+                0
+            });
             assert_eq!(last_seen, Some('a'));
 
-            wb.push(' ', |ch| last_seen = Some(ch));
+            wb.push(' ', |ch| {
+                last_seen = Some(ch);
+                0
+            });
             assert_eq!(last_seen, Some(' '));
 
-            wb.push('\n', |ch| last_seen = Some(ch));
+            wb.push('\n', |ch| {
+                last_seen = Some(ch);
+                0
+            });
             assert_eq!(last_seen, Some('\n'));
 
             last_seen = None; // we want to prove that drain is a no-op
@@ -389,7 +391,8 @@ mod tests {
         pub fn push(&mut self, ch: char) {
             self.wb.push(ch, |ch| {
                 // put this on its own line, for ease of setting debug points
-                self.s.push(ch)
+                self.s.push(ch);
+                0
             });
         }
 

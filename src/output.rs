@@ -209,7 +209,7 @@ impl<W: SimpleWrite> Output<W> {
                 if ch != '\n' {
                     // TODO put this "if" check somewhere else that's nicer. It's here so we don't double-newline,
                     // since this already gets turned into an ensure_newlines(~) call.
-                    self.words_buffer.push0(ch, |ch| {
+                    self.words_buffer.push(ch, |ch| {
                         if ch == '\n' {
                             indentation.write_newline(&mut self.writing_state, &mut self.stream)
                         } else {
