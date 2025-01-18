@@ -12,7 +12,10 @@ This text has both [an inline link](https://example.com/inline) and a [reference
 
 - Or we can have text that wraps within ordered lists
   - including sublists, which should take the indentation into account
+  - and even if there are multiple items that are in there
 '''
+#        1         2         3         4         5
+# 345678901234567890123456789012345678901234567890
 
 [chained]
 needed = false
@@ -32,8 +35,11 @@ This text has both
 
 - Or we can have text that wraps within ordered
   lists
+
   - including sublists, which should take the
     indentation into account
+  - and even if there are multiple items that are
+    in there
 
 [1]: https://example.com/referenced
 '''
