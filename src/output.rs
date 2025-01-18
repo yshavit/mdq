@@ -160,7 +160,7 @@ impl<W: SimpleWrite> Output<W> {
         F: for<'a> FnOnce(&mut Self), // TODO change this to a PreWriter, so we don't have reentry issues
                                       //  (that requires more changes downstream than I want to do right now).
     {
-        let old_boundary_mode = self.words_buffer.set_word_boundary(WordBoundary::Never);
+        let old_boundary_mode = self.words_buffer.set_word_boundary(WordBoundary::OnlyAtNewline);
         action(self);
         self.words_buffer.set_word_boundary(old_boundary_mode);
     }
