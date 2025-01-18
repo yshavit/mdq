@@ -261,7 +261,7 @@ impl<W: SimpleWrite> Drop for Output<W> {
         // });
 
         if self.indenter.pending_newlines > 0 {
-            self.writing_state.write_raw('\n', &mut self.stream);
+            self.writing_state.write('\n', &mut self.stream);
             self.indenter.pending_newlines = 0;
         }
         if let Err(e) = self.stream.flush() {
@@ -274,15 +274,16 @@ impl<W: SimpleWrite> Drop for Output<W> {
 }
 
 #[derive(Debug, Default)]
-struct Indent {
-    include_indents: bool,
+struct IndentationRange {
+    /// Whether to include [Block::Indent]] blocks. This will be false for the first line in which we see those blocks.
+    include_indent_blocks: bool,
     block_range: Range<usize>,
 }
 
-impl Indent {
+impl IndentationRange {
     fn new(include_indents: bool, block_range: Range<usize>) -> Self {
         Self {
-            include_indents,
+            include_indent_blocks: include_indents,
             block_range,
         }
     }
@@ -302,20 +303,20 @@ impl Indent {
                 Block::Plain => {}
                 Block::Quote => {
                     wrote += pending_padding + 1; // +1 for the '>'
-                    (0..pending_padding).for_each(|_| writing_state.write_raw(' ', out));
+                    (0..pending_padding).for_each(|_| writing_state.write(' ', out));
                     pending_padding = 0;
-                    writing_state.write_raw('>', out);
+                    writing_state.write('>', out);
                     pending_padding += 1;
                 }
                 Block::Indent(size) => {
-                    if self.include_indents {
+                    if self.include_indent_blocks {
                         pending_padding += size
                     }
                 }
             }
         }
         if trailing_padding {
-            (0..pending_padding).for_each(|_| writing_state.write_raw(' ', out));
+            (0..pending_padding).for_each(|_| writing_state.write(' ', out));
             wrote += pending_padding;
         }
         wrote
@@ -326,12 +327,12 @@ impl<'a> IndentInfo<'a> {
     fn pre_write(&self, writing_state: &mut WritingState, trailing_padding: bool, out: &mut impl SimpleWrite) -> usize {
         if self.static_info.newlines > 0 {
             for _ in 0..(self.static_info.newlines - 1) {
-                writing_state.write_raw('\n', out);
+                writing_state.write('\n', out);
                 self.static_info
                     .indents_between_newlines
                     .write(writing_state, self.blocks, false, out);
             }
-            writing_state.write_raw('\n', out);
+            writing_state.write('\n', out);
         }
         self.static_info
             .last_indent
@@ -340,10 +341,10 @@ impl<'a> IndentInfo<'a> {
 
     fn write_char(&self, writing_state: &mut WritingState, out: &mut impl SimpleWrite, ch: char) -> usize {
         if ch == '\n' {
-            writing_state.write_raw('\n', out);
-            Indent::new(true, 0..self.blocks.len()).write(writing_state, self.blocks, true, out)
+            writing_state.write('\n', out);
+            IndentationRange::new(true, 0..self.blocks.len()).write(writing_state, self.blocks, true, out)
         } else {
-            writing_state.write_raw(ch, out);
+            writing_state.write(ch, out);
             writing_state.update_to(WritingState::Normal);
             0
         }
@@ -353,8 +354,8 @@ impl<'a> IndentInfo<'a> {
 struct StaticIndentInfo {
     writing_state: WritingState,
     newlines: usize,
-    indents_between_newlines: Indent, // todo maybe push this Option-ness into Indent?
-    last_indent: Indent,
+    indents_between_newlines: IndentationRange,
+    last_indent: IndentationRange,
 }
 
 impl StaticIndentInfo {
@@ -362,8 +363,8 @@ impl StaticIndentInfo {
         Self {
             writing_state,
             newlines: 0,
-            indents_between_newlines: Indent::default(),
-            last_indent: Indent::default(),
+            indents_between_newlines: IndentationRange::default(),
+            last_indent: IndentationRange::default(),
         }
     }
 
@@ -417,7 +418,7 @@ impl IndentHandler {
             indent_builder.newlines = self.pending_newlines;
             self.pending_newlines = 0;
             let range = 0..self.blocks.len();
-            indent_builder.indents_between_newlines = Indent::new(true, range);
+            indent_builder.indents_between_newlines = IndentationRange::new(true, range);
             true
         } else {
             matches!(state, WritingState::HaveNotWrittenAnything)
@@ -426,7 +427,7 @@ impl IndentHandler {
         // Append the new blocks, and then write the indent if we need it.
         // When we write that indent, though, only write it until the first new Indent (exclusive).
         // (#199 that doesn't seem to actually how this code is organized. See the #199 comment above.)
-        if need_full_indent {
+        let range = if need_full_indent {
             let indent_end_idx = self.blocks.len()
                 + self
                     .pending_blocks
@@ -434,14 +435,13 @@ impl IndentHandler {
                     .position(|b| matches!(b, Block::Indent(_)))
                     .unwrap_or_else(|| self.pending_blocks.len());
             self.blocks.append(&mut self.pending_blocks);
-            let range = 0..indent_end_idx;
-            indent_builder.last_indent = Indent::new(true, range);
+            0..indent_end_idx
         } else {
             let prev_blocks_len = self.blocks.len();
             self.blocks.append(&mut self.pending_blocks);
-            let range = prev_blocks_len..self.blocks.len();
-            indent_builder.last_indent = Indent::new(false, range);
+            prev_blocks_len..self.blocks.len()
         };
+        indent_builder.last_indent = IndentationRange::new(need_full_indent, range);
 
         indent_builder.build(&self.blocks)
     }
@@ -507,8 +507,7 @@ impl WritingState {
         *self = new_state;
     }
 
-    // TODO rename this?
-    fn write_raw<W: SimpleWrite>(&mut self, ch: char, out: &mut W) {
+    fn write(&mut self, ch: char, out: &mut impl SimpleWrite) {
         if matches!(*self, WritingState::Error) {
             return;
         }
@@ -628,7 +627,6 @@ mod tests {
                     out.with_block(Block::Indent(3), |out| {
                         out.with_block(Block::Plain, |out| out.write_str("paragraph 1"));
                         out.with_block(Block::Plain, |out| out.write_str("paragraph 2"));
-                        eprintln!("todo") // todo
                     });
                 });
             }),
