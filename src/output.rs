@@ -3,7 +3,6 @@ use std::cmp::PartialEq;
 use std::ops::Range;
 
 pub trait SimpleWrite {
-    // TODO should these take a non-mut self, and the impl-for is on the mut?
     fn write_char(&mut self, ch: char) -> std::io::Result<()>;
     fn flush(&mut self) -> std::io::Result<()>;
 }
