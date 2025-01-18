@@ -159,6 +159,8 @@ impl<W: SimpleWrite> Output<W> {
     where
         F: for<'a> FnOnce(&mut Self), // TODO change this to a PreWriter, so we don't have reentry issues
                                       //  (that requires more changes downstream than I want to do right now).
+                                      //  Once I do that, I may be able to replace set_word_boundary with a safer
+                                      //  with_boundary(..., impl FnMut())
     {
         let old_boundary_mode = self.words_buffer.set_word_boundary(WordBoundary::OnlyAtNewline);
         action(self);
