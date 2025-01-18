@@ -211,7 +211,7 @@ impl<W: SimpleWrite> Output<W> {
                 if ch != '\n' {
                     // get_indentation_info would have already handled ch if it's a newline
                     self.words_buffer.push(ch, |ch| {
-                        indentation.write_char(&mut self.writing_state, &mut self.stream, ch)
+                        indentation.write(&mut self.writing_state, &mut self.stream, ch)
                     });
                 }
             }
@@ -220,7 +220,7 @@ impl<W: SimpleWrite> Output<W> {
                     let indentation = self.indenter.get_indentation_info(None, self.writing_state);
                     indentation.pre_write(&mut self.writing_state, true, &mut self.stream);
                     self.words_buffer.drain_pending_word(|flushed| {
-                        indentation.write_char(&mut self.writing_state, &mut self.stream, flushed);
+                        indentation.write(&mut self.writing_state, &mut self.stream, flushed);
                         0
                     });
                 }
@@ -249,19 +249,6 @@ where
 
 impl<W: SimpleWrite> Drop for Output<W> {
     fn drop(&mut self) {
-        // let indentation = self.indenter.get_indentation_info(None, self.writing_state);
-        // indentation.pre_write(
-        //     &mut self.writing_state,
-        //     self.words_buffer.has_pending_word(),
-        //     &mut self.stream,
-        // );
-        //
-        // // In all the call sites today, the words_buffer should be empty by the time we get here. But, as a
-        // // belt-and-suspenders approach, let's flush the words_buffer anyway.
-        // self.words_buffer.drain_pending_word(|flushed| {
-        //     indentation.write_char(&mut self.writing_state, &mut self.stream, flushed);
-        // });
-
         if self.indenter.pending_newlines > 0 {
             self.writing_state.write('\n', &mut self.stream);
             self.indenter.pending_newlines = 0;
@@ -341,10 +328,11 @@ impl<'a> IndentInfo<'a> {
             .write(writing_state, self.blocks, trailing_padding, out)
     }
 
-    fn write_char(&self, writing_state: &mut WritingState, out: &mut impl SimpleWrite, ch: char) -> usize {
+    fn write(&self, writing_state: &mut WritingState, out: &mut impl SimpleWrite, ch: char) -> usize {
         if ch == '\n' {
             writing_state.write('\n', out);
-            IndentationRange::new(true, 0..self.blocks.len()).write(writing_state, self.blocks, true, out)
+            let indentation = IndentationRange::new(true, 0..self.blocks.len());
+            indentation.write(writing_state, self.blocks, true, out)
         } else {
             writing_state.write(ch, out);
             writing_state.update_to(WritingState::Normal);
