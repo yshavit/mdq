@@ -26,6 +26,17 @@ pub struct WordsBuffer {
 pub trait BufferedCharWrite: FnMut(char) -> usize {}
 impl<T: FnMut(char) -> usize> BufferedCharWrite for T {}
 
+#[must_use]
+pub struct WordBoundaryRestore {
+    previous: WordBoundary,
+}
+
+impl WordBoundaryRestore {
+    pub fn restore_to(self, to: &mut WordsBuffer) {
+        to.boundary = self.previous;
+    }
+}
+
 impl WordsBuffer {
     pub fn new(line_length: usize) -> Self {
         Self {
@@ -44,15 +55,15 @@ impl WordsBuffer {
     /// Returns a WordBuffer that's "disabled", in that it always just immediately emits everything it gets.
     pub fn disabled() -> Self {
         let mut wb = Self::new(0);
-        wb.set_word_boundary(WordBoundary::OnlyAtNewline);
+        wb.boundary = WordBoundary::OnlyAtNewline;
         wb
     }
 
     /// sets the word boundary, and returns the old one
-    pub fn set_word_boundary(&mut self, boundary: WordBoundary) -> WordBoundary {
-        let old = self.boundary;
+    pub fn set_word_boundary(&mut self, boundary: WordBoundary) -> WordBoundaryRestore {
+        let previous = self.boundary;
         self.boundary = boundary;
-        old
+        WordBoundaryRestore { previous }
     }
 
     pub fn shorten_current_line(&mut self, by: usize) {
@@ -296,7 +307,7 @@ mod tests {
             WbHelper::build(11, |wbh| {
                 let restore_boundary = wbh.wb.set_word_boundary(WordBoundary::OnlyAtNewline);
                 wbh.push_str("hello\n");
-                wbh.wb.set_word_boundary(restore_boundary);
+                restore_boundary.restore_to(&mut wbh.wb);
 
                 wbh.push_str("friendly ox");
             }),
@@ -313,7 +324,7 @@ mod tests {
         fn whitespace_is_preserved() {
             assert_eq!(
                 WbHelper::build(50, |wbh| {
-                    wbh.wb.set_word_boundary(WordBoundary::OnlyAtNewline);
+                    wbh.wb.boundary = WordBoundary::OnlyAtNewline;
                     wbh.push_str(" \t ");
                 }),
                 " \t "
@@ -325,12 +336,12 @@ mod tests {
             assert_eq!(
                 WbHelper::build(5, |wbh| {
                     wbh.push_str("AB 12"); // pending word is "12"
-                    wbh.wb.set_word_boundary(WordBoundary::OnlyAtNewline);
+                    wbh.wb.boundary = WordBoundary::OnlyAtNewline;
                     wbh.push(' '); // 3
                     wbh.push(' '); // 4
                     wbh.push(' '); // 5
                     wbh.push('C'); // 6
-                    wbh.wb.set_word_boundary(WordBoundary::AnyWhitespace);
+                    wbh.wb.boundary = WordBoundary::AnyWhitespace;
                     wbh.push_str("D EF"); // 6
                 }),
                 "AB\n12   CD\nEF"
