@@ -1836,7 +1836,7 @@ pub mod tests {
             )
         }
 
-        /// see [crate::footnote_transform::test] for more extensive tests TODO need to add those tests!
+        /// see [crate::footnote_transform::test] for more extensive tests
         #[test]
         fn footnote_transform_smoke_test() {
             let (ctx, graf) = footnote_a_in_paragraph();
