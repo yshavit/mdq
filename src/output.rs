@@ -125,10 +125,7 @@ impl<W: SimpleWrite> Output<W> {
         Ok(std::mem::replace(&mut self.stream, new))
     }
 
-    pub fn with_block<F>(&mut self, block: Block, action: F)
-    where
-        F: FnOnce(&mut Self),
-    {
+    pub fn with_block(&mut self, block: Block, action: impl FnOnce(&mut Self)) {
         self.push_block(block);
         action(self);
         self.pop_block();
@@ -140,10 +137,7 @@ impl<W: SimpleWrite> Output<W> {
     /// Because you have to call this on `&mut self`, you can't access that `self` within the
     /// block. This is by design, since it doesn't make sense to add blocks within a `pre`. Instead,
     /// use the provided writer's `write_str` to write the literal text for this block.
-    pub fn with_pre_block<F>(&mut self, action: F)
-    where
-        F: for<'a> FnOnce(&mut PreWriter<W>),
-    {
+    pub fn with_pre_block(&mut self, action: impl FnOnce(&mut PreWriter<W>)) {
         self.push_block(Block::Plain);
         self.indenter.pre_mode = true;
         self.without_wrapping(|me| {
@@ -154,16 +148,10 @@ impl<W: SimpleWrite> Output<W> {
         self.pop_block();
     }
 
-    pub fn without_wrapping<F>(&mut self, action: F)
-    where
-        F: for<'a> FnOnce(&mut Self), // TODO change this to a PreWriter, so we don't have reentry issues
-                                      //  (that requires more changes downstream than I want to do right now).
-                                      //  Once I do that, I may be able to replace set_word_boundary with a safer
-                                      //  with_boundary(..., impl FnMut())
-    {
+    pub fn without_wrapping(&mut self, action: impl FnOnce(&mut Self)) {
         let old_boundary_mode = self.words_buffer.set_word_boundary(WordBoundary::OnlyAtNewline);
         action(self);
-        self.words_buffer.set_word_boundary(old_boundary_mode);
+        old_boundary_mode.restore_to(&mut self.words_buffer)
     }
 
     fn push_block(&mut self, block: Block) {
@@ -236,10 +224,7 @@ impl<W: SimpleWrite> Output<W> {
     }
 }
 
-impl<W: SimpleWrite> Output<W>
-where
-    W: Default,
-{
+impl<W: SimpleWrite + Default> Output<W> {
     pub fn take_underlying(&mut self) -> std::io::Result<W> {
         self.stream.flush()?;
         Ok(std::mem::take(&mut self.stream))
@@ -1065,10 +1050,7 @@ mod tests {
             );
         }
 
-        fn out_to_str_wrapped<F>(wrap: usize, action: F) -> String
-        where
-            F: FnOnce(&mut Output<String>),
-        {
+        fn out_to_str_wrapped(wrap: usize, action: impl FnOnce(&mut Output<String>)) -> String {
             let opts = OutputOpts { text_width: Some(wrap) };
             let mut out = Output::new(String::new(), opts);
             action(&mut out);
@@ -1076,10 +1058,7 @@ mod tests {
         }
     }
 
-    fn out_to_str<F>(action: F) -> String
-    where
-        F: FnOnce(&mut Output<String>),
-    {
+    fn out_to_str(action: impl FnOnce(&mut Output<String>)) -> String {
         let mut out = Output::without_text_wrapping(String::new());
         action(&mut out);
         out.take_underlying().unwrap()
