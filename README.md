@@ -43,14 +43,15 @@ Any of these will work:
 1. ```shell
    cargo install --git https://github.com/yshavit/mdq
    ```
-2. You can download binaries from [the latest release] (or any other release, of course).
+2. Download binaries from [the latest release] (or any other release, of course).
 3. You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
    that (this is GitHub's limitation, not mine). You'll have to `chmod +x` them before you can run them.
-   <details>
-   <summary>Verifying the binaries</summary>
-   These binaries are all built on GitHub's servers, so if you trust my code (and dependencies), and you trust GitHub,
-   you can trust the binaries. See https://github.com/yshavit/mdq/wiki/Release-binaries for information on how to verify them.
-   </details>
+   
+<details>
+<summary>Security concerns</summary>
+The release and latest-workflow binaries are built on GitHub's servers, so if you trust my code (and dependencies), and you trust GitHub,
+you can trust the binaries. See https://github.com/yshavit/mdq/wiki/Release-binaries for information on how to verify them.
+ </details>
 
 [the latest release]: https://github.com/yshavit/mdq/releases/latest
 
