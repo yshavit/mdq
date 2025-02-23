@@ -81,8 +81,8 @@ You can select...
 | "                | `- [ ] uncompleted task`         |
 | "                | `- [x] completed task`           |
 | "                | `- [?] any task`                 |
-| Links            | `[display text](url text)`       |
-| Images           | `![display text](url text)`      |
+| Links            | `[display text](url)`            |
+| Images           | `![alt text](url)`               |
 | Block quotes     | `> block quote text`             |
 | Code blocks      | ` ```language <code block text>` |
 | Raw HTML         | `</> html_tag`                   |
