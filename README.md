@@ -75,7 +75,7 @@ all unordered list items:
 cat example.md | mdq '# usage | -'
 ```
 
-You can select...
+The filter syntax is designed to mirror Markdown syntax. You can select...
 
 | Element          | Syntax                           |
 |------------------|----------------------------------|
