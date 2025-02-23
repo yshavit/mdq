@@ -62,13 +62,17 @@ Any of these will work:
 
 # Basic Usage
 
-```shell
-# Select sections containing "usage":
-$ cat example.md | mdq '# usage'
+Simple example to select sections containing "usage":
 
-# Use pipe ("|") to chain filters together.
-# For example, to select sections containing "usage", and within those find all unordered list items:
-$ cat example.md | mdq '# usage | -'
+```shell
+cat example.md | mdq '# usage'
+```
+
+Use pipe (`|`) to chain filters together. For example, to select sections containing "usage", and within those find
+all unordered list items:
+
+```shell
+cat example.md | mdq '# usage | -'
 ```
 
 You can select...
