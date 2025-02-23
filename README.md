@@ -49,9 +49,9 @@ Any of these will work:
 
 > [!Tip]
 > - These binaries are all built on GitHub's servers, so if you trust my code (and dependencies), and you trust GitHub,
->   you can trust the binaries.
->
->   See [the wiki page on release binaries] for information on how to verify them.
+    > you can trust the binaries.
+    >
+    >   See [the wiki page on release binaries] for information on how to verify them.
 > - You'll have to `chmod +x` them before you can run them.
 
 [the wiki page on release binaries]: https://github.com/yshavit/mdq/wiki/Release-binaries
@@ -62,83 +62,47 @@ Any of these will work:
 
 # Basic Usage
 
+Simple example to select sections containing "usage":
+
 ```shell
-# Select sections containing "usage":
-$ cat example.md | mdq '# usage'
-
-# Select sections containing "usage", and within those find all unordered list items:
-$ cat example.md | mdq '# usage | -'
-
-# ... or maybe you only want the list items containing "note":
-$ cat example.md | mdq '# usage | - note'
+cat example.md | mdq '# usage'
 ```
 
-You can select...
+Use pipe (`|`) to chain filters together. For example, to select sections containing "usage", and within those find
+all unordered list items:
 
-- Sections:
+```shell
+cat example.md | mdq '# usage | -'
+```
 
-  ```bash
-  $ cat example.md | mdq '# foo'       # find headers whose title contains "foo"
-  ```
+The filter syntax is designed to mirror Markdown syntax. You can select...
 
-- Lists and tasks:
+| Element          | Syntax                           |
+|------------------|----------------------------------|
+| Sections         | `# title text`                   |
+| Lists            | `- unordered list item text`     |
+| "                | `1. ordered list item text`      |
+| "                | `- [ ] uncompleted task`         |
+| "                | `- [x] completed task`           |
+| "                | `- [?] any task`                 |
+| Links            | `[display text](url)`            |
+| Images           | `![alt text](url)`               |
+| Block quotes     | `> block quote text`             |
+| Code blocks      | ` ```language <code block text>` |
+| Raw HTML         | `</> html_tag`                   |
+| Plain paragraphs | `P: paragraph text `             |
+| Tables           | `:-: header text :-: row text`   |
 
-  ```bash
-  $ cat example.md | mdq '- foo'       # find unordered list items containing "foo"
-  $ cat example.md | mdq '1. foo'      # find ordered list items containing "foo"
-                                       #   (note: the number must be exactly "1.")
-  $ cat example.md | mdq '- [ ] foo'   # find uncompleted task items containing "foo"
-  $ cat example.md | mdq '- [x] foo'   # find completed task items containing "foo"
-  $ cat example.md | mdq '- [?] foo'   # find all task items containing "foo"
-  ```
+(Tables selection differs from other selections in that you can actually select only certain headers and rows, such that
+the resulting element is of a different shape than the original. See the wiki for more.)
 
-- Links and images:
+In any of the above, the text may be:
 
-  ```bash
-  $ cat example.md | mdq '[foo](bar)'  # find links with display text containing "foo"
-                                       # and URL containing "bar"
-  $ cat example.md | mdq '![foo](bar)' # ditto for images
-  ```
-
-- Block quotes:
-
-  ```bash
-  $ cat example.md | mdq '> foo'  # find block quotes containing "foo"
-  ```
-
-- Code blocks:
-
-  ```bash
-  $ cat example.md | mdq '```rust fizz'  # find code blocks for rust with "fizz" within them
-  ```
-
-- HTML (inline or block):
-
-  ```bash
-  $ cat example.md | mdq '</> foo'  # find html tags containing "foo"
-  ```
-  
-- Paragraphs
-
-  ```bash
-  $ cat example.md | mdq 'P: foo'  # find paragraphs containing "foo"
-  ```
-  
-- Tables
-
-  ```bash
-  $ cat example.md | mdq ':-: "some headers" :-: "some rows"'
-  ```
-  (Tables selection differs from other selections in that you can actually select only certain headers and rows.
-  See the wiki for more.)
-
-The `foo`s and `bar`s above can be:
-
-- an `unquoted string` that starts with a letter, as shown above
-- a `"quoted string"` (either single or double quotes)
+- an `unquoted string` that starts with a letter; this is case-insensitive
+- a `"quoted string"` (either single or double quotes); this is case-sensitive
 - a string (quoted or unquoted) anchored by `^` or `$` (for start and end of string, respectively)
 - a `/regex/`
-- omitted, to mean "any"
+- omitted or `*`, to mean "any"
 
 See the [tutorial] for a bit more detail, and [user manual] for the full picture.
 
