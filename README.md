@@ -91,7 +91,7 @@ The filter syntax is designed to mirror Markdown syntax. You can select...
 | Tables           | `:-: header text :-: row text`   |
 
 (Tables selection differs from other selections in that you can actually select only certain headers and rows, such that
-the resulting element is of a different shape than the original. See the wiki for more.)
+the resulting element is of a different shape than the original. See the example below, or the wiki for more detail.)
 
 In any of the above, the text may be:
 
