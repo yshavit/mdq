@@ -130,7 +130,7 @@ This will match:
 
 ### Extracting a referenced ticket
 
-Some companies use GitHub Actions to update their ticket tracker, if a PR mentions a ticket. You can use mdq to extract the link from Markdown as JSON, and then use jq to get the URL:
+Some organizations use GitHub Actions to update their ticket tracker, if a PR mentions a ticket. You can use mdq to extract the link from Markdown as JSON, and then use jq to get the URL:
 
 ```bash
 TICKET_URL="$(echo "$PR_TEXT"
@@ -143,8 +143,6 @@ This will match Markdown like:
 > #### Ticket
 > 
 > https://tickets.example.com/PROJ-1234
->
-> 
 
 ### Whittling down a big table
 
@@ -161,9 +159,21 @@ To find out when Alice is on call:
 ```bash
 cat oncall.md | mdq ':-: /On-Call|Alice/:-: *'
 ```
+```markdown
+|  On-Call   | Alice |
+|:----------:|:-----:|
+| 2024-01-08 |   x   |
+| 2024-01-15 |       |
+| 2024-01-22 |       |
+```
 
 Or, to find out who's on call for the week of Jan 15:
 
 ```bash
 cat oncall.md | mdq ':-: * :-: 2024-01-15'
+```
+```markdown
+|  On-Call   | Alice | Bob | Sam | Pat |
+|:----------:|:-----:|:---:|:---:|----:|
+| 2024-01-15 |       |     |  x  |     |
 ```
