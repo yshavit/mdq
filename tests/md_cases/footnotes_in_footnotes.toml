@@ -90,7 +90,7 @@ output = '''
 '''
 
 
-[expect."cyclic reference does't cause infinite loop"]
+[expect."cyclic reference doesn't cause infinite loop"]
 cli_args = ['- DDD | P: *']
 output = '''
 DDD: footnote contains cycle[^1]
