@@ -106,3 +106,64 @@ See the [tutorial] for a bit more detail, and [user manual] for the full picture
 [tutorial]: https://github.com/yshavit/mdq/wiki/Tutorial
 
 [user manual]: https://github.com/yshavit/mdq/wiki/Full-User-Manual
+
+## Examples
+
+### Ensuring that people have searched existing issues before submitting a bug report
+
+Many projects have bug report templates that ask the submitter to attest that they've checked existing issues for possible dupliates. In mdq, you can do:
+
+```bash
+if echo "$ISSUE_TEXT" | mdq -q '- [x] I have searched for existing issues' ; then
+  ...
+```
+
+(The `-q` option is like grep's: it doesn't output anything to stdout, but exits 0 if any items were found, or non-0 otherwise.)
+
+This will match:
+
+> - [x] I have searched for existing issues
+
+... but will fail if the checkbox is unchecked:
+
+> - [ ] I have searched for existing issues
+
+### Extracting a referenced ticket
+
+Some companies use GitHub Actions to update their ticket tracker, if a PR mentions a ticket. You can use mdq to extract the link from Markdown as JSON, and then use jq to get the URL:
+
+```bash
+TICKET_URL="$(echo "$PR_TEXT"
+  | mdq --output json '# Ticket | [](^https://tickets.example.com/[A-Z]+-\d+$)'
+  | jq -r '.items[].link.url')"
+```
+
+This will match Markdown like:
+
+> #### Ticket
+> 
+> https://tickets.example.com/PROJ-1234
+>
+> 
+
+### Whittling down a big table
+
+Let's say you have a table whose columns reference people in an on-call schedule, rows correspond to weeks in `YYYY-MM-DD` format:
+
+> |   On-Call  | Alice | Bob | Sam | Pat |
+> |:----------:|:-----:|:---:|:---:|:---:|
+> | 2024-01-08 |   x   |     |     |     |
+> | 2024-01-15 |       |     |  x  |     |
+> | 2024-01-22 |       | x   |     |     |
+
+To find out when Alice is on call:
+
+```bash
+cat oncall.md | mdq ':-: /On-Call|Alice/:-: *'
+```
+
+Or, to find out who's on call for the week of Jan 15:
+
+```bash
+cat oncall.md | mdq ':-: * :-: 2024-01-15'
+```
