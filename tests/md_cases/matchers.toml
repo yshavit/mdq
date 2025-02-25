@@ -39,7 +39,7 @@ output = '''
 
 
 [expect."quoted"]
-cli_args = ['- "world "'] # note: traiing space within the quote is significant
+cli_args = ['- "world "'] # note: trailing space within the quote is significant
 output = '''
 - the world is my oyster
 '''

@@ -632,7 +632,7 @@ mod tests {
 
                 // even works in pre_mode! Note that this has what look like extra newlines, due to how blocks get
                 // newlines. This can't happen in practice, since you can't have blocks inside a `pre` due to how we
-                // do with_pre_block vs with_block. See the docs on Block for mor.
+                // do with_pre_block vs with_block. See the docs on Block for more.
                 out.indenter.pre_mode = true;
                 out.write_str("[before-2]");
                 out.with_block(Block::Indent(2), |out| {

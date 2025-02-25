@@ -111,7 +111,7 @@ See the [tutorial] for a bit more detail, and [user manual] for the full picture
 
 ### Ensuring that people have searched existing issues before submitting a bug report
 
-Many projects have bug report templates that ask the submitter to attest that they've checked existing issues for possible dupliates. In mdq, you can do:
+Many projects have bug report templates that ask the submitter to attest that they've checked existing issues for possible duplicates. In mdq, you can do:
 
 ```bash
 if echo "$ISSUE_TEXT" | mdq -q '- [x] I have searched for existing issues' ; then
