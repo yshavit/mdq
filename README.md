@@ -183,7 +183,7 @@ cat oncall.md | mdq ':-: * :-: 2024-01-15'
 
 # Development
 
-Requires rustc >= 1.20.0
+Requires rustc >= 1.78.0
 
 ```bash
 cargo build
