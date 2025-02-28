@@ -18,12 +18,15 @@ jobs:
       run: scripts/cargo_to_gh rustc --message-format json -- -Awarnings
     - name: check for any changes in the git tree
       run: |
-        if [[ -n "$(git status --porcelain)" ]]; then
-          echo '::error title=post-build check::changes detected in git tree'
-          git status
-          exit 1
-        fi
-
+        exit_code=0
+        while read -r status_code file_path; do
+          if [[ -z "$status_code" ]]; then
+            continue
+          fi
+          exit_code=1
+          echo "::error file=$file_path,title=git-status::<$status_code> $file_path"
+        done <<<"$(git status --porcelain)"
+        exit "$exit_code"
   check:
     runs-on: ubuntu-latest
     needs: build
