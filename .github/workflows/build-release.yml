@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   docker:
-    environment: Docker Release
+    environment: Docker Hub
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -40,23 +40,23 @@ jobs:
         echo "tag=$tag" >> "$GITHUB_OUTPUT"
       env:
         DOCKER_TAG_TYPE: ${{ inputs.docker-tag-type }}
-        DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+        DOCKER_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
       with:
-        username: ${{ vars.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PAT }}
+        username: ${{ vars.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_PAT }}
     - name: Gather metadata
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ vars.DOCKER_USERNAME }}/mdq
+        images: ${{ vars.DOCKERHUB_USERNAME }}/mdq
     - name: Build and push
       uses: docker/build-push-action@v6
       with:
         context: .
         push: true
-        tags: ${{ vars.DOCKER_USERNAME}}/mdq:${{ steps.get-tag.outputs.tag }}
+        tags: ${{ vars.DOCKERHUB_USERNAME}}/mdq:${{ steps.get-tag.outputs.tag }}
         labels: ${{ steps.meta.outputs.labels }}
 
   build:
