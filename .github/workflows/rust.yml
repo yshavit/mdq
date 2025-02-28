@@ -16,6 +16,13 @@ jobs:
     - uses: actions/checkout@v4
     - name: cargo build
       run: scripts/cargo_to_gh rustc --message-format json -- -Awarnings
+    - name: check for any changes in the git tree
+      run: |
+        if [[ -n "$(git status --porcelain)" ]]; then
+          echo '::error title=post-build check::changes detected in git tree'
+          git status
+          exit 1
+        fi
 
   check:
     runs-on: ubuntu-latest
