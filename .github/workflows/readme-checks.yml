@@ -18,7 +18,7 @@ jobs:
       id: readme-version
       run: |
         set -euo pipefail
-        readme_version="$(cat README.md | docker -i --rm yshavit/mdq '# Development | P: "Requires rustc >=" ' | awk '{print $NF}')"
+        readme_version="$(cat README.md | docker run -i --rm yshavit/mdq '# Development | P: "Requires rustc >=" ' | awk '{print $NF}')"
         echo "result=$readme_version" >> "$GITHUB_OUTPUT"
     - name: pull cargo-msrv from docker hub
       run: docker pull foresterre/cargo-msrv
