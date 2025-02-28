@@ -42,11 +42,13 @@ Any of these will work:
 
 1. ```shell
    cargo install --git https://github.com/yshavit/mdq
+2. ```shell
+   brew install mdq
    ```
-2. Download binaries from [the latest release] (or any other release, of course).
-3. You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
+3. Download binaries from [the latest release] (or any other release, of course).
+4. You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
    that (this is GitHub's limitation, not mine). You'll have to `chmod +x` them before you can run them.
-   
+
 <details>
 <summary>Security concerns</summary>
 The release and latest-workflow binaries are built on GitHub's servers, so if you trust my code (and dependencies), and you trust GitHub,
@@ -141,7 +143,7 @@ TICKET_URL="$(echo "$PR_TEXT"
 This will match Markdown like:
 
 > #### Ticket
-> 
+>
 > https://tickets.example.com/PROJ-1234
 
 ### Whittling down a big table
