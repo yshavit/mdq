@@ -35,7 +35,9 @@ jobs:
     - name: build
       run: cargo build --release
     - name: check for any changes in the git tree
+      shell: bash
       run: |
+        set -euo pipefail
         if [[ -n "$(git status --porcelain)" ]]; then
           echo '::error title=post-build check::changes detected in git tree'
           git status
