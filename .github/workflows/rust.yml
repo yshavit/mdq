@@ -28,7 +28,7 @@ jobs:
         done <<<"$(git status --porcelain)"
         exit "$exit_code"
     - run: docker pull foresterre/cargo-msrv
-    - run: docker run --rm -t -v "$PWD/":/app/ foresterre/cargo-msrv find
+    - run: docker run --rm -t -v "$PWD/":/app/ foresterre/cargo-msrv find --no-log --output-format minimal
     - run: exit 1
   msrv:
     runs-on: ubuntu-latest
