@@ -46,8 +46,13 @@ Any of these will work:
 2. ```shell
    brew install mdq
    ```
-3. Download binaries from [the latest release] (or any other release, of course).
-4. You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
+3. ```bash
+   docker pull yshavit/mdq
+   echo 'My [example](https://github.com/yshavit/mdq) markdown' | docker run --rm -i yshavit/mdq '[]()'
+   ```
+4. Download binaries from [the latest release] (or any other release, of course).
+
+   You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
    that (this is GitHub's limitation, not mine). You'll have to `chmod +x` them before you can run them.
 
 <details>
