@@ -48,7 +48,7 @@ Any of these will work:
    ```
 3. ```bash
    docker pull yshavit/mdq
-   docker run --rm yshavit/mdq
+   echo 'My [example](https://github.com/yshavit/mdq) markdown' | docker run --rm -i yshavit/mdq '[]()'
    ```
 4. Download binaries from [the latest release] (or any other release, of course).
 
