@@ -1,4 +1,4 @@
-name: rust
+name: Documentation
 
 on:
   push:
@@ -9,9 +9,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check msrv:
+  check-msrv:
     runs-on: ubuntu-latest
-    needs: build
     steps:
     - uses: actions/checkout@v4
     - name: find version mentioned in readme
