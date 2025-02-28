@@ -3,6 +3,16 @@ name: build-release
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      docker-tag-type:
+        description: The docker tag to upload as
+        required: true
+        default: latest-unstable
+        type: choice
+        options:
+          - latest-unstable
+          - stable
 
 env:
   CARGO_TERM_COLOR: always
@@ -14,6 +24,41 @@ permissions:
   contents: read
 
 jobs:
+  docker:
+    environment: Docker Release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: get tag
+      id: get-tag
+      run: |
+        if [[ "${DOCKER_TAG_TYPE}" = 'stable' ]]; then
+          tag="$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "mdq") | .version')"
+        else
+          tag=latest-unstable
+        fi
+        echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      env:
+        DOCKER_TAG_TYPE: ${{ inputs.docker-tag-type }}
+        DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ vars.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PAT }}
+    - name: Gather metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ vars.DOCKER_USERNAME }}/mdq
+    - name: Build and push
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        push: true
+        tags: ${{ vars.DOCKER_USERNAME}}/mdq:${{ steps.get-tag.outputs.tag }}
+        labels: ${{ steps.meta.outputs.labels }}
+
   build:
     strategy:
       matrix:
