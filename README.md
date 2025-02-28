@@ -42,12 +42,11 @@ Any of these will work:
 
 1. ```shell
    cargo install --git https://github.com/yshavit/mdq
-
-   # Homebrew
+2. ```shell
    brew install mdq
    ```
-1. Download binaries from [the latest release] (or any other release, of course).
-1. You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
+3. Download binaries from [the latest release] (or any other release, of course).
+4. You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
    that (this is GitHub's limitation, not mine). You'll have to `chmod +x` them before you can run them.
 
 <details>
