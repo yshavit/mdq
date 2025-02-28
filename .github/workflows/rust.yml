@@ -27,8 +27,8 @@ jobs:
           echo "::error file=$file_path,title=git-status::<$status_code> $file_path"
         done <<<"$(git status --porcelain)"
         exit "$exit_code"
-    - run: cargo install cargo-msrv --locked
-    - run: cargo msrv find
+    - run: docker pull foresterre/cargo-msrv
+    - run: docker run --rm -t -v "$PWD/":/app/ foresterre/cargo-msrv find
     - run: exit 1
   msrv:
     runs-on: ubuntu-latest
