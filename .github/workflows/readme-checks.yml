@@ -1,0 +1,44 @@
+name: rust
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check msrv:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - uses: actions/checkout@v4
+    - name: find version mentioned in readme
+      id: readme-version
+      run: |
+        set -euo pipefail
+        pwd
+        mkdir -p target/debug
+        cargo build
+        readme_version="$(cat README.md | ./target/debug/mdq '# Development | P: "Requires rustc >=" ' | awk '{print $NF}')"
+        echo "Found version in readme: <$readme_version>"
+        echo "result=$readme_version" >> "$GITHUB_OUTPUT"
+    - name: pull cargo-msrv from docker hub
+      run: docker pull foresterre/cargo-msrv
+    - name: find minimum supported rust version
+      id: run-msrv
+      run: |
+        set -euo pipefail
+        min_version="$(docker run --rm -t -v "$PWD/":/app/ foresterre/cargo-msrv find --no-log --output-format minimal | tr -d $'\r\n')"
+        echo "Found version in cargo-msrv: <$min_version>"
+        echo "result=$min_version" >> "$GITHUB_OUTPUT"
+    - name: compare versions
+      run: |
+        if [[ "$MSRV_VERSION" != "$README_VERSION" ]]; then
+          echo "::error title=msrv-mismatch::cargo-msrv was $MSRV_VERSION but README.md says rustc >= $README_VERSION"
+          exit 1
+        fi
+      env:
+        MSRV_VERSION: ${{ steps.run-msrv.outputs.result }}
+        README_VERSION: ${{ steps.readme-version.outputs.result }}
