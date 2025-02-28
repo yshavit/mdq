@@ -8,10 +8,10 @@ on:
       docker-tag-type:
         description: The docker tag to upload as
         required: true
-        default: latest-unstable
+        default: latest
         type: choice
         options:
-          - latest-unstable
+          - latest
           - stable
 
 env:
@@ -35,7 +35,7 @@ jobs:
         if [[ "${DOCKER_TAG_TYPE}" = 'stable' ]]; then
           tag="$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "mdq") | .version')"
         else
-          tag=latest-unstable
+          tag=latest
         fi
         echo "tag=$tag" >> "$GITHUB_OUTPUT"
       env:
