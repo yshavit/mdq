@@ -35,6 +35,8 @@ jobs:
         echo "result=$min_version" >> "$GITHUB_OUTPUT"
     - name: compare versions
       run: |
+        echo "::notice title=cargo-msrv::$MSRV_VERSION"
+        echo "::notice title=README.md-msrv::$README_VERSION"
         if [[ "$MSRV_VERSION" != "$README_VERSION" ]]; then
           echo "::error title=msrv-mismatch::cargo-msrv was $MSRV_VERSION but README.md says rustc >= $README_VERSION"
           exit 1
