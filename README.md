@@ -42,6 +42,7 @@ Any of these will work:
 
 1. ```shell
    cargo install --git https://github.com/yshavit/mdq
+   ```
 2. ```shell
    brew install mdq
    ```
@@ -178,4 +179,16 @@ cat oncall.md | mdq ':-: * :-: 2024-01-15'
 |  On-Call   | Alice | Bob | Sam | Pat |
 |:----------:|:-----:|:---:|:---:|----:|
 | 2024-01-15 |       |     |  x  |     |
+```
+
+# Development
+
+Requires rustc >= 1.20.0
+
+```bash
+cargo build
+```
+
+```bash
+cargo test
 ```
