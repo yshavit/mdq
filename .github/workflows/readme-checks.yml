@@ -28,7 +28,8 @@ jobs:
       run: |
         set -euo pipefail
         exit_code=0
-        while IFS=: read -r file line_no found_rustc_version; do
+        while IFS=: read -r file line_no version_contents; do
+          found_rustc_version="${version_contents//rustc >= /}"
           if [[ "$found_rustc_version" == "$MSRV_VERSION" ]]; then
             echo "::notice file=$file,line=$line_no,title=version::✅ $found_rustc_version"
           else
