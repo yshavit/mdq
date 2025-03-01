@@ -55,7 +55,7 @@ Any of these will work:
 1. ```shell
    cargo install --git https://github.com/yshavit/mdq
    ```
-   Requires rustc >= 1.2.3
+   Requires rustc >= 1.78.0
 
 <details>
 <summary>Security concerns</summary>
@@ -190,7 +190,7 @@ cat oncall.md | mdq ':-: * :-: 2024-01-15'
 
 # Development
 
-Requires rustc >= 1.2.3
+Requires rustc >= 1.78.0
 
 ```bash
 cargo build
