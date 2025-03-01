@@ -41,19 +41,21 @@ have one you prefer.
 Any of these will work:
 
 1. ```shell
-   cargo install --git https://github.com/yshavit/mdq
-   ```
-2. ```shell
    brew install mdq
    ```
-3. ```bash
+   (Mac and Linux)
+1. ```bash
    docker pull yshavit/mdq
    echo 'My [example](https://github.com/yshavit/mdq) markdown' | docker run --rm -i yshavit/mdq '[]()'
    ```
-4. Download binaries from [the latest release] (or any other release, of course).
+1. Download binaries from [the latest release] (or any other release, of course).
 
    You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
    that (this is GitHub's limitation, not mine). You'll have to `chmod +x` them before you can run them.
+1. ```shell
+   cargo install --git https://github.com/yshavit/mdq
+   ```
+   Requires rustc >= 1.2.3
 
 <details>
 <summary>Security concerns</summary>
@@ -188,7 +190,7 @@ cat oncall.md | mdq ':-: * :-: 2024-01-15'
 
 # Development
 
-Requires rustc >= 1.78.0
+Requires rustc >= 1.2.3
 
 ```bash
 cargo build

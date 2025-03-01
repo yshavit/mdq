@@ -14,12 +14,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - run: docker pull yshavit/mdq
-    - name: find version mentioned in readme
-      id: readme-version
-      run: |
-        set -euo pipefail
-        readme_version="$(cat README.md | docker run -i --rm yshavit/mdq '# Development | P: "Requires rustc >=" ' | awk '{print $NF}')"
-        echo "result=$readme_version" >> "$GITHUB_OUTPUT"
     - name: pull cargo-msrv from docker hub
       run: docker pull foresterre/cargo-msrv
     - name: find minimum supported rust version
@@ -27,15 +21,21 @@ jobs:
       run: |
         set -euo pipefail
         min_version="$(docker run --rm -t -v "$PWD/":/app/ foresterre/cargo-msrv find --no-log --output-format minimal | tr -d $'\r\n')"
+        echo "::notice title=cargo-msrv::$min_version"
         echo "result=$min_version" >> "$GITHUB_OUTPUT"
-    - name: compare versions
+    - name: check versions in readme
+      id: readme-version
       run: |
-        echo "::notice title=cargo-msrv::$MSRV_VERSION"
-        echo "::notice title=README.md-msrv::$README_VERSION"
-        if [[ "$MSRV_VERSION" != "$README_VERSION" ]]; then
-          echo "::error title=msrv-mismatch::cargo-msrv was $MSRV_VERSION but README.md says rustc >= $README_VERSION"
-          exit 1
-        fi
+        set -euo pipefail
+        exit_code=0
+        while IFS=: read -r file line_no found_rustc_version; do
+          if [[ "$found_rustc_version" == "$MSRV_VERSION" ]]; then
+            echo "::notice file=$file,line=$line_no,title=version::✅ $found_rustc_version"
+          else
+            echo "::error file=$file,line=$line_no,title=version::$found_rustc_version should have been $MSRV_VERSION"
+            exit_code=1
+          fi
+        done <<<"$(grep -HnoE 'rustc >= \S+' README.md)"
+        exit "$exit_code"
       env:
         MSRV_VERSION: ${{ steps.run-msrv.outputs.result }}
-        README_VERSION: ${{ steps.readme-version.outputs.result }}
