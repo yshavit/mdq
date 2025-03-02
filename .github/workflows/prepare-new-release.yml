@@ -118,7 +118,7 @@ jobs:
 
         git checkout -b release-prep-${{ github.event.inputs.new_version }}
         git commit -am "Update version to ${{ github.event.inputs.new_version }}"
-        git push --set-upstream origin release-prep-${{ github.event.inputs.new_version }}
+        # git push --set-upstream origin release-prep-${{ github.event.inputs.new_version }} # TODO
 
         git co release-experiment
         git merge release-prep-${{ github.event.inputs.new_version }}
