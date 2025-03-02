@@ -1,0 +1,59 @@
+name: Prepare New Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      current_version:
+        description: 'current version'
+        required: true
+        type: string
+      new_version:
+        description: 'new version'
+        required: true
+        type: string
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    - name: Extract current version from Cargo.toml
+      run: |
+        set -euo pipefail
+        current_version=$(grep '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+        if [[ "${{ github.event.inputs.current_version }}" != "${{ env.current_version }}" ]]; then
+          echo "::error title=bad version::Expected version ${{ github.event.inputs.current_version }} does not match current version ${{ env.current_version }}."
+          exit 1
+        fi
+
+    - name: Create new release
+      id: create_release
+      run: |
+        release_url="$(gh release create v${{ github.event.inputs.new_version }} --draft --title "v${{ github.event.inputs.new_version }}" --generate-notes)"
+        echo "release_url=$release_url" >> "$GITHUB_OUTPUT"
+
+
+    - name: Update Cargo.toml version
+      run: |
+        set -euo pipefail
+        sed -i 's/^version = ".*"/version = "${{ github.event.inputs.new_version }}"/' Cargo.toml
+        cargo metadata >/dev/null
+
+    - name: Commit changes
+      run: |
+        set -euo pipefail
+        git checkout -b release-prep-${{ github.event.inputs.new_version }}
+        git commit -am "Update version to ${{ github.event.inputs.new_version }}"
+        git push --set-upstream origin release-prep-${{ github.event.inputs.new_version }}
+
+    - name: Create Pull Request
+      run: |
+        gh pr create --title "Prepare new version: ${{ github.event.inputs.new_version }}" --body "Bump version to ${{ github.event.inputs.new_version }}.\n\nSee: ${{ steps.create_release.outputs.release_url }}"
