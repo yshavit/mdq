@@ -99,16 +99,22 @@ jobs:
         cp scripts/installer.sh "$tmp_file"
         base64 -b 72 -i target/release/mdq | sed 's/^/# /' >> "$tmp_file"
         mv "$tmp_file" target/release/mdq-installer.sh
-        export BUILD_FILE_NAME=mdq-installer.sh
-        echo BUILD_FILE_NAME=mdq-installer.sh >> "$GITHUB_ENV"
+        echo MAC_INSTALLER_FILE_NAME=mdq-installer.sh >> "$GITHUB_ENV"
     - name: Attest Build Provenance (mac installer)
       if: ${{ runner.os == 'macOS' }}
       uses: actions/attest-build-provenance@v1
       with:
         subject-path: "target/release/${{ env.BUILD_FILE_NAME }}"
-    - name: upload
+    - name: upload binary
       uses: actions/upload-artifact@v4
       with:
         if-no-files-found: error
         name: mdq-${{ matrix.os }}
         path: target/release/${{ env.BUILD_FILE_NAME }}
+    - name: upload Mac installer
+      if: ${{ runner.os == 'macOS' }}
+      uses: actions/upload-artifact@v4
+      with:
+        if-no-files-found: error
+        name: mdq-${{ matrix.os }}-installer
+        path: target/release/${{ env.MAC_INSTALLER_FILE_NAME }}
