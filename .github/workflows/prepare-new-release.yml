@@ -31,8 +31,8 @@ jobs:
       run: |
         set -euo pipefail
         current_version=$(grep '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-        if [[ "${{ github.event.inputs.current_version }}" != "${{ env.current_version }}" ]]; then
-          echo "::error title=bad version::Expected version ${{ github.event.inputs.current_version }} does not match current version ${{ env.current_version }}."
+        if [[ "${{ github.event.inputs.current_version }}" != "$current_version" ]]; then
+          echo "::error title=bad version::Expected version ${{ github.event.inputs.current_version }} does not match current version $current_version."
           exit 1
         fi
 
