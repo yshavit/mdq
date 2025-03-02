@@ -50,8 +50,12 @@ Any of these will work:
    ```
 1. Download binaries from [the latest release] (or any other release, of course).
 
-   You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
-   that (this is GitHub's limitation, not mine). You'll have to `chmod +x` them before you can run them.
+   - Macs quarantine downloads from the internet by default. If you get an error saying that Apple cannot check the the binary for malicious software, you can remove this flag by running the following on the binary after extracting it from the artifact zip:
+     ```bash
+     xattr -d com.apple.quarantine mdq
+     ```
+   - You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
+     that (this is GitHub's limitation, not mine). You'll have to `chmod +x` them before you can run them.
 1. ```shell
    cargo install --git https://github.com/yshavit/mdq
    ```
