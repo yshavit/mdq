@@ -13,10 +13,10 @@ on:
         type: string
 
 jobs:
-  env:
-    GH_TOKEN: ${{ github.token }}
   run:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
 
     steps:
     - uses: actions/checkout@v2
