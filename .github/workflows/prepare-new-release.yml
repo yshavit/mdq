@@ -76,11 +76,14 @@ jobs:
     - name: Check Cargo.toml version
       run: |
         set -euo pipefail
-        current_version=$(grep '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-        if [[ "${{ github.event.inputs.current_version }}" != "$current_version" ]]; then
-          echo "::error title=bad version::Expected version ${{ github.event.inputs.current_version }} does not match current version $current_version."
+        toml_current_version=$(grep '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+        expect_version="${CURRENT_VERSION}-dev"
+        if [[ "$toml_current_version" != "$expect_version" ]]; then
+          echo "::error title=bad version::Expected version $expect_version does not match current version $toml_current_version."
           exit 1
         fi
+      env:
+        CURRENT_VERSION: ${{ github.event.inputs.current_version }}
 
     - name: Set up Rust
       uses: actions-rs/toolchain@v1
@@ -116,6 +119,7 @@ jobs:
         git checkout -b release-prep-${{ github.event.inputs.new_version }}
         git commit -am "Update version to ${{ github.event.inputs.new_version }}"
         git push --set-upstream origin release-prep-${{ github.event.inputs.new_version }}
+
         git co release-experiment
         git merge release-prep-${{ github.event.inputs.new_version }}
         git push origin release-experiment
