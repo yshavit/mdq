@@ -73,13 +73,7 @@ jobs:
         done
       working-directory: ${{ steps.random-dir.outputs.path }}
 
-    - name: Set up Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-
-    - name: Extract current version from Cargo.toml
+    - name: Check Cargo.toml version
       run: |
         set -euo pipefail
         current_version=$(grep '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
@@ -87,6 +81,18 @@ jobs:
           echo "::error title=bad version::Expected version ${{ github.event.inputs.current_version }} does not match current version $current_version."
           exit 1
         fi
+
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    - name: Update Cargo.toml
+      run: sed -i 's/^version = ".*"/version = "${{ github.event.inputs.new_version }}"/' Cargo.toml
+
+    - name: Update Cargo.lock
+      run: cargo metadata >/dev/null
 
     - name: Create new release
       id: create_release
@@ -100,12 +106,6 @@ jobs:
       run: gh release upload "$TAG_NAME" "$TMP_DIR"/*
       env:
         TMP_DIR: ${{ steps.random-dir.outputs.path }}
-
-    - name: Update Cargo.toml
-      run: sed -i 's/^version = ".*"/version = "${{ github.event.inputs.new_version }}"/' Cargo.toml
-
-    - name: Update Cargo.lock
-      run: cargo metadata >/dev/null
 
     - name: Commit changes
       run: |
