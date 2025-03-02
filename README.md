@@ -52,10 +52,10 @@ Any of these will work:
    ```
 4. Download binaries from [the latest release] (or any other release, of course).
 
-   > [!note]
-   > Macs quarantine downloads from the internet by default. You can remove this flag by running the following on the binary after extracting it from the artifact zip:
+   > ![note]
+   > Macs quarantine downloads from the internet by default. If you get an error saying that Apple cannot check the the binary for malicious software, you can remove this flag by running the following on the binary after extracting it from the artifact zip:
    > ```bash
-   > xattr -r -d com.apple.quarantine mdq
+   > xattr -d com.apple.quarantine mdq
    > ```
 
    You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
