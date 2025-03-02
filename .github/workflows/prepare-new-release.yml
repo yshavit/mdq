@@ -31,6 +31,15 @@ jobs:
       with:
         ref: ${{ github.event.inputs.base_ref }}
 
+    - name: Check that tag is available
+      run: |
+        if git release view "$TAG_NAME" ; then
+          echo "::error ::tag $TAG_NAME already exists"
+          exit 1
+        fi
+      env:
+        TAG_NAME: "v${{ github.event.inputs.current_version }}"
+
     - name: Prepare random dir
       id: random-dir
       run: echo "path=$(mktemp -d)" >> "$GITHUB_OUTPUT"
@@ -83,7 +92,7 @@ jobs:
     - name: Create new release
       id: create_release
       run: |
-        release_url="$(gh release create "v${{ github.event.inputs.new_version }}" --draft --title "v${{ github.event.inputs.new_version }}" --generate-notes --target "$TARGET_REF")"
+        release_url="$(gh release create "v${{ github.event.inputs.current_version }}" --draft --title "v${{ github.event.inputs.current_version }}" --generate-notes --target "$TARGET_REF")"
         echo "release_url=$release_url" >> "$GITHUB_OUTPUT"
       env:
         TARGET_REF: ${{ github.event.inputs.base_ref }}
