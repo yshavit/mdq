@@ -27,7 +27,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_VERSION: ${{ github.event.inputs.version_to_release }}
-      NEXT_DEV_VERSION: ${{ github.event.inputs.next_version }}-dev
+      NEXT_DEV_VERSION: "${{ github.event.inputs.next_version }}-dev"
       TAG_NAME: "v${{ github.event.inputs.version_to_release }}"
     permissions:
       contents: write
