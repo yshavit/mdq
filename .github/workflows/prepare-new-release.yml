@@ -34,7 +34,7 @@ jobs:
 
     - name: Check that tag is available
       run: |
-        if git release view "$TAG_NAME" ; then
+        if gh release view "$TAG_NAME" ; then
           echo "::error ::tag $TAG_NAME already exists"
           exit 1
         fi
