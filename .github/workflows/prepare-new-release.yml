@@ -41,7 +41,8 @@ jobs:
         git fetch origin
         git checkout release-experiment
         date > date-check.txt
-        git commit -am "update date to $(cat date-check.txt)"
+        git add date-check.txt
+        git commit -m "update date to $(cat date-check.txt)"
         git push origin release-experiment
 
     - name: early exit
