@@ -116,6 +116,11 @@ jobs:
         git checkout -b release-prep-${{ github.event.inputs.new_version }}
         git commit -am "Update version to ${{ github.event.inputs.new_version }}"
         git push --set-upstream origin release-prep-${{ github.event.inputs.new_version }}
+        git merge origin/release-experiment
+        git push origin release-experiment
+
+    - name: early exit
+      run: exit 1
 
     - name: Create Pull Request
       run: |
