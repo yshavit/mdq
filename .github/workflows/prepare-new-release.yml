@@ -39,7 +39,7 @@ jobs:
         git config user.email 'github-actions[bot]@users.noreply.github.com'
 
         git fetch origin
-        git checkout origin release-experiment
+        git checkout release-experiment
         date > date-check.txt
         git commit -am "update date to $(cat date-check.txt)"
         git push origin release-experiment
