@@ -54,6 +54,9 @@ jobs:
     - name: Commit changes
       run: |
         set -euo pipefail
+        git config user.name 'github-actions[bot]'
+        git config user.email 'github-actions[bot]@users.noreply.github.com'
+
         git checkout -b release-prep-${{ github.event.inputs.new_version }}
         git commit -am "Update version to ${{ github.event.inputs.new_version }}"
         git push --set-upstream origin release-prep-${{ github.event.inputs.new_version }}
