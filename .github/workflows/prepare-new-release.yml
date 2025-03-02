@@ -120,6 +120,7 @@ jobs:
         git commit -am "Update version to ${{ github.event.inputs.new_version }}"
         # git push --set-upstream origin release-prep-${{ github.event.inputs.new_version }} # TODO
 
+        git fetch origin
         git checkout origin release-experiment
         git merge release-prep-${{ github.event.inputs.new_version }}
         git push origin release-experiment
