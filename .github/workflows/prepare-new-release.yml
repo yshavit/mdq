@@ -46,7 +46,7 @@ jobs:
           echo "::error ::Found run $run_id but its conclusion was $(echo "$run_info" | jq '.[].conclusion')"
           exit 1
         fi
-        run: echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+        echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
       env:
         RUN_REF: ${{ github.event.inputs.base_ref }}
 
