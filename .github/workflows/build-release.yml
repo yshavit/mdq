@@ -1,5 +1,4 @@
-
-name: build-release
+name: Release
 on:
   push:
     branches: [ "main" ]
@@ -13,6 +12,7 @@ on:
         options:
           - latest
           - stable
+          - none
 
 env:
   CARGO_TERM_COLOR: always
@@ -25,6 +25,7 @@ permissions:
 
 jobs:
   docker:
+    if: ${{ inputs.docker-tag-type != "none" }}
     environment: Docker Hub
     runs-on: ubuntu-latest
     steps:
