@@ -17,6 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+    permissions:
+      contents: write
+      pull-requests: write
 
     steps:
     - uses: actions/checkout@v2
@@ -39,9 +42,8 @@ jobs:
     - name: Create new release
       id: create_release
       run: |
-        release_url="$(gh release create v${{ github.event.inputs.new_version }} --draft --title "v${{ github.event.inputs.new_version }}" --generate-notes)"
+        release_url="$(gh release create "v${{ github.event.inputs.new_version }}" --draft --title "v${{ github.event.inputs.new_version }}" --generate-notes)"
         echo "release_url=$release_url" >> "$GITHUB_OUTPUT"
-
 
     - name: Update Cargo.toml version
       run: |
