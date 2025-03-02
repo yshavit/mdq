@@ -15,7 +15,7 @@ on:
         description: 'the git ref to go against'
         required: false
         type: string
-        default: ${{ github.event.repository.default_branch }}
+        default: main
 
 jobs:
   run:
