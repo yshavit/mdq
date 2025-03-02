@@ -41,9 +41,9 @@ have one you prefer.
 Any of these will work:
 
 1. ```shell
+   # (Mac and Linux, with brew installed)
    brew install mdq
    ```
-   (Mac and Linux)
 1. ```bash
    docker pull yshavit/mdq
    echo 'My [example](https://github.com/yshavit/mdq) markdown' | docker run --rm -i yshavit/mdq '[]()'
