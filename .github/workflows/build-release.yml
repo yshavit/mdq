@@ -1,5 +1,4 @@
-
-name: build-release
+name: Release
 on:
   push:
     branches: [ "main" ]
@@ -13,6 +12,7 @@ on:
         options:
           - latest
           - stable
+          - none
 
 env:
   CARGO_TERM_COLOR: always
@@ -25,6 +25,7 @@ permissions:
 
 jobs:
   docker:
+    if: ${{ inputs.docker-tag-type != 'none' }}
     environment: Docker Hub
     runs-on: ubuntu-latest
     steps:
@@ -92,21 +93,7 @@ jobs:
       uses: actions/attest-build-provenance@v1
       with:
         subject-path: "target/release/${{ env.BUILD_FILE_NAME }}"
-    - name: mac installer
-      if: ${{ runner.os == 'macOS' }}
-      run: |
-        tmp_file="$(mktemp)"
-        cp scripts/installer.sh "$tmp_file"
-        base64 -b 72 -i target/release/mdq | sed 's/^/# /' >> "$tmp_file"
-        mv "$tmp_file" target/release/mdq-installer.sh
-        export BUILD_FILE_NAME=mdq-installer.sh
-        echo BUILD_FILE_NAME=mdq-installer.sh >> "$GITHUB_ENV"
-    - name: Attest Build Provenance (mac installer)
-      if: ${{ runner.os == 'macOS' }}
-      uses: actions/attest-build-provenance@v1
-      with:
-        subject-path: "target/release/${{ env.BUILD_FILE_NAME }}"
-    - name: upload
+    - name: upload binary
       uses: actions/upload-artifact@v4
       with:
         if-no-files-found: error
