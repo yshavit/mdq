@@ -41,16 +41,14 @@ have one you prefer.
 Any of these will work:
 
 1. ```shell
-   cargo install --git https://github.com/yshavit/mdq
-   ```
-2. ```shell
+   # (Mac and Linux, with brew installed)
    brew install mdq
    ```
-3. ```bash
+1. ```bash
    docker pull yshavit/mdq
    echo 'My [example](https://github.com/yshavit/mdq) markdown' | docker run --rm -i yshavit/mdq '[]()'
    ```
-4. Download binaries from [the latest release] (or any other release, of course).
+1. Download binaries from [the latest release] (or any other release, of course).
 
    - Macs quarantine downloads from the internet by default. If you get an error saying that Apple cannot check the the binary for malicious software, you can remove this flag by running the following on the binary after extracting it from the artifact zip:
      ```bash
@@ -58,6 +56,10 @@ Any of these will work:
      ```
    - You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
      that (this is GitHub's limitation, not mine). You'll have to `chmod +x` them before you can run them.
+1. ```shell
+   cargo install --git https://github.com/yshavit/mdq
+   ```
+   Requires rustc >= 1.78.0
 
 <details>
 <summary>Security concerns</summary>
