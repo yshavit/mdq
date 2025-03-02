@@ -35,8 +35,8 @@ jobs:
     - name: Commit changes
       run: |
         set -euo pipefail
-        git config user.name 'github-actions[bot]'
-        git config user.email 'github-actions[bot]@users.noreply.github.com'
+        git config user.name 'mdq-release[bot]'
+        git config user.email 61925128+mdq-release[bot]@users.noreply.github.com
 
         git fetch origin
         git checkout release-experiment
