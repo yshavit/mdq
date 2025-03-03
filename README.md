@@ -48,6 +48,7 @@ Any of these will work:
    docker pull yshavit/mdq
    echo 'My [example](https://github.com/yshavit/mdq) markdown' | docker run --rm -i yshavit/mdq '[]()'
    ```
+   To use a specific release version, use `yshavit/mdq:0.3.1` (or whichever version). See [Docker Hub] for available tags.
 1. Download binaries from [the latest release] (or any other release, of course).
 
    - Macs quarantine downloads from the internet by default. If you get an error saying that Apple cannot check the the binary for malicious software, you can remove this flag by running the following on the binary after extracting it from the artifact zip:
@@ -66,6 +67,8 @@ Any of these will work:
 The release and latest-workflow binaries are built on GitHub's servers, so if you trust my code (and dependencies), and you trust GitHub,
 you can trust the binaries. See https://github.com/yshavit/mdq/wiki/Release-binaries for information on how to verify them.
  </details>
+
+[Docker Hub]: https://hub.docker.com/r/yshavit/mdq/tags
 
 [the latest release]: https://github.com/yshavit/mdq/releases/latest
 
