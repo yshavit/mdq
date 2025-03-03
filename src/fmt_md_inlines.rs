@@ -343,11 +343,29 @@ impl<'md> MdInlinesWriter<'md> {
     where
         W: SimpleWrite,
     {
-        description.chars().for_each(|ch| {
-            if ch == '[' || ch == ']' {
-                out.write_char('\\');
-            }
-            out.write_char(ch);
+        let mut unbalanced_opening_brackets = Vec::new();
+        let mut unbalanced_closing_brackets = Vec::new();
+
+        // Detect unbalanced square brackets, store positions.
+        description.chars().enumerate().for_each(|(index, ch)| {
+            match ch {
+                '[' => {
+                    unbalanced_opening_brackets.push(index);
+                }
+                ']' => {
+                    if unbalanced_opening_brackets.pop().is_none() {
+                        unbalanced_closing_brackets.push(index);
+                    }
+                }
+                _ => (),
+            };
+        });
+
+        // Escape unbalanced square brackets.
+        description.chars().enumerate().for_each(|(index, ch)| match ch {
+            '[' if unbalanced_opening_brackets.contains(&index) => out.write_str("\\["),
+            ']' if unbalanced_closing_brackets.contains(&index) => out.write_str("\\]"),
+            _ => out.write_char(ch),
         });
     }
 
@@ -560,12 +578,22 @@ mod tests {
 
         #[test]
         fn matched_brackets() {
-            check_link_description("link [foo [bar]]", "link \\[foo \\[bar\\]\\]");
+            check_link_description("link [foo [bar]]", "link [foo [bar]]");
         }
 
         #[test]
-        fn unmatched_brackets() {
+        fn unmatched_opening_brackets() {
             check_link_description("link [foo bar", "link \\[foo bar");
+        }
+
+        #[test]
+        fn unmatched_closing_brackets() {
+            check_link_description("link foo] bar", "link foo\\] bar");
+        }
+
+        #[test]
+        fn matched_and_unmatched_brackets() {
+            check_link_description("link [foo [bar]", "link \\[foo [bar]");
         }
 
         fn check_link_description(input_description: &str, expected: &str) {
@@ -613,12 +641,22 @@ mod tests {
 
         #[test]
         fn matched_brackets() {
-            check_img_alt("link [foo [bar]]", "link \\[foo \\[bar\\]\\]");
+            check_img_alt("link [foo [bar]]", "link [foo [bar]]");
         }
 
         #[test]
-        fn unmatched_brackets() {
+        fn unmatched_opening_brackets() {
             check_img_alt("link [foo bar", "link \\[foo bar");
+        }
+
+        #[test]
+        fn unmatched_closing_brackets() {
+            check_img_alt("link foo] bar", "link foo\\] bar");
+        }
+
+        #[test]
+        fn matched_and_unmatched_brackets() {
+            check_img_alt("link [foo [bar]", "link \\[foo [bar]");
         }
 
         fn check_img_alt(input_description: &str, expected: &str) {
