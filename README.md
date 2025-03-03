@@ -38,7 +38,10 @@ have one you prefer.
 
 # Installation
 
-Any of these will work:
+> [!tip]
+> You can try mdq live in your browser at https://yshavit.github.io/mdq-playground.
+
+To install mdq locally, any of these will work:
 
 1. ```shell
    # (Mac and Linux, with brew installed)
@@ -50,23 +53,35 @@ Any of these will work:
    ```
    To use a specific release version, use `yshavit/mdq:0.3.1` (or whichever version). See [Docker Hub] for available tags.
 1. Download binaries from [the latest release] (or any other release, of course).
+   <details>
+   <summary>Mac users</summary>
+      
+   Macs quarantine downloads from the internet by default. If you get an error saying that Apple cannot check the the binary for malicious software, you can remove this flag by running the following on the binary after extracting it from the artifact zip:
+   ```bash
+   xattr -d com.apple.quarantine mdq
+   ```
+   
+   </details>
+   
+   <details>
+   <summary>Security concerns</summary>
+   
+   The release and latest-workflow binaries are built on GitHub's servers, so if you trust my code (and dependencies), and you trust GitHub,
+   you can trust the binaries. See https://github.com/yshavit/mdq/wiki/Release-binaries for information on how to verify them.
+   
+   </details>
+   
+   <details>
+   <summary>Non-release builds</summary>
 
-   - Macs quarantine downloads from the internet by default. If you get an error saying that Apple cannot check the the binary for malicious software, you can remove this flag by running the following on the binary after extracting it from the artifact zip:
-     ```bash
-     xattr -d com.apple.quarantine mdq
-     ```
-   - You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
-     that (this is GitHub's limitation, not mine). You'll have to `chmod +x` them before you can run them.
+   You can also grab the binaries from the latest [build-release] workflow run. You must be logged into GitHub to do
+   that (this is GitHub's limitation, not mine). You'll have to `chmod +x` them before you can run them.
+
+   </details> 
 1. ```shell
    cargo install --git https://github.com/yshavit/mdq
    ```
    Requires rustc >= 1.78.0
-
-<details>
-<summary>Security concerns</summary>
-The release and latest-workflow binaries are built on GitHub's servers, so if you trust my code (and dependencies), and you trust GitHub,
-you can trust the binaries. See https://github.com/yshavit/mdq/wiki/Release-binaries for information on how to verify them.
- </details>
 
 [Docker Hub]: https://hub.docker.com/r/yshavit/mdq/tags
 
