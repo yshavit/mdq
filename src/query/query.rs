@@ -1,6 +1,6 @@
 use pest::iterators::{Pair, Pairs};
 use pest_derive::Parser;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Formatter, Write};
 
 #[derive(Parser)]
 #[grammar = "query/grammar.pest"] // relative to src
@@ -10,21 +10,45 @@ struct QueryPairs;
 enum RuleTree<'a> {
     Node(Rule, Vec<RuleTree<'a>>),
     Leaf(Rule, &'a str),
-    Text(String),
+    Text(ParsedString),
     Error(String),
 }
 
+#[derive(Eq, PartialEq)]
+struct ParsedString {
+    text: String,
+    anchor_start: bool,
+    anchor_end: bool,
+}
+
+impl Debug for ParsedString {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.anchor_start {
+            f.write_char('^')?;
+        }
+        write!(f, "{:?}", self.text)?;
+        if self.anchor_end {
+            f.write_char('$')?;
+        }
+        Ok(())
+    }
+}
+
 impl<'a> RuleTree<'a> {
-    fn get_string(pairs: Pairs<Rule>) -> Result<String, String> {
-        let mut s = String::with_capacity(pairs.as_str().len());
+    fn get_string(pairs: Pairs<Rule>) -> Result<ParsedString, String> {
+        let mut s = ParsedString {
+            text: String::with_capacity(pairs.as_str().len()),
+            anchor_start: false,
+            anchor_end: false,
+        };
         Self::build_string(&mut s, pairs).map(|_| s)
     }
 
-    fn build_string(to: &mut String, pairs: Pairs<Rule>) -> Result<(), String> {
+    fn build_string(parsed: &mut ParsedString, pairs: Pairs<Rule>) -> Result<(), String> {
         for pair in pairs {
             match pair.as_rule() {
                 Rule::literal_char => {
-                    to.push_str(pair.as_str());
+                    parsed.text.push_str(pair.as_str());
                 }
                 Rule::escaped_char => {
                     // we'll iterate, but we should really only have one
@@ -39,7 +63,7 @@ impl<'a> RuleTree<'a> {
                                 return Err(format!("invalid escape char: {err:?}"));
                             }
                         };
-                        to.push(result);
+                        parsed.text.push(result);
                     }
                 }
                 Rule::unicode_seq => {
@@ -50,10 +74,16 @@ impl<'a> RuleTree<'a> {
                     let Some(ch) = char::from_u32(code_point) else {
                         return Err(format!("invalid unicode sequence: {seq}"));
                     };
-                    to.push(ch);
+                    parsed.text.push(ch);
+                }
+                Rule::anchor_start => {
+                    parsed.anchor_start = true;
+                }
+                Rule::anchor_end => {
+                    parsed.anchor_end = true;
                 }
                 _ => {
-                    Self::build_string(to, pair.into_inner())?;
+                    Self::build_string(parsed, pair.into_inner())?;
                 }
             }
         }
@@ -139,12 +169,12 @@ mod tests {
 
         #[test]
         fn single_quoted_string() {
-            check_parse(Rule::string, "'hello'\"X", RuleTree::Text("hello".to_string()), "\"X");
+            check_parse(Rule::string, "'hello'\"X", parsed_text(false, "hello", false), "\"X");
         }
 
         #[test]
         fn double_quoted_string() {
-            check_parse(Rule::string, "\"hello\"'X", RuleTree::Text("hello".to_string()), "'X");
+            check_parse(Rule::string, "\"hello\"'X", parsed_text(false, "hello", false), "'X");
         }
 
         #[test]
@@ -152,7 +182,7 @@ mod tests {
             check_parse(
                 Rule::string,
                 r"'hello\nworld'",
-                RuleTree::Text("hello\nworld".to_string()),
+                parsed_text(false, "hello\nworld", false),
                 "",
             );
         }
@@ -162,7 +192,7 @@ mod tests {
             check_parse(
                 Rule::string,
                 r"'hello\u{2603}world'",
-                RuleTree::Text("hello☃world".to_string()),
+                parsed_text(false, "hello☃world", false),
                 "",
             );
         }
@@ -172,7 +202,7 @@ mod tests {
             check_parse(
                 Rule::string,
                 r"hello'\n | world | multiple | pipes",
-                RuleTree::Text(r"hello'\n".to_string()),
+                parsed_text(false, r"hello'\n", false),
                 "| world | multiple | pipes",
             );
         }
@@ -182,7 +212,7 @@ mod tests {
             check_parse(
                 Rule::string,
                 r"hello world ",
-                RuleTree::Text(r"hello world ".to_string()),
+                parsed_text(false, r"hello world ", false),
                 "",
             );
         }
@@ -190,6 +220,11 @@ mod tests {
         #[test]
         fn anchors() {
             todo!();
+        }
+
+        #[test]
+        fn anchors_double_quoted_no_space() {
+            check_parse(Rule::string, "^\"hello\"$", parsed_text(true, "hello", true), "");
         }
     }
 
@@ -199,5 +234,13 @@ mod tests {
         let rule_tree: Vec<RuleTree> = pairs.into_iter().map(|p| p.into()).collect();
         assert_eq!(rule_tree, vec![expect]);
         assert_eq!(&input[consumed.len()..], remaining);
+    }
+
+    fn parsed_text(anchor_start: bool, text: &str, anchor_end: bool) -> RuleTree {
+        RuleTree::Text(ParsedString {
+            anchor_start,
+            text: text.to_string(),
+            anchor_end,
+        })
     }
 }

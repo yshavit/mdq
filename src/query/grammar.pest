@@ -2,7 +2,7 @@ WHITESPACE = { " " | "\t" | "\r" | "\n" }
 
 top = { SOI ~ string ~ EOI }
 
-string = { quoted_string }
+string = { anchor_start? ~ quoted_string ~ anchor_end?}
 
 quoted_string = ${ PUSH("'" | "\"") ~ quoted_char* ~ POP }
 
@@ -10,6 +10,10 @@ quoted_char = ${
  ! (PEEK | "\\") ~ literal_char
  | ("\\" ~ (escaped_char | "u{" ~ unicode_seq ~ "}"))
 }
+
+anchor_start = @{ "^" }
+
+anchor_end = @{ "$" }
 
 literal_char = @{ ANY }
 
