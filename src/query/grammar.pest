@@ -1,0 +1,18 @@
+WHITESPACE = { " " | "\t" | "\r" | "\n" }
+
+top = { SOI ~ string ~ EOI }
+
+string = { quoted_string }
+
+quoted_string = ${ PUSH("'" | "\"") ~ quoted_char* ~ POP }
+
+quoted_char = ${
+ ! (PEEK | "\\") ~ literal_char
+ | ("\\" ~ (escaped_char | "u{" ~ unicode_seq ~ "}"))
+}
+
+literal_char = @{ ANY }
+
+escaped_char = @{("\"" | "'" | "`" | "\\" | "n" | "r" | "t"  )}
+
+unicode_seq = @{ ASCII_HEX_DIGIT{1,6} }

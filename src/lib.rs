@@ -21,6 +21,7 @@ mod matcher;
 mod output;
 mod parse_common;
 mod parsing_iter;
+mod query;
 mod select;
 mod str_utils;
 mod tree;
