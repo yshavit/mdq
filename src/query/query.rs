@@ -82,6 +82,9 @@ impl<'a> RuleTree<'a> {
                 Rule::anchor_end => {
                     parsed.anchor_end = true;
                 }
+                Rule::unquoted_string_to_pipe | Rule::unquoted_string_to_paren | Rule::unquoted_string_to_bracket => {
+                    parsed.text.push_str(pair.as_str().trim_end());
+                }
                 _ => {
                     Self::build_string(parsed, pair.into_inner())?;
                 }
@@ -95,10 +98,12 @@ impl<'a> Into<RuleTree<'a>> for Pair<'a, Rule> {
     fn into(self) -> RuleTree<'a> {
         let rule = self.as_rule();
         match rule {
-            Rule::string => match RuleTree::get_string(self.into_inner()) {
-                Ok(text) => RuleTree::Text(text),
-                Err(msg) => RuleTree::Error(msg),
-            },
+            Rule::string_to_pipe | Rule::string_to_paren | Rule::string_to_bracket => {
+                match RuleTree::get_string(self.into_inner()) {
+                    Ok(text) => RuleTree::Text(text),
+                    Err(msg) => RuleTree::Error(msg),
+                }
+            }
             _ => {
                 let text = self.as_str();
                 let inners = self.into_inner();
@@ -169,18 +174,28 @@ mod tests {
 
         #[test]
         fn single_quoted_string() {
-            check_parse(Rule::string, "'hello'\"X", parsed_text(false, "hello", false), "\"X");
+            check_parse(
+                Rule::string_to_pipe,
+                "'hello'\"X",
+                parsed_text(false, "hello", false),
+                "\"X",
+            );
         }
 
         #[test]
         fn double_quoted_string() {
-            check_parse(Rule::string, "\"hello\"'X", parsed_text(false, "hello", false), "'X");
+            check_parse(
+                Rule::string_to_pipe,
+                "\"hello\"'X",
+                parsed_text(false, "hello", false),
+                "'X",
+            );
         }
 
         #[test]
         fn quoted_string_newline() {
             check_parse(
-                Rule::string,
+                Rule::string_to_pipe,
                 r"'hello\nworld'",
                 parsed_text(false, "hello\nworld", false),
                 "",
@@ -190,7 +205,7 @@ mod tests {
         #[test]
         fn quoted_string_snowman() {
             check_parse(
-                Rule::string,
+                Rule::string_to_pipe,
                 r"'hello\u{2603}world'",
                 parsed_text(false, "hello☃world", false),
                 "",
@@ -200,7 +215,7 @@ mod tests {
         #[test]
         fn unquoted_string_to_pipe() {
             check_parse(
-                Rule::string,
+                Rule::string_to_pipe,
                 r"hello'\n | world | multiple | pipes",
                 parsed_text(false, r"hello'\n", false),
                 "| world | multiple | pipes",
@@ -210,21 +225,91 @@ mod tests {
         #[test]
         fn unquoted_no_end_pipe() {
             check_parse(
-                Rule::string,
-                r"hello world ",
-                parsed_text(false, r"hello world ", false),
+                Rule::string_to_pipe,
+                r"hello world   ",
+                parsed_text(false, r"hello world", false),
                 "",
             );
         }
 
         #[test]
-        fn anchors() {
-            todo!();
+        fn unquoted_string_to_paren() {
+            check_parse(
+                Rule::string_to_paren,
+                r"hello'\n ) world ) multiple ) parens",
+                parsed_text(false, r"hello'\n", false),
+                ") world ) multiple ) parens",
+            );
+        }
+
+        #[test]
+        fn unquoted_no_end_paren() {
+            check_parse(
+                Rule::string_to_paren,
+                r"hello world   ",
+                parsed_text(false, r"hello world", false),
+                "",
+            );
+        }
+
+        #[test]
+        fn unquoted_string_to_bracket() {
+            check_parse(
+                Rule::string_to_bracket,
+                r"hello'\n ] world ] multiple ] brackets",
+                parsed_text(false, r"hello'\n", false),
+                "] world ] multiple ] brackets",
+            );
+        }
+
+        #[test]
+        fn unquoted_no_end_bracket() {
+            check_parse(
+                Rule::string_to_bracket,
+                r"hello world   ",
+                parsed_text(false, r"hello world", false),
+                "",
+            );
         }
 
         #[test]
         fn anchors_double_quoted_no_space() {
-            check_parse(Rule::string, "^\"hello\"$", parsed_text(true, "hello", true), "");
+            check_parse(
+                Rule::string_to_pipe,
+                "^\"hello\"$",
+                parsed_text(true, "hello", true),
+                "",
+            );
+        }
+
+        #[test]
+        fn anchors_single_quoted_with_space() {
+            check_parse(
+                Rule::string_to_pipe,
+                "^ 'hello' $",
+                parsed_text(true, "hello", true),
+                "",
+            );
+        }
+
+        #[test]
+        fn anchors_unquoted_to_pipe_with_space() {
+            check_parse(
+                Rule::string_to_pipe,
+                "^ hello $ there",
+                parsed_text(true, "hello", true),
+                " there",
+            );
+        }
+
+        #[test]
+        fn anchors_unquoted_to_pipe_no_space() {
+            check_parse(
+                Rule::string_to_pipe,
+                "^hello$ there",
+                parsed_text(true, "hello", true),
+                " there",
+            );
         }
     }
 
