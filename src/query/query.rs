@@ -1,5 +1,6 @@
 use pest::iterators::{Pair, Pairs};
 use pest_derive::Parser;
+use std::borrow::Cow;
 use std::fmt::{Debug, Formatter, Write};
 
 #[derive(Parser)]
@@ -19,36 +20,49 @@ struct ParsedString {
     text: String,
     anchor_start: bool,
     anchor_end: bool,
+    is_regex: bool,
 }
 
 impl Debug for ParsedString {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.anchor_start {
-            f.write_char('^')?;
-        }
-        write!(f, "{:?}", self.text)?;
-        if self.anchor_end {
-            f.write_char('$')?;
+        if self.is_regex {
+            f.write_char('/')?;
+            let escaped = if self.text.contains("/") {
+                Cow::Owned(self.text.replace("/", "//"))
+            } else {
+                Cow::Borrowed(&self.text)
+            };
+            f.write_str(&escaped)?;
+            f.write_char('/')?;
+        } else {
+            if self.anchor_start {
+                f.write_char('^')?;
+            }
+            write!(f, "{:?}", self.text)?;
+            if self.anchor_end {
+                f.write_char('$')?;
+            }
         }
         Ok(())
     }
 }
 
-impl<'a> RuleTree<'a> {
-    fn get_string(pairs: Pairs<Rule>) -> Result<ParsedString, String> {
-        let mut s = ParsedString {
+impl ParsedString {
+    fn get_string(pairs: Pairs<Rule>) -> Result<Self, String> {
+        let mut s = Self {
             text: String::with_capacity(pairs.as_str().len()),
             anchor_start: false,
             anchor_end: false,
+            is_regex: false,
         };
-        Self::build_string(&mut s, pairs).map(|_| s)
+        s.build_string(pairs).map(|_| s)
     }
 
-    fn build_string(parsed: &mut ParsedString, pairs: Pairs<Rule>) -> Result<(), String> {
+    fn build_string(&mut self, pairs: Pairs<Rule>) -> Result<(), String> {
         for pair in pairs {
             match pair.as_rule() {
                 Rule::literal_char => {
-                    parsed.text.push_str(pair.as_str());
+                    self.text.push_str(pair.as_str());
                 }
                 Rule::escaped_char => {
                     // we'll iterate, but we should really only have one
@@ -63,7 +77,7 @@ impl<'a> RuleTree<'a> {
                                 return Err(format!("invalid escape char: {err:?}"));
                             }
                         };
-                        parsed.text.push(result);
+                        self.text.push(result);
                     }
                 }
                 Rule::unicode_seq => {
@@ -74,19 +88,33 @@ impl<'a> RuleTree<'a> {
                     let Some(ch) = char::from_u32(code_point) else {
                         return Err(format!("invalid unicode sequence: {seq}"));
                     };
-                    parsed.text.push(ch);
+                    self.text.push(ch);
                 }
                 Rule::anchor_start => {
-                    parsed.anchor_start = true;
+                    self.anchor_start = true;
                 }
                 Rule::anchor_end => {
-                    parsed.anchor_end = true;
+                    self.anchor_end = true;
                 }
-                Rule::unquoted_string_to_pipe | Rule::unquoted_string_to_paren | Rule::unquoted_string_to_bracket => {
-                    parsed.text.push_str(pair.as_str().trim_end());
+                Rule::unquoted_string_to_pipe
+                | Rule::unquoted_string_to_paren
+                | Rule::unquoted_string_to_bracket
+                | Rule::unquoted_string_to_space
+                | Rule::unquoted_string_to_colon => {
+                    self.text.push_str(pair.as_str().trim_end());
+                }
+                Rule::regex => {
+                    self.is_regex = true;
+                    Self::build_string(self, pair.into_inner())?;
+                }
+                Rule::regex_normal_char => {
+                    self.text.push_str(pair.as_str());
+                }
+                Rule::regex_escaped_slash => {
+                    self.text.push('/');
                 }
                 _ => {
-                    Self::build_string(parsed, pair.into_inner())?;
+                    Self::build_string(self, pair.into_inner())?;
                 }
             }
         }
@@ -98,12 +126,14 @@ impl<'a> Into<RuleTree<'a>> for Pair<'a, Rule> {
     fn into(self) -> RuleTree<'a> {
         let rule = self.as_rule();
         match rule {
-            Rule::string_to_pipe | Rule::string_to_paren | Rule::string_to_bracket => {
-                match RuleTree::get_string(self.into_inner()) {
-                    Ok(text) => RuleTree::Text(text),
-                    Err(msg) => RuleTree::Error(msg),
-                }
-            }
+            Rule::string_to_pipe
+            | Rule::string_to_paren
+            | Rule::string_to_bracket
+            | Rule::string_to_space
+            | Rule::string_to_colon => match ParsedString::get_string(self.into_inner()) {
+                Ok(text) => RuleTree::Text(text),
+                Err(msg) => RuleTree::Error(msg),
+            },
             _ => {
                 let text = self.as_str();
                 let inners = self.into_inner();
@@ -313,6 +343,80 @@ mod tests {
         }
     }
 
+    mod regexes {
+        use super::*;
+
+        #[test]
+        fn normal_regex() {
+            check_parse(Rule::string_to_pipe, "/hello there$/", parsed_regex("hello there$"), "");
+        }
+
+        #[test]
+        fn regex_with_escaped_slash() {
+            check_parse(
+                Rule::string_to_pipe,
+                r"/hello\/there/",
+                parsed_regex(r"hello/there"),
+                "",
+            );
+        }
+    }
+
+    mod select_section {
+        use super::*;
+
+        #[test]
+        fn with_matcher() {
+            check_parse(
+                Rule::select_section,
+                r"# foo",
+                RuleTree::Node(
+                    Rule::select_section,
+                    vec![
+                        RuleTree::Leaf(Rule::section_start, "# "),
+                        parsed_text(false, "foo", false),
+                    ],
+                ),
+                "",
+            );
+        }
+
+        #[test]
+        fn no_matcher() {
+            check_parse(
+                Rule::select_section,
+                r"#",
+                RuleTree::Node(Rule::select_section, vec![RuleTree::Leaf(Rule::section_start, "#")]),
+                "",
+            );
+        }
+    }
+
+    mod chaining {
+        #[test]
+        fn two_chained_together() {
+            todo!()
+        }
+
+        #[test]
+        fn empty_rule_in_middle() {
+            // "# foo | | # bar"
+            todo!()
+        }
+
+        #[test]
+        fn empty_rule_at_start() {
+            // "| # foo"
+            todo!()
+        }
+
+        #[test]
+        fn empty_rule_at_end() {
+            // "# foo |"
+            todo!()
+        }
+    }
+
     fn check_parse(rule: Rule, input: &str, expect: RuleTree, remaining: &str) {
         let pairs = QueryPairs::parse(rule, input).unwrap();
         let consumed = pairs.as_str();
@@ -326,6 +430,16 @@ mod tests {
             anchor_start,
             text: text.to_string(),
             anchor_end,
+            is_regex: false,
+        })
+    }
+
+    fn parsed_regex(text: &str) -> RuleTree {
+        RuleTree::Text(ParsedString {
+            anchor_start: false,
+            text: text.to_string(),
+            anchor_end: false,
+            is_regex: true,
         })
     }
 }
