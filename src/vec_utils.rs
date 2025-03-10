@@ -1,3 +1,4 @@
+use paste::item;
 use std::collections::BTreeSet;
 
 pub struct IndexKeeper {
@@ -72,6 +73,36 @@ impl<I> ItemRetainer<I> for Vec<I> {
     }
 }
 
+pub fn vec_extract_if_to<T, F>(source: &mut Vec<T>, predicate: F, out: &mut Vec<T>)
+where
+    F: Fn(&T) -> bool,
+{
+    let mut idx = 0;
+    while idx < source.len() {
+        let item = &source[idx];
+        if predicate(item) {
+            out.push(source.swap_remove(idx));
+        } else {
+            idx += 1;
+        }
+    }
+}
+
+/// home-spun version of [extract_if] while that stabilizes.
+///
+/// [extract_if]: https://doc.rust-lang.org/std/vec/struct.Vec.html#method.extract_if
+pub fn vec_extract_if<T, F>(source: &mut Vec<T>, predicate: F) -> Vec<T>
+where
+    F: Fn(&T) -> bool,
+{
+    let mut extracted = Vec::new();
+    if source.is_empty() {
+        return extracted;
+    }
+    vec_extract_if_to(source, predicate, &mut extracted);
+    extracted
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -114,6 +145,31 @@ mod tests {
         let remover: IndexKeeper = [items.len() - 1].into();
         items.retain_with_index(remover.retain_fn());
         assert_eq!(items, vec!['d']);
+    }
+
+    #[test]
+    fn extract_if_no_matches() {
+        let mut original = vec!['a', 'b', 'c'];
+        let extracted = vec_extract_if(&mut original, |ch| ch.is_numeric());
+        assert_eq!(original, vec!['a', 'b', 'c']);
+        assert_eq!(extracted, vec![]);
+    }
+
+    #[test]
+    fn extract_if_some_matches() {
+        let mut original = vec!['a', 'b', '1', 'c', '2', '3', 'd'];
+        let extracted = vec_extract_if(&mut original, |ch| ch.is_numeric());
+        original.sort(); // vec_extract_if changes order of source items
+        assert_eq!(original, vec!['a', 'b', 'c', 'd']);
+        assert_eq!(extracted, vec!['1', '2', '3']);
+    }
+
+    #[test]
+    fn extract_if_on_empty() {
+        let mut original: Vec<char> = vec![];
+        let extracted = vec_extract_if(&mut original, |ch| ch.is_numeric());
+        assert_eq!(original, vec![]);
+        assert_eq!(extracted, vec![]);
     }
 
     impl<const N: usize> From<[usize; N]> for IndexKeeper {

@@ -1,3 +1,4 @@
+use crate::vec_utils::vec_extract_if_to;
 use pest::iterators::{Pair, Pairs};
 use pest_derive::Parser;
 use std::borrow::Cow;
@@ -8,19 +9,94 @@ use std::fmt::{Debug, Formatter, Write};
 struct QueryPairs;
 
 #[derive(Eq, PartialEq)]
-enum RuleTree<'a> {
+pub enum RuleTree<'a> {
     Node(Rule, Vec<RuleTree<'a>>),
     Leaf(Rule, &'a str),
     Text(ParsedString),
     Error(String),
 }
 
+struct ExtractedRuleTrees<'a> {
+    extracted: Vec<RuleTree<'a>>,
+    remaining: Option<RuleTree<'a>>,
+}
+
+impl<'a> RuleTree<'a> {
+    /// Extracts all subtrees that are Nodes or Leafs matching the given rule. For each one that matches, that whole
+    /// RuleTree will be removed from the source and added to the resulting vec. This recurses down the source tree
+    /// as needed. The source tree's remaining elements may be reordered.
+    pub fn extract_by_rule(source: &mut Vec<Self>, rule: Rule) -> Vec<Self> {
+        fn build_results<'a>(roots: &mut Vec<RuleTree<'a>>, look_for: Rule, to: &mut Vec<RuleTree<'a>>) {
+            // extract children that match the rule, and then descend to whoever's left
+            vec_extract_if_to(roots, |child| child.is_rule(look_for), to);
+            for child in roots {
+                // only Nodes need to recurse
+                if let RuleTree::Node(_, children) = child {
+                    build_results(children, look_for, to);
+                }
+            }
+        }
+        let mut results = Vec::new();
+        build_results(source, rule, &mut results);
+        results
+    }
+
+    /// Finds any instance of the given rules in the tree. If multiple match, it's undefined which gets returned. If
+    /// none match, returns None.
+    pub fn find_any<const N: usize>(source: &Vec<Self>, rules: [Rule; N]) -> Option<Rule> {
+        for item in source {
+            match item {
+                RuleTree::Node(my_rule, children) => {
+                    if rules.contains(my_rule) {
+                        return Some(*my_rule);
+                    } else if let result @ Some(_) = Self::find_any(children, rules) {
+                        return result;
+                    }
+                }
+                RuleTree::Leaf(my_rule, _) => {
+                    if rules.contains(my_rule) {
+                        return Some(*my_rule);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    pub fn contains_rule(source: &Vec<Self>, rule: Rule) -> bool {
+        for item in source {
+            match item {
+                RuleTree::Node(my_rule, children) => {
+                    if *my_rule == rule {
+                        return true;
+                    } else if Self::contains_rule(children, rule) {
+                        return true;
+                    }
+                }
+                &RuleTree::Leaf(my_rule, _) => {
+                    return my_rule == rule;
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
+    fn is_rule(&self, rule: Rule) -> bool {
+        match self {
+            &RuleTree::Node(self_rule, _) | &RuleTree::Leaf(self_rule, _) => self_rule == rule,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Eq, PartialEq)]
-struct ParsedString {
-    text: String,
-    anchor_start: bool,
-    anchor_end: bool,
-    is_regex: bool,
+pub struct ParsedString {
+    pub text: String,
+    pub anchor_start: bool,
+    pub anchor_end: bool,
+    pub is_regex: bool,
 }
 
 impl Debug for ParsedString {
@@ -387,6 +463,43 @@ mod tests {
                 Rule::select_section,
                 r"#",
                 RuleTree::Node(Rule::select_section, vec![RuleTree::Leaf(Rule::section_start, "#")]),
+                "",
+            );
+        }
+    }
+
+    mod select_lists {
+        use crate::query::query::tests::{check_parse, parsed_text};
+        use crate::query::query::{Rule, RuleTree};
+
+        #[test]
+        fn list_item_no_matcher() {
+            check_parse(
+                Rule::select_list_item,
+                r"-",
+                RuleTree::Node(
+                    Rule::select_list_item,
+                    vec![RuleTree::Node(
+                        Rule::list_start,
+                        vec![RuleTree::Node(Rule::list_unordered, vec![])],
+                    )],
+                ),
+                "",
+            );
+        }
+
+        #[test]
+        fn list_item_with_matcher() {
+            check_parse(
+                Rule::select_list_item,
+                r"- foo",
+                RuleTree::Node(
+                    Rule::select_list_item,
+                    vec![
+                        RuleTree::Node(Rule::list_start, vec![RuleTree::Node(Rule::list_unordered, vec![])]),
+                        parsed_text(false, "foo", false),
+                    ],
+                ),
                 "",
             );
         }
