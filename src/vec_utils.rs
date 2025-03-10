@@ -73,6 +73,9 @@ impl<I> ItemRetainer<I> for Vec<I> {
     }
 }
 
+/// home-spun version of [extract_if] while that stabilizes.
+///
+/// [extract_if]: https://doc.rust-lang.org/std/vec/struct.Vec.html#method.extract_if
 pub fn vec_extract_if_to<T, F>(source: &mut Vec<T>, predicate: F, out: &mut Vec<T>)
 where
     F: Fn(&T) -> bool,
@@ -86,21 +89,6 @@ where
             idx += 1;
         }
     }
-}
-
-/// home-spun version of [extract_if] while that stabilizes.
-///
-/// [extract_if]: https://doc.rust-lang.org/std/vec/struct.Vec.html#method.extract_if
-pub fn vec_extract_if<T, F>(source: &mut Vec<T>, predicate: F) -> Vec<T>
-where
-    F: Fn(&T) -> bool,
-{
-    let mut extracted = Vec::new();
-    if source.is_empty() {
-        return extracted;
-    }
-    vec_extract_if_to(source, predicate, &mut extracted);
-    extracted
 }
 
 #[cfg(test)]
@@ -170,6 +158,15 @@ mod tests {
         let extracted = vec_extract_if(&mut original, |ch| ch.is_numeric());
         assert_eq!(original, vec![]);
         assert_eq!(extracted, vec![]);
+    }
+
+    pub fn vec_extract_if<T, F>(source: &mut Vec<T>, predicate: F) -> Vec<T>
+    where
+        F: Fn(&T) -> bool,
+    {
+        let mut extracted = Vec::new();
+        vec_extract_if_to(source, predicate, &mut extracted);
+        extracted
     }
 
     impl<const N: usize> From<[usize; N]> for IndexKeeper {
