@@ -1,4 +1,5 @@
-use crate::query::query::{Rule, RuleTree};
+use crate::query::query::{ByRule, QueryPairs, Rule, RuleTree, Section, SectionMatcher};
+use pest::iterators::{Pair, Pairs};
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum Matcher {
@@ -8,6 +9,23 @@ pub enum Matcher {
 }
 
 impl Matcher {
+    fn from_pair(pair: Option<Pair<Rule>>) -> Result<Matcher, String> {
+        let Some(pair) = pair else { return Ok(Matcher::Any) };
+        let rule_tree: RuleTree = pair.into();
+        match rule_tree {
+            RuleTree::Error(msg) => Err(msg),
+            RuleTree::Text(parsed_string) => {
+                let matcher = if parsed_string.is_regex {
+                    Matcher::Regex(parsed_string.text)
+                } else {
+                    Matcher::Text(parsed_string.anchor_start, parsed_string.text, parsed_string.anchor_end)
+                };
+                Ok(matcher)
+            }
+            other => Err(format!("unrecognized item: {other:?}")),
+        }
+    }
+
     fn take_from_tree(source: &mut Vec<RuleTree>, under_rule: Rule) -> Result<Matcher, String> {
         let extracted = RuleTree::extract_by_rule(source, under_rule);
 
@@ -82,6 +100,7 @@ pub struct TableMatcher {
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum Selector {
+    Chain(Vec<Selector>),
     Section(Matcher),
     ListItem(ListItemMatcher),
     Link(LinklikeMatcher),
@@ -91,6 +110,39 @@ pub enum Selector {
     Html(Matcher),
     Paragraph(Matcher),
     Table(TableMatcher),
+}
+
+impl Selector {
+    pub fn from_top_pairs(root: Pairs<Rule>) -> Result<Self, String> {
+        let selector_chains = QueryPairs::find_inners(root, ByRule::new(Rule::selector_chain))?;
+        let mut chain = Vec::new();
+        for selector_chain in selector_chains {
+            let selector_pairs =
+                QueryPairs::find_inners(selector_chain.into_inner(), ByRule::new(Rule::selector.into()))?;
+            for selector_pair in selector_pairs {
+                for specific_selector_pair in selector_pair.into_inner() {
+                    let selector = Self::find_selectors(specific_selector_pair)?;
+                    chain.push(selector);
+                }
+            }
+        }
+        Ok(if chain.len() == 1 {
+            chain.pop().unwrap()
+        } else {
+            Self::Chain(chain)
+        })
+    }
+
+    fn find_selectors(selector_pair: Pair<Rule>) -> Result<Self, String> {
+        match selector_pair.as_rule() {
+            Rule::select_section => {
+                let SectionMatcher { title } = Section::from_inners(selector_pair.into_inner())?;
+                let matcher = Matcher::from_pair(title)?;
+                Ok(Self::Section(matcher))
+            }
+            unknown => Err(format!("unexpected selector rule: {unknown:?}")),
+        }
+    }
 }
 
 impl Selector {
@@ -183,6 +235,8 @@ impl Selector {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::query::query::Rule::top;
+    use pest::Parser;
 
     mod empty {
         use super::*;
@@ -218,7 +272,9 @@ mod tests {
 
         #[test]
         fn section_with_matcher() {
-            find_selector("# foo", Selector::Section(matcher_text(false, "foo", false)))
+            let pairs = QueryPairs::parse(top, "# foo").unwrap();
+            let result = Selector::from_top_pairs(pairs);
+            assert_eq!(result, Ok(Selector::Section(matcher_text(false, "foo", false))));
         }
     }
 

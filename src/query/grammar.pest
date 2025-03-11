@@ -1,6 +1,8 @@
 WHITESPACE = { " " | "\t" | "\r" | "\n" }
 
-top = { SOI ~ "|"* ~ (selector ~ ("|"+ ~ selector)* )? ~ EOI }
+top = { SOI ~ selector_chain? ~ EOI }
+
+selector_chain = { "|"* ~ (selector ~ ("|"+ ~ selector?)* ) }
 
 selector = {
       select_section
@@ -15,7 +17,7 @@ selector = {
 
 selector_delim = @{" " | EOI}
 
-select_section = { section_start ~ string_to_pipe? }
+select_section = { section_start ~ #title = string_to_pipe? }
 section_start = @{ "#" ~ selector_delim }
 
 select_list_item = { list_start ~ task_type? ~ string_to_pipe? }

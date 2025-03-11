@@ -1,5 +1,6 @@
 use crate::query::query::Rule::top;
 use crate::vec_utils::vec_extract_if_to;
+use paste::paste;
 use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
@@ -9,10 +10,183 @@ use std::fmt::{Debug, Formatter, Write};
 
 #[derive(Parser)]
 #[grammar = "query/grammar.pest"] // relative to src
-struct QueryPairs;
+pub struct QueryPairs; // TODO rename
+
+pub trait PairMatcher<'a> {
+    type Output;
+
+    fn matches(&self, pair: &Pair<Rule>) -> bool;
+    fn add(&mut self, pair: Pair<'a, Rule>) -> Result<(), String>;
+    fn get(self) -> Self::Output;
+}
+
+pub struct ByRule<'a>(Rule, Vec<Pair<'a, Rule>>);
+
+impl ByRule<'_> {
+    pub fn new(rule: Rule) -> Self {
+        Self(rule, Vec::new())
+    }
+}
+
+impl<'a> PairMatcher<'a> for ByRule<'a> {
+    type Output = Vec<Pair<'a, Rule>>;
+
+    fn matches(&self, pair: &Pair<Rule>) -> bool {
+        self.0 == pair.as_rule()
+    }
+
+    fn add(&mut self, pair: Pair<'a, Rule>) -> Result<(), String> {
+        self.1.push(pair);
+        Ok(())
+    }
+
+    fn get(self) -> Self::Output {
+        self.1
+    }
+}
+
+struct OneOf<T>(Option<T>);
+
+impl<T> OneOf<T> {
+    fn empty() -> Self {
+        Self(None)
+    }
+
+    fn add(&mut self, item: T) -> Result<(), String> {
+        if let Some(_) = self.0 {
+            return Err("duplicate value".to_string());
+        };
+        self.0 = Some(item);
+        Ok(())
+    }
+
+    fn take(self) -> Option<T> {
+        self.0
+    }
+}
+
+macro_rules! by_tag {
+    ($name:ident ($tag:ident)) => {
+        paste! { by_tag!{ $name ($tag) => [<$name Matcher>] } }
+    };
+
+    ($name:ident ($tag:ident, $($tags:ident),+)) => {
+        paste! { by_tag!{ $name ($tag, $($tags),+) => [<$name Matchers>] } }
+    };
+
+    ($name:ident ($($tag:ident),+) => $result_name:ident) => {
+
+        pub struct $result_name<'a> {
+            $(
+            pub $tag: Option<Pair<'a, Rule>>
+            ),+
+        }
+
+        pub struct $name<'a> {
+            $(
+            $tag: OneOf<Pair<'a, Rule>>,
+            )+
+        }
+
+        impl<'a> $name<'a> {
+            pub fn new() -> Self {
+                Self {
+                    $(
+                    $tag: OneOf::empty(),
+                    )+
+                }
+            }
+
+            pub fn from_inners(inners: Pairs<'a, Rule>) -> Result<$result_name<'a>, String> {
+                QueryPairs::find_inners(inners, Self::new())
+            }
+        }
+
+        impl<'a> PairMatcher<'a> for $name<'a> {
+            type Output = $result_name<'a>;
+
+            fn matches(&self, pair: &Pair<Rule>) -> bool {
+                match pair.as_node_tag() {
+                    $(
+                    Some( stringify!($tag) ) => true,
+                    )+
+                    _ => false,
+                }
+            }
+
+            fn add(&mut self, pair: Pair<'a, Rule>) -> Result<(), String> {
+                match pair.as_node_tag() {
+                    $(
+                    Some( stringify!($tag) ) => self.$tag.add(pair),
+                    )+
+                    Some(other) => Err(format!("by_tag {}: tried to add unknown tag {other:?}", stringify!($name))),
+                    None => Err(format!("by_tag {}: tried to add pair with no tag", stringify!($name))),
+                }
+            }
+
+            fn get(self) -> Self::Output {
+                Self::Output {
+                    $(
+                    $tag: self.$tag.take(),
+                    )+
+
+                }
+            }
+        }
+    };
+}
+
+by_tag! { Section(title) }
+
+impl QueryPairs {
+    fn s() -> (usize, usize) {
+        (1, 2)
+    }
+
+    pub fn find_inners<'a, M>(root: Pairs<'a, Rule>, mut matcher: M) -> Result<M::Output, String>
+    where
+        M: PairMatcher<'a>,
+    {
+        fn build_result<'a, M>(to: &mut M, from_pairs: Pairs<'a, Rule>) -> Result<(), String>
+        where
+            M: PairMatcher<'a>,
+        {
+            for pair in from_pairs {
+                if to.matches(&pair) {
+                    to.add(pair)?;
+                } else {
+                    build_result(to, pair.into_inner())?
+                }
+            }
+            Ok(())
+        }
+        build_result(&mut matcher, root)?;
+        Ok(matcher.get())
+    }
+
+    pub fn find_inners_for_rule(root: Pairs<Rule>, rule: Rule) -> Vec<Pair<Rule>> {
+        fn build_result<'a>(
+            mut to: Vec<Pair<'a, Rule>>,
+            look_for: Rule,
+            from_pairs: Pairs<'a, Rule>,
+        ) -> Vec<Pair<'a, Rule>> {
+            for pair in from_pairs {
+                to = if pair.as_rule() == look_for {
+                    to.push(pair);
+                    to
+                } else {
+                    build_result(to, look_for, pair.into_inner())
+                }
+            }
+            to
+        }
+        build_result(Vec::new(), rule, root)
+    }
+}
 
 #[derive(Eq, PartialEq)]
 pub enum RuleTree<'a> {
+    // TODO do away with all this?
     Node(Rule, Vec<RuleTree<'a>>),
     Leaf(Rule, &'a str),
     Text(ParsedString),
