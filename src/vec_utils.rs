@@ -1,4 +1,3 @@
-use paste::item;
 use std::collections::BTreeSet;
 
 pub struct IndexKeeper {

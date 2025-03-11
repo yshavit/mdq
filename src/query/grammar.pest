@@ -1,10 +1,9 @@
 WHITESPACE = { " " | "\t" | "\r" | "\n" }
 
-top = { SOI ~ (selector ~ "|")* ~ EOI }
+top = { SOI ~ "|"* ~ (selector ~ ("|"+ ~ selector)* )? ~ EOI }
 
 selector = {
-    "|" // empty selector; looks just like a pipe
-    | select_section
+      select_section
     | select_list_item
     | select_link
     | select_block_quote

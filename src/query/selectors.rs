@@ -8,8 +8,8 @@ pub enum Matcher {
 }
 
 impl Matcher {
-    fn take_from_tree(source: &mut Vec<RuleTree>, under_rule: Rule) -> Result<Matcher, String> {
-        let extracted = RuleTree::extract_by_rule(source, under_rule);
+    fn take_from_tree(source: &mut Vec<RuleTree>, by_tag: Option<&str>) -> Result<Matcher, String> {
+        let extracted = RuleTree::extract_by_rule(source, by_tag);
 
         fn build(tree: RuleTree, to: &mut Vec<Matcher>) {
             match tree {
@@ -93,36 +93,39 @@ pub enum Selector {
     Table(TableMatcher),
 }
 
-#[derive(Eq, PartialEq, Debug)]
-enum FromTreeResult<'a> {
-    Good(Selector),
-    Error(String),
-    None(RuleTree<'a>),
-}
-
-impl From<Result<Selector, String>> for FromTreeResult<'_> {
-    fn from(value: Result<Selector, String>) -> Self {
-        match value {
-            Ok(good) => Self::Good(good),
-            Err(msg) => Self::Error(msg),
-        }
-    }
-}
-
 impl Selector {
-    fn one_from_tree(root: RuleTree) -> FromTreeResult {
-        /// small helper that lets us use "?;" syntax
-        fn make_result<'a, F: FnOnce() -> Result<Selector, String>>(f: F) -> FromTreeResult<'a> {
-            f().into()
+    pub fn from_top(mut roots: Vec<RuleTree>) -> Result<Option<Self>, String> {
+        let selector_rules = RuleTree::extract_by_rule(&mut roots, Rule::selector);
+        Self::one_from_trees(selector_rules)
+    }
+
+    fn one_from_trees(roots: Vec<RuleTree>) -> Result<Option<Self>, String> {
+        let mut result = None;
+        for child in roots {
+            let from_child = Self::one_from_tree(child)?;
+            result = match (result, from_child) {
+                (None, None) => None,
+                (Some(_), Some(_)) => return Err("multiple selectors found".to_string()),
+                (None, s @ Some(_)) => s,
+                (s @ Some(_), None) => s,
+            }
+        }
+        Ok(result)
+    }
+
+    fn one_from_tree(root: RuleTree) -> Result<Option<Self>, String> {
+        fn ok(value: Selector) -> Result<Option<Selector>, String> {
+            Ok(Some(value))
         }
 
         match root {
             RuleTree::Node(rule, mut children) => match rule {
-                Rule::select_section => make_result(|| {
+                Rule::selector => Selector::one_from_trees(children),
+                Rule::select_section => {
                     let matcher = Matcher::take_from_tree(&mut children, Rule::string_to_pipe)?;
-                    Ok(Selector::Section(matcher))
-                }),
-                Rule::select_list_item => make_result(|| {
+                    ok(Selector::Section(matcher))
+                }
+                Rule::select_list_item => {
                     let ordered = RuleTree::find_any(&children, [Rule::list_ordered]).is_some();
                     let task = match RuleTree::find_any(
                         &children,
@@ -134,46 +137,104 @@ impl Selector {
                         _ => ListItemTask::None,
                     };
                     let matcher = Matcher::take_from_tree(&mut children, Rule::string_to_pipe)?;
-                    Ok(Selector::ListItem(ListItemMatcher { ordered, task, matcher }))
-                }),
-                Rule::select_link => make_result(|| {
+                    ok(Selector::ListItem(ListItemMatcher { ordered, task, matcher }))
+                }
+                Rule::select_link => {
                     let matcher = LinklikeMatcher {
                         display_matcher: Matcher::take_from_tree(&mut children, Rule::string_to_bracket)?,
                         url_matcher: Matcher::take_from_tree(&mut children, Rule::string_to_paren)?,
                     };
-                    Ok(if RuleTree::contains_rule(&children, Rule::image_start) {
+                    ok(if RuleTree::contains_rule(&children, Rule::image_start) {
                         Selector::Image(matcher)
                     } else {
                         Selector::Link(matcher)
                     })
-                }),
-                Rule::select_block_quote => make_result(|| {
+                }
+                Rule::select_block_quote => {
                     let matcher = Matcher::take_from_tree(&mut children, Rule::string_to_pipe)?;
-                    Ok(Selector::BlockQuote(matcher))
-                }),
-                Rule::select_code_block => make_result(|| {
+                    ok(Selector::BlockQuote(matcher))
+                }
+                Rule::select_code_block => {
                     let language = Matcher::take_from_tree(&mut children, Rule::string_to_space)?;
                     let contents = Matcher::take_from_tree(&mut children, Rule::string_to_pipe)?;
-                    Ok(Selector::CodeBlockMatcher(CodeBlockMatcher { language, contents }))
-                }),
-                Rule::select_html => make_result(|| {
+                    ok(Selector::CodeBlockMatcher(CodeBlockMatcher { language, contents }))
+                }
+                Rule::select_html => {
                     let matcher = Matcher::take_from_tree(&mut children, Rule::string_to_pipe)?;
-                    Ok(Selector::Html(matcher))
-                }),
-                Rule::select_paragraph => make_result(|| {
+                    ok(Selector::Html(matcher))
+                }
+                Rule::select_paragraph => {
                     let matcher = Matcher::take_from_tree(&mut children, Rule::string_to_pipe)?;
-                    Ok(Selector::Paragraph(matcher))
-                }),
-                Rule::select_table => make_result(|| {
+                    ok(Selector::Paragraph(matcher))
+                }
+                Rule::select_table => {
                     let column = Matcher::take_from_tree(&mut children, Rule::string_to_colon)?;
                     let row = Matcher::take_from_tree(&mut children, Rule::string_to_pipe)?;
-                    Ok(Selector::Table(TableMatcher { column, row }))
-                }),
-                // TODO do I really want None here, or just to recurse down?
-                //  If I don't want None, maybe I can just remove it, and use a normal Result?
-                _ => FromTreeResult::None(RuleTree::Node(rule, children)),
+                    ok(Selector::Table(TableMatcher { column, row }))
+                }
+                unknown => Err(format!("unrecognized element: {unknown:?}")),
             },
-            unknown => FromTreeResult::None(unknown),
+            RuleTree::Leaf(Rule::selector, "|") => Ok(None),
+            unknown => Err(format!("unrecognized element: {unknown:?}")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod empty {
+        use super::*;
+
+        #[test]
+        fn totally_empty() {
+            find_none("");
+        }
+
+        #[test]
+        fn only_spaces() {
+            find_none("");
+        }
+
+        #[test]
+        fn only_one_pipe() {
+            find_none("|");
+        }
+
+        #[test]
+        fn only_multiple_pipes() {
+            find_none("|| |");
+        }
+    }
+
+    mod section {
+        use super::*;
+
+        #[test]
+        fn section_no_matcher() {
+            find_selector("#", Selector::Section(Matcher::Any))
+        }
+
+        #[test]
+        fn section_with_matcher() {
+            find_selector("# foo", Selector::Section(matcher_text(false, "foo", false)))
+        }
+    }
+
+    fn find_none(query_text: &str) {
+        let rule_tree = RuleTree::parse(query_text).unwrap();
+        let from_parse_tree = Selector::from_top(rule_tree).unwrap();
+        assert_eq!(from_parse_tree, None);
+    }
+
+    fn find_selector(query_text: &str, expect: Selector) {
+        let rule_tree = RuleTree::parse(query_text).unwrap();
+        let from_parse_tree = Selector::from_top(rule_tree).unwrap();
+        assert_eq!(from_parse_tree, Some(expect));
+    }
+
+    fn matcher_text(anchor_start: bool, text: &str, anchor_end: bool) -> Matcher {
+        Matcher::Text(anchor_start, text.to_string(), anchor_end)
     }
 }
