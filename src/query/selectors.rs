@@ -8,8 +8,8 @@ pub enum Matcher {
 }
 
 impl Matcher {
-    fn take_from_tree(source: &mut Vec<RuleTree>, by_tag: Option<&str>) -> Result<Matcher, String> {
-        let extracted = RuleTree::extract_by_rule(source, by_tag);
+    fn take_from_tree(source: &mut Vec<RuleTree>, under_rule: Rule) -> Result<Matcher, String> {
+        let extracted = RuleTree::extract_by_rule(source, under_rule);
 
         fn build(tree: RuleTree, to: &mut Vec<Matcher>) {
             match tree {

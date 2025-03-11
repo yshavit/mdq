@@ -22,8 +22,6 @@ pub enum RuleTree<'a> {
 impl<'a> RuleTree<'a> {
     pub fn parse(text: &'a str) -> Result<Vec<Self>, Error<Rule>> {
         let pairs = QueryPairs::parse(top, text)?;
-        let p = pairs.next().unwrap();
-        pairs.find
         let result_vec: Vec<Self> = pairs.into_iter().map(|p| p.into()).collect();
         Ok(result_vec)
     }
@@ -31,8 +29,8 @@ impl<'a> RuleTree<'a> {
     /// Extracts all subtrees that are Nodes or Leafs matching the given rule. For each one that matches, that whole
     /// RuleTree will be removed from the source and added to the resulting vec. This recurses down the source tree
     /// as needed. The source tree's remaining elements may be reordered.
-    pub fn extract_by_rule(source: &mut Vec<Self>, tag: Option<&str>) -> Vec<Self> {
-        fn build_results<'a>(roots: &mut Vec<RuleTree<'a>>, look_for: Option<&str>, to: &mut Vec<RuleTree<'a>>) {
+    pub fn extract_by_rule(source: &mut Vec<Self>, rule: Rule) -> Vec<Self> {
+        fn build_results<'a>(roots: &mut Vec<RuleTree<'a>>, look_for: Rule, to: &mut Vec<RuleTree<'a>>) {
             // extract children that match the rule, and then descend to whoever's left
             vec_extract_if_to(roots, |child| child.is_rule(look_for), to);
             for child in roots {
