@@ -178,6 +178,12 @@ macro_rules! composite_finder {
     };
 }
 
+// TODO rather than this convention of ByRule::new etc, maybe I should just have:
+//    composite_finder! { Section {
+//        by_tag! ( title ),
+//    }}
+//  I'm not sure if that's actually possible, since I don't think a macro can produce `foo: ByRule("foo")`. It needs
+//  to produce a fully-functional bit of rust
 composite_finder! { Section {
     title: ByTag("title"),
 }}
