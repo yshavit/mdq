@@ -76,7 +76,7 @@ regex_normal_char = @{ !("/") ~ ANY }
 quoted_string = ${ PUSH("'" | "\"") ~ quoted_char* ~ POP }
 
 quoted_char = ${
- ! (PEEK | "\\") ~ literal_char
+ quoted_plain_char
  | ("\\" ~ (escaped_char | "u{" ~ unicode_seq ~ "}"))
 }
 
@@ -84,7 +84,7 @@ anchor_start = @{ "^" }
 
 anchor_end = @{ "$" }
 
-literal_char = @{ ANY }
+quoted_plain_char = @{ (!( PEEK | "\\") ~ ANY)+ }
 
 escaped_char = @{("\"" | "'" | "`" | "\\" | "n" | "r" | "t"  )}
 

@@ -241,7 +241,7 @@ impl TryFrom<Pairs<'_, Rule>> for ParsedString {
         fn build_string(me: &mut ParsedString, pairs: Pairs<Rule>) -> Result<(), String> {
             for pair in pairs {
                 match pair.as_rule() {
-                    Rule::literal_char => {
+                    Rule::quoted_plain_char => {
                         me.text.push_str(pair.as_str());
                     }
                     Rule::escaped_char => {
