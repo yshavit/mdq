@@ -20,7 +20,7 @@ selector_delim = @{" " | EOI}
 select_section = { section_start ~ #title = string_to_pipe? }
 section_start = @{ "#" ~ selector_delim }
 
-select_list_item = { list_start ~ task_type? ~ string_to_pipe? }
+select_list_item = { list_start ~ task_type? ~ #contents = string_to_pipe? }
 list_start = ${ (list_ordered | list_unordered) ~ selector_delim}
 list_ordered = @{ "1." }
 list_unordered = @{ "-" }
