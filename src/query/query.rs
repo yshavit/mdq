@@ -136,20 +136,12 @@ pub trait PairMatchStore<'a> {
     where
         Self: Sized,
     {
-        fn build<'b>(me: &mut impl PairMatchStore<'b>, pairs: Pairs<'b, Rule>) -> bool {
+        fn build<'b>(me: &mut impl PairMatchStore<'b>, pairs: Pairs<'b, Rule>) {
             for pair in pairs {
-                match me.match_and_store(pair) {
-                    Ok(_) => {
-                        return true;
-                    }
-                    Err(unmatched) => {
-                        if build(me, unmatched.into_inner()) {
-                            return true;
-                        }
-                    }
+                if let Err(unmatched) = me.match_and_store(pair) {
+                    build(me, unmatched.into_inner())
                 }
             }
-            false
         }
         build(&mut self, pairs);
         self.get()

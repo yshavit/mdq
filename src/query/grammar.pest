@@ -20,12 +20,10 @@ selector_delim = @{" " | EOI}
 select_section = { section_start ~ #title=string_to_pipe? }
 section_start = @{ "#" ~ selector_delim }
 
-select_list_item = {
-    (list_ordered | "-")
-    ~ selector_delim
-    ~ ("[" ~ (task_checked | task_unchecked | task_either ) ~ "}")?
-    ~ #contents=string_to_pipe? }
+select_list_item = { list_start ~ list_task_options? ~ #contents=string_to_pipe? }
+list_start = ${ (list_ordered | "-") ~ selector_delim}
 list_ordered = ${ "1." }
+list_task_options = ${ "[" ~ (task_checked | task_unchecked | task_either ) ~ "]" }
 task_checked = ${ "x" }
 task_unchecked = ${ " " }
 task_either = ${ "?" }

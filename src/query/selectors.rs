@@ -305,6 +305,18 @@ mod tests {
         #[test]
         fn ordered_list_item_with_matcher() {
             find_selector(
+                "1. world",
+                Selector::ListItem(ListItemMatcher {
+                    ordered: true,
+                    task: ListItemTask::None,
+                    matcher: matcher_text(false, "world", false),
+                }),
+            )
+        }
+
+        #[test]
+        fn ordered_list_item_with_matcher_anchored() {
+            find_selector(
                 "1. ^ world $",
                 Selector::ListItem(ListItemMatcher {
                     ordered: true,
@@ -372,11 +384,6 @@ mod tests {
                     matcher: matcher_text(false, "my ordered task", false),
                 }),
             )
-        }
-
-        #[test]
-        fn todo() {
-            todo!("more of these");
         }
     }
 
