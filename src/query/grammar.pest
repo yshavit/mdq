@@ -17,17 +17,13 @@ selector = {
 
 selector_delim = @{" " | EOI}
 
-select_section = { section_start ~ #title = string_to_pipe? }
+select_section = { section_start ~ #title=string_to_pipe? }
 section_start = @{ "#" ~ selector_delim }
 
+list_ordered = @{ "1." } // todo: inline these, each with its own tag?
 select_list_item = { list_start ~ task_type? ~ #contents = string_to_pipe? }
-list_start = ${ (list_ordered | list_unordered) ~ selector_delim}
-list_ordered = @{ "1." }
-list_unordered = @{ "-" }
-task_type = ${ "[" ~ (task_unchecked | task_checked | task_either ) ~ "}" }
-task_unchecked = @{ " " }
-task_checked = @{ "x" }
-task_either = @{ "?" }
+list_start = ${ (#list_ordered="1." | "-") ~ selector_delim}
+task_type = ${ "[" ~ (#task_checked="x" | #task_unchecked=" " | #task_either="?" ) ~ "}" }
 
 select_link = { link_start ~ string_to_bracket? ~ "](" ~ string_to_paren? ~ ")"}
 link_start = ${ image_start? ~ "[" }
@@ -76,7 +72,7 @@ regex_normal_char = @{ !("/") ~ ANY }
 quoted_string = ${ PUSH("'" | "\"") ~ quoted_char* ~ POP }
 
 quoted_char = ${
- quoted_plain_char
+ quoted_plain_chars
  | ("\\" ~ (escaped_char | "u{" ~ unicode_seq ~ "}"))
 }
 
@@ -84,7 +80,7 @@ anchor_start = @{ "^" }
 
 anchor_end = @{ "$" }
 
-quoted_plain_char = @{ (!( PEEK | "\\") ~ ANY)+ }
+quoted_plain_chars = @{ (!( PEEK | "\\") ~ ANY)+ }
 
 escaped_char = @{("\"" | "'" | "`" | "\\" | "n" | "r" | "t"  )}
 

@@ -118,13 +118,13 @@ impl Selector {
             Rule::select_list_item => {
                 let res = ListItemTree::find(children);
 
-                let ordered = res.ordered.len() > 0;
+                let ordered = res.ordered?.is_some();
 
-                let task = if res.checked.len() > 0 {
+                let task = if res.checked?.is_some() {
                     ListItemTask::Selected
-                } else if res.unchecked.len() > 0 {
+                } else if res.unchecked?.is_some() {
                     ListItemTask::Unselected
-                } else if res.either.len() > 0 {
+                } else if res.either?.is_some() {
                     ListItemTask::Either
                 } else {
                     ListItemTask::None

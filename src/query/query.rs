@@ -188,10 +188,10 @@ composite_finder! { Section {
     title: ByTag("title"),
 }}
 composite_finder! { ListItem {
-    ordered: ByRule(Rule::list_ordered),
-    checked: ByRule(Rule::task_checked),
-    unchecked: ByRule(Rule::task_unchecked),
-    either: ByRule(Rule::task_either),
+    ordered: ByTag("list_ordered"),
+    checked: ByTag("task_checked"),
+    unchecked: ByTag("task_unchecked"),
+    either: ByTag("task_either"),
     contents: ByTag("contents"),
 }}
 
@@ -241,7 +241,7 @@ impl TryFrom<Pairs<'_, Rule>> for ParsedString {
         fn build_string(me: &mut ParsedString, pairs: Pairs<Rule>) -> Result<(), String> {
             for pair in pairs {
                 match pair.as_rule() {
-                    Rule::quoted_plain_char => {
+                    Rule::quoted_plain_chars => {
                         me.text.push_str(pair.as_str());
                     }
                     Rule::escaped_char => {
