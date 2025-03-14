@@ -1,5 +1,5 @@
 use crate::query::query::{
-    ByRule, ListItemTree, OneOf, PairMatcher, ParsedString, QueryPairs, Rule, SectionRule, SectionTree,
+    ByRule, ListItemTraverser, OneOf, PairMatcher, ParsedString, QueryPairs, Rule, SectionResults, SectionTraverser,
 };
 use pest::iterators::{Pair, Pairs};
 
@@ -22,8 +22,8 @@ impl Matcher {
     }
 
     fn take_from_tree(source: &mut Pairs<Rule>, under_rule: Rule) -> Result<Matcher, String> {
-        let rule_pairs = ByRule::new(under_rule).find_inners(source);
-        let mut only_matcher = OneOf::empty();
+        let rule_pairs = ByRule::new(under_rule).find_all_in(/* source*/ todo!());
+        let mut only_matcher = OneOf::default();
         for extracted_root in rule_pairs {
             let inner = extracted_root.into_inner();
             let parsed_string = ParsedString::try_from(inner)?;
@@ -88,10 +88,10 @@ pub enum Selector {
 
 impl Selector {
     pub fn from_top_pairs(root: Pairs<Rule>) -> Result<Self, String> {
-        let selector_chains = ByRule::new(Rule::selector_chain).find_inners(root);
+        let selector_chains = ByRule::new(Rule::selector_chain).find_all_in(root);
         let mut all_selectors = Vec::new();
         for chain in selector_chains {
-            let selector_inners = ByRule::new(Rule::selector).find_inners(chain.into_inner());
+            let selector_inners = ByRule::new(Rule::selector).find_all_in(chain.into_inner());
             for selector_pair in selector_inners {
                 for specific_selector_pair in selector_pair.into_inner() {
                     let selector = Self::find_selectors(specific_selector_pair)?;
@@ -111,27 +111,27 @@ impl Selector {
 
         match as_rule {
             Rule::select_section => {
-                let SectionRule { title } = SectionTree::find(children);
-                let matcher = Matcher::take_from_option(title?)?;
+                let SectionResults { title } = SectionTraverser::traverse(children);
+                let matcher = Matcher::take_from_option(title.take()?)?;
                 Ok(Self::Section(matcher))
             }
             Rule::select_list_item => {
                 let as_debug = format!("{children:?}");
                 eprintln!("{as_debug}");
-                let res = ListItemTree::find(children);
+                let res = ListItemTraverser::traverse(children);
 
-                let ordered = res.list_ordered?.is_some();
+                let ordered = res.list_ordered.is_present();
 
-                let task = if res.task_checked?.is_some() {
+                let task = if res.task_checked.is_present() {
                     ListItemTask::Selected
-                } else if res.task_unchecked?.is_some() {
+                } else if res.task_unchecked.is_present() {
                     ListItemTask::Unselected
-                } else if res.task_either?.is_some() {
+                } else if res.task_either.is_present() {
                     ListItemTask::Either
                 } else {
                     ListItemTask::None
                 };
-                let m = res.contents?;
+                let m = res.contents.take()?;
                 let matcher = Matcher::take_from_option(m)?;
                 Ok(Selector::ListItem(ListItemMatcher { ordered, task, matcher }))
             }
@@ -142,7 +142,7 @@ impl Selector {
 
 impl Selector {
     pub fn from_top(roots: Pairs<Rule>) -> Result<Option<Self>, String> {
-        let selector_rules = ByRule::new(Rule::selector).find_inners(roots);
+        let selector_rules = ByRule::new(Rule::selector).find_all_in(roots);
         Self::one_from_trees(selector_rules)
     }
 
