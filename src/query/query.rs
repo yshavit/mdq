@@ -19,10 +19,6 @@ pub trait PairStorage<'a> {
 pub struct Present(bool);
 
 impl Present {
-    pub fn new() -> Self {
-        Self(false)
-    }
-
     pub fn is_present(&self) -> bool {
         self.0
     }
@@ -50,24 +46,6 @@ impl<T> Default for OneOf<T> {
 }
 
 impl<T> OneOf<T> {
-    pub fn from<I>(iter: I) -> Result<Option<T>, String>
-    where
-        I: IntoIterator<Item = T>,
-    {
-        let mut me = Self::default();
-        for item in iter {
-            me.add(item);
-        }
-        me.take()
-    }
-
-    pub fn add(&mut self, item: T) {
-        self.0 = match self.0 {
-            Ok(Some(_)) | Err(_) => Err(()),
-            Ok(None) => Ok(Some(item)),
-        }
-    }
-
     pub fn take(self) -> Result<Option<T>, String> {
         self.0.map_err(|_| "multiple items found".to_string())
     }
@@ -77,7 +55,10 @@ impl<'a> PairStorage<'a> for OneOf<Pair<'a, Rule>> {
     type Output = Result<Option<Pair<'a, Rule>>, String>;
 
     fn store(&mut self, pair: Pair<'a, Rule>) {
-        self.add(pair)
+        self.0 = match self.0 {
+            Ok(Some(_)) | Err(_) => Err(()),
+            Ok(None) => Ok(Some(pair)),
+        }
     }
 
     fn get(self) -> Self::Output {
@@ -181,144 +162,6 @@ impl PairMatcher for ByTag {
     }
 }
 
-// impl<'a> PairMatcher<'a> for ByTag<'a> {
-//     type Output = Result<Option<Pair<'a, Rule>>, String>;
-//
-//     fn try_add(&mut self, pair: Pair<'a, Rule>) -> Result<(), Pair<'a, Rule>> {
-//         match pair.as_node_tag() {
-//             Some(t) if t == self.0 => {
-//                 self.1.add(pair);
-//                 Ok(())
-//             }
-//             _ => Err(pair),
-//         }
-//     }
-//
-//     fn get(self) -> Self::Output {
-//         self.1.take()
-//     }
-// }
-
-// macro_rules! composite_finder {
-//     // (title by tag OneOf),
-//     (_finder_struct: $name$elem:tt ) => {
-//         name: usize
-//     };
-//
-//     (_full: $name:ident { $($elem:tt),+ } => $result_name:ident) => {
-//         pub struct $name {
-//             composite_finder!(_finder_field: 1),
-//             // TODO
-//         }
-// pub struct $name<'a> {
-//     $(
-//     $elem_name: $elem_type<'a>,
-//     )+
-// }
-//
-// pub struct $result_name<'a> {
-//     $(
-//     pub $elem_name: <$elem_type<'a> as PairMatcher<'a>>::Output,
-//     )+
-// }
-//
-// impl<'a> $name<'a> {
-//     pub fn new() -> Self {
-//         Self {
-//             $(
-//             $elem_name: $elem_type::new($elem_ctor)
-//             ),+
-//         }
-//     }
-//
-//     pub fn find(pairs: Pairs<'a, Rule>) -> $result_name<'a> {
-//         Self::new().find_inners(pairs)
-//     }
-// }
-//
-// impl<'a> PairMatcher<'a> for $name<'a> {
-//     type Output = $result_name<'a>;
-//
-//     fn try_add(&mut self, pair: Pair<'a, Rule>) -> Result<(), Pair<'a, Rule>> {
-//         $(
-//         let Err(pair) = self.$elem_name.try_add(pair) else {
-//             return Ok(());
-//         };
-//         )*
-//         Err(pair)
-//     }
-//
-//     fn get(self) -> Self::Output {
-//         Self::Output {
-//             $(
-//             $elem_name: self.$elem_name.get(),
-//             )+
-//         }
-//     }
-// }
-//     };
-// }
-
-macro_rules! tags_finder {
-    ($name:ident { $elem_name:ident $(,)? }) => {
-        paste! { tags_finder !{ [<$name Tree>] { $elem_name } => [<$name Rule>] } }
-    };
-
-    ($name:ident { $e1_name:ident, $( $es_name:ident ),+ $(,)? }) => {
-        paste! { tags_finder!{ [<$name Tree>] { $e1_name, $($es_name),+ } => [<$name Rules>] } }
-    };
-
-    ($name:ident { $($elem_name:ident),+ } => $result_name:ident) => {
-        pub struct $name<'a> {
-            $(
-            $elem_name: ByTag<'a>,
-            )+
-        }
-
-        pub struct $result_name<'a> {
-            $(
-            pub $elem_name: <ByTag<'a> as PairMatcher<'a>>::Output,
-            )+
-        }
-
-        impl<'a> $name<'a> {
-            pub fn new() -> Self {
-                Self {
-                    $(
-                    $elem_name: ByTag::new(stringify!($elem_name))
-                    ),+
-                }
-            }
-
-            pub fn find(pairs: Pairs<'a, Rule>) -> $result_name<'a> {
-                Self::new().find_inners(pairs)
-            }
-        }
-
-        impl<'a> PairMatcher<'a> for $name<'a> {
-            type Output = $result_name<'a>;
-
-            fn try_add(&mut self, pair: Pair<'a, Rule>) -> Result<(), Pair<'a, Rule>> {
-                $(
-                let Err(pair) = self.$elem_name.try_add(pair) else {
-                    return Ok(());
-                };
-                )*
-                Err(pair)
-            }
-
-            fn get(self) -> Self::Output {
-                Self::Output {
-                    $(
-                    $elem_name: self.$elem_name.get(),
-                    )+
-
-                }
-            }
-        }
-    };
-}
-
 macro_rules! composite_finder {
     ($name:ident { $($elem:ident $result:ty : $finder:ident),+ $(,)? }) => {
         paste! {
@@ -327,10 +170,10 @@ macro_rules! composite_finder {
     };
 
     (finder_arg: $name:ident ByRule) => {
-        ByRule(Rule::$name)
+        ByRule::new(Rule::$name)
     };
     (finder_arg: $name:ident ByTag) => {
-        ByTag(stringify!($name))
+        ByTag::new(stringify!($name))
     };
 
     (full: ($finder_name:ident / $result_name:ident) { $($elem:ident $result:ty : $finder:ident),+ }) => {
@@ -349,7 +192,6 @@ macro_rules! composite_finder {
         }
 
         impl $finder_name {
-
             fn new() -> Self {
                 Self {
                     $(
@@ -360,28 +202,6 @@ macro_rules! composite_finder {
 
             pub fn traverse(pairs: Pairs<Rule>) -> $result_name {
                 ($finder_name::new(), $result_name::default()).find_in(pairs)
-            }
-
-            pub fn find_bespoke(pairs: Pairs<Rule>) -> $result_name { // TODO rm this?
-                fn build<'b>(traverser: &$finder_name, ps: Pairs<'b, Rule>, to: &mut $result_name<'b>) -> bool {
-                    for pair in ps {
-                        $(
-                        if traverser.$elem.matches(&pair) {
-                            to.$elem.store(pair);
-                            return true;
-                        }
-                        )else+ else {
-                            let inners = pair.into_inner();
-                            if build(traverser, inners, to) {
-                                return true;
-                            }
-                        }
-                    }
-                    return false;
-                }
-                let mut results = $result_name::default();
-                let _ = build(&Self::new(), pairs, &mut results);
-                results
             }
         }
 

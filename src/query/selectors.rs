@@ -1,5 +1,5 @@
 use crate::query::query::{
-    ByRule, ListItemTraverser, OneOf, PairMatcher, ParsedString, QueryPairs, Rule, SectionResults, SectionTraverser,
+    ByRule, ListItemTraverser, PairMatcher, ParsedString, QueryPairs, Rule, SectionResults, SectionTraverser,
 };
 use pest::iterators::{Pair, Pairs};
 
@@ -19,23 +19,6 @@ impl Matcher {
         } else {
             Matcher::Text(parsed_string.anchor_start, parsed_string.text, parsed_string.anchor_end)
         })
-    }
-
-    fn take_from_tree(source: &mut Pairs<Rule>, under_rule: Rule) -> Result<Matcher, String> {
-        let rule_pairs = ByRule::new(under_rule).find_all_in(/* source*/ todo!());
-        let mut only_matcher = OneOf::default();
-        for extracted_root in rule_pairs {
-            let inner = extracted_root.into_inner();
-            let parsed_string = ParsedString::try_from(inner)?;
-            let matcher = if parsed_string.is_regex {
-                Matcher::Regex(parsed_string.text)
-            } else {
-                Matcher::Text(parsed_string.anchor_start, parsed_string.text, parsed_string.anchor_end)
-            };
-            only_matcher.add(matcher);
-        }
-        let only_matcher = only_matcher.take()?;
-        Ok(only_matcher.unwrap_or(Matcher::Any))
     }
 }
 
@@ -136,83 +119,6 @@ impl Selector {
                 Ok(Selector::ListItem(ListItemMatcher { ordered, task, matcher }))
             }
             unknown => Err(format!("unexpected selector rule: {unknown:?}")),
-        }
-    }
-}
-
-impl Selector {
-    pub fn from_top(roots: Pairs<Rule>) -> Result<Option<Self>, String> {
-        let selector_rules = ByRule::new(Rule::selector).find_all_in(roots);
-        Self::one_from_trees(selector_rules)
-    }
-
-    fn one_from_trees<'a, I>(roots: I) -> Result<Option<Self>, String>
-    where
-        I: IntoIterator<Item = Pair<'a, Rule>>,
-    {
-        let mut result = None;
-        for child in roots {
-            let from_child = Self::one_from_tree(child)?;
-            result = match (result, from_child) {
-                (None, None) => None,
-                (Some(_), Some(_)) => return Err("multiple selectors found".to_string()),
-                (None, s @ Some(_)) => s,
-                (s @ Some(_), None) => s,
-            }
-        }
-        Ok(result)
-    }
-
-    fn one_from_tree(root: Pair<Rule>) -> Result<Option<Self>, String> {
-        fn ok(value: Selector) -> Result<Option<Selector>, String> {
-            Ok(Some(value))
-        }
-        let (as_rule, mut children) = (root.as_rule(), root.into_inner());
-
-        match as_rule {
-            Rule::selector => Selector::one_from_trees(children),
-            Rule::select_section => {
-                let matcher = Matcher::take_from_tree(&mut children, Rule::string_to_pipe)?;
-                ok(Selector::Section(matcher))
-            }
-            Rule::select_list_item => {
-                todo!()
-            }
-            Rule::select_link => {
-                todo!()
-                // let matcher = LinklikeMatcher {
-                //     display_matcher: Matcher::take_from_tree(&mut children, Rule::string_to_bracket)?,
-                //     url_matcher: Matcher::take_from_tree(&mut children, Rule::string_to_paren)?,
-                // };
-                // ok(if RuleTree::contains_rule(&children, Rule::image_start) {
-                //     Selector::Image(matcher)
-                // } else {
-                //     Selector::Link(matcher)
-                // })
-            }
-            Rule::select_block_quote => {
-                let matcher = Matcher::take_from_tree(&mut children, Rule::string_to_pipe)?;
-                ok(Selector::BlockQuote(matcher))
-            }
-            Rule::select_code_block => {
-                let language = Matcher::take_from_tree(&mut children, Rule::string_to_space)?;
-                let contents = Matcher::take_from_tree(&mut children, Rule::string_to_pipe)?;
-                ok(Selector::CodeBlockMatcher(CodeBlockMatcher { language, contents }))
-            }
-            Rule::select_html => {
-                let matcher = Matcher::take_from_tree(&mut children, Rule::string_to_pipe)?;
-                ok(Selector::Html(matcher))
-            }
-            Rule::select_paragraph => {
-                let matcher = Matcher::take_from_tree(&mut children, Rule::string_to_pipe)?;
-                ok(Selector::Paragraph(matcher))
-            }
-            Rule::select_table => {
-                let column = Matcher::take_from_tree(&mut children, Rule::string_to_colon)?;
-                let row = Matcher::take_from_tree(&mut children, Rule::string_to_pipe)?;
-                ok(Selector::Table(TableMatcher { column, row }))
-            }
-            unknown => Err(format!("unrecognized element: {unknown:?}")),
         }
     }
 }
