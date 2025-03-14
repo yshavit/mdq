@@ -116,15 +116,17 @@ impl Selector {
                 Ok(Self::Section(matcher))
             }
             Rule::select_list_item => {
+                let as_debug = format!("{children:?}");
+                eprintln!("{as_debug}");
                 let res = ListItemTree::find(children);
 
-                let ordered = res.ordered?.is_some();
+                let ordered = res.list_ordered?.is_some();
 
-                let task = if res.checked?.is_some() {
+                let task = if res.task_checked?.is_some() {
                     ListItemTask::Selected
-                } else if res.unchecked?.is_some() {
+                } else if res.task_unchecked?.is_some() {
                     ListItemTask::Unselected
-                } else if res.either?.is_some() {
+                } else if res.task_either?.is_some() {
                     ListItemTask::Either
                 } else {
                     ListItemTask::None
@@ -308,6 +310,66 @@ mod tests {
                     ordered: true,
                     task: ListItemTask::None,
                     matcher: matcher_text(true, "world", true),
+                }),
+            )
+        }
+
+        #[test]
+        fn unordered_unchecked_task() {
+            find_selector(
+                "- [ ]",
+                Selector::ListItem(ListItemMatcher {
+                    ordered: false,
+                    task: ListItemTask::Unselected,
+                    matcher: Matcher::Any,
+                }),
+            )
+        }
+
+        #[test]
+        fn unordered_checked_task() {
+            find_selector(
+                "- [x]",
+                Selector::ListItem(ListItemMatcher {
+                    ordered: false,
+                    task: ListItemTask::Selected,
+                    matcher: Matcher::Any,
+                }),
+            )
+        }
+
+        #[test]
+        fn unordered_either_task() {
+            find_selector(
+                "- [?]",
+                Selector::ListItem(ListItemMatcher {
+                    ordered: false,
+                    task: ListItemTask::Either,
+                    matcher: Matcher::Any,
+                }),
+            )
+        }
+
+        #[test]
+        fn unordered_task_with_matcher() {
+            find_selector(
+                "- [?] my task",
+                Selector::ListItem(ListItemMatcher {
+                    ordered: false,
+                    task: ListItemTask::Either,
+                    matcher: matcher_text(false, "my task", false),
+                }),
+            )
+        }
+
+        #[test]
+        fn ordered_task() {
+            find_selector(
+                "1. [ ] my ordered task",
+                Selector::ListItem(ListItemMatcher {
+                    ordered: true,
+                    task: ListItemTask::Unselected,
+                    matcher: matcher_text(false, "my ordered task", false),
                 }),
             )
         }

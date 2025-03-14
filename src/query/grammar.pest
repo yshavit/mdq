@@ -20,10 +20,15 @@ selector_delim = @{" " | EOI}
 select_section = { section_start ~ #title=string_to_pipe? }
 section_start = @{ "#" ~ selector_delim }
 
-list_ordered = @{ "1." } // todo: inline these, each with its own tag?
-select_list_item = { list_start ~ task_type? ~ #contents = string_to_pipe? }
-list_start = ${ (#list_ordered="1." | "-") ~ selector_delim}
-task_type = ${ "[" ~ (#task_checked="x" | #task_unchecked=" " | #task_either="?" ) ~ "}" }
+select_list_item = {
+    (list_ordered | "-")
+    ~ selector_delim
+    ~ ("[" ~ (task_checked | task_unchecked | task_either ) ~ "}")?
+    ~ #contents=string_to_pipe? }
+list_ordered = ${ "1." }
+task_checked = ${ "x" }
+task_unchecked = ${ " " }
+task_either = ${ "?" }
 
 select_link = { link_start ~ string_to_bracket? ~ "](" ~ string_to_paren? ~ ")"}
 link_start = ${ image_start? ~ "[" }

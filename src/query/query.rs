@@ -8,6 +8,18 @@ use std::fmt::{Debug, Formatter, Write};
 #[grammar = "query/grammar.pest"] // relative to src
 pub struct QueryPairs; // TODO rename
 
+pub trait PairStorage<'a> {
+    type Output;
+
+    fn store(&mut self, pair: Pair<'a, Rule>);
+    fn get(self) -> Self::Output;
+}
+
+pub trait PairMatcher2 {
+    // TODO rename this, get rid of the non-2 variant
+    fn matches(&self, pair: &Pair<Rule>) -> bool;
+}
+
 pub trait PairMatcher<'a> {
     // TODO rename to PairFinder, to disambiguate from Matcher
     type Output;
@@ -171,6 +183,65 @@ macro_rules! composite_finder {
                     $(
                     $elem_name: self.$elem_name.get(),
                     )+
+                }
+            }
+        }
+    };
+}
+
+macro_rules! tags_finder {
+    ($name:ident { $elem_name:ident $(,)? }) => {
+        paste! { tags_finder !{ [<$name Tree>] { $elem_name } => [<$name Rule>] } }
+    };
+
+    ($name:ident { $e1_name:ident, $( $es_name:ident ),+ $(,)? }) => {
+        paste! { tags_finder!{ [<$name Tree>] { $e1_name, $($es_name),+ } => [<$name Rules>] } }
+    };
+
+    ($name:ident { $($elem_name:ident),+ } => $result_name:ident) => {
+        pub struct $name<'a> {
+            $(
+            $elem_name: ByTag<'a>,
+            )+
+        }
+
+        pub struct $result_name<'a> {
+            $(
+            pub $elem_name: <ByTag<'a> as PairMatcher<'a>>::Output,
+            )+
+        }
+
+        impl<'a> $name<'a> {
+            pub fn new() -> Self {
+                Self {
+                    $(
+                    $elem_name: ByTag::new(stringify!($elem_name))
+                    ),+
+                }
+            }
+
+            pub fn find(pairs: Pairs<'a, Rule>) -> $result_name<'a> {
+                Self::new().find_inners(pairs)
+            }
+        }
+
+        impl<'a> PairMatcher<'a> for $name<'a> {
+            type Output = $result_name<'a>;
+
+            fn try_add(&mut self, pair: Pair<'a, Rule>) -> Result<(), Pair<'a, Rule>> {
+                $(
+                let Err(pair) = self.$elem_name.try_add(pair) else {
+                    return Ok(());
+                };
+                )*
+                Err(pair)
+            }
+
+            fn get(self) -> Self::Output {
+                Self::Output {
+                    $(
+                    $elem_name: self.$elem_name.get(),
+                    )+
 
                 }
             }
@@ -178,21 +249,15 @@ macro_rules! composite_finder {
     };
 }
 
-// TODO rather than this convention of ByRule::new etc, maybe I should just have:
-//    composite_finder! { Section {
-//        by_tag! ( title ),
-//    }}
-//  I'm not sure if that's actually possible, since I don't think a macro can produce `foo: ByRule("foo")`. It needs
-//  to produce a fully-functional bit of rust
-composite_finder! { Section {
-    title: ByTag("title"),
+tags_finder! { Section {
+    title,
 }}
-composite_finder! { ListItem {
-    ordered: ByTag("list_ordered"),
-    checked: ByTag("task_checked"),
-    unchecked: ByTag("task_unchecked"),
-    either: ByTag("task_either"),
-    contents: ByTag("contents"),
+tags_finder! { ListItem {
+    list_ordered,
+    task_checked,
+    task_unchecked,
+    task_either,
+    contents,
 }}
 
 #[derive(Eq, PartialEq)]
