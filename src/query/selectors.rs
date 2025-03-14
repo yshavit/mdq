@@ -295,7 +295,7 @@ mod tests {
 
     #[test]
     fn todo() {
-        todo!("more of these");
+        todo!("more of these. weird chaining, etc");
     }
 
     fn find_empty_chain(query_text: &str) {

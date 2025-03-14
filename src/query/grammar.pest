@@ -1,8 +1,8 @@
 WHITESPACE = { " " | "\t" | "\r" | "\n" }
 
-top = { SOI ~ selector_chain? ~ EOI }
+top = { SOI ~ "|"* ~ selector_chain? ~ EOI }
 
-selector_chain = { "|"* ~ (selector ~ ("|"+ ~ selector?)* ) }
+selector_chain = { selector ~ ("|"+ ~ selector?)* }
 
 selector = {
       select_section
