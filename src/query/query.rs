@@ -8,6 +8,8 @@ use std::fmt::{Debug, Formatter, Write};
 #[grammar = "query/grammar.pest"] // relative to src
 pub struct QueryPairs; // TODO rename
 
+// TODO: I should reorganize this file, break it up into separate files etc
+
 pub trait PairStorage<'a> {
     type Output;
 
