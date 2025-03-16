@@ -1,6 +1,6 @@
 use crate::query::query::{
     BlockQuoteTraverser, ByRule, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, PairMatcher,
-    ParagraphTraverser, ParsedString, QueryPairs, Rule, SectionResults, SectionTraverser, TableTraverser,
+    ParagraphTraverser, ParsedString, Rule, SectionResults, SectionTraverser, TableTraverser,
 };
 use pest::iterators::{Pair, Pairs};
 
@@ -177,8 +177,7 @@ impl Selector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pest::error::Error;
-    use pest::Parser;
+    use crate::query::query::Query;
 
     mod empty {
         use super::*;
@@ -206,23 +205,21 @@ mod tests {
 
     mod section {
         use super::*;
-        use crate::query::query::Rule::top;
 
         #[test]
         fn section_no_matcher() {
-            find_selector("#", Selector::Section(Matcher::Any))
+            find_selector("#", Selector::Section(Matcher::Any));
         }
 
         #[test]
         fn section_with_matcher() {
-            let pairs = QueryPairs::parse(top, "# foo").unwrap();
-            let result = Selector::from_top_pairs(pairs);
-            assert_eq!(result, Ok(Selector::Section(matcher_text(false, "foo", false))));
+            find_selector("# foo", Selector::Section(matcher_text(false, "foo", false)));
         }
     }
 
     mod list_item {
         use super::*;
+        use indoc::indoc;
 
         #[test]
         fn unordered_list_item_no_matcher() {
@@ -246,6 +243,20 @@ mod tests {
                     matcher: matcher_text(false, "hello", false),
                 }),
             )
+        }
+
+        #[test]
+        fn unordered_list_item_with_matcher_no_space() {
+            expect_parse_error(
+                "-hello",
+                indoc! {r#"
+                     --> 1:2
+                      |
+                    1 | -hello
+                      |  ^---
+                      |
+                      = expected space"#},
+            );
         }
 
         #[test]
@@ -318,6 +329,20 @@ mod tests {
                     matcher: Matcher::Any,
                 }),
             )
+        }
+
+        #[test]
+        fn task_cannot_have_extra_spaces() {
+            expect_parse_error(
+                "- [  ]",
+                indoc! {r#"
+                 --> 1:5
+                  |
+                1 | - [  ]
+                  |     ^---
+                  |
+                  = expected "]""#},
+            );
         }
 
         #[test]
@@ -542,17 +567,34 @@ mod tests {
 
     mod table {
         use super::*;
+        use indoc::indoc;
 
         #[test]
-        fn table_no_matchers() {
-            todo!("this should error");
-            find_selector(
+        fn table_no_header_matcher() {
+            expect_parse_error(
                 ":-: :-:",
-                Selector::Table(TableMatcher {
-                    column: Matcher::Any,
-                    row: Matcher::Any,
-                }),
-            )
+                indoc! {r#"
+                     --> 1:5
+                      |
+                    1 | :-: :-:
+                      |     ^---
+                      |
+                      = expected explicit "*" or string"#},
+            );
+        }
+
+        #[test]
+        fn table_no_spaces_at_all() {
+            expect_parse_error(
+                ":-::-:",
+                indoc! {r#"
+                     --> 1:4
+                      |
+                    1 | :-::-:
+                      |    ^---
+                      |
+                      = expected space"#},
+            );
         }
 
         #[test]
@@ -610,16 +652,27 @@ mod tests {
     }
 
     fn find_selector(query_text: &str, expect: Selector) {
-        let pairs = QueryPairs::parse(Rule::top, query_text);
+        let pairs = Query::parse(query_text);
         let pairs = match pairs {
             Ok(pairs) => pairs,
             Err(err) => {
-                panic!("{}", err.to_string());
+                panic!("{err}");
             }
         };
 
         let result = Selector::from_top_pairs(pairs);
         assert_eq!(result, Ok(expect));
+    }
+
+    fn expect_parse_error(query_text: &str, expect: &str) {
+        let pairs = Query::parse(query_text);
+        match pairs {
+            Ok(pairs) => panic! {"{pairs}"},
+            Err(err) => {
+                let err_msg = format!("{err}");
+                assert_eq!(err_msg, expect);
+            }
+        }
     }
 
     fn matcher_text(anchor_start: bool, text: &str, anchor_end: bool) -> Matcher {

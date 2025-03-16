@@ -15,7 +15,8 @@ selector = {
   | select_table
 }
 
-selector_delim = @{ " " | EOI }
+selector_delim = @{ EOI | explicit_space }
+explicit_space = !{ " " }
 
 select_section =  { section_start ~ #title = string_to_pipe? }
 section_start  = @{ "#" ~ selector_delim }
@@ -23,10 +24,11 @@ section_start  = @{ "#" ~ selector_delim }
 select_list_item  =  { list_start ~ list_task_options? ~ #contents = string_to_pipe? }
 list_start        = ${ (list_ordered | "-") ~ selector_delim }
 list_ordered      = ${ "1." }
-list_task_options = ${ "[" ~ (task_checked | task_unchecked | task_either) ~ "]" }
+list_task_options = ${ "[" ~ (task_unchecked | task_checked | task_either) ~ task_end }
 task_checked      = ${ "x" }
 task_unchecked    = ${ " " }
 task_either       = ${ "?" }
+task_end          = ${ "]" }
 
 select_link =  { link_start ~ #display_text = string_to_bracket? ~ "](" ~ #url_text = string_to_paren? ~ ")" }
 link_start  = ${ image_start? ~ "[" }
@@ -44,7 +46,9 @@ html_start  = @{ "</>" ~ selector_chain }
 select_paragraph       =  { select_paragraph_start ~ #text = string_to_pipe? }
 select_paragraph_start = @{ "P:" ~ selector_delim }
 
-select_table = { ":-: " ~ #column = string_to_colon? ~ ":-:" ~ #row = string_to_pipe? }
+select_table = { table_start ~ (explicit_asterisk | #column = string_to_colon) ~ ":-:" ~ #row = string_to_pipe? }
+table_start = ${":-:" ~ explicit_space }
+explicit_asterisk = ${ "*" }
 
 // What I'd really want is to push a literal for the closing delimiter, and then do (!("|" | PEEK) in unquoted_string.
 // But that's not possible (see GH pest-parser/pest#880), so this is the next best.

@@ -1,12 +1,76 @@
 use paste::paste;
+use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
+use pest::Parser;
 use pest_derive::Parser;
 use std::borrow::Cow;
 use std::fmt::{Debug, Formatter, Write};
 
 #[derive(Parser)]
 #[grammar = "query/grammar.pest"] // relative to src
-pub struct QueryPairs; // TODO rename
+struct QueryPairs; // TODO rename
+
+pub struct Query {
+    _private: (),
+}
+
+impl Query {
+    pub fn parse(query_text: &str) -> Result<Pairs<Rule>, Error<Rule>> {
+        QueryPairs::parse(Rule::top, query_text).map_err(Self::format_err)
+    }
+
+    fn format_err(err: Error<Rule>) -> Error<Rule> {
+        err.renamed_rules(|err| {
+            match err {
+                Rule::EOI => "end of input",
+                Rule::WHITESPACE => "whitespace",
+                Rule::top => "valid query",
+                Rule::selector_chain => "one or more selectors",
+                Rule::selector => "selector",
+                Rule::selector_delim | Rule::explicit_space => "space",
+                Rule::select_section | Rule::section_start => "_#_",
+                Rule::select_list_item | Rule::list_start => "_-_ or _1._",
+                Rule::list_ordered => "_-_",
+                Rule::list_task_options => "_[ ]_, _[x]_, or _[?]_",
+                Rule::task_checked => "_[x]_",
+                Rule::task_unchecked => "_[x]_",
+                Rule::task_either => "_[?]_",
+                Rule::task_end => "_]_",
+                Rule::select_link | Rule::link_start => "_[_ or _![_",
+                Rule::image_start => "_![_",
+                Rule::select_block_quote | Rule::select_block_quote_start => "_>_",
+                Rule::select_code_block | Rule::code_block_start => "_```_",
+                Rule::select_html | Rule::html_start => "_</>_",
+                Rule::select_paragraph | Rule::select_paragraph_start => "_P:_",
+                Rule::select_table | Rule::table_start => "_:-:_",
+                Rule::explicit_asterisk => "explicit _*_",
+                Rule::string_to_pipe
+                | Rule::string_to_paren
+                | Rule::string_to_bracket
+                | Rule::string_to_space
+                | Rule::string_to_colon => "string",
+                Rule::unquoted_string_to_pipe
+                | Rule::unquoted_string_to_paren
+                | Rule::unquoted_string_to_bracket
+                | Rule::unquoted_string_to_space
+                | Rule::unquoted_string_to_colon => "unquoted string",
+                Rule::regex => "_/_",
+                Rule::regex_char => "regular expression character",
+                Rule::regex_escaped_slash => "_/_",
+                Rule::regex_normal_char => "regular expression character",
+                Rule::quoted_string => "quoted string",
+                Rule::quoted_char => "character",
+                Rule::anchor_start => "_^_",
+                Rule::anchor_end => "_$_",
+                Rule::quoted_plain_chars => "character",
+                Rule::escaped_char => "\", ', `, \\, n, r, or t",
+                Rule::unicode_seq => "1 - 6 hex characters",
+            }
+            .to_string()
+            .replace('_', "\"")
+        })
+    }
+}
 
 // TODO: I should reorganize this file, break it up into separate files etc
 
@@ -14,7 +78,6 @@ pub trait PairStorage<'a> {
     type Output;
 
     fn store(&mut self, pair: Pair<'a, Rule>);
-    fn get(self) -> Self::Output;
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
@@ -33,10 +96,6 @@ impl PairStorage<'_> for Present {
 
     fn store(&mut self, _pair: Pair<'_, Rule>) {
         self.0 = true
-    }
-
-    fn get(self) -> Self::Output {
-        self.0
     }
 }
 
@@ -63,10 +122,6 @@ impl<'a> PairStorage<'a> for OneOf<Pair<'a, Rule>> {
             Ok(Some(_)) | Err(_) => Err(()),
             Ok(None) => Ok(Some(pair)),
         }
-    }
-
-    fn get(self) -> Self::Output {
-        self.take()
     }
 }
 
