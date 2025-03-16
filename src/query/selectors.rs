@@ -222,7 +222,20 @@ impl Selector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query::query::Query;
+    use crate::query::query::{OneOf, Query, StringVariant};
+
+    impl Matcher {
+        pub fn parse(variant: StringVariant, query_str: &str) -> Result<(Matcher, &str), String> {
+            let (top, remaining) = variant.parse(query_str).map_err(|e| e.to_string())?;
+            let mut one_of = OneOf::default();
+            for pair in top {
+                one_of.store(pair);
+            }
+            let only_pair = one_of.take()?;
+            let matcher = Matcher::take_from_option(only_pair)?;
+            Ok((matcher, remaining))
+        }
+    }
 
     mod chaining {
         use super::*;

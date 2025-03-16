@@ -5,6 +5,8 @@ use pest::Parser;
 use pest_derive::Parser;
 use std::borrow::Cow;
 use std::fmt::{Debug, Formatter, Write};
+#[cfg(test)]
+pub use tests::StringVariant;
 
 #[derive(Parser)]
 #[grammar = "query/grammar.pest"] // relative to src
@@ -109,8 +111,16 @@ impl<T> Default for OneOf<T> {
 }
 
 impl<T> OneOf<T> {
+    // TODO the Err should be an Error<Rule>
     pub fn take(self) -> Result<Option<T>, String> {
         self.0.map_err(|_| "multiple items found".to_string())
+    }
+
+    pub fn store(&mut self, item: T) {
+        self.0 = match self.0 {
+            Ok(Some(_)) | Err(_) => Err(()),
+            Ok(None) => Ok(Some(item)),
+        }
     }
 }
 
@@ -118,10 +128,7 @@ impl<'a> PairStorage<'a> for OneOf<Pair<'a, Rule>> {
     type Output = Result<Option<Pair<'a, Rule>>, String>;
 
     fn store(&mut self, pair: Pair<'a, Rule>) {
-        self.0 = match self.0 {
-            Ok(Some(_)) | Err(_) => Err(()),
-            Ok(None) => Ok(Some(pair)),
-        }
+        OneOf::store(self, pair)
     }
 }
 
@@ -462,8 +469,36 @@ impl TryFrom<Pairs<'_, Rule>> for ParsedString {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::query::query::Rule::quoted_string;
     use pest::Parser;
     use pretty_assertions::assert_eq;
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub enum StringVariant {
+        PIPE,
+        PAREN,
+        BRACKET,
+        SPACE,
+        COLON,
+    }
+
+    impl StringVariant {
+        pub fn parse(self, query_text: &str) -> Result<(Pairs<Rule>, &str), Error<Rule>> {
+            let rule = match self {
+                StringVariant::PIPE => Rule::string_to_pipe,
+                StringVariant::PAREN => Rule::string_to_paren,
+                StringVariant::BRACKET => Rule::string_to_bracket,
+                StringVariant::SPACE => Rule::string_to_space,
+                StringVariant::COLON => Rule::string_to_colon,
+            };
+            let parsed = QueryPairs::parse(rule, query_text).map_err(Query::format_err)?;
+            let remaining = match parsed.peek() {
+                None => query_text,
+                Some(pair) => &query_text[pair.as_span().end()..],
+            };
+            Ok((parsed, remaining))
+        }
+    }
 
     mod strings {
         use super::*;

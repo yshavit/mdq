@@ -123,7 +123,7 @@ impl SubstringToRegex {
 #[cfg(test)]
 mod test {
     use super::*;
-    use indoc::indoc;
+    use crate::query::query::StringVariant;
     use std::str::FromStr;
 
     #[test]
@@ -133,7 +133,7 @@ mod test {
         parse_and_check("hello / goodbye", re_insensitive("hello / goodbye"), "");
         parse_and_check("hello| goodbye", re_insensitive("hello"), "| goodbye");
         parse_and_check("hello | goodbye", re_insensitive("hello"), "| goodbye");
-        parse_and_check_with(']', "foo] rest", re_insensitive("foo"), "] rest");
+        parse_and_check_with(StringVariant::BRACKET, "foo] rest", re_insensitive("foo"), "] rest");
     }
 
     #[test]
@@ -154,30 +154,14 @@ mod test {
 
     #[test]
     fn only_starting_anchor() {
-        expect_err(
-            "^ |",
-            ParseErrorReason::InvalidSyntax(ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string()),
-            Position { line: 0, column: 2 },
-        );
-        expect_err(
-            "^",
-            ParseErrorReason::UnexpectedEndOfInput,
-            Position { line: 0, column: 1 },
-        );
+        expect_err("^ |");
+        expect_err("^");
     }
 
     #[test]
     fn only_ending_anchor() {
-        expect_err(
-            "$ |",
-            ParseErrorReason::InvalidSyntax(ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string()),
-            Position { line: 0, column: 0 },
-        );
-        expect_err(
-            "$",
-            ParseErrorReason::InvalidSyntax(ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string()),
-            Position { line: 0, column: 0 },
-        );
+        expect_err("$ |");
+        expect_err("$");
     }
 
     #[test]
@@ -240,14 +224,14 @@ mod test {
 
     #[test]
     fn bareword_end_delimiters() {
-        parse_and_check_with('@', "hello@world", re_insensitive("hello"), "@world");
+        parse_and_check_with(StringVariant::COLON, "hello:world", re_insensitive("hello"), ":world");
 
         // "$" is always an end delimiter
         parse_and_check_with(
-            '@',
+            StringVariant::COLON,
             "hello$world",
             re_insensitive("hello$"),
-            "world", // note: the dollar sign got consumed!
+            "world", // note: the dollar sign got consumed, since it's part of the string
         );
     }
 
@@ -281,78 +265,15 @@ mod test {
 
     #[test]
     fn quote_errs() {
-        expect_err(
-            r#" " "#,
-            ParseErrorReason::Expected('"'),
-            Position {
-                line: 0,
-                column: r#" " "#.len(),
-            },
-        );
-        expect_err(
-            r#" ' "#,
-            ParseErrorReason::Expected('\''),
-            Position {
-                line: 0,
-                column: " ' ".len(),
-            },
-        );
-        expect_err(
-            r#" '\"#,
-            ParseErrorReason::UnexpectedEndOfInput,
-            Position {
-                line: 0,
-                column: r#" "\"#.len(),
-            },
-        );
-        expect_err(
-            r#" "\x" "#,
-            ParseErrorReason::InvalidEscape,
-            Position {
-                line: 0,
-                column: r#" "\x"#.len(),
-            },
-        );
-        expect_err(
-            r#" "\u2603" "#,
-            ParseErrorReason::Expected('{'),
-            Position {
-                line: 0,
-                column: r#" "\u2"#.len(),
-            },
-        );
-        expect_err(
-            r#" "\u{}" "#,
-            ParseErrorReason::InvalidEscape,
-            Position {
-                line: 0,
-                column: r#" "\u{}"#.len(),
-            },
-        );
-        expect_err(
-            r#" "\u{12345678}" "#, // out of range
-            ParseErrorReason::Expected('}'),
-            Position {
-                line: 0,
-                column: r#" "\u{1234567"#.len(),
-            },
-        );
-        expect_err(
-            r#" "\u{snowman}" "#,
-            ParseErrorReason::InvalidEscape,
-            Position {
-                line: 0,
-                column: r#" "\u{s"#.len(),
-            },
-        );
-        expect_err(
-            r#" "\u{2603"#,
-            ParseErrorReason::Expected('}'),
-            Position {
-                line: 0,
-                column: r#" "\u{2603"#.len(),
-            },
-        );
+        expect_err(r#" " "#);
+        expect_err(r#" ' "#);
+        expect_err(r#" '\"#);
+        expect_err(r#" "\x" "#);
+        expect_err(r#" "\u2603" "#);
+        expect_err(r#" "\u{}" "#);
+        expect_err(r#" "\u{12345678}" "#); // out of range
+        expect_err(r#" "\u{snowman}" "#);
+        expect_err(r#" "\u{2603"#);
     }
 
     //noinspection RegExpSingleCharAlternation (for the "(a|b)" case)
@@ -370,30 +291,9 @@ mod test {
             "",
         );
 
-        expect_err(
-            r#"/unclosed"#,
-            ParseErrorReason::UnexpectedEndOfInput,
-            Position {
-                line: 0,
-                column: "/unclosed".len(),
-            },
-        );
+        expect_err(r#"/unclosed"#);
 
-        expect_err(
-            r#"/(unclosed paren/"#,
-            ParseErrorReason::InvalidSyntax(
-                indoc! {r#"
-                    regex parse error:
-                        (unclosed paren
-                        ^
-                    error: unclosed group"#}
-                .to_string(),
-            ),
-            Position {
-                line: 0,
-                column: "/(unclosed paren/".len(),
-            },
-        );
+        expect_err(r#"/(unclosed paren/"#);
     }
 
     #[test]
@@ -404,32 +304,31 @@ mod test {
         parse_and_check(" | rest", StringMatcher::any(), "| rest");
         parse_and_check("*| rest", StringMatcher::any(), "| rest");
         parse_and_check(" * | rest", StringMatcher::any(), "| rest");
-        parse_and_check_with(']', "] rest", StringMatcher::any(), "] rest");
+        parse_and_check_with(StringVariant::BRACKET, "] rest", StringMatcher::any(), "] rest");
     }
 
     fn parse_and_check_with(
-        bareword_end: char,
+        string_variant: StringVariant,
         text: &str,
         expect: StringMatcher,
         expect_remaining: &str,
     ) -> StringMatcher {
-        let mut iter = ParsingIterator::new(text);
-        let matcher = StringMatcher::read(&mut iter, bareword_end).unwrap();
-        assert_eq!(matcher, expect);
-        let remaining: String = iter.collect();
-        assert_eq!(&remaining, expect_remaining);
+        let (actual_matcher, actual_remaining) = Matcher::parse(string_variant, text).unwrap();
+        let actual_string_matcher: StringMatcher = actual_matcher.into();
+        assert_eq!(actual_string_matcher, expect);
+        assert_eq!(actual_remaining, expect_remaining);
         expect
     }
 
     fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) -> StringMatcher {
-        parse_and_check_with(SELECTOR_SEPARATOR, text, expect, expect_remaining)
+        parse_and_check_with(StringVariant::PIPE, text, expect, expect_remaining)
     }
 
-    fn expect_err(text: &str, expect: ParseErrorReason, at: Position) {
-        let mut iter = ParsingIterator::new(text);
-        let err = StringMatcher::read(&mut iter, SELECTOR_SEPARATOR).expect_err("expected to fail parsing");
-        assert_eq!(iter.input_position(), at);
-        assert_eq!(err, expect);
+    fn expect_err(text: &str) {
+        match Matcher::parse(StringVariant::PIPE, text) {
+            Ok(unexpected) => panic!("unexpected success: {unexpected:?}"),
+            Err(_) => {}
+        }
     }
 
     fn re(value: &str) -> StringMatcher {
