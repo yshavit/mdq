@@ -179,7 +179,7 @@ mod tests {
     use super::*;
     use crate::query::query::Query;
 
-    mod empty {
+    mod chaining {
         use super::*;
 
         #[test]
@@ -200,6 +200,44 @@ mod tests {
         #[test]
         fn only_multiple_pipes() {
             find_empty_chain("|| |");
+        }
+
+        #[test]
+        fn prefix_chaining() {
+            find_selector("| #", Selector::Section(Matcher::Any))
+        }
+
+        #[test]
+        fn suffix_chaining() {
+            find_selector("# |", Selector::Section(Matcher::Any))
+        }
+
+        #[test]
+        fn useful_chaining() {
+            find_selector(
+                "# | []()",
+                Selector::Chain(vec![
+                    Selector::Section(Matcher::Any),
+                    Selector::Link(LinklikeMatcher {
+                        display_matcher: Matcher::Any,
+                        url_matcher: Matcher::Any,
+                    }),
+                ]),
+            )
+        }
+
+        #[test]
+        fn empty_intermediate_chains() {
+            find_selector(
+                "# || | []()",
+                Selector::Chain(vec![
+                    Selector::Section(Matcher::Any),
+                    Selector::Link(LinklikeMatcher {
+                        display_matcher: Matcher::Any,
+                        url_matcher: Matcher::Any,
+                    }),
+                ]),
+            )
         }
     }
 
@@ -657,9 +695,23 @@ mod tests {
         }
     }
 
-    #[test]
-    fn todo() {
-        todo!("more of these. weird chaining, etc");
+    mod invalid {
+        use super::*;
+        use indoc::indoc;
+
+        #[test]
+        fn just_a_string() {
+            expect_parse_error(
+                "hello",
+                indoc! {r"
+                     --> 1:1
+                      |
+                    1 | hello
+                      | ^---
+                      |
+                      = expected valid query"},
+            )
+        }
     }
 
     fn find_empty_chain(query_text: &str) {
