@@ -1,13 +1,12 @@
 use crate::fmt_md::MdOptions;
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
 use crate::output::{OutputOpts, Stream};
-use crate::select::ParseError;
+use crate::select::{ParseError, SelectorAdapter};
 use crate::tree::{MdDoc, ReadOptions};
 use crate::tree_ref::MdElemRef;
 use crate::tree_ref_serde::SerdeDoc;
 use cli::{Cli, OutputFormat};
 use output::Output;
-use select::MdqRefSelector;
 use std::io;
 use std::io::{stdin, Read, Write};
 
@@ -19,8 +18,6 @@ mod footnote_transform;
 mod link_transform;
 mod matcher;
 mod output;
-mod parse_common;
-mod parsing_iter;
 mod query;
 mod select;
 mod str_utils;
@@ -68,10 +65,10 @@ where
     };
 
     let selectors_str = cli.selector_string();
-    let selectors = match MdqRefSelector::parse(&selectors_str) {
+    let selectors = match SelectorAdapter::parse(&selectors_str) {
         Ok(selectors) => selectors,
         Err(err) => {
-            print_select_parse_error(&selectors_str, err);
+            print_select_parse_error(err);
             return false;
         }
     };
@@ -116,21 +113,7 @@ where
     found_any
 }
 
-fn print_select_parse_error(original_string: &str, err: ParseError) {
+fn print_select_parse_error(err: ParseError) {
     eprintln!("Syntax error in select specifier:");
-    for (line_num, line) in original_string.split('\n').enumerate() {
-        if line_num == err.position.line {
-            eprintln!("┃ {}", line);
-            eprint!("┃ ");
-            // Parsers typically throw errors after chars.next(), which advances the stream such that it's looking at
-            // the char after the failure. So, subtract 1 so that we're pointing at the right one.
-            for _ in 0..(err.position.column - 1) {
-                eprint!(" ");
-            }
-            eprint!("↑ {}", err.reason);
-            eprintln!();
-        } else {
-            eprintln!("⸾ {}", line)
-        }
-    }
+    eprintln!("{}", err.pest_err);
 }

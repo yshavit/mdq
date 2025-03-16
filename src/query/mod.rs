@@ -1,2 +1,2 @@
-mod query;
-mod selectors;
+pub mod query;
+pub mod selectors;

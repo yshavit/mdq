@@ -1,6 +1,6 @@
 use crate::fmt_str::inlines_to_plain_string;
-use crate::parsing_iter::ParsingIterator;
-use crate::select::{ParseErrorReason, ParseResult};
+use crate::query::query::Rule::regex;
+use crate::query::selectors::Matcher;
 use crate::tree::{Inline, MdElem};
 use regex::Regex;
 use std::borrow::Borrow;
@@ -16,11 +16,7 @@ impl PartialEq for StringMatcher {
     }
 }
 
-const ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT: &str = r#"can't have single anchor without text"#;
-
 impl StringMatcher {
-    const BAREWORD_ANCHOR_END: char = '$';
-
     pub fn matches(&self, haystack: &str) -> bool {
         self.re.is_match(haystack)
     }
@@ -59,190 +55,9 @@ impl StringMatcher {
             MdElem::Inline(inline) => self.matches_inlines(&[inline]),
         }
     }
-
-    pub fn read<C>(chars: &mut ParsingIterator, bareword_end: C) -> ParseResult<Self>
-    where
-        C: Into<CharEnd>,
-    {
-        chars.drop_whitespace();
-        let peek_ch = match chars.peek() {
-            None => return Ok(StringMatcher::any()),
-            Some(ch) => ch,
-        };
-
-        let (anchor_start, peek_ch) = if peek_ch == '^' {
-            let _ = chars.next(); // drop the ^ char
-            chars.drop_whitespace();
-            let next_ch = chars.peek().ok_or_else(|| ParseErrorReason::UnexpectedEndOfInput)?;
-            (true, next_ch)
-        } else {
-            (false, peek_ch)
-        };
-
-        if peek_ch.is_alphanumeric() {
-            return Ok(Self::parse_matcher_bare(chars, bareword_end, anchor_start));
-        }
-        let bareword_end = bareword_end.into();
-        match peek_ch {
-            '*' => {
-                let _ = chars.next(); // drop the char we peeked
-                chars.drop_whitespace();
-                Ok(StringMatcher::any())
-            }
-            '/' => {
-                let _ = chars.next();
-                Self::parse_regex_matcher(chars)
-            }
-            ch @ ('\'' | '"') => {
-                let _ = chars.next();
-                Self::parse_matcher_quoted(chars, ch, anchor_start)
-            }
-            '$' => {
-                if anchor_start {
-                    let _ = chars.next();
-                    Ok(StringMatcher::empty())
-                } else {
-                    Err(ParseErrorReason::InvalidSyntax(
-                        ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string(),
-                    ))
-                }
-            }
-            other if bareword_end.test(other) => {
-                // do *not* consume the bareword end delimiter!
-                if anchor_start {
-                    Err(ParseErrorReason::InvalidSyntax(
-                        ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string(),
-                    ))
-                } else {
-                    Ok(StringMatcher::any())
-                }
-            }
-            _ => Err(ParseErrorReason::InvalidSyntax(
-                "invalid string specifier (must be quoted or a bareword that starts with a letter)".to_string(),
-            )),
-        }
-    }
-
-    fn parse_matcher_bare<C>(chars: &mut ParsingIterator, bareword_end: C, anchor_start: bool) -> Self
-    where
-        C: Into<CharEnd>,
-    {
-        let mut result = String::with_capacity(20); // just a guess
-        let mut dropped = String::with_capacity(8); // also a guess
-
-        let bareword_end = bareword_end.into();
-        let anchor_end = loop {
-            let ch = match bareword_end {
-                CharEnd::AtChar(_) => {
-                    // Drop whitespace, but keep a record of it. If we see a char within this bareword
-                    // (ie not end-of-input or the bareword_end), then we'll append that whitespace back at the end
-                    // of this iteration.
-                    chars.drop_to_while(&mut dropped, |ch| ch.is_whitespace());
-                    chars.peek()
-                }
-                CharEnd::AtWhitespace => match chars.peek() {
-                    None => None,
-                    Some(ch) if ch.is_whitespace() => None,
-                    ch @ Some(_) => ch,
-                },
-            };
-            let Some(ch) = ch else {
-                break false;
-            };
-
-            if ch == Self::BAREWORD_ANCHOR_END {
-                let _ = chars.next();
-                break true;
-            }
-            if bareword_end.test(ch) {
-                break false;
-            }
-            let _ = chars.next();
-            result.push_str(&dropped);
-            result.push(ch);
-        };
-
-        SubstringToRegex {
-            look_for: result,
-            case_sensitive: false,
-            anchor_start,
-            anchor_end,
-        }
-        .to_string_matcher()
-    }
-
-    fn parse_matcher_quoted(chars: &mut ParsingIterator, ending_char: char, anchor_start: bool) -> ParseResult<Self> {
-        let mut result = String::with_capacity(20); // just a guess
-        loop {
-            match chars.next().ok_or_else(|| ParseErrorReason::Expected(ending_char))? {
-                '\\' => {
-                    let escaped = match chars.next().ok_or_else(|| ParseErrorReason::UnexpectedEndOfInput)? {
-                        escaped @ ('\'' | '"' | '\\') => escaped,
-                        'n' => '\n',
-                        'r' => '\r',
-                        't' => '\t',
-                        '`' => '\'',
-                        'u' => {
-                            chars.require_char('{')?;
-                            let mut hex_str = String::with_capacity(6);
-                            loop {
-                                match chars.next().ok_or_else(|| ParseErrorReason::Expected('}'))? {
-                                    '}' => break,
-                                    ch if ch.is_ascii_hexdigit() => {
-                                        hex_str.push(ch);
-                                        if hex_str.len() > 6 {
-                                            return Err(ParseErrorReason::Expected('}'));
-                                        }
-                                    }
-                                    _ => return Err(ParseErrorReason::InvalidEscape),
-                                }
-                            }
-                            let as_int =
-                                u32::from_str_radix(&hex_str, 16).map_err(|_| ParseErrorReason::InvalidEscape)?;
-                            char::from_u32(as_int).ok_or_else(|| ParseErrorReason::InvalidEscape)?
-                        }
-                        _ => return Err(ParseErrorReason::InvalidEscape),
-                    };
-                    result.push(escaped);
-                }
-                ch if ch == ending_char => break,
-                ch => result.push(ch),
-            }
-        }
-        chars.drop_whitespace();
-        let anchor_end = chars.consume_if(Self::BAREWORD_ANCHOR_END);
-        Ok(SubstringToRegex {
-            look_for: result,
-            case_sensitive: true,
-            anchor_start,
-            anchor_end,
-        }
-        .to_string_matcher())
-    }
-
-    fn parse_regex_matcher(chars: &mut ParsingIterator) -> ParseResult<StringMatcher> {
-        let mut result = String::with_capacity(20); // just a guess
-
-        loop {
-            match chars.next() {
-                None => return Err(ParseErrorReason::UnexpectedEndOfInput),
-                Some('\\') => match chars.next() {
-                    None => return Err(ParseErrorReason::UnexpectedEndOfInput),
-                    Some('/') => result.push('/'),
-                    Some(escaped) => {
-                        result.push('\\');
-                        result.push(escaped);
-                    }
-                },
-                Some('/') => break,
-                Some(ch) => result.push(ch),
-            }
-        }
-
-        match Regex::new(&result) {
-            Ok(re) => Ok(StringMatcher::regex(re)),
-            Err(err) => Err(ParseErrorReason::InvalidSyntax(err.to_string())),
-        }
+    
+    pub fn for_string(s: Matcher) -> Self {
+        todo!() use SubstringToRegex
     }
 
     pub fn any() -> Self {
@@ -262,22 +77,12 @@ impl StringMatcher {
     }
 }
 
-pub enum CharEnd {
-    AtChar(char),
-    AtWhitespace,
-}
-
-impl From<char> for CharEnd {
-    fn from(ch: char) -> Self {
-        Self::AtChar(ch)
-    }
-}
-
-impl CharEnd {
-    fn test(&self, test_ch: char) -> bool {
-        match self {
-            CharEnd::AtChar(look_for) => look_for == &test_ch,
-            CharEnd::AtWhitespace => test_ch.is_whitespace(),
+impl From<Matcher> for StringMatcher {
+    fn from(value: Matcher) -> Self {
+        match value {
+            Matcher::Text(start_anchor, text, end_anchor) => todo!(),
+            Matcher::Regex(re) => todo!(),
+            Matcher::Any => todo!(),
         }
     }
 }
@@ -312,8 +117,6 @@ impl SubstringToRegex {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::parse_common::Position;
-    use crate::select::SELECTOR_SEPARATOR;
     use indoc::indoc;
     use std::str::FromStr;
 

@@ -5,8 +5,8 @@ use crate::query::query::{
 use pest::iterators::{Pair, Pairs};
 
 #[derive(Eq, PartialEq, Debug)]
-pub enum Matcher {
-    Text(bool, String, bool),
+pub enum Matcher { // TODO this really belongs in query.rs
+    Text(bool, String, bool), // TODO move to { .. } form
     Regex(String),
     Any,
 }
@@ -20,6 +20,7 @@ impl Matcher {
         } else if parsed_string.is_equivalent_to_asterisk() {
             Matcher::Any
         } else {
+            todo need case-sensitivity
             Matcher::Text(parsed_string.anchor_start, parsed_string.text, parsed_string.anchor_end)
         })
     }
@@ -59,8 +60,12 @@ pub struct TableMatcher {
 }
 
 #[derive(Eq, PartialEq, Debug)]
+pub struct SelectorChain {
+    pub selectors: Vec<Selector>,
+}
+
+#[derive(Eq, PartialEq, Debug)]
 pub enum Selector {
-    Chain(Vec<Selector>),
     Section(Matcher),
     ListItem(ListItemMatcher),
     Link(LinklikeMatcher),
@@ -73,23 +78,19 @@ pub enum Selector {
 }
 
 impl Selector {
-    pub fn from_top_pairs(root: Pairs<Rule>) -> Result<Self, String> {
+    pub fn from_top_pairs(root: Pairs<Rule>) -> Result<Vec<Self>, String> {
         let selector_chains = ByRule::new(Rule::selector_chain).find_all_in(root);
-        let mut all_selectors = Vec::new();
+        let mut all_selectors: Vec<Self> = Vec::new();
         for chain in selector_chains {
             let selector_inners = ByRule::new(Rule::selector).find_all_in(chain.into_inner());
             for selector_pair in selector_inners {
                 for specific_selector_pair in selector_pair.into_inner() {
-                    let selector = Self::find_selectors(specific_selector_pair)?;
-                    all_selectors.push(selector);
+                    let s = Self::find_selectors(specific_selector_pair)?;
+                    all_selectors.push(s);
                 }
             }
         }
-        Ok(if all_selectors.len() == 1 {
-            all_selectors.pop().unwrap()
-        } else {
-            Self::Chain(all_selectors)
-        })
+        Ok(all_selectors)
     }
 
     fn find_selectors(root: Pair<Rule>) -> Result<Self, String> {
@@ -214,30 +215,30 @@ mod tests {
 
         #[test]
         fn useful_chaining() {
-            find_selector(
+            find_selectors(
                 "# | []()",
-                Selector::Chain(vec![
+                vec![
                     Selector::Section(Matcher::Any),
                     Selector::Link(LinklikeMatcher {
                         display_matcher: Matcher::Any,
                         url_matcher: Matcher::Any,
                     }),
-                ]),
-            )
+                ],
+            );
         }
 
         #[test]
         fn empty_intermediate_chains() {
-            find_selector(
+            find_selectors(
                 "# || | []()",
-                Selector::Chain(vec![
+                vec![
                     Selector::Section(Matcher::Any),
                     Selector::Link(LinklikeMatcher {
                         display_matcher: Matcher::Any,
                         url_matcher: Matcher::Any,
                     }),
-                ]),
-            )
+                ],
+            );
         }
     }
 
@@ -715,10 +716,14 @@ mod tests {
     }
 
     fn find_empty_chain(query_text: &str) {
-        find_selector(query_text, Selector::Chain(vec![]));
+        find_selectors(query_text, vec![]);
     }
 
     fn find_selector(query_text: &str, expect: Selector) {
+        find_selectors(query_text, vec![expect])
+    }
+
+    fn find_selectors(query_text: &str, expect: Vec<Selector>) {
         let pairs = Query::parse(query_text);
         let pairs = match pairs {
             Ok(pairs) => pairs,

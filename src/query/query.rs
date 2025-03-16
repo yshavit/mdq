@@ -329,34 +329,50 @@ pub struct ParsedString {
     pub text: String,
     pub anchor_start: bool,
     pub anchor_end: bool,
-    pub is_regex: bool,
+    pub mode: ParsedStringMode,
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub enum ParsedStringMode {
+    CaseSensitive,
+    CaseInsensitive,
+    Regex,
 }
 
 impl ParsedString {
     // Whether this instance is compatible with an `*` literal
     pub fn is_equivalent_to_asterisk(&self) -> bool {
-        (!self.is_regex) && (!self.anchor_start) && (!self.anchor_end) && self.text.is_empty()
+        !matches!(self.mode, ParsedStringMode::Regex)
+            && (!self.anchor_start)
+            && (!self.anchor_end)
+            && self.text.is_empty()
     }
 }
 
 impl Debug for ParsedString {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.is_regex {
-            f.write_char('/')?;
-            let escaped = if self.text.contains("/") {
-                Cow::Owned(self.text.replace("/", "//"))
-            } else {
-                Cow::Borrowed(&self.text)
-            };
-            f.write_str(&escaped)?;
-            f.write_char('/')?;
-        } else {
-            if self.anchor_start {
-                f.write_char('^')?;
+        match self.mode {
+            ParsedStringMode::Regex => {
+                f.write_char('/')?;
+                let escaped = if self.text.contains("/") {
+                    Cow::Owned(self.text.replace("/", "//"))
+                } else {
+                    Cow::Borrowed(&self.text)
+                };
+                f.write_str(&escaped)?;
+                f.write_char('/')?;
             }
-            write!(f, "{:?}", self.text)?;
-            if self.anchor_end {
-                f.write_char('$')?;
+            ParsedStringMode::CaseSensitive | ParsedStringMode::CaseInsensitive => {
+                if self.anchor_start {
+                    f.write_char('^')?;
+                }
+                if matches!(self.mode, ParsedStringMode::CaseInsensitive) {
+                    f.write_str("(i)")?;
+                }
+                write!(f, "{:?}", self.text)?;
+                if self.anchor_end {
+                    f.write_char('$')?;
+                }
             }
         }
         Ok(())
@@ -371,7 +387,7 @@ impl TryFrom<Pairs<'_, Rule>> for ParsedString {
             text: String::with_capacity(pairs.as_str().len()),
             anchor_start: false,
             anchor_end: false,
-            is_regex: false,
+            mode: ParsedStringMode::CaseSensitive,
         };
 
         fn build_string(me: &mut ParsedString, pairs: Pairs<Rule>) -> Result<(), String> {
@@ -417,10 +433,11 @@ impl TryFrom<Pairs<'_, Rule>> for ParsedString {
                     | Rule::unquoted_string_to_bracket
                     | Rule::unquoted_string_to_space
                     | Rule::unquoted_string_to_colon => {
+                        me.mode = ParsedStringMode::CaseInsensitive;
                         me.text.push_str(pair.as_str().trim_end());
                     }
                     Rule::regex => {
-                        me.is_regex = true;
+                        me.mode = ParsedStringMode::Regex;
                         build_string(me, pair.into_inner())?;
                     }
                     Rule::regex_normal_char => {
@@ -450,13 +467,14 @@ mod tests {
 
     mod strings {
         use super::*;
+        use crate::query::query::tests::CaseMode::*;
 
         #[test]
         fn single_quoted_string() {
             check_parse(
                 Rule::string_to_pipe,
                 "'hello'\"X",
-                parsed_text(false, "hello", false),
+                parsed_text(CaseSensitive, false, "hello", false),
                 "\"X",
             );
         }
@@ -466,7 +484,7 @@ mod tests {
             check_parse(
                 Rule::string_to_pipe,
                 "\"hello\"'X",
-                parsed_text(false, "hello", false),
+                parsed_text(CaseSensitive, false, "hello", false),
                 "'X",
             );
         }
@@ -476,7 +494,7 @@ mod tests {
             check_parse(
                 Rule::string_to_pipe,
                 r"'hello\nworld'",
-                parsed_text(false, "hello\nworld", false),
+                parsed_text(CaseSensitive, false, "hello\nworld", false),
                 "",
             );
         }
@@ -486,7 +504,7 @@ mod tests {
             check_parse(
                 Rule::string_to_pipe,
                 r"'hello\u{2603}world'",
-                parsed_text(false, "hello☃world", false),
+                parsed_text(CaseSensitive, false, "hello☃world", false),
                 "",
             );
         }
@@ -496,7 +514,7 @@ mod tests {
             check_parse(
                 Rule::string_to_pipe,
                 r"hello'\n | world | multiple | pipes",
-                parsed_text(false, r"hello'\n", false),
+                parsed_text(CaseInsensitive, false, r"hello'\n", false),
                 "| world | multiple | pipes",
             );
         }
@@ -650,12 +668,21 @@ mod tests {
         assert_eq!(&input[consumed.len()..], remaining);
     }
 
-    fn parsed_text(anchor_start: bool, text: &str, anchor_end: bool) -> ParsedString {
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+    enum CaseMode {
+        CaseSensitive,
+        CaseInsensitive,
+    }
+
+    fn parsed_text(case: CaseMode, anchor_start: bool, text: &str, anchor_end: bool) -> ParsedString {
         ParsedString {
             anchor_start,
             text: text.to_string(),
             anchor_end,
-            is_regex: false,
+            mode: match case {
+                CaseMode::CaseSensitive => ParsedStringMode::CaseSensitive,
+                CaseMode::CaseInsensitive => ParsedStringMode::CaseInsensitive,
+            },
         }
     }
 
@@ -664,7 +691,7 @@ mod tests {
             anchor_start: false,
             text: text.to_string(),
             anchor_end: false,
-            is_regex: true,
+            mode: ParsedStringMode::Regex,
         }
     }
 }
