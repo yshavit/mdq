@@ -524,7 +524,7 @@ mod tests {
             check_parse(
                 Rule::string_to_pipe,
                 r"hello world   ",
-                parsed_text(false, r"hello world", false),
+                parsed_text(CaseInsensitive, false, r"hello world", false),
                 "",
             );
         }
@@ -534,7 +534,7 @@ mod tests {
             check_parse(
                 Rule::string_to_paren,
                 r"hello'\n ) world ) multiple ) parens",
-                parsed_text(false, r"hello'\n", false),
+                parsed_text(CaseInsensitive, false, r"hello'\n", false),
                 ") world ) multiple ) parens",
             );
         }
@@ -544,7 +544,7 @@ mod tests {
             check_parse(
                 Rule::string_to_paren,
                 r"hello world   ",
-                parsed_text(false, r"hello world", false),
+                parsed_text(CaseInsensitive, false, r"hello world", false),
                 "",
             );
         }
@@ -554,7 +554,7 @@ mod tests {
             check_parse(
                 Rule::string_to_bracket,
                 r"hello'\n ] world ] multiple ] brackets",
-                parsed_text(false, r"hello'\n", false),
+                parsed_text(CaseInsensitive, false, r"hello'\n", false),
                 "] world ] multiple ] brackets",
             );
         }
@@ -564,7 +564,7 @@ mod tests {
             check_parse(
                 Rule::string_to_bracket,
                 r"hello world   ",
-                parsed_text(false, r"hello world", false),
+                parsed_text(CaseInsensitive, false, r"hello world", false),
                 "",
             );
         }
@@ -574,25 +574,40 @@ mod tests {
             check_parse(
                 Rule::string_to_colon,
                 r"hello :-: there",
-                parsed_text(false, r"hello", false),
+                parsed_text(CaseInsensitive, false, r"hello", false),
                 ":-: there",
             );
         }
 
         #[test]
         fn unquoted_no_end_colon() {
-            check_parse(Rule::string_to_colon, r"hello", parsed_text(false, r"hello", false), "");
+            check_parse(
+                Rule::string_to_colon,
+                r"hello",
+                parsed_text(CaseInsensitive, false, r"hello", false),
+                "",
+            );
         }
 
         #[test]
         fn unquoted_string_to_pipe_unicode() {
-            check_parse(Rule::string_to_pipe, r"ἀλφα", parsed_text(false, r"ἀλφα", false), "");
+            check_parse(
+                Rule::string_to_pipe,
+                r"ἀλφα",
+                parsed_text(CaseInsensitive, false, r"ἀλφα", false),
+                "",
+            );
         }
 
         #[test]
         fn asterisk() {
-            check_parse(Rule::string_to_pipe, r"*", parsed_text(false, r"", false), "");
-            assert!(parsed_text(false, r"", false).is_equivalent_to_asterisk());
+            check_parse(
+                Rule::string_to_pipe,
+                r"*",
+                parsed_text(CaseInsensitive, false, r"", false),
+                "",
+            );
+            assert!(parsed_text(CaseInsensitive, false, r"", false).is_equivalent_to_asterisk());
         }
 
         #[test]
@@ -600,7 +615,7 @@ mod tests {
             check_parse(
                 Rule::string_to_pipe,
                 "^\"hello\"$",
-                parsed_text(true, "hello", true),
+                parsed_text(CaseSensitive, true, "hello", true),
                 "",
             );
         }
@@ -610,7 +625,7 @@ mod tests {
             check_parse(
                 Rule::string_to_pipe,
                 "^ 'hello' $",
-                parsed_text(true, "hello", true),
+                parsed_text(CaseSensitive, true, "hello", true),
                 "",
             );
         }
@@ -620,7 +635,7 @@ mod tests {
             check_parse(
                 Rule::string_to_pipe,
                 "^ hello $ there",
-                parsed_text(true, "hello", true),
+                parsed_text(CaseInsensitive, true, "hello", true),
                 " there",
             );
         }
@@ -630,7 +645,7 @@ mod tests {
             check_parse(
                 Rule::string_to_pipe,
                 "^hello$ there",
-                parsed_text(true, "hello", true),
+                parsed_text(CaseInsensitive, true, "hello", true),
                 " there",
             );
         }

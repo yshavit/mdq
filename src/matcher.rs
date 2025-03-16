@@ -1,5 +1,4 @@
 use crate::fmt_str::inlines_to_plain_string;
-use crate::query::query::Rule::regex;
 use crate::query::selectors::Matcher;
 use crate::tree::{Inline, MdElem};
 use regex::Regex;
@@ -55,10 +54,6 @@ impl StringMatcher {
             MdElem::Inline(inline) => self.matches_inlines(&[inline]),
         }
     }
-    
-    pub fn for_string(s: Matcher) -> Self {
-        todo!() use SubstringToRegex
-    }
 
     pub fn any() -> Self {
         Self {
@@ -80,9 +75,20 @@ impl StringMatcher {
 impl From<Matcher> for StringMatcher {
     fn from(value: Matcher) -> Self {
         match value {
-            Matcher::Text(start_anchor, text, end_anchor) => todo!(),
-            Matcher::Regex(re) => todo!(),
-            Matcher::Any => todo!(),
+            Matcher::Text {
+                case_sensitive,
+                anchor_start,
+                text,
+                anchor_end,
+            } => SubstringToRegex {
+                look_for: text,
+                case_sensitive,
+                anchor_start,
+                anchor_end,
+            }
+            .to_string_matcher(),
+            Matcher::Regex(re) => Self::regex(re),
+            Matcher::Any => Self::any(),
         }
     }
 }

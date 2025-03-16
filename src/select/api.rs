@@ -207,7 +207,7 @@ mod test {
     /// Only a smoke test, because the code is pretty straightforward, and I don't feel like writing more. :-)
     mod find_children_smoke {
         use crate::mdq_inline;
-        use crate::select::api::{MdqRefSelector, SearchContext};
+        use crate::select::api::{SearchContext, SelectorAdapter};
         use crate::tree::{Inline, Link, LinkDefinition, LinkReference, MdContext, Text, TextVariant};
         use crate::tree_ref::MdElemRef;
 
@@ -227,7 +227,7 @@ mod test {
                 md_context: &md_context,
                 seen_footnotes: Default::default(),
             };
-            let children = MdqRefSelector::find_children(&mut ctx, node_ref);
+            let children = SelectorAdapter::find_children(&mut ctx, node_ref);
             assert_eq!(
                 children,
                 vec![MdElemRef::Inline(&Inline::Text(Text {
@@ -256,7 +256,7 @@ mod test {
                 md_context: &md_context,
                 seen_footnotes: Default::default(),
             };
-            let children = MdqRefSelector::find_children(&mut ctx, node_ref);
+            let children = SelectorAdapter::find_children(&mut ctx, node_ref);
             assert_eq!(children, vec![MdElemRef::Link(&mk_link())]);
         }
     }

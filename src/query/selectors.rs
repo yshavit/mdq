@@ -1,28 +1,72 @@
 use crate::query::query::{
     BlockQuoteTraverser, ByRule, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, PairMatcher,
-    ParagraphTraverser, ParsedString, Rule, SectionResults, SectionTraverser, TableTraverser,
+    ParagraphTraverser, ParsedString, ParsedStringMode, Rule, SectionResults, SectionTraverser, TableTraverser,
 };
 use pest::iterators::{Pair, Pairs};
+use regex::Regex;
 
-#[derive(Eq, PartialEq, Debug)]
-pub enum Matcher { // TODO this really belongs in query.rs
-    Text(bool, String, bool), // TODO move to { .. } form
-    Regex(String),
+#[derive(Debug)]
+pub enum Matcher {
+    // TODO this really belongs in query.rs
+    Text {
+        case_sensitive: bool,
+        anchor_start: bool,
+        text: String,
+        anchor_end: bool,
+    },
+    Regex(Regex),
     Any,
 }
+
+impl PartialEq for Matcher {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Text {
+                    case_sensitive: s1,
+                    anchor_start: a1,
+                    text: t1,
+                    anchor_end: e1,
+                },
+                Self::Text {
+                    case_sensitive: s2,
+                    anchor_start: a2,
+                    text: t2,
+                    anchor_end: e2,
+                },
+            ) => s1 == s2 && a1 == a2 && e1 == e2 && t1 == t2,
+            (Self::Regex(r1), Self::Regex(r2)) => r1.as_str() == r2.as_str(),
+            (Self::Any, Self::Any) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Matcher {}
 
 impl Matcher {
     fn take_from_option(pair: Option<Pair<Rule>>) -> Result<Matcher, String> {
         let Some(pair) = pair else { return Ok(Matcher::Any) };
         let parsed_string: ParsedString = pair.into_inner().try_into()?;
-        Ok(if parsed_string.is_regex {
-            Matcher::Regex(parsed_string.text)
-        } else if parsed_string.is_equivalent_to_asterisk() {
-            Matcher::Any
-        } else {
-            todo need case-sensitivity
-            Matcher::Text(parsed_string.anchor_start, parsed_string.text, parsed_string.anchor_end)
-        })
+        let matcher = match parsed_string.mode {
+            ParsedStringMode::CaseSensitive => Matcher::Text {
+                case_sensitive: true,
+                anchor_start: parsed_string.anchor_start,
+                text: parsed_string.text,
+                anchor_end: parsed_string.anchor_end,
+            },
+            ParsedStringMode::CaseInsensitive => Matcher::Text {
+                case_sensitive: false,
+                anchor_start: parsed_string.anchor_start,
+                text: parsed_string.text,
+                anchor_end: parsed_string.anchor_end,
+            },
+            ParsedStringMode::Regex => {
+                let re = Regex::new(&parsed_string.text).map_err(|e| e.to_string())?;
+                Matcher::Regex(re)
+            }
+        };
+        Ok(matcher)
     }
 }
 
@@ -593,7 +637,10 @@ mod tests {
 
         #[test]
         fn html_with_regex() {
-            find_selector("</> /<div.*>/", Selector::Html(Matcher::Regex("<div.*>".to_string())))
+            find_selector(
+                "</> /<div.*>/",
+                Selector::Html(Matcher::Regex(Regex::new("<div.*>").unwrap())),
+            )
         }
     }
 
@@ -748,6 +795,11 @@ mod tests {
     }
 
     fn matcher_text(anchor_start: bool, text: &str, anchor_end: bool) -> Matcher {
-        Matcher::Text(anchor_start, text.to_string(), anchor_end)
+        Matcher::Text {
+            case_sensitive: false,
+            anchor_start,
+            text: text.to_string(),
+            anchor_end,
+        }
     }
 }
