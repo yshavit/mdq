@@ -255,7 +255,7 @@ mod tests {
                     1 | -hello
                       |  ^---
                       |
-                      = expected space"#},
+                      = expected end of input or space"#},
             );
         }
 
@@ -526,6 +526,7 @@ mod tests {
 
     mod html {
         use super::*;
+        use indoc::indoc;
 
         #[test]
         fn html_no_matcher() {
@@ -534,7 +535,21 @@ mod tests {
 
         #[test]
         fn html_with_text() {
-            find_selector("</> <div>", Selector::Html(matcher_text(false, "<div>", false)))
+            find_selector("</> '<div>'", Selector::Html(matcher_text(false, "<div>", false)))
+        }
+
+        #[test]
+        fn html_with_unquoted_text() {
+            expect_parse_error(
+                "</> <div>",
+                indoc! {r#"
+                     --> 1:5
+                      |
+                    1 | </> <div>
+                      |     ^---
+                      |
+                      = expected end of input or string"#},
+            );
         }
 
         #[test]

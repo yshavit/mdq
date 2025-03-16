@@ -15,7 +15,7 @@ selector = {
   | select_table
 }
 
-selector_delim = @{ EOI | explicit_space }
+selector_delim = _{ explicit_space | EOI }
 explicit_space = !{ " " }
 
 select_section =  { section_start ~ #title = string_to_pipe? }
@@ -41,7 +41,7 @@ select_code_block =  { code_block_start ~ #text = string_to_pipe? }
 code_block_start  = ${ "```" ~ #language = string_to_space? ~ selector_delim }
 
 select_html =  { html_start ~ #text = string_to_pipe? }
-html_start  = @{ "</>" ~ selector_chain }
+html_start  = @{ "</>" ~ selector_delim }
 
 select_paragraph       =  { select_paragraph_start ~ #text = string_to_pipe? }
 select_paragraph_start = @{ "P:" ~ selector_delim }
