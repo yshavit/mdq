@@ -277,6 +277,13 @@ pub struct ParsedString {
     pub is_regex: bool,
 }
 
+impl ParsedString {
+    // Whether this instance is compatible with an `*` literal
+    pub fn is_equivalent_to_asterisk(&self) -> bool {
+        (!self.is_regex) && (!self.anchor_start) && (!self.anchor_end) && self.text.is_empty()
+    }
+}
+
 impl Debug for ParsedString {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.is_regex {
@@ -487,6 +494,32 @@ mod tests {
                 parsed_text(false, r"hello world", false),
                 "",
             );
+        }
+
+        #[test]
+        fn unquoted_string_to_colon() {
+            check_parse(
+                Rule::string_to_colon,
+                r"hello :-: there",
+                parsed_text(false, r"hello", false),
+                ":-: there",
+            );
+        }
+
+        #[test]
+        fn unquoted_no_end_colon() {
+            check_parse(Rule::string_to_colon, r"hello", parsed_text(false, r"hello", false), "");
+        }
+
+        #[test]
+        fn unquoted_string_to_pipe_unicode() {
+            check_parse(Rule::string_to_pipe, r"ἀλφα", parsed_text(false, r"ἀλφα", false), "");
+        }
+
+        #[test]
+        fn asterisk() {
+            check_parse(Rule::string_to_pipe, r"*", parsed_text(false, r"", false), "");
+            assert!(parsed_text(false, r"", false).is_equivalent_to_asterisk());
         }
 
         #[test]

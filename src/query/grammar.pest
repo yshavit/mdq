@@ -1,50 +1,50 @@
-WHITESPACE = { " " | "\t" | "\r" | "\n" }
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 
 top = { SOI ~ "|"* ~ selector_chain? ~ EOI }
 
 selector_chain = { selector ~ ("|"+ ~ selector?)* }
 
 selector = {
-      select_section
-    | select_list_item
-    | select_link
-    | select_block_quote
-    | select_code_block
-    | select_html
-    | select_paragraph
-    | select_table
+    select_section
+  | select_list_item
+  | select_link
+  | select_block_quote
+  | select_code_block
+  | select_html
+  | select_paragraph
+  | select_table
 }
 
-selector_delim = @{" " | EOI}
+selector_delim = @{ " " | EOI }
 
-select_section = { section_start ~ #title=string_to_pipe? }
-section_start = @{ "#" ~ selector_delim }
+select_section =  { section_start ~ #title = string_to_pipe? }
+section_start  = @{ "#" ~ selector_delim }
 
-select_list_item = { list_start ~ list_task_options? ~ #contents=string_to_pipe? }
-list_start = ${ (list_ordered | "-") ~ selector_delim}
-list_ordered = ${ "1." }
-list_task_options = ${ "[" ~ (task_checked | task_unchecked | task_either ) ~ "]" }
-task_checked = ${ "x" }
-task_unchecked = ${ " " }
-task_either = ${ "?" }
+select_list_item  =  { list_start ~ list_task_options? ~ #contents = string_to_pipe? }
+list_start        = ${ (list_ordered | "-") ~ selector_delim }
+list_ordered      = ${ "1." }
+list_task_options = ${ "[" ~ (task_checked | task_unchecked | task_either) ~ "]" }
+task_checked      = ${ "x" }
+task_unchecked    = ${ " " }
+task_either       = ${ "?" }
 
-select_link = { link_start ~ string_to_bracket? ~ "](" ~ string_to_paren? ~ ")"}
-link_start = ${ image_start? ~ "[" }
+select_link =  { link_start ~ #display_text = string_to_bracket? ~ "](" ~ #url_text = string_to_paren? ~ ")" }
+link_start  = ${ image_start? ~ "[" }
 image_start = @{ "!" }
 
-select_block_quote = { select_block_quote_start ~ string_to_pipe? }
-select_block_quote_start = @{">" ~ selector_delim}
+select_block_quote       =  { select_block_quote_start ~ #text = string_to_pipe? }
+select_block_quote_start = @{ ">" ~ selector_delim }
 
-select_code_block = { code_block_start ~ string_to_pipe? }
-code_block_start = ${"```" ~ string_to_space? ~ selector_delim }
+select_code_block =  { code_block_start ~ #text = string_to_pipe? }
+code_block_start  = ${ "```" ~ #language = string_to_space? ~ selector_delim }
 
-select_html = { "</> " ~ string_to_pipe? }
-select_html_start = @{"</>" ~ selector_delim}
+select_html =  { html_start ~ #text = string_to_pipe? }
+html_start  = @{ "</>" ~ selector_chain }
 
-select_paragraph = { select_paragraph_start ~ string_to_pipe? }
+select_paragraph       =  { select_paragraph_start ~ #text = string_to_pipe? }
 select_paragraph_start = @{ "P:" ~ selector_delim }
 
-select_table = { ":-: " ~ string_to_colon ~ ":-: " ~ string_to_pipe? }
+select_table = { ":-: " ~ #column = string_to_colon? ~ ":-: " ~ #row = string_to_pipe? }
 
 // What I'd really want is to push a literal for the closing delimiter, and then do (!("|" | PEEK) in unquoted_string.
 // But that's not possible (see GH pest-parser/pest#880), so this is the next best.
@@ -54,38 +54,38 @@ select_table = { ":-: " ~ string_to_colon ~ ":-: " ~ string_to_pipe? }
 // 2) Into<RuleTree> for Pair matchers!
 // TODO update this note to mention the correct classes ^
 
-string_to_pipe = { (anchor_start? ~ (quoted_string | unquoted_string_to_pipe) ~ anchor_end?) | regex | "*" }
-string_to_paren = { (anchor_start? ~ (quoted_string | unquoted_string_to_paren) ~ anchor_end?) | regex | "*" }
+string_to_pipe    = { (anchor_start? ~ (quoted_string | unquoted_string_to_pipe) ~ anchor_end?) | regex | "*" }
+string_to_paren   = { (anchor_start? ~ (quoted_string | unquoted_string_to_paren) ~ anchor_end?) | regex | "*" }
 string_to_bracket = { (anchor_start? ~ (quoted_string | unquoted_string_to_bracket) ~ anchor_end?) | regex | "*" }
-string_to_space = { (anchor_start? ~ (quoted_string | unquoted_string_to_space) ~ anchor_end?) | regex | "*" }
-string_to_colon = { (anchor_start? ~ (quoted_string | unquoted_string_to_colon) ~ anchor_end?) | regex | "*" }
+string_to_space   = { (anchor_start? ~ (quoted_string | unquoted_string_to_space) ~ anchor_end?) | regex | "*" }
+string_to_colon   = { (anchor_start? ~ (quoted_string | unquoted_string_to_colon) ~ anchor_end?) | regex | "*" }
 
-unquoted_string_to_pipe = @{ASCII_ALPHA ~ (!("|" | "$") ~ ANY)*  }
-unquoted_string_to_paren = @{ASCII_ALPHA ~ (!("|" | ")") ~ ANY)*  }
-unquoted_string_to_bracket = @{ASCII_ALPHA ~ (!("|" | "]") ~ ANY)*  }
-unquoted_string_to_space = @{ASCII_ALPHA ~ (!("|" | " ") ~ ANY)*  }
-unquoted_string_to_colon = @{ASCII_ALPHA ~ (!("|" | ":") ~ ANY)*  }
+unquoted_string_to_pipe    = @{ LETTER ~ (!("|" | "$") ~ ANY)* }
+unquoted_string_to_paren   = @{ LETTER ~ (!(")" | "$") ~ ANY)* }
+unquoted_string_to_bracket = @{ LETTER ~ (!("]" | "$") ~ ANY)* }
+unquoted_string_to_space   = @{ LETTER ~ (!(" " | "$") ~ ANY)* }
+unquoted_string_to_colon   = @{ LETTER ~ (!(":" | "$") ~ ANY)* }
 
-regex = ${"/" ~ regex_char* ~ "/"}
-regex_char = ${
-  (regex_escaped_slash | regex_normal_char)
+regex               = ${ "/" ~ regex_char* ~ "/" }
+regex_char          = ${
+    (regex_escaped_slash | regex_normal_char)
 }
 regex_escaped_slash = @{ "\\/" }
-regex_normal_char = @{ !("/") ~ ANY }
+regex_normal_char   = @{ !("/") ~ ANY }
 
 quoted_string = ${ PUSH("'" | "\"") ~ quoted_char* ~ POP }
 
 quoted_char = ${
- quoted_plain_chars
- | ("\\" ~ (escaped_char | "u{" ~ unicode_seq ~ "}"))
+    quoted_plain_chars
+  | ("\\" ~ (escaped_char | "u{" ~ unicode_seq ~ "}"))
 }
 
 anchor_start = @{ "^" }
 
 anchor_end = @{ "$" }
 
-quoted_plain_chars = @{ (!( PEEK | "\\") ~ ANY)+ }
+quoted_plain_chars = @{ (!(PEEK | "\\") ~ ANY)+ }
 
-escaped_char = @{("\"" | "'" | "`" | "\\" | "n" | "r" | "t"  )}
+escaped_char = @{ ("\"" | "'" | "`" | "\\" | "n" | "r" | "t") }
 
-unicode_seq = @{ ASCII_HEX_DIGIT{1,6} }
+unicode_seq = @{ ASCII_HEX_DIGIT{1, 6} }

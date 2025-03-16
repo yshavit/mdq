@@ -1,5 +1,6 @@
 use crate::query::query::{
-    ByRule, ListItemTraverser, PairMatcher, ParsedString, QueryPairs, Rule, SectionResults, SectionTraverser,
+    BlockQuoteTraverser, ByRule, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, PairMatcher,
+    ParagraphTraverser, ParsedString, QueryPairs, Rule, SectionResults, SectionTraverser, TableTraverser,
 };
 use pest::iterators::{Pair, Pairs};
 
@@ -16,6 +17,8 @@ impl Matcher {
         let parsed_string: ParsedString = pair.into_inner().try_into()?;
         Ok(if parsed_string.is_regex {
             Matcher::Regex(parsed_string.text)
+        } else if parsed_string.is_equivalent_to_asterisk() {
+            Matcher::Any
         } else {
             Matcher::Text(parsed_string.anchor_start, parsed_string.text, parsed_string.anchor_end)
         })
@@ -118,7 +121,10 @@ impl Selector {
                 let res = LinkTraverser::traverse(children);
                 let display_matcher = Matcher::take_from_option(res.display_text.take()?)?;
                 let url_matcher = Matcher::take_from_option(res.url_text.take()?)?;
-                let link_matcher = LinklikeMatcher { display_matcher, url_matcher };
+                let link_matcher = LinklikeMatcher {
+                    display_matcher,
+                    url_matcher,
+                };
                 if res.image_start.is_present() {
                     Ok(Self::Image(link_matcher))
                 } else {
@@ -134,9 +140,9 @@ impl Selector {
                 let res = CodeBlockTraverser::traverse(children);
                 let language_matcher = Matcher::take_from_option(res.language.take()?)?;
                 let contents_matcher = Matcher::take_from_option(res.text.take()?)?;
-                Ok(Self::CodeBlockMatcher(CodeBlockMatcher { 
+                Ok(Self::CodeBlockMatcher(CodeBlockMatcher {
                     language: language_matcher,
-                    contents: contents_matcher 
+                    contents: contents_matcher,
                 }))
             }
             Rule::select_html => {
@@ -153,9 +159,9 @@ impl Selector {
                 let res = TableTraverser::traverse(children);
                 let column_matcher = Matcher::take_from_option(res.column.take()?)?;
                 let row_matcher = Matcher::take_from_option(res.row.take()?)?;
-                Ok(Self::Table(TableMatcher { 
+                Ok(Self::Table(TableMatcher {
                     column: column_matcher,
-                    row: row_matcher 
+                    row: row_matcher,
                 }))
             }
             unknown => {
@@ -171,6 +177,7 @@ impl Selector {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pest::error::Error;
     use pest::Parser;
 
     mod empty {
@@ -199,6 +206,7 @@ mod tests {
 
     mod section {
         use super::*;
+        use crate::query::query::Rule::top;
 
         #[test]
         fn section_no_matcher() {
@@ -412,10 +420,7 @@ mod tests {
 
         #[test]
         fn block_quote_no_matcher() {
-            find_selector(
-                ">",
-                Selector::BlockQuote(Matcher::Any),
-            )
+            find_selector(">", Selector::BlockQuote(Matcher::Any))
         }
 
         #[test]
@@ -499,26 +504,17 @@ mod tests {
 
         #[test]
         fn html_no_matcher() {
-            find_selector(
-                "</>",
-                Selector::Html(Matcher::Any),
-            )
+            find_selector("</>", Selector::Html(Matcher::Any))
         }
 
         #[test]
         fn html_with_text() {
-            find_selector(
-                "</> <div>content</div>",
-                Selector::Html(matcher_text(false, "<div>content</div>", false)),
-            )
+            find_selector("</> <div>", Selector::Html(matcher_text(false, "<div>", false)))
         }
 
         #[test]
         fn html_with_regex() {
-            find_selector(
-                "</> /<div.*>/",
-                Selector::Html(Matcher::Regex("<div.*>".to_string())),
-            )
+            find_selector("</> /<div.*>/", Selector::Html(Matcher::Regex("<div.*>".to_string())))
         }
     }
 
@@ -527,10 +523,7 @@ mod tests {
 
         #[test]
         fn paragraph_no_matcher() {
-            find_selector(
-                "P:",
-                Selector::Paragraph(Matcher::Any),
-            )
+            find_selector("P:", Selector::Paragraph(Matcher::Any))
         }
 
         #[test]
@@ -543,10 +536,7 @@ mod tests {
 
         #[test]
         fn paragraph_with_anchored_text() {
-            find_selector(
-                "P: ^start$",
-                Selector::Paragraph(matcher_text(true, "start", true)),
-            )
+            find_selector("P: ^start$", Selector::Paragraph(matcher_text(true, "start", true)))
         }
     }
 
@@ -555,8 +545,20 @@ mod tests {
 
         #[test]
         fn table_no_matchers() {
+            todo!("this should error");
             find_selector(
                 ":-: :-:",
+                Selector::Table(TableMatcher {
+                    column: Matcher::Any,
+                    row: Matcher::Any,
+                }),
+            )
+        }
+
+        #[test]
+        fn table_asterisk_column() {
+            find_selector(
+                ":-: * :-:",
                 Selector::Table(TableMatcher {
                     column: Matcher::Any,
                     row: Matcher::Any,
@@ -578,7 +580,7 @@ mod tests {
         #[test]
         fn table_with_row() {
             find_selector(
-                ":-: :-: Data",
+                ":-: * :-: Data",
                 Selector::Table(TableMatcher {
                     column: Matcher::Any,
                     row: matcher_text(false, "Data", false),
@@ -608,7 +610,14 @@ mod tests {
     }
 
     fn find_selector(query_text: &str, expect: Selector) {
-        let pairs = QueryPairs::parse(Rule::top, query_text).unwrap();
+        let pairs = QueryPairs::parse(Rule::top, query_text);
+        let pairs = match pairs {
+            Ok(pairs) => pairs,
+            Err(err) => {
+                panic!("{}", err.to_string());
+            }
+        };
+
         let result = Selector::from_top_pairs(pairs);
         assert_eq!(result, Ok(expect));
     }
