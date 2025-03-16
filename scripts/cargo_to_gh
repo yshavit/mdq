@@ -12,7 +12,7 @@ while IFS= read -r line; do
   echo "$line"
   exit_code=1
 done <<< "$(
-  set -xeuo pipefail
+  set -x
   cargo "$@" "${json_opts[@]}" |
   jq -r '
     select(.message.level and (.message.spans | length > 0)) 
