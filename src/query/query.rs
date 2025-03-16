@@ -26,6 +26,8 @@ impl Present {
     }
 }
 
+type OnePair<'a> = OneOf<Pair<'a, Rule>>;
+
 impl PairStorage<'_> for Present {
     type Output = bool;
 
@@ -229,14 +231,42 @@ macro_rules! composite_finder {
 }
 
 composite_finder! { Section {
-    title OneOf<Pair<'a, Rule>>: ByTag,
+    title OnePair<'a>: ByTag,
 }}
 composite_finder! { ListItem {
     list_ordered Present: ByRule,
     task_checked Present: ByRule,
     task_unchecked Present: ByRule,
     task_either Present: ByRule,
-    contents OneOf<Pair<'a, Rule>>: ByTag,
+    contents OnePair<'a>: ByTag,
+}}
+
+composite_finder! { Link {
+    display_text OnePair<'a>: ByTag,
+    url_text OnePair<'a>: ByTag,
+    image_start Present: ByRule,
+}}
+
+composite_finder! { BlockQuote {
+    text OnePair<'a>: ByTag,
+}}
+
+composite_finder! { CodeBlock {
+    language OnePair<'a>: ByTag,
+    text OnePair<'a>: ByTag,
+}}
+
+composite_finder! { Html {
+    text OnePair<'a>: ByTag,
+}}
+
+composite_finder! { Paragraph {
+    text OnePair<'a>: ByTag,
+}}
+
+composite_finder! { Table {
+    column OnePair<'a>: ByTag,
+    row OnePair<'a>: ByTag,
 }}
 
 #[derive(Eq, PartialEq)]

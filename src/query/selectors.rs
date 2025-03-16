@@ -99,12 +99,8 @@ impl Selector {
                 Ok(Self::Section(matcher))
             }
             Rule::select_list_item => {
-                let as_debug = format!("{children:?}");
-                eprintln!("{as_debug}");
                 let res = ListItemTraverser::traverse(children);
-
                 let ordered = res.list_ordered.is_present();
-
                 let task = if res.task_checked.is_present() {
                     ListItemTask::Selected
                 } else if res.task_unchecked.is_present() {
@@ -116,7 +112,51 @@ impl Selector {
                 };
                 let m = res.contents.take()?;
                 let matcher = Matcher::take_from_option(m)?;
-                Ok(Selector::ListItem(ListItemMatcher { ordered, task, matcher }))
+                Ok(Self::ListItem(ListItemMatcher { ordered, task, matcher }))
+            }
+            Rule::select_link => {
+                let res = LinkTraverser::traverse(children);
+                let display_matcher = Matcher::take_from_option(res.display_text.take()?)?;
+                let url_matcher = Matcher::take_from_option(res.url_text.take()?)?;
+                let link_matcher = LinklikeMatcher { display_matcher, url_matcher };
+                if res.image_start.is_present() {
+                    Ok(Self::Image(link_matcher))
+                } else {
+                    Ok(Self::Link(link_matcher))
+                }
+            }
+            Rule::select_block_quote => {
+                let res = BlockQuoteTraverser::traverse(children);
+                let matcher = Matcher::take_from_option(res.text.take()?)?;
+                Ok(Self::BlockQuote(matcher))
+            }
+            Rule::select_code_block => {
+                let res = CodeBlockTraverser::traverse(children);
+                let language_matcher = Matcher::take_from_option(res.language.take()?)?;
+                let contents_matcher = Matcher::take_from_option(res.text.take()?)?;
+                Ok(Self::CodeBlockMatcher(CodeBlockMatcher { 
+                    language: language_matcher,
+                    contents: contents_matcher 
+                }))
+            }
+            Rule::select_html => {
+                let res = HtmlTraverser::traverse(children);
+                let matcher = Matcher::take_from_option(res.text.take()?)?;
+                Ok(Self::Html(matcher))
+            }
+            Rule::select_paragraph => {
+                let res = ParagraphTraverser::traverse(children);
+                let matcher = Matcher::take_from_option(res.text.take()?)?;
+                Ok(Self::Paragraph(matcher))
+            }
+            Rule::select_table => {
+                let res = TableTraverser::traverse(children);
+                let column_matcher = Matcher::take_from_option(res.column.take()?)?;
+                let row_matcher = Matcher::take_from_option(res.row.take()?)?;
+                Ok(Self::Table(TableMatcher { 
+                    column: column_matcher,
+                    row: row_matcher 
+                }))
             }
             unknown => {
                 Err(format!("unexpected selector rule: {unknown:?}"))
@@ -159,7 +199,6 @@ mod tests {
 
     mod section {
         use super::*;
-        use crate::query::query::Rule::top;
 
         #[test]
         fn section_no_matcher() {
@@ -293,6 +332,267 @@ mod tests {
                     ordered: true,
                     task: ListItemTask::Unselected,
                     matcher: matcher_text(false, "my ordered task", false),
+                }),
+            )
+        }
+    }
+
+    mod link {
+        use super::*;
+
+        #[test]
+        fn link_no_matchers() {
+            find_selector(
+                "[]()",
+                Selector::Link(LinklikeMatcher {
+                    display_matcher: Matcher::Any,
+                    url_matcher: Matcher::Any,
+                }),
+            )
+        }
+
+        #[test]
+        fn link_with_display() {
+            find_selector(
+                "[hello]()",
+                Selector::Link(LinklikeMatcher {
+                    display_matcher: matcher_text(false, "hello", false),
+                    url_matcher: Matcher::Any,
+                }),
+            )
+        }
+
+        #[test]
+        fn link_with_url() {
+            find_selector(
+                "[](example.com)",
+                Selector::Link(LinklikeMatcher {
+                    display_matcher: Matcher::Any,
+                    url_matcher: matcher_text(false, "example.com", false),
+                }),
+            )
+        }
+
+        #[test]
+        fn link_with_both() {
+            find_selector(
+                "[click here](example.com)",
+                Selector::Link(LinklikeMatcher {
+                    display_matcher: matcher_text(false, "click here", false),
+                    url_matcher: matcher_text(false, "example.com", false),
+                }),
+            )
+        }
+
+        #[test]
+        fn image_no_matchers() {
+            find_selector(
+                "![]()",
+                Selector::Image(LinklikeMatcher {
+                    display_matcher: Matcher::Any,
+                    url_matcher: Matcher::Any,
+                }),
+            )
+        }
+
+        #[test]
+        fn image_with_alt() {
+            find_selector(
+                "![alt text]()",
+                Selector::Image(LinklikeMatcher {
+                    display_matcher: matcher_text(false, "alt text", false),
+                    url_matcher: Matcher::Any,
+                }),
+            )
+        }
+    }
+
+    mod block_quote {
+        use super::*;
+
+        #[test]
+        fn block_quote_no_matcher() {
+            find_selector(
+                ">",
+                Selector::BlockQuote(Matcher::Any),
+            )
+        }
+
+        #[test]
+        fn block_quote_with_text() {
+            find_selector(
+                "> quoted text",
+                Selector::BlockQuote(matcher_text(false, "quoted text", false)),
+            )
+        }
+
+        #[test]
+        fn block_quote_with_anchored_text() {
+            find_selector(
+                "> ^start end$",
+                Selector::BlockQuote(matcher_text(true, "start end", true)),
+            )
+        }
+    }
+
+    mod code_block {
+        use super::*;
+
+        #[test]
+        fn code_block_no_matchers() {
+            find_selector(
+                "```",
+                Selector::CodeBlockMatcher(CodeBlockMatcher {
+                    language: Matcher::Any,
+                    contents: Matcher::Any,
+                }),
+            )
+        }
+
+        #[test]
+        fn code_block_with_only_language() {
+            find_selector(
+                "```rust",
+                Selector::CodeBlockMatcher(CodeBlockMatcher {
+                    language: matcher_text(false, "rust", false),
+                    contents: Matcher::Any,
+                }),
+            )
+        }
+
+        #[test]
+        fn code_block_with_only_language_and_trailing_space() {
+            find_selector(
+                "```rust",
+                Selector::CodeBlockMatcher(CodeBlockMatcher {
+                    language: matcher_text(false, "rust", false),
+                    contents: Matcher::Any,
+                }),
+            )
+        }
+
+        #[test]
+        fn code_block_with_only_content() {
+            find_selector(
+                "``` fn main()",
+                Selector::CodeBlockMatcher(CodeBlockMatcher {
+                    language: Matcher::Any,
+                    contents: matcher_text(false, "fn main()", false),
+                }),
+            )
+        }
+
+        #[test]
+        fn code_block_with_both() {
+            find_selector(
+                "```rust fn main()",
+                Selector::CodeBlockMatcher(CodeBlockMatcher {
+                    language: matcher_text(false, "rust", false),
+                    contents: matcher_text(false, "fn main()", false),
+                }),
+            )
+        }
+    }
+
+    mod html {
+        use super::*;
+
+        #[test]
+        fn html_no_matcher() {
+            find_selector(
+                "</>",
+                Selector::Html(Matcher::Any),
+            )
+        }
+
+        #[test]
+        fn html_with_text() {
+            find_selector(
+                "</> <div>content</div>",
+                Selector::Html(matcher_text(false, "<div>content</div>", false)),
+            )
+        }
+
+        #[test]
+        fn html_with_regex() {
+            find_selector(
+                "</> /<div.*>/",
+                Selector::Html(Matcher::Regex("<div.*>".to_string())),
+            )
+        }
+    }
+
+    mod paragraph {
+        use super::*;
+
+        #[test]
+        fn paragraph_no_matcher() {
+            find_selector(
+                "P:",
+                Selector::Paragraph(Matcher::Any),
+            )
+        }
+
+        #[test]
+        fn paragraph_with_text() {
+            find_selector(
+                "P: some text",
+                Selector::Paragraph(matcher_text(false, "some text", false)),
+            )
+        }
+
+        #[test]
+        fn paragraph_with_anchored_text() {
+            find_selector(
+                "P: ^start$",
+                Selector::Paragraph(matcher_text(true, "start", true)),
+            )
+        }
+    }
+
+    mod table {
+        use super::*;
+
+        #[test]
+        fn table_no_matchers() {
+            find_selector(
+                ":-: :-:",
+                Selector::Table(TableMatcher {
+                    column: Matcher::Any,
+                    row: Matcher::Any,
+                }),
+            )
+        }
+
+        #[test]
+        fn table_with_column() {
+            find_selector(
+                ":-: Header :-:",
+                Selector::Table(TableMatcher {
+                    column: matcher_text(false, "Header", false),
+                    row: Matcher::Any,
+                }),
+            )
+        }
+
+        #[test]
+        fn table_with_row() {
+            find_selector(
+                ":-: :-: Data",
+                Selector::Table(TableMatcher {
+                    column: Matcher::Any,
+                    row: matcher_text(false, "Data", false),
+                }),
+            )
+        }
+
+        #[test]
+        fn table_with_both() {
+            find_selector(
+                ":-: Header :-: Data",
+                Selector::Table(TableMatcher {
+                    column: matcher_text(false, "Header", false),
+                    row: matcher_text(false, "Data", false),
                 }),
             )
         }
