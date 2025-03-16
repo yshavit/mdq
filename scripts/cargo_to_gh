@@ -13,7 +13,7 @@ while IFS= read -r line; do
   exit_code=1
 done < <(
 set -x
-  cargo "$@" ${json_opts[@]} |
+  cargo "$@" "${json_opts[@]}" |
   jq -r '
     select(.message.level and (.message.spans | length > 0)) 
     | {level: (.message.level | sub("note"; "notice")), message: .message.message} as $ctx
