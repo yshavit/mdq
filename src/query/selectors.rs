@@ -118,7 +118,12 @@ impl Selector {
                 let matcher = Matcher::take_from_option(m)?;
                 Ok(Selector::ListItem(ListItemMatcher { ordered, task, matcher }))
             }
-            unknown => Err(format!("unexpected selector rule: {unknown:?}")),
+            unknown => {
+                Err(format!("unexpected selector rule: {unknown:?}"))
+                // TODO I think what I should do here is to recurse down. That way, I can just call this on the top pair
+                //  and have it "just work" without needing to separately extract the near-the-top chain.
+                //  I should get exactly one result, across all of the children.
+            }
         }
     }
 }
