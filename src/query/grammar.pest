@@ -88,7 +88,10 @@ anchor_start = @{ "^" }
 
 anchor_end = @{ "$" }
 
-only_anchors = ${ anchor_start ~ anchor_end }
+only_anchors = {
+  (anchor_start ~ anchor_end?)
+  | anchor_end
+}
 
 quoted_plain_chars = @{ (!(PEEK | "\\") ~ ANY)+ }
 

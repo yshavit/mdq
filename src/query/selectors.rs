@@ -226,12 +226,25 @@ impl Selector {
 mod tests {
     use super::*;
     use crate::query::query::{OneOf, Query, StringVariant};
+    use pest::error::ErrorVariant;
 
     impl Matcher {
         pub fn parse(variant: StringVariant, query_str: &str) -> Result<(Matcher, &str), String> {
-            let parse_attempt = variant.parse(query_str).map_err(|e| e.to_string());
+            let parse_attempt = variant.parse(query_str);
             let (only_pair, remaining) = match parse_attempt {
-                Err(_) => (None, query_str),
+                Err(err) => {
+                    let ErrorVariant::ParsingError { positives, .. } = &err.variant else {
+                        return Err(err.to_string());
+                    };
+                    // See what this thing tried to parse. If it failed at trying to parse the string variant itself,
+                    // it didn't consume any input; just return an empty parse. Otherwise, it found something to parse,
+                    // but that something is invalid -- that's a real error.
+                    // This is basically equivalent to a `string_variant?` usage in the grammar.
+                    match positives.as_slice() {
+                        &[only] if only == variant.as_rule() => (None, query_str),
+                        _ => return Err(err.to_string()),
+                    }
+                }
                 Ok((top, remaining)) => {
                     let mut one_of = OneOf::default();
                     for pair in top {

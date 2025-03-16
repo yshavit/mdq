@@ -154,14 +154,14 @@ mod test {
 
     #[test]
     fn only_starting_anchor() {
-        expect_err("^ |");
-        expect_err("^");
+        parse_and_check("^ |", StringMatcher::any(), "|");
+        parse_and_check("^", StringMatcher::any(), "");
     }
 
     #[test]
     fn only_ending_anchor() {
-        expect_err("$ |");
-        expect_err("$");
+        parse_and_check("$ |", StringMatcher::any(), " |");
+        parse_and_check("$", StringMatcher::any(), "");
     }
 
     #[test]
@@ -170,6 +170,8 @@ mod test {
         assert_eq!(matcher.matches(""), true);
         assert_eq!(matcher.matches("x"), false);
         assert_eq!(matcher.matches("\n"), false);
+
+        parse_and_check("^  $ |after", re("^$"), " |after");
     }
 
     #[test]
@@ -265,15 +267,15 @@ mod test {
 
     #[test]
     fn quote_errs() {
-        expect_err(r#" " "#);
-        expect_err(r#" ' "#);
-        expect_err(r#" '\"#);
-        expect_err(r#" "\x" "#);
-        expect_err(r#" "\u2603" "#);
-        expect_err(r#" "\u{}" "#);
-        expect_err(r#" "\u{12345678}" "#); // out of range
-        expect_err(r#" "\u{snowman}" "#);
-        expect_err(r#" "\u{2603"#);
+        expect_err(r#"" "#);
+        expect_err(r#"' "#);
+        expect_err(r#"'\"#);
+        expect_err(r#""\x" "#);
+        expect_err(r#""\u2603" "#);
+        expect_err(r#""\u{}" "#);
+        expect_err(r#""\u{12345678}" "#); // out of range
+        expect_err(r#""\u{snowman}" "#);
+        expect_err(r#""\u{2603"#);
     }
 
     //noinspection RegExpSingleCharAlternation (for the "(a|b)" case)

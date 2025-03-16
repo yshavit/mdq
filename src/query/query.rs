@@ -350,10 +350,16 @@ pub enum ParsedStringMode {
 impl ParsedString {
     // Whether this instance is compatible with an `*` literal
     pub fn is_equivalent_to_asterisk(&self) -> bool {
-        !matches!(self.mode, ParsedStringMode::Regex)
-            && (!self.anchor_start)
-            && (!self.anchor_end)
-            && self.text.is_empty()
+        match self.mode {
+            ParsedStringMode::Regex => false,
+            ParsedStringMode::CaseSensitive | ParsedStringMode::CaseInsensitive => {
+                if self.text.is_empty() {
+                    !(self.anchor_start && self.anchor_end)
+                } else {
+                    false
+                }
+            }
+        }
     }
 }
 
@@ -454,7 +460,8 @@ impl TryFrom<Pairs<'_, Rule>> for ParsedString {
                     Rule::regex_escaped_slash => {
                         me.text.push('/');
                     }
-                    _ => {
+                    other => {
+                        eprintln!("{other:?}"); // todo
                         build_string(me, pair.into_inner())?;
                     }
                 }
@@ -484,6 +491,15 @@ mod tests {
 
     impl StringVariant {
         pub fn parse(self, query_text: &str) -> Result<(Pairs<Rule>, &str), Error<Rule>> {
+            let parsed = QueryPairs::parse(self.as_rule(), query_text)?;
+            let remaining = match parsed.peek() {
+                None => query_text,
+                Some(pair) => &query_text[pair.as_span().end()..],
+            };
+            Ok((parsed, remaining))
+        }
+
+        pub fn as_rule(self) -> Rule {
             let rule = match self {
                 StringVariant::PIPE => Rule::string_to_pipe,
                 StringVariant::PAREN => Rule::string_to_paren,
@@ -491,12 +507,7 @@ mod tests {
                 StringVariant::SPACE => Rule::string_to_space,
                 StringVariant::COLON => Rule::string_to_colon,
             };
-            let parsed = QueryPairs::parse(rule, query_text).map_err(Query::format_err)?;
-            let remaining = match parsed.peek() {
-                None => query_text,
-                Some(pair) => &query_text[pair.as_span().end()..],
-            };
-            Ok((parsed, remaining))
+            rule
         }
     }
 
