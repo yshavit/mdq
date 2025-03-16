@@ -58,11 +58,11 @@ explicit_asterisk = ${ "*" }
 // 2) Into<RuleTree> for Pair matchers!
 // TODO update this note to mention the correct classes ^
 
-string_to_pipe    = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_pipe) ~ anchor_end?) }
-string_to_paren   = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_paren) ~ anchor_end?) }
-string_to_bracket = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_bracket) ~ anchor_end?) }
-string_to_space   = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_space) ~ anchor_end?) }
-string_to_colon   = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_colon) ~ anchor_end?) }
+string_to_pipe    = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_pipe) ~ anchor_end?) | only_anchors }
+string_to_paren   = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_paren) ~ anchor_end? | only_anchors) }
+string_to_bracket = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_bracket) ~ anchor_end? | only_anchors) }
+string_to_space   = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_space) ~ anchor_end? | only_anchors) }
+string_to_colon   = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_colon) ~ anchor_end? | only_anchors) }
 
 unquoted_string_to_pipe    = @{ LETTER ~ (!("|" | "$") ~ ANY)* }
 unquoted_string_to_paren   = @{ LETTER ~ (!(")" | "$") ~ ANY)* }
@@ -87,6 +87,8 @@ quoted_char = ${
 anchor_start = @{ "^" }
 
 anchor_end = @{ "$" }
+
+only_anchors = ${ anchor_start ~ anchor_end }
 
 quoted_plain_chars = @{ (!(PEEK | "\\") ~ ANY)+ }
 

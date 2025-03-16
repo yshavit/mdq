@@ -2,7 +2,6 @@ use crate::matcher::StringMatcher;
 use crate::query::selectors::LinklikeMatcher;
 use crate::select::match_selector::MatchSelector;
 use crate::tree::{Image, Link};
-use pest::ParseResult;
 
 #[derive(Debug, PartialEq)]
 pub struct LinkSelector {

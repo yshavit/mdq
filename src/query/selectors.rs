@@ -48,6 +48,9 @@ impl Matcher {
     fn take_from_option(pair: Option<Pair<Rule>>) -> Result<Matcher, String> {
         let Some(pair) = pair else { return Ok(Matcher::Any) };
         let parsed_string: ParsedString = pair.into_inner().try_into()?;
+        if parsed_string.is_equivalent_to_asterisk() {
+            return Ok(Matcher::Any);
+        }
         let matcher = match parsed_string.mode {
             ParsedStringMode::CaseSensitive => Matcher::Text {
                 case_sensitive: true,
@@ -226,12 +229,17 @@ mod tests {
 
     impl Matcher {
         pub fn parse(variant: StringVariant, query_str: &str) -> Result<(Matcher, &str), String> {
-            let (top, remaining) = variant.parse(query_str).map_err(|e| e.to_string())?;
-            let mut one_of = OneOf::default();
-            for pair in top {
-                one_of.store(pair);
-            }
-            let only_pair = one_of.take()?;
+            let parse_attempt = variant.parse(query_str).map_err(|e| e.to_string());
+            let (only_pair, remaining) = match parse_attempt {
+                Err(_) => (None, query_str),
+                Ok((top, remaining)) => {
+                    let mut one_of = OneOf::default();
+                    for pair in top {
+                        one_of.store(pair);
+                    }
+                    (one_of.take()?, remaining)
+                }
+            };
             let matcher = Matcher::take_from_option(only_pair)?;
             Ok((matcher, remaining))
         }

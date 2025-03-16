@@ -64,6 +64,7 @@ impl Query {
                 Rule::quoted_char => "character",
                 Rule::anchor_start => "_^_",
                 Rule::anchor_end => "_$_",
+                Rule::only_anchors => "_^_ _$_",
                 Rule::quoted_plain_chars => "character",
                 Rule::escaped_char => "\", ', `, \\, n, r, or t",
                 Rule::unicode_seq => "1 - 6 hex characters",
@@ -469,7 +470,6 @@ impl TryFrom<Pairs<'_, Rule>> for ParsedString {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query::query::Rule::quoted_string;
     use pest::Parser;
     use pretty_assertions::assert_eq;
 

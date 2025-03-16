@@ -1,4 +1,3 @@
-use crate::matcher::StringMatcher;
 use crate::query::query::{Query, Rule};
 use crate::query::selectors::Selector as ParsedSelector;
 use crate::select::sel_link_like::{ImageSelector, LinkSelector};
@@ -202,8 +201,6 @@ impl<'md> SearchContext<'md> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-
     /// Only a smoke test, because the code is pretty straightforward, and I don't feel like writing more. :-)
     mod find_children_smoke {
         use crate::mdq_inline;

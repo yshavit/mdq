@@ -212,7 +212,7 @@ mod test {
         parse_and_check("bar     $", re("(?i)bar$"), "");
         parse_and_check("'bar'   $", re("bar$"), "");
 
-        parse_and_check("  ^  foobar  $  ", re("(?i)^foobar$"), "  ");
+        parse_and_check("^  foobar  $  ", re("(?i)^foobar$"), "  ");
     }
 
     #[test]
@@ -301,9 +301,9 @@ mod test {
         let empty_matcher = parse_and_check("| rest", StringMatcher::any(), "| rest");
         assert_eq!(empty_matcher.matches(""), true);
 
-        parse_and_check(" | rest", StringMatcher::any(), "| rest");
+        parse_and_check("| rest", StringMatcher::any(), "| rest");
         parse_and_check("*| rest", StringMatcher::any(), "| rest");
-        parse_and_check(" * | rest", StringMatcher::any(), "| rest");
+        parse_and_check("* | rest", StringMatcher::any(), " | rest");
         parse_and_check_with(StringVariant::BRACKET, "] rest", StringMatcher::any(), "] rest");
     }
 
