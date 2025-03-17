@@ -1,4 +1,4 @@
-use crate::query::query::{Query, Rule};
+use crate::query::query::{Error, Query};
 use crate::query::selectors::Selector as ParsedSelector;
 use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_link_like::{ImageSelector, LinkSelector};
@@ -11,7 +11,6 @@ use crate::select::sel_table::TableSliceSelector;
 use crate::tree::{FootnoteId, Formatting, Inline, Link, MdContext, Text, TextVariant};
 use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use paste::paste;
-use pest::error::Error;
 use std::collections::HashSet;
 
 pub trait Selector<'md, I: Into<MdElemRef<'md>>> {
@@ -20,7 +19,7 @@ pub trait Selector<'md, I: Into<MdElemRef<'md>>> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParseError {
-    pub pest_err: Error<Rule>,
+    pub pest_err: Error,
 }
 
 macro_rules! adapters {

@@ -1,5 +1,3 @@
-use pest::error::Error;
-use pest::iterators::Pairs;
 use pest::Parser;
 use pest_derive::Parser;
 use std::fmt::Debug;
@@ -15,12 +13,16 @@ pub struct Query {
     _private: (),
 }
 
+pub type Pair<'a> = pest::iterators::Pair<'a, Rule>;
+pub type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
+pub type Error = pest::error::Error<Rule>;
+
 impl Query {
-    pub fn parse(query_text: &str) -> Result<Pairs<Rule>, Error<Rule>> {
+    pub fn parse(query_text: &str) -> Result<Pairs, Error> {
         QueryPairs::parse(Rule::top, query_text).map_err(Self::format_err)
     }
 
-    fn format_err(err: Error<Rule>) -> Error<Rule> {
+    fn format_err(err: Error) -> Error {
         err.renamed_rules(|err| {
             match err {
                 Rule::EOI => "end of input",
@@ -77,9 +79,7 @@ impl Query {
 /// Test-only helpers for parsing strings directly, for more direct testing of those grammar rules.
 #[cfg(test)]
 mod test_helpers {
-    use crate::query::query::{QueryPairs, Rule};
-    use pest::error::Error;
-    use pest::iterators::Pairs;
+    use super::*;
     use pest::Parser;
 
     #[derive(Clone, Copy, PartialEq, Eq)]
@@ -94,7 +94,7 @@ mod test_helpers {
     impl StringVariant {
         /// Tries to parse the given string. If it succeeds, returns the parsed Pairs and the remaining, unparsed query
         /// text.
-        pub fn parse(self, query_text: &str) -> Result<(Pairs<Rule>, &str), Error<Rule>> {
+        pub fn parse(self, query_text: &str) -> Result<(Pairs, &str), Error> {
             let parsed = QueryPairs::parse(self.as_rule(), query_text)?;
             let remaining = match parsed.peek() {
                 None => query_text,

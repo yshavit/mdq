@@ -1,13 +1,12 @@
-use crate::query::query::Rule;
-use pest::iterators::{Pair, Pairs};
+use crate::query::query::{Pair, Pairs, Rule};
 
-pub type OnePair<'a> = OneOf<Pair<'a, Rule>>;
+pub type OnePair<'a> = OneOf<Pair<'a>>;
 
 /// A trait for determining whether a [Pair] matches some condition.
 pub trait PairMatcher {
-    fn matches(&self, pair: &Pair<Rule>) -> bool;
+    fn matches(&self, pair: &Pair) -> bool;
 
-    fn find_all_in(self, pairs: Pairs<Rule>) -> Vec<Pair<Rule>>
+    fn find_all_in(self, pairs: Pairs) -> Vec<Pair>
     where
         Self: Sized,
     {
@@ -22,15 +21,15 @@ pub trait PairMatcher {
 pub trait PairMatchStore<'a> {
     type Output;
 
-    fn match_and_store(&mut self, pair: Pair<'a, Rule>) -> MatchStoreResult<'a>;
+    fn match_and_store(&mut self, pair: Pair<'a>) -> MatchStoreResult<'a>;
 
     fn get(self) -> Self::Output;
 
-    fn find_in(mut self, pairs: Pairs<'a, Rule>) -> Self::Output
+    fn find_in(mut self, pairs: Pairs<'a>) -> Self::Output
     where
         Self: Sized,
     {
-        fn build<'b>(me: &mut impl PairMatchStore<'b>, pairs: Pairs<'b, Rule>) {
+        fn build<'b>(me: &mut impl PairMatchStore<'b>, pairs: Pairs<'b>) {
             for pair in pairs {
                 if let MatchStoreResult::NotStored(unmatched) = me.match_and_store(pair) {
                     build(me, unmatched.into_inner())
@@ -44,7 +43,7 @@ pub trait PairMatchStore<'a> {
 
 pub enum MatchStoreResult<'a> {
     Stored,
-    NotStored(Pair<'a, Rule>),
+    NotStored(Pair<'a>),
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
@@ -57,7 +56,7 @@ impl Present {
 }
 
 impl Present {
-    pub fn store(&mut self, _pair: Pair<'_, Rule>) {
+    pub fn store(&mut self, _pair: Pair) {
         self.0 = true
     }
 }
@@ -72,7 +71,7 @@ impl<T> Default for OneOf<T> {
 }
 
 impl<T> OneOf<T> {
-    // TODO the Err should be an Error<Rule>
+    // TODO the Err should be an Error
     pub fn take(self) -> Result<Option<T>, String> {
         self.0.map_err(|_| "multiple items found".to_string())
     }
@@ -86,7 +85,7 @@ impl<T> OneOf<T> {
 }
 
 #[derive(Debug)]
-pub struct FindAll<'a, M>(M, Vec<Pair<'a, Rule>>);
+pub struct FindAll<'a, M>(M, Vec<Pair<'a>>);
 
 impl<'a, M> FindAll<'a, M> {
     pub fn new(matcher: M) -> Self {
@@ -98,9 +97,9 @@ impl<'a, M> PairMatchStore<'a> for FindAll<'a, M>
 where
     M: PairMatcher,
 {
-    type Output = Vec<Pair<'a, Rule>>;
+    type Output = Vec<Pair<'a>>;
 
-    fn match_and_store(&mut self, pair: Pair<'a, Rule>) -> MatchStoreResult<'a> {
+    fn match_and_store(&mut self, pair: Pair<'a>) -> MatchStoreResult<'a> {
         if self.0.matches(&pair) {
             self.1.push(pair);
             MatchStoreResult::Stored
@@ -123,7 +122,7 @@ impl ByRule {
 }
 
 impl<'a> PairMatcher for ByRule {
-    fn matches(&self, pair: &Pair<Rule>) -> bool {
+    fn matches(&self, pair: &Pair) -> bool {
         self.0 == pair.as_rule()
     }
 }
@@ -138,7 +137,7 @@ impl ByTag {
 }
 
 impl PairMatcher for ByTag {
-    fn matches(&self, pair: &Pair<Rule>) -> bool {
+    fn matches(&self, pair: &Pair) -> bool {
         match pair.as_node_tag() {
             Some(t) => t == self.0,
             None => false,

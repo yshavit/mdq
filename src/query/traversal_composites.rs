@@ -1,11 +1,9 @@
-use crate::query::query::Rule;
+use crate::query::query::{Pair, Pairs, Rule};
 use crate::query::traversal::MatchStoreResult;
 use crate::query::traversal::PairMatchStore;
 use crate::query::traversal::PairMatcher;
 use crate::query::traversal::{ByRule, ByTag, OnePair, Present};
 use paste::paste;
-use pest::iterators::Pair;
-use pest::iterators::Pairs;
 
 /// A macro for creating:
 /// 1. a `${name}Traverser`, which looks for several elements as it goes; and
@@ -50,7 +48,7 @@ macro_rules! composite_finder {
                 }
             }
 
-            pub fn traverse(pairs: Pairs<Rule>) -> $result_name {
+            pub fn traverse(pairs: Pairs) -> $result_name {
                 $match_store_name($finder_name::new(), $result_name::default()).find_in(pairs)
             }
         }
@@ -58,7 +56,7 @@ macro_rules! composite_finder {
         impl<'a> PairMatchStore<'a> for $match_store_name<'a> {
             type Output = $result_name<'a>;
 
-            fn match_and_store(&mut self, pair: Pair<'a, Rule>) -> MatchStoreResult<'a> {
+            fn match_and_store(&mut self, pair: Pair<'a, >) -> MatchStoreResult<'a> {
                 $(
                 if self.0.$elem.matches(&pair) {
                     self.1.$elem.store(pair);

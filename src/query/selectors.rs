@@ -1,11 +1,10 @@
-use crate::query::query::Rule;
+use crate::query::query::{Pair, Pairs, Rule};
 use crate::query::strings::{ParsedString, ParsedStringMode};
 use crate::query::traversal::{ByRule, PairMatcher};
 use crate::query::traversal_composites::{
     BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, ParagraphTraverser,
     SectionResults, SectionTraverser, TableTraverser,
 };
-use pest::iterators::{Pair, Pairs};
 use regex::Regex;
 
 #[derive(Debug, Clone)]
@@ -48,7 +47,7 @@ impl PartialEq for Matcher {
 impl Eq for Matcher {}
 
 impl Matcher {
-    fn take_from_option(pair: Option<Pair<Rule>>) -> Result<Matcher, String> {
+    fn take_from_option(pair: Option<Pair>) -> Result<Matcher, String> {
         let Some(pair) = pair else { return Ok(Matcher::Any) };
         let parsed_string: ParsedString = pair.into_inner().try_into()?;
         if parsed_string.is_equivalent_to_asterisk() {
@@ -128,7 +127,7 @@ pub enum Selector {
 }
 
 impl Selector {
-    pub fn from_top_pairs(root: Pairs<Rule>) -> Result<Vec<Self>, String> {
+    pub fn from_top_pairs(root: Pairs) -> Result<Vec<Self>, String> {
         let selector_chains = ByRule::new(Rule::selector_chain).find_all_in(root);
         let mut all_selectors: Vec<Self> = Vec::new();
         for chain in selector_chains {
@@ -143,7 +142,7 @@ impl Selector {
         Ok(all_selectors)
     }
 
-    fn find_selectors(root: Pair<Rule>) -> Result<Self, String> {
+    fn find_selectors(root: Pair) -> Result<Self, String> {
         let (as_rule, children) = (root.as_rule(), root.into_inner());
 
         match as_rule {

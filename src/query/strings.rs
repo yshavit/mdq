@@ -1,5 +1,4 @@
-use crate::query::query::Rule;
-use pest::iterators::Pairs;
+use crate::query::query::{Pairs, Rule};
 use std::borrow::Cow;
 use std::fmt::{Debug, Formatter, Write};
 
@@ -68,10 +67,10 @@ impl Debug for ParsedString {
     }
 }
 
-impl TryFrom<Pairs<'_, Rule>> for ParsedString {
+impl TryFrom<Pairs<'_>> for ParsedString {
     type Error = String;
 
-    fn try_from(pairs: Pairs<Rule>) -> Result<Self, Self::Error> {
+    fn try_from(pairs: Pairs) -> Result<Self, Self::Error> {
         let mut s = Self {
             text: String::with_capacity(pairs.as_str().len()),
             anchor_start: false,
@@ -79,7 +78,7 @@ impl TryFrom<Pairs<'_, Rule>> for ParsedString {
             mode: ParsedStringMode::CaseSensitive,
         };
 
-        fn build_string(me: &mut ParsedString, pairs: Pairs<Rule>) -> Result<(), String> {
+        fn build_string(me: &mut ParsedString, pairs: Pairs) -> Result<(), String> {
             for pair in pairs {
                 match pair.as_rule() {
                     Rule::quoted_plain_chars => {
