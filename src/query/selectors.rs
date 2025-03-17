@@ -1,8 +1,9 @@
-use crate::query::query::{
-    BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, PairMatcher,
-    ParagraphTraverser, ParsedString, ParsedStringMode, Rule, SectionResults, SectionTraverser, TableTraverser,
+use crate::query::query::{ParsedString, ParsedStringMode, Rule};
+use crate::query::traversal::{ByRule, PairMatcher};
+use crate::query::traversal_composites::{
+    BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, ParagraphTraverser,
+    SectionResults, SectionTraverser, TableTraverser,
 };
-use crate::query::traversal::ByRule;
 use pest::iterators::{Pair, Pairs};
 use regex::Regex;
 

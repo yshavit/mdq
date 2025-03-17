@@ -15,10 +15,14 @@ pub trait PairMatcher {
     }
 }
 
+/// A trait for matching pairs, and then either storing them or traversing further.
+///
+/// This lets us separate out the matching (which is typically [ByRule] or [ByTag], or some combination of them) from
+/// the storing (which may be to add to a vec, to add to [OneOf], or anything else).
 pub trait PairMatchStore<'a> {
     type Output;
 
-    fn match_and_store(&mut self, pair: Pair<'a, Rule>) -> Result<(), Pair<'a, Rule>>;
+    fn match_and_store(&mut self, pair: Pair<'a, Rule>) -> MatchStoreResult<'a>;
 
     fn get(self) -> Self::Output;
 
@@ -28,7 +32,7 @@ pub trait PairMatchStore<'a> {
     {
         fn build<'b>(me: &mut impl PairMatchStore<'b>, pairs: Pairs<'b, Rule>) {
             for pair in pairs {
-                if let Err(unmatched) = me.match_and_store(pair) {
+                if let MatchStoreResult::NotStored(unmatched) = me.match_and_store(pair) {
                     build(me, unmatched.into_inner())
                 }
             }
@@ -36,6 +40,11 @@ pub trait PairMatchStore<'a> {
         build(&mut self, pairs);
         self.get()
     }
+}
+
+pub enum MatchStoreResult<'a> {
+    Stored,
+    NotStored(Pair<'a, Rule>),
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
@@ -91,12 +100,12 @@ where
 {
     type Output = Vec<Pair<'a, Rule>>;
 
-    fn match_and_store(&mut self, pair: Pair<'a, Rule>) -> Result<(), Pair<'a, Rule>> {
+    fn match_and_store(&mut self, pair: Pair<'a, Rule>) -> MatchStoreResult<'a> {
         if self.0.matches(&pair) {
             self.1.push(pair);
-            Ok(())
+            MatchStoreResult::Stored
         } else {
-            Err(pair)
+            MatchStoreResult::NotStored(pair)
         }
     }
 
