@@ -1,7 +1,8 @@
 use crate::query::query::{
-    BlockQuoteTraverser, ByRule, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, PairMatcher,
+    BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, PairMatcher,
     ParagraphTraverser, ParsedString, ParsedStringMode, Rule, SectionResults, SectionTraverser, TableTraverser,
 };
+use crate::query::traversal::ByRule;
 use pest::iterators::{Pair, Pairs};
 use regex::Regex;
 
