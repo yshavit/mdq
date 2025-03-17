@@ -1,10 +1,16 @@
 use crate::query::query::{Query, Rule};
 use crate::query::selectors::Selector as ParsedSelector;
+use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_link_like::{ImageSelector, LinkSelector};
 use crate::select::sel_list_item::ListItemSelector;
 use crate::select::sel_section::SectionSelector;
+use crate::select::sel_single_matcher::BlockQuoteSelector;
+use crate::select::sel_single_matcher::HtmlSelector;
+use crate::select::sel_single_matcher::ParagraphSelector;
+use crate::select::sel_table::TableSliceSelector;
 use crate::tree::{FootnoteId, Formatting, Inline, Link, MdContext, Text, TextVariant};
 use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
+use paste::paste;
 use pest::error::Error;
 use std::collections::HashSet;
 
@@ -17,72 +23,48 @@ pub struct ParseError {
     pub pest_err: Error<Rule>,
 }
 
-// pub struct MdqRefSelector {
-//     // TODO rename to "SelectorAdapter"
-//     selector: ParsedSelector,
-// }
-//
-// macro_rules! adapters {
-//     ($($name:ident $(| $alias:ident)*),+ ,) => {
-//         impl MdqRefSelector {
-//             fn try_select_node<'md>(&self, node: MdElemRef<'md>) -> Option<MdElemRef<'md>> {
-//                 match (&self.selector, node) {
-//                     $(
-//                     (crate::query::selectors::Selector::$name(selector), MdElemRef::$name(elem)) => Self::build_adapter(selector).try_select(elem),
-//                     $( (crate::query::selectors::Selector::$name(selector), MdElemRef::$alias(elem)) => Self::build_adapter(selector).try_select(elem.into()), )?
-//                     )*
-//                     _ => None
-//                 }
-//             }
-//
-//             fn build_adapter<'md, I, S>(parsed_selector: &ParsedSelector) -> S
-//             where
-//                 I: Into<MdElemRef<'md>>,
-//                 S: Into<Selector<'md, I>>
-//             {
-//                 match parsed_selector {
-//                     _ => todo!(),
-//                 }
-//             }
-//         }
-//     };
-// }
-//
-// adapters! {
-//     Table,
-// }
+macro_rules! adapters {
+    { $($name:ident $(| $alias:ident)?),+ $(,)?} => {
+        pub enum SelectorAdapter {
+            $(
+            $name( paste!{[<$name Selector>]} ),
+            )+
+        }
 
-pub enum SelectorAdapter {
-    Section(SectionSelector),
-    ListItem(ListItemSelector),
-    Link(LinkSelector),
-    Image(ImageSelector),
-    // todo the rest
+        impl From<ParsedSelector> for SelectorAdapter {
+            fn from(parsed: ParsedSelector) -> Self {
+                match parsed {
+                    $(
+                    ParsedSelector::$name(matcher) => Self::$name(matcher.into()),
+                    )+
+                }
+            }
+        }
+
+        impl SelectorAdapter {
+            fn try_select_node<'md>(&self, node: MdElemRef<'md>) -> Option<MdElemRef<'md>> {
+                match (&self, node) {
+                    $(
+                    (Self::$name(adapter), MdElemRef::$name(elem)) => adapter.try_select(elem),
+                    $((Self::$name(adapter), MdElemRef::$alias(elem)) => adapter.try_select(elem.into()),)?
+                    )+
+                    _ => None,
+                }
+            }
+        }
+    };
 }
 
-impl From<ParsedSelector> for SelectorAdapter {
-    fn from(value: ParsedSelector) -> Self {
-        match value {
-            ParsedSelector::Section(matcher) => Self::Section(matcher.into()),
-            ParsedSelector::ListItem(li) => Self::ListItem(li.into()),
-            ParsedSelector::Link(link_like) => Self::Link(link_like.into()),
-            ParsedSelector::Image(link_like) => Self::Image(link_like.into()),
-            _ => todo!(),
-        }
-    }
-}
-
-impl SelectorAdapter {
-    fn try_select_node<'md>(&self, node: MdElemRef<'md>) -> Option<MdElemRef<'md>> {
-        match (&self, node) {
-            (Self::Section(selector), MdElemRef::Section(elem)) => selector.try_select(elem),
-            (Self::ListItem(selector), MdElemRef::ListItem(elem)) => selector.try_select(elem),
-            (Self::Link(selector), MdElemRef::Link(elem)) => selector.try_select(elem),
-            (Self::Image(selector), MdElemRef::Image(elem)) => selector.try_select(elem),
-            // ...
-            _ => None,
-        }
-    }
+adapters! {
+    Section,
+    ListItem,
+    Link,
+    Image,
+    BlockQuote,
+    CodeBlock,
+    Html,
+    Paragraph,
+    TableSlice | Table,
 }
 
 impl SelectorAdapter {

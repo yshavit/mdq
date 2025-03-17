@@ -1,4 +1,5 @@
 use crate::matcher::StringMatcher;
+use crate::query::selectors::CodeBlockMatcher;
 use crate::select::match_selector::MatchSelector;
 use crate::tree::{CodeBlock, CodeVariant};
 
@@ -6,6 +7,15 @@ use crate::tree::{CodeBlock, CodeVariant};
 pub struct CodeBlockSelector {
     lang_matcher: StringMatcher,
     contents_matcher: StringMatcher,
+}
+
+impl From<CodeBlockMatcher> for CodeBlockSelector {
+    fn from(value: CodeBlockMatcher) -> Self {
+        Self {
+            lang_matcher: value.language.into(),
+            contents_matcher: value.contents.into(),
+        }
+    }
 }
 
 impl MatchSelector<&CodeBlock> for CodeBlockSelector {

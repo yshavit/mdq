@@ -1,4 +1,5 @@
 use crate::matcher::StringMatcher;
+use crate::query::selectors::TableSliceMatcher;
 use crate::select::Selector;
 use crate::tree_ref::{MdElemRef, TableSlice};
 
@@ -23,6 +24,15 @@ impl<'md> Selector<'md, TableSlice<'md>> for TableSliceSelector {
             return None;
         }
         Some(slice.into())
+    }
+}
+
+impl From<TableSliceMatcher> for TableSliceSelector {
+    fn from(value: TableSliceMatcher) -> Self {
+        Self {
+            headers_matcher: value.column.into(),
+            rows_matcher: value.row.into(),
+        }
     }
 }
 

@@ -101,7 +101,7 @@ pub struct CodeBlockMatcher {
 }
 
 #[derive(Eq, PartialEq, Debug)]
-pub struct TableMatcher {
+pub struct TableSliceMatcher {
     pub column: Matcher,
     pub row: Matcher,
 }
@@ -118,10 +118,10 @@ pub enum Selector {
     Link(LinklikeMatcher),
     Image(LinklikeMatcher),
     BlockQuote(Matcher),
-    CodeBlockMatcher(CodeBlockMatcher),
+    CodeBlock(CodeBlockMatcher),
     Html(Matcher),
     Paragraph(Matcher),
-    Table(TableMatcher),
+    TableSlice(TableSliceMatcher),
 }
 
 impl Selector {
@@ -188,7 +188,7 @@ impl Selector {
                 let res = CodeBlockTraverser::traverse(children);
                 let language_matcher = Matcher::take_from_option(res.language.take()?)?;
                 let contents_matcher = Matcher::take_from_option(res.text.take()?)?;
-                Ok(Self::CodeBlockMatcher(CodeBlockMatcher {
+                Ok(Self::CodeBlock(CodeBlockMatcher {
                     language: language_matcher,
                     contents: contents_matcher,
                 }))
@@ -207,7 +207,7 @@ impl Selector {
                 let res = TableTraverser::traverse(children);
                 let column_matcher = Matcher::take_from_option(res.column.take()?)?;
                 let row_matcher = Matcher::take_from_option(res.row.take()?)?;
-                Ok(Self::Table(TableMatcher {
+                Ok(Self::TableSlice(TableSliceMatcher {
                     column: column_matcher,
                     row: row_matcher,
                 }))
@@ -589,7 +589,7 @@ mod tests {
         fn code_block_no_matchers() {
             find_selector(
                 "```",
-                Selector::CodeBlockMatcher(CodeBlockMatcher {
+                Selector::CodeBlock(CodeBlockMatcher {
                     language: Matcher::Any,
                     contents: Matcher::Any,
                 }),
@@ -600,7 +600,7 @@ mod tests {
         fn code_block_with_only_language() {
             find_selector(
                 "```rust",
-                Selector::CodeBlockMatcher(CodeBlockMatcher {
+                Selector::CodeBlock(CodeBlockMatcher {
                     language: matcher_text(false, "rust", false),
                     contents: Matcher::Any,
                 }),
@@ -611,7 +611,7 @@ mod tests {
         fn code_block_with_only_language_and_trailing_space() {
             find_selector(
                 "```rust",
-                Selector::CodeBlockMatcher(CodeBlockMatcher {
+                Selector::CodeBlock(CodeBlockMatcher {
                     language: matcher_text(false, "rust", false),
                     contents: Matcher::Any,
                 }),
@@ -622,7 +622,7 @@ mod tests {
         fn code_block_with_only_content() {
             find_selector(
                 "``` fn main()",
-                Selector::CodeBlockMatcher(CodeBlockMatcher {
+                Selector::CodeBlock(CodeBlockMatcher {
                     language: Matcher::Any,
                     contents: matcher_text(false, "fn main()", false),
                 }),
@@ -633,7 +633,7 @@ mod tests {
         fn code_block_with_both() {
             find_selector(
                 "```rust fn main()",
-                Selector::CodeBlockMatcher(CodeBlockMatcher {
+                Selector::CodeBlock(CodeBlockMatcher {
                     language: matcher_text(false, "rust", false),
                     contents: matcher_text(false, "fn main()", false),
                 }),
@@ -652,7 +652,13 @@ mod tests {
 
         #[test]
         fn html_with_text() {
-            find_selector("</> '<div>'", Selector::Html(matcher_text(false, "<div>", false)))
+            let matcher = Matcher::Text {
+                case_sensitive: true,
+                anchor_start: false,
+                text: "<div>".to_string(),
+                anchor_end: false,
+            };
+            find_selector("</> '<div>'", Selector::Html(matcher))
         }
 
         #[test]
@@ -736,7 +742,7 @@ mod tests {
         fn table_asterisk_column() {
             find_selector(
                 ":-: * :-:",
-                Selector::Table(TableMatcher {
+                Selector::TableSlice(TableSliceMatcher {
                     column: Matcher::Any,
                     row: Matcher::Any,
                 }),
@@ -747,7 +753,7 @@ mod tests {
         fn table_with_column() {
             find_selector(
                 ":-: Header :-:",
-                Selector::Table(TableMatcher {
+                Selector::TableSlice(TableSliceMatcher {
                     column: matcher_text(false, "Header", false),
                     row: Matcher::Any,
                 }),
@@ -758,7 +764,7 @@ mod tests {
         fn table_with_row() {
             find_selector(
                 ":-: * :-: Data",
-                Selector::Table(TableMatcher {
+                Selector::TableSlice(TableSliceMatcher {
                     column: Matcher::Any,
                     row: matcher_text(false, "Data", false),
                 }),
@@ -769,7 +775,7 @@ mod tests {
         fn table_with_both() {
             find_selector(
                 ":-: Header :-: Data",
-                Selector::Table(TableMatcher {
+                Selector::TableSlice(TableSliceMatcher {
                     column: matcher_text(false, "Header", false),
                     row: matcher_text(false, "Data", false),
                 }),
