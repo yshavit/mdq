@@ -9,7 +9,6 @@ use regex::Regex;
 
 #[derive(Debug, Clone)]
 pub enum Matcher {
-    // TODO this really belongs in query.rs
     Text {
         case_sensitive: bool,
         anchor_start: bool,

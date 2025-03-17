@@ -79,6 +79,7 @@ impl TryFrom<Pairs<'_>> for ParsedString {
         };
 
         fn build_string(me: &mut ParsedString, pairs: Pairs) -> Result<(), String> {
+            // If you change or move this, update the comment in grammar.pest ("If you add a variant...") as needed.
             for pair in pairs {
                 match pair.as_rule() {
                     Rule::quoted_plain_chars => {
