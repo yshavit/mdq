@@ -721,7 +721,7 @@ mod tests {
         }
     }
 
-    // TODO move the tests in matchers.rs to here, and conslidate them
+    // TODO move the tests in matchers.rs to here, and consolidate them
 
     fn check_parse(rule: Rule, input: &str, expect: ParsedString, remaining: &str) {
         let pairs = QueryPairs::parse(rule, input).unwrap();
