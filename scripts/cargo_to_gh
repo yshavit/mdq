@@ -7,13 +7,14 @@ if ! echo "$*" | grep -q -- '--message-format json' ; then
   json_opts=(--message-format json)
 fi
 
+tmp_file="$(mktemp)"
+cargo "$@" intentional failure "${json_opts[@]}" > "$tmp_file"
 exit_code=0
 while IFS= read -r line; do
   echo "$line"
   exit_code=1
 done < <(
-set -x
-  cargo "$@" "${json_opts[@]}" |
+  cat "$tmp_file"
   jq -r '
     select(.message.level and (.message.spans | length > 0)) 
     | {level: (.message.level | sub("note"; "notice")), message: .message.message} as $ctx
