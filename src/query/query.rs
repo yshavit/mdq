@@ -464,8 +464,7 @@ impl TryFrom<Pairs<'_, Rule>> for ParsedString {
                     Rule::regex_escaped_slash => {
                         me.text.push('/');
                     }
-                    other => {
-                        eprintln!("{other:?}"); // todo
+                    _ => {
                         build_string(me, pair.into_inner())?;
                     }
                 }
