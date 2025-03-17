@@ -1,4 +1,5 @@
-use crate::query::query::{ParsedString, ParsedStringMode, Rule};
+use crate::query::query::Rule;
+use crate::query::strings::{ParsedString, ParsedStringMode};
 use crate::query::traversal::{ByRule, PairMatcher};
 use crate::query::traversal_composites::{
     BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, ParagraphTraverser,
