@@ -1,3 +1,5 @@
+use crate::query::traversal::PairStorage;
+use crate::query::traversal::{OnePair, Present};
 use paste::paste;
 use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
@@ -76,62 +78,6 @@ impl Query {
 }
 
 // TODO: I should reorganize this file, break it up into separate files etc
-
-pub trait PairStorage<'a> {
-    type Output;
-
-    fn store(&mut self, pair: Pair<'a, Rule>);
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
-pub struct Present(bool);
-
-impl Present {
-    pub fn is_present(&self) -> bool {
-        self.0
-    }
-}
-
-type OnePair<'a> = OneOf<Pair<'a, Rule>>;
-
-impl PairStorage<'_> for Present {
-    type Output = bool;
-
-    fn store(&mut self, _pair: Pair<'_, Rule>) {
-        self.0 = true
-    }
-}
-
-#[derive(Debug)]
-pub struct OneOf<T>(Result<Option<T>, ()>); // TODO move to a util
-
-impl<T> Default for OneOf<T> {
-    fn default() -> Self {
-        Self(Ok(None))
-    }
-}
-
-impl<T> OneOf<T> {
-    // TODO the Err should be an Error<Rule>
-    pub fn take(self) -> Result<Option<T>, String> {
-        self.0.map_err(|_| "multiple items found".to_string())
-    }
-
-    pub fn store(&mut self, item: T) {
-        self.0 = match self.0 {
-            Ok(Some(_)) | Err(_) => Err(()),
-            Ok(None) => Ok(Some(item)),
-        }
-    }
-}
-
-impl<'a> PairStorage<'a> for OneOf<Pair<'a, Rule>> {
-    type Output = Result<Option<Pair<'a, Rule>>, String>;
-
-    fn store(&mut self, pair: Pair<'a, Rule>) {
-        OneOf::store(self, pair)
-    }
-}
 
 pub trait PairMatcher {
     fn matches(&self, pair: &Pair<Rule>) -> bool;

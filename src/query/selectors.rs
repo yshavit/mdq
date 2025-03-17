@@ -225,7 +225,8 @@ impl Selector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query::query::{OneOf, Query, StringVariant};
+    use crate::query::query::{Query, StringVariant};
+    use crate::query::traversal::OneOf;
     use pest::error::ErrorVariant;
 
     impl Matcher {
