@@ -7,18 +7,20 @@ if ! echo "$*" | grep -q -- '--message-format json' ; then
   json_opts=(--message-format json)
 fi
 
+tmp_file="$(mktemp)"
+cargo "$@" "${json_opts[@]}" > "$tmp_file"
 exit_code=0
 while IFS= read -r line; do
-  echo "$line"
-  exit_code=1
-done <<< "$(
-  set -x
-  cargo "$@" "${json_opts[@]}" |
-  jq -r '
+  if [[ -n "$line" ]]; then
+    echo "$line"
+    exit_code=1
+  fi
+done < <(
+  jq <"$tmp_file" -r '
     select(.message.level and (.message.spans | length > 0)) 
     | {level: (.message.level | sub("note"; "notice")), message: .message.message} as $ctx
     | .message.spans[] 
     | "::\($ctx.level) file=\(.file_name),line=\(.line_start),col=\(.column_start),endLine=\(.line_end),columnEnd=\(.column_end),title=rust check::\($ctx.message)"'
-)"
+)
 
 exit "$exit_code"

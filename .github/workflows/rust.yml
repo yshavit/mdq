@@ -15,7 +15,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: cargo build
-      run: scripts/cargo_to_gh rustc --message-format json -- -Awarnings
+      run: RUSTFLAGS=-Awarnings scripts/cargo_to_gh rustc --message-format json
     - name: check for any changes in the git tree
       run: |
         exit_code=0
