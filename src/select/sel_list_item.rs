@@ -1,5 +1,5 @@
 use crate::matcher::StringMatcher;
-use crate::query::selectors::{ListItemMatcher, ListItemTask};
+use crate::query::{ListItemMatcher, ListItemTask};
 use crate::select::match_selector::MatchSelector;
 use crate::tree_ref::ListItemRef;
 

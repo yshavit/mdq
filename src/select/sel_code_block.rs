@@ -1,5 +1,5 @@
 use crate::matcher::StringMatcher;
-use crate::query::selectors::CodeBlockMatcher;
+use crate::query::CodeBlockMatcher;
 use crate::select::match_selector::MatchSelector;
 use crate::tree::{CodeBlock, CodeVariant};
 

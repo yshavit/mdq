@@ -1,5 +1,5 @@
 use crate::matcher::StringMatcher;
-use crate::query::selectors::Matcher;
+use crate::query::Matcher;
 use crate::select::match_selector::MatchSelector;
 use crate::tree::{BlockQuote, Paragraph, Section};
 use crate::tree_ref::HtmlRef;
