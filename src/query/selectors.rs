@@ -1,6 +1,6 @@
 use crate::query::query::{Pair, Pairs, Rule};
 use crate::query::strings::{ParsedString, ParsedStringMode};
-use crate::query::traversal::{ByRule, PairMatcher};
+use crate::query::traversal::{ByRule, OneOf, PairMatcher};
 use crate::query::traversal_composites::{
     BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, ParagraphTraverser,
     SectionResults, SectionTraverser, TableTraverser,
@@ -128,21 +128,22 @@ pub enum Selector {
 
 impl Selector {
     pub fn from_top_pairs(root: Pairs) -> Result<Vec<Self>, String> {
+        // Get "all" the selector chains; there should be at most 1.
         let selector_chains = ByRule::new(Rule::selector_chain).find_all_in(root);
         let mut all_selectors: Vec<Self> = Vec::new();
         for chain in selector_chains {
+            // within the chain, get the selectors; for each one, get its inners (there should be exactly one) and get
+            // its selector.
             let selector_inners = ByRule::new(Rule::selector).find_all_in(chain.into_inner());
             for selector_pair in selector_inners {
-                for specific_selector_pair in selector_pair.into_inner() {
-                    let s = Self::find_selectors(specific_selector_pair)?;
-                    all_selectors.push(s);
-                }
+                let selector = Self::find_selector(selector_pair)?;
+                all_selectors.push(selector);
             }
         }
         Ok(all_selectors)
     }
 
-    fn find_selectors(root: Pair) -> Result<Self, String> {
+    fn find_selector(root: Pair) -> Result<Self, String> {
         let (as_rule, children) = (root.as_rule(), root.into_inner());
 
         match as_rule {
@@ -214,11 +215,16 @@ impl Selector {
                     row: row_matcher,
                 }))
             }
-            unknown => {
-                Err(format!("unexpected selector rule: {unknown:?}"))
-                // TODO I think what I should do here is to recurse down. That way, I can just call this on the top pair
-                //  and have it "just work" without needing to separately extract the near-the-top chain.
-                //  I should get exactly one result, across all of the children.
+            Rule::selector | _ => {
+                // We only expect to get here if we hit the Rule::selector rule. In that case, traversing the inners
+                // (there should only be one) will get us the actual, concrete selector for this selector union.
+                let mut one = OneOf::default();
+                for child in children {
+                    let found_in_child = Self::find_selector(child)?;
+                    one.store(found_in_child);
+                }
+                let maybe = one.take()?;
+                maybe.ok_or_else(|| "no queries found".to_string())
             }
         }
     }
