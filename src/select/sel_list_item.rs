@@ -1,18 +1,26 @@
 use crate::matcher::StringMatcher;
-use crate::query::selectors::ListItemMatcher;
+use crate::query::selectors::{ListItemMatcher, ListItemTask};
 use crate::select::match_selector::MatchSelector;
 use crate::tree_ref::ListItemRef;
 
 #[derive(Debug, PartialEq)]
 pub struct ListItemSelector {
     li_type: ListItemType,
-    checkbox: CheckboxSpecifier,
+    checkbox: ListItemTask,
     string_matcher: StringMatcher,
 }
 
 impl From<ListItemMatcher> for ListItemSelector {
     fn from(value: ListItemMatcher) -> Self {
-        todo!()
+        Self {
+            li_type: if value.ordered {
+                ListItemType::Ordered
+            } else {
+                ListItemType::Unordered
+            },
+            checkbox: value.task,
+            string_matcher: value.matcher.into(),
+        }
     }
 }
 
@@ -22,29 +30,21 @@ pub enum ListItemType {
     Unordered,
 }
 
-#[derive(Debug, PartialEq)]
-enum CheckboxSpecifier {
-    CheckboxUnchecked,
-    CheckboxChecked,
-    CheckboxEither,
-    NoCheckbox,
-}
-
-impl CheckboxSpecifier {
-    fn matches(&self, checked: &Option<bool>) -> bool {
-        match self {
-            CheckboxSpecifier::CheckboxUnchecked => checked == &Some(false),
-            CheckboxSpecifier::CheckboxChecked => checked == &Some(true),
-            CheckboxSpecifier::CheckboxEither => checked.is_some(),
-            CheckboxSpecifier::NoCheckbox => checked.is_none(),
-        }
+fn task_matches(matcher: ListItemTask, md_is_checked: Option<bool>) -> bool {
+    match matcher {
+        ListItemTask::Unselected => md_is_checked == Some(false),
+        ListItemTask::Selected => md_is_checked == Some(true),
+        ListItemTask::Either => md_is_checked.is_some(),
+        ListItemTask::None => md_is_checked.is_none(),
     }
 }
 
 impl MatchSelector<ListItemRef<'_>> for ListItemSelector {
     fn matches(&self, item: ListItemRef) -> bool {
         let ListItemRef(idx, li) = item;
-        self.li_type.matches(&idx) && self.checkbox.matches(&li.checked) && self.string_matcher.matches_any(&li.item)
+        self.li_type.matches(&idx)
+            && task_matches(self.checkbox, li.checked)
+            && self.string_matcher.matches_any(&li.item)
     }
 }
 

@@ -61,12 +61,6 @@ impl StringMatcher {
         }
     }
 
-    fn empty() -> Self {
-        Self {
-            re: Regex::new("^$").expect("internal error"),
-        }
-    }
-
     fn regex(re: Regex) -> Self {
         Self { re }
     }

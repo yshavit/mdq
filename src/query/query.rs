@@ -481,6 +481,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[derive(Clone, Copy, PartialEq, Eq)]
+    #[allow(dead_code)]
     pub enum StringVariant {
         PIPE,
         PAREN,

@@ -76,6 +76,9 @@ impl SelectorAdapter {
     fn try_select_node<'md>(&self, node: MdElemRef<'md>) -> Option<MdElemRef<'md>> {
         match (&self, node) {
             (Self::Section(selector), MdElemRef::Section(elem)) => selector.try_select(elem),
+            (Self::ListItem(selector), MdElemRef::ListItem(elem)) => selector.try_select(elem),
+            (Self::Link(selector), MdElemRef::Link(elem)) => selector.try_select(elem),
+            (Self::Image(selector), MdElemRef::Image(elem)) => selector.try_select(elem),
             // ...
             _ => None,
         }

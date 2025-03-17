@@ -5,7 +5,7 @@ use crate::query::query::{
 use pest::iterators::{Pair, Pairs};
 use regex::Regex;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Matcher {
     // TODO this really belongs in query.rs
     Text {
@@ -73,7 +73,7 @@ impl Matcher {
     }
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Copy, Clone)]
 pub enum ListItemTask {
     Selected,
     Unselected,
@@ -83,27 +83,27 @@ pub enum ListItemTask {
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct ListItemMatcher {
-    ordered: bool,
-    task: ListItemTask,
-    matcher: Matcher,
+    pub ordered: bool,
+    pub task: ListItemTask,
+    pub matcher: Matcher,
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub struct LinklikeMatcher {
-    display_matcher: Matcher,
-    url_matcher: Matcher,
+    pub display_matcher: Matcher,
+    pub url_matcher: Matcher,
 }
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct CodeBlockMatcher {
-    language: Matcher,
-    contents: Matcher,
+    pub language: Matcher,
+    pub contents: Matcher,
 }
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct TableMatcher {
-    column: Matcher,
-    row: Matcher,
+    pub column: Matcher,
+    pub row: Matcher,
 }
 
 #[derive(Eq, PartialEq, Debug)]
