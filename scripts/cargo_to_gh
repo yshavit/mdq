@@ -11,11 +11,12 @@ tmp_file="$(mktemp)"
 cargo "$@" "${json_opts[@]}" > "$tmp_file"
 exit_code=0
 while IFS= read -r line; do
-  echo "$line"
-  exit_code=1
+  if [[ -n "$line" ]]; then
+    echo "$line"
+    exit_code=1
+  fi
 done < <(
-  cat "$tmp_file"
-  jq -r '
+  jq <"$tmp_file" -r '
     select(.message.level and (.message.spans | length > 0)) 
     | {level: (.message.level | sub("note"; "notice")), message: .message.message} as $ctx
     | .message.spans[] 
