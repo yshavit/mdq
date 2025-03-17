@@ -365,6 +365,10 @@ impl ParsedString {
 
 impl Debug for ParsedString {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.is_equivalent_to_asterisk() {
+            return f.write_char('*');
+        }
+
         match self.mode {
             ParsedStringMode::Regex => {
                 f.write_char('/')?;
@@ -651,10 +655,10 @@ mod tests {
             check_parse(
                 Rule::string_to_pipe,
                 r"*",
-                parsed_text(CaseInsensitive, false, r"", false),
+                parsed_text(CaseSensitive, false, r"", false),
                 "",
             );
-            assert!(parsed_text(CaseInsensitive, false, r"", false).is_equivalent_to_asterisk());
+            assert!(parsed_text(CaseSensitive, false, r"", false).is_equivalent_to_asterisk());
         }
 
         #[test]
@@ -717,10 +721,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn todo() {
-        todo!("check things that fail to parse");
-    }
+    // TODO move the tests in matchers.rs to here, and conslidate them
 
     fn check_parse(rule: Rule, input: &str, expect: ParsedString, remaining: &str) {
         let pairs = QueryPairs::parse(rule, input).unwrap();
