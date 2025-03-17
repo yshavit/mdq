@@ -11,7 +11,7 @@ exit_code=0
 while IFS= read -r line; do
   echo "$line"
   exit_code=1
-done <<< "$(
+done < <(
 set -x
   cargo "$@" "${json_opts[@]}" |
   jq -r '
@@ -19,6 +19,6 @@ set -x
     | {level: (.message.level | sub("note"; "notice")), message: .message.message} as $ctx
     | .message.spans[] 
     | "::\($ctx.level) file=\(.file_name),line=\(.line_start),col=\(.column_start),endLine=\(.line_end),columnEnd=\(.column_end),title=rust check::\($ctx.message)"'
-)"
+)
 
 exit "$exit_code"
