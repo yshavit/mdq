@@ -65,8 +65,7 @@ output = '''
 
 
 [expect."select only description by regex"]
-ignore = '#211'
-cli_args = [":-: /description/ :-:"]
+cli_args = [":-: /Description/ :-:"]
 output = '''
 | Description |
 |-------------|

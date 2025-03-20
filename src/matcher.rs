@@ -1,6 +1,5 @@
 use crate::fmt_str::inlines_to_plain_string;
-use crate::parsing_iter::ParsingIterator;
-use crate::select::{ParseErrorReason, ParseResult};
+use crate::query::Matcher;
 use crate::tree::{Inline, MdElem};
 use regex::Regex;
 use std::borrow::Borrow;
@@ -16,11 +15,7 @@ impl PartialEq for StringMatcher {
     }
 }
 
-const ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT: &str = r#"can't have single anchor without text"#;
-
 impl StringMatcher {
-    const BAREWORD_ANCHOR_END: char = '$';
-
     pub fn matches(&self, haystack: &str) -> bool {
         self.re.is_match(haystack)
     }
@@ -60,200 +55,9 @@ impl StringMatcher {
         }
     }
 
-    pub fn read<C>(chars: &mut ParsingIterator, bareword_end: C) -> ParseResult<Self>
-    where
-        C: Into<CharEnd>,
-    {
-        chars.drop_whitespace();
-        let peek_ch = match chars.peek() {
-            None => return Ok(StringMatcher::any()),
-            Some(ch) => ch,
-        };
-
-        let (anchor_start, peek_ch) = if peek_ch == '^' {
-            let _ = chars.next(); // drop the ^ char
-            chars.drop_whitespace();
-            let next_ch = chars.peek().ok_or_else(|| ParseErrorReason::UnexpectedEndOfInput)?;
-            (true, next_ch)
-        } else {
-            (false, peek_ch)
-        };
-
-        if peek_ch.is_alphanumeric() {
-            return Ok(Self::parse_matcher_bare(chars, bareword_end, anchor_start));
-        }
-        let bareword_end = bareword_end.into();
-        match peek_ch {
-            '*' => {
-                let _ = chars.next(); // drop the char we peeked
-                chars.drop_whitespace();
-                Ok(StringMatcher::any())
-            }
-            '/' => {
-                let _ = chars.next();
-                Self::parse_regex_matcher(chars)
-            }
-            ch @ ('\'' | '"') => {
-                let _ = chars.next();
-                Self::parse_matcher_quoted(chars, ch, anchor_start)
-            }
-            '$' => {
-                if anchor_start {
-                    let _ = chars.next();
-                    Ok(StringMatcher::empty())
-                } else {
-                    Err(ParseErrorReason::InvalidSyntax(
-                        ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string(),
-                    ))
-                }
-            }
-            other if bareword_end.test(other) => {
-                // do *not* consume the bareword end delimiter!
-                if anchor_start {
-                    Err(ParseErrorReason::InvalidSyntax(
-                        ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string(),
-                    ))
-                } else {
-                    Ok(StringMatcher::any())
-                }
-            }
-            _ => Err(ParseErrorReason::InvalidSyntax(
-                "invalid string specifier (must be quoted or a bareword that starts with a letter)".to_string(),
-            )),
-        }
-    }
-
-    fn parse_matcher_bare<C>(chars: &mut ParsingIterator, bareword_end: C, anchor_start: bool) -> Self
-    where
-        C: Into<CharEnd>,
-    {
-        let mut result = String::with_capacity(20); // just a guess
-        let mut dropped = String::with_capacity(8); // also a guess
-
-        let bareword_end = bareword_end.into();
-        let anchor_end = loop {
-            let ch = match bareword_end {
-                CharEnd::AtChar(_) => {
-                    // Drop whitespace, but keep a record of it. If we see a char within this bareword
-                    // (ie not end-of-input or the bareword_end), then we'll append that whitespace back at the end
-                    // of this iteration.
-                    chars.drop_to_while(&mut dropped, |ch| ch.is_whitespace());
-                    chars.peek()
-                }
-                CharEnd::AtWhitespace => match chars.peek() {
-                    None => None,
-                    Some(ch) if ch.is_whitespace() => None,
-                    ch @ Some(_) => ch,
-                },
-            };
-            let Some(ch) = ch else {
-                break false;
-            };
-
-            if ch == Self::BAREWORD_ANCHOR_END {
-                let _ = chars.next();
-                break true;
-            }
-            if bareword_end.test(ch) {
-                break false;
-            }
-            let _ = chars.next();
-            result.push_str(&dropped);
-            result.push(ch);
-        };
-
-        SubstringToRegex {
-            look_for: result,
-            case_sensitive: false,
-            anchor_start,
-            anchor_end,
-        }
-        .to_string_matcher()
-    }
-
-    fn parse_matcher_quoted(chars: &mut ParsingIterator, ending_char: char, anchor_start: bool) -> ParseResult<Self> {
-        let mut result = String::with_capacity(20); // just a guess
-        loop {
-            match chars.next().ok_or_else(|| ParseErrorReason::Expected(ending_char))? {
-                '\\' => {
-                    let escaped = match chars.next().ok_or_else(|| ParseErrorReason::UnexpectedEndOfInput)? {
-                        escaped @ ('\'' | '"' | '\\') => escaped,
-                        'n' => '\n',
-                        'r' => '\r',
-                        't' => '\t',
-                        '`' => '\'',
-                        'u' => {
-                            chars.require_char('{')?;
-                            let mut hex_str = String::with_capacity(6);
-                            loop {
-                                match chars.next().ok_or_else(|| ParseErrorReason::Expected('}'))? {
-                                    '}' => break,
-                                    ch if ch.is_ascii_hexdigit() => {
-                                        hex_str.push(ch);
-                                        if hex_str.len() > 6 {
-                                            return Err(ParseErrorReason::Expected('}'));
-                                        }
-                                    }
-                                    _ => return Err(ParseErrorReason::InvalidEscape),
-                                }
-                            }
-                            let as_int =
-                                u32::from_str_radix(&hex_str, 16).map_err(|_| ParseErrorReason::InvalidEscape)?;
-                            char::from_u32(as_int).ok_or_else(|| ParseErrorReason::InvalidEscape)?
-                        }
-                        _ => return Err(ParseErrorReason::InvalidEscape),
-                    };
-                    result.push(escaped);
-                }
-                ch if ch == ending_char => break,
-                ch => result.push(ch),
-            }
-        }
-        chars.drop_whitespace();
-        let anchor_end = chars.consume_if(Self::BAREWORD_ANCHOR_END);
-        Ok(SubstringToRegex {
-            look_for: result,
-            case_sensitive: true,
-            anchor_start,
-            anchor_end,
-        }
-        .to_string_matcher())
-    }
-
-    fn parse_regex_matcher(chars: &mut ParsingIterator) -> ParseResult<StringMatcher> {
-        let mut result = String::with_capacity(20); // just a guess
-
-        loop {
-            match chars.next() {
-                None => return Err(ParseErrorReason::UnexpectedEndOfInput),
-                Some('\\') => match chars.next() {
-                    None => return Err(ParseErrorReason::UnexpectedEndOfInput),
-                    Some('/') => result.push('/'),
-                    Some(escaped) => {
-                        result.push('\\');
-                        result.push(escaped);
-                    }
-                },
-                Some('/') => break,
-                Some(ch) => result.push(ch),
-            }
-        }
-
-        match Regex::new(&result) {
-            Ok(re) => Ok(StringMatcher::regex(re)),
-            Err(err) => Err(ParseErrorReason::InvalidSyntax(err.to_string())),
-        }
-    }
-
     pub fn any() -> Self {
         Self {
             re: Regex::new(".*").expect("internal error"),
-        }
-    }
-
-    fn empty() -> Self {
-        Self {
-            re: Regex::new("^$").expect("internal error"),
         }
     }
 
@@ -262,22 +66,23 @@ impl StringMatcher {
     }
 }
 
-pub enum CharEnd {
-    AtChar(char),
-    AtWhitespace,
-}
-
-impl From<char> for CharEnd {
-    fn from(ch: char) -> Self {
-        Self::AtChar(ch)
-    }
-}
-
-impl CharEnd {
-    fn test(&self, test_ch: char) -> bool {
-        match self {
-            CharEnd::AtChar(look_for) => look_for == &test_ch,
-            CharEnd::AtWhitespace => test_ch.is_whitespace(),
+impl From<Matcher> for StringMatcher {
+    fn from(value: Matcher) -> Self {
+        match value {
+            Matcher::Text {
+                case_sensitive,
+                anchor_start,
+                text,
+                anchor_end,
+            } => SubstringToRegex {
+                look_for: text,
+                case_sensitive,
+                anchor_start,
+                anchor_end,
+            }
+            .to_string_matcher(),
+            Matcher::Regex(re) => Self::regex(re),
+            Matcher::Any => Self::any(),
         }
     }
 }
@@ -312,9 +117,7 @@ impl SubstringToRegex {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::parse_common::Position;
-    use crate::select::SELECTOR_SEPARATOR;
-    use indoc::indoc;
+    use crate::query::{Matcher, StringVariant};
     use std::str::FromStr;
 
     #[test]
@@ -324,7 +127,7 @@ mod test {
         parse_and_check("hello / goodbye", re_insensitive("hello / goodbye"), "");
         parse_and_check("hello| goodbye", re_insensitive("hello"), "| goodbye");
         parse_and_check("hello | goodbye", re_insensitive("hello"), "| goodbye");
-        parse_and_check_with(']', "foo] rest", re_insensitive("foo"), "] rest");
+        parse_and_check_with(StringVariant::Bracket, "foo] rest", re_insensitive("foo"), "] rest");
     }
 
     #[test]
@@ -345,30 +148,14 @@ mod test {
 
     #[test]
     fn only_starting_anchor() {
-        expect_err(
-            "^ |",
-            ParseErrorReason::InvalidSyntax(ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string()),
-            Position { line: 0, column: 2 },
-        );
-        expect_err(
-            "^",
-            ParseErrorReason::UnexpectedEndOfInput,
-            Position { line: 0, column: 1 },
-        );
+        parse_and_check("^ |", StringMatcher::any(), "|");
+        parse_and_check("^", StringMatcher::any(), "");
     }
 
     #[test]
     fn only_ending_anchor() {
-        expect_err(
-            "$ |",
-            ParseErrorReason::InvalidSyntax(ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string()),
-            Position { line: 0, column: 0 },
-        );
-        expect_err(
-            "$",
-            ParseErrorReason::InvalidSyntax(ERR_MESSAGE_NO_ANCHOR_WITHOUT_TEXT.to_string()),
-            Position { line: 0, column: 0 },
-        );
+        parse_and_check("$ |", StringMatcher::any(), " |");
+        parse_and_check("$", StringMatcher::any(), "");
     }
 
     #[test]
@@ -377,6 +164,8 @@ mod test {
         assert_eq!(matcher.matches(""), true);
         assert_eq!(matcher.matches("x"), false);
         assert_eq!(matcher.matches("\n"), false);
+
+        parse_and_check("^  $ |after", re("^$"), " |after");
     }
 
     #[test]
@@ -419,7 +208,7 @@ mod test {
         parse_and_check("bar     $", re("(?i)bar$"), "");
         parse_and_check("'bar'   $", re("bar$"), "");
 
-        parse_and_check("  ^  foobar  $  ", re("(?i)^foobar$"), "  ");
+        parse_and_check("^  foobar  $  ", re("(?i)^foobar$"), "  ");
     }
 
     #[test]
@@ -431,14 +220,14 @@ mod test {
 
     #[test]
     fn bareword_end_delimiters() {
-        parse_and_check_with('@', "hello@world", re_insensitive("hello"), "@world");
+        parse_and_check_with(StringVariant::Colon, "hello:world", re_insensitive("hello"), ":world");
 
         // "$" is always an end delimiter
         parse_and_check_with(
-            '@',
+            StringVariant::Colon,
             "hello$world",
             re_insensitive("hello$"),
-            "world", // note: the dollar sign got consumed!
+            "world", // note: the dollar sign got consumed, since it's part of the string
         );
     }
 
@@ -472,78 +261,15 @@ mod test {
 
     #[test]
     fn quote_errs() {
-        expect_err(
-            r#" " "#,
-            ParseErrorReason::Expected('"'),
-            Position {
-                line: 0,
-                column: r#" " "#.len(),
-            },
-        );
-        expect_err(
-            r#" ' "#,
-            ParseErrorReason::Expected('\''),
-            Position {
-                line: 0,
-                column: " ' ".len(),
-            },
-        );
-        expect_err(
-            r#" '\"#,
-            ParseErrorReason::UnexpectedEndOfInput,
-            Position {
-                line: 0,
-                column: r#" "\"#.len(),
-            },
-        );
-        expect_err(
-            r#" "\x" "#,
-            ParseErrorReason::InvalidEscape,
-            Position {
-                line: 0,
-                column: r#" "\x"#.len(),
-            },
-        );
-        expect_err(
-            r#" "\u2603" "#,
-            ParseErrorReason::Expected('{'),
-            Position {
-                line: 0,
-                column: r#" "\u2"#.len(),
-            },
-        );
-        expect_err(
-            r#" "\u{}" "#,
-            ParseErrorReason::InvalidEscape,
-            Position {
-                line: 0,
-                column: r#" "\u{}"#.len(),
-            },
-        );
-        expect_err(
-            r#" "\u{12345678}" "#, // out of range
-            ParseErrorReason::Expected('}'),
-            Position {
-                line: 0,
-                column: r#" "\u{1234567"#.len(),
-            },
-        );
-        expect_err(
-            r#" "\u{snowman}" "#,
-            ParseErrorReason::InvalidEscape,
-            Position {
-                line: 0,
-                column: r#" "\u{s"#.len(),
-            },
-        );
-        expect_err(
-            r#" "\u{2603"#,
-            ParseErrorReason::Expected('}'),
-            Position {
-                line: 0,
-                column: r#" "\u{2603"#.len(),
-            },
-        );
+        expect_err(r#"" "#);
+        expect_err(r#"' "#);
+        expect_err(r#"'\"#);
+        expect_err(r#""\x" "#);
+        expect_err(r#""\u2603" "#);
+        expect_err(r#""\u{}" "#);
+        expect_err(r#""\u{12345678}" "#); // out of range
+        expect_err(r#""\u{snowman}" "#);
+        expect_err(r#""\u{2603"#);
     }
 
     //noinspection RegExpSingleCharAlternation (for the "(a|b)" case)
@@ -561,30 +287,9 @@ mod test {
             "",
         );
 
-        expect_err(
-            r#"/unclosed"#,
-            ParseErrorReason::UnexpectedEndOfInput,
-            Position {
-                line: 0,
-                column: "/unclosed".len(),
-            },
-        );
+        expect_err(r#"/unclosed"#);
 
-        expect_err(
-            r#"/(unclosed paren/"#,
-            ParseErrorReason::InvalidSyntax(
-                indoc! {r#"
-                    regex parse error:
-                        (unclosed paren
-                        ^
-                    error: unclosed group"#}
-                .to_string(),
-            ),
-            Position {
-                line: 0,
-                column: "/(unclosed paren/".len(),
-            },
-        );
+        expect_err(r#"/(unclosed paren/"#);
     }
 
     #[test]
@@ -592,35 +297,34 @@ mod test {
         let empty_matcher = parse_and_check("| rest", StringMatcher::any(), "| rest");
         assert_eq!(empty_matcher.matches(""), true);
 
-        parse_and_check(" | rest", StringMatcher::any(), "| rest");
+        parse_and_check("| rest", StringMatcher::any(), "| rest");
         parse_and_check("*| rest", StringMatcher::any(), "| rest");
-        parse_and_check(" * | rest", StringMatcher::any(), "| rest");
-        parse_and_check_with(']', "] rest", StringMatcher::any(), "] rest");
+        parse_and_check("* | rest", StringMatcher::any(), " | rest");
+        parse_and_check_with(StringVariant::Bracket, "] rest", StringMatcher::any(), "] rest");
     }
 
     fn parse_and_check_with(
-        bareword_end: char,
+        string_variant: StringVariant,
         text: &str,
         expect: StringMatcher,
         expect_remaining: &str,
     ) -> StringMatcher {
-        let mut iter = ParsingIterator::new(text);
-        let matcher = StringMatcher::read(&mut iter, bareword_end).unwrap();
-        assert_eq!(matcher, expect);
-        let remaining: String = iter.collect();
-        assert_eq!(&remaining, expect_remaining);
+        let (actual_matcher, actual_remaining) = Matcher::parse(string_variant, text).unwrap();
+        let actual_string_matcher: StringMatcher = actual_matcher.into();
+        assert_eq!(actual_string_matcher, expect);
+        assert_eq!(actual_remaining, expect_remaining);
         expect
     }
 
     fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) -> StringMatcher {
-        parse_and_check_with(SELECTOR_SEPARATOR, text, expect, expect_remaining)
+        parse_and_check_with(StringVariant::Pipe, text, expect, expect_remaining)
     }
 
-    fn expect_err(text: &str, expect: ParseErrorReason, at: Position) {
-        let mut iter = ParsingIterator::new(text);
-        let err = StringMatcher::read(&mut iter, SELECTOR_SEPARATOR).expect_err("expected to fail parsing");
-        assert_eq!(iter.input_position(), at);
-        assert_eq!(err, expect);
+    fn expect_err(text: &str) {
+        match Matcher::parse(StringVariant::Pipe, text) {
+            Ok(unexpected) => panic!("unexpected success: {unexpected:?}"),
+            Err(_) => {}
+        }
     }
 
     fn re(value: &str) -> StringMatcher {

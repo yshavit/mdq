@@ -1,0 +1,97 @@
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+
+top = { SOI ~ "|"* ~ selector_chain? ~ EOI }
+
+selector_chain = { selector ~ ("|"+ ~ selector?)* }
+
+selector = {
+    select_section
+  | select_list_item
+  | select_link
+  | select_block_quote
+  | select_code_block
+  | select_html
+  | select_paragraph
+  | select_table
+}
+
+selector_delim = _{ explicit_space | EOI }
+explicit_space = !{ " " }
+
+select_section =  { section_start ~ #title = string_to_pipe? }
+section_start  = @{ "#" ~ selector_delim }
+
+select_list_item  =  { list_start ~ list_task_options? ~ #contents = string_to_pipe? }
+list_start        = ${ (list_ordered | "-") ~ selector_delim }
+list_ordered      = ${ "1." }
+list_task_options = ${ "[" ~ (task_unchecked | task_checked | task_either) ~ task_end }
+task_checked      = ${ "x" }
+task_unchecked    = ${ " " }
+task_either       = ${ "?" }
+task_end          = ${ "]" }
+
+select_link =  { link_start ~ #display_text = string_to_bracket? ~ "](" ~ #url_text = string_to_paren? ~ ")" }
+link_start  = ${ image_start? ~ "[" }
+image_start = @{ "!" }
+
+select_block_quote       =  { select_block_quote_start ~ #text = string_to_pipe? }
+select_block_quote_start = @{ ">" ~ selector_delim }
+
+select_code_block =  { code_block_start ~ #text = string_to_pipe? }
+code_block_start  = ${ "```" ~ #language = string_to_space? ~ selector_delim }
+
+select_html =  { html_start ~ #text = string_to_pipe? }
+html_start  = @{ "</>" ~ selector_delim }
+
+select_paragraph       =  { select_paragraph_start ~ #text = string_to_pipe? }
+select_paragraph_start = @{ "P:" ~ selector_delim }
+
+select_table = { table_start ~ (explicit_asterisk | #column = string_to_colon) ~ ":-:" ~ #row = string_to_pipe? }
+table_start = ${":-:" ~ explicit_space }
+explicit_asterisk = ${ "*" }
+
+// What I'd really want is to push a literal for the closing delimiter, and then do (!("|" | PEEK) in unquoted_string.
+// But that's not possible (see GH pest-parser/pest#880), so this is the next best.
+
+// NOTE: If you add a variant here, make sure to add it to the big matcher in strings.rs's "fn build_string":
+
+string_to_pipe    = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_pipe) ~ anchor_end?) | only_anchors }
+string_to_paren   = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_paren) ~ anchor_end? | only_anchors) }
+string_to_bracket = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_bracket) ~ anchor_end? | only_anchors) }
+string_to_space   = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_space) ~ anchor_end? | only_anchors) }
+string_to_colon   = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_colon) ~ anchor_end? | only_anchors) }
+
+unquoted_string_to_pipe    = @{ LETTER ~ (!("|" | "$") ~ ANY)* }
+unquoted_string_to_paren   = @{ LETTER ~ (!(")" | "$") ~ ANY)* }
+unquoted_string_to_bracket = @{ LETTER ~ (!("]" | "$") ~ ANY)* }
+unquoted_string_to_space   = @{ LETTER ~ (!(" " | "$") ~ ANY)* }
+unquoted_string_to_colon   = @{ LETTER ~ (!(":" | "$") ~ ANY)* }
+
+regex               = ${ "/" ~ regex_char* ~ "/" }
+regex_char          = ${
+    (regex_escaped_slash | regex_normal_char)
+}
+regex_escaped_slash = @{ "\\/" }
+regex_normal_char   = @{ !("/") ~ ANY }
+
+quoted_string = ${ PUSH("'" | "\"") ~ quoted_char* ~ POP }
+
+quoted_char = ${
+    quoted_plain_chars
+  | ("\\" ~ (escaped_char | "u{" ~ unicode_seq ~ "}"))
+}
+
+anchor_start = @{ "^" }
+
+anchor_end = @{ "$" }
+
+only_anchors = {
+  (anchor_start ~ anchor_end?)
+  | anchor_end
+}
+
+quoted_plain_chars = @{ (!(PEEK | "\\") ~ ANY)+ }
+
+escaped_char = @{ ("\"" | "'" | "`" | "\\" | "n" | "r" | "t") }
+
+unicode_seq = @{ ASCII_HEX_DIGIT{1, 6} }
