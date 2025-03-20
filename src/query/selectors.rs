@@ -5,6 +5,7 @@ use crate::query::traversal_composites::{
     BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, ParagraphTraverser,
     SectionResults, SectionTraverser, TableTraverser,
 };
+use crate::select::{DetachedSpan, ParseError};
 use regex::Regex;
 
 #[derive(Debug, Clone)]
@@ -46,8 +47,9 @@ impl PartialEq for Matcher {
 impl Eq for Matcher {}
 
 impl Matcher {
-    fn take_from_option(pair: Option<Pair>) -> Result<Matcher, String> {
+    fn take_from_option(pair: Option<Pair>) -> Result<Matcher, ParseError> {
         let Some(pair) = pair else { return Ok(Matcher::Any) };
+        let span = DetachedSpan::from(&pair);
         let parsed_string: ParsedString = pair.into_inner().try_into()?;
         if parsed_string.is_equivalent_to_asterisk() {
             return Ok(Matcher::Any);
@@ -66,7 +68,7 @@ impl Matcher {
                 anchor_end: parsed_string.anchor_end,
             },
             ParsedStringMode::Regex => {
-                let re = Regex::new(&parsed_string.text).map_err(|e| e.to_string())?;
+                let re = Regex::new(&parsed_string.text).map_err(|e| ParseError::Other(span.into(), e.to_string()))?;
                 Matcher::Regex(re)
             }
         };
@@ -126,7 +128,7 @@ pub enum Selector {
 }
 
 impl Selector {
-    pub fn from_top_pairs(root: Pairs) -> Result<Vec<Self>, String> {
+    pub fn from_top_pairs(root: Pairs) -> Result<Vec<Self>, ParseError> {
         // Get "all" the selector chains; there should be at most 1.
         let selector_chains = ByRule::new(Rule::selector_chain).find_all_in(root);
         let mut all_selectors: Vec<Self> = Vec::new();
@@ -142,13 +144,16 @@ impl Selector {
         Ok(all_selectors)
     }
 
-    fn find_selector(root: Pair) -> Result<Self, String> {
+    fn find_selector(root: Pair) -> Result<Self, ParseError> {
+        let span = DetachedSpan::from(&root);
+        let to_parse_error = |es: String| -> ParseError { ParseError::Other(span, es) };
+
         let (as_rule, children) = (root.as_rule(), root.into_inner());
 
         match as_rule {
             Rule::select_section => {
                 let SectionResults { title } = SectionTraverser::traverse(children);
-                let matcher = Matcher::take_from_option(title.take()?)?;
+                let matcher = Matcher::take_from_option(title.take().map_err(to_parse_error)?)?;
                 Ok(Self::Section(matcher))
             }
             Rule::select_list_item => {
@@ -163,14 +168,14 @@ impl Selector {
                 } else {
                     ListItemTask::None
                 };
-                let m = res.contents.take()?;
+                let m = res.contents.take().map_err(to_parse_error)?;
                 let matcher = Matcher::take_from_option(m)?;
                 Ok(Self::ListItem(ListItemMatcher { ordered, task, matcher }))
             }
             Rule::select_link => {
                 let res = LinkTraverser::traverse(children);
-                let display_matcher = Matcher::take_from_option(res.display_text.take()?)?;
-                let url_matcher = Matcher::take_from_option(res.url_text.take()?)?;
+                let display_matcher = Matcher::take_from_option(res.display_text.take().map_err(to_parse_error)?)?;
+                let url_matcher = Matcher::take_from_option(res.url_text.take().map_err(to_parse_error)?)?;
                 let link_matcher = LinklikeMatcher {
                     display_matcher,
                     url_matcher,
@@ -183,13 +188,13 @@ impl Selector {
             }
             Rule::select_block_quote => {
                 let res = BlockQuoteTraverser::traverse(children);
-                let matcher = Matcher::take_from_option(res.text.take()?)?;
+                let matcher = Matcher::take_from_option(res.text.take().map_err(to_parse_error)?)?;
                 Ok(Self::BlockQuote(matcher))
             }
             Rule::select_code_block => {
                 let res = CodeBlockTraverser::traverse(children);
-                let language_matcher = Matcher::take_from_option(res.language.take()?)?;
-                let contents_matcher = Matcher::take_from_option(res.text.take()?)?;
+                let language_matcher = Matcher::take_from_option(res.language.take().map_err(to_parse_error)?)?;
+                let contents_matcher = Matcher::take_from_option(res.text.take().map_err(to_parse_error)?)?;
                 Ok(Self::CodeBlock(CodeBlockMatcher {
                     language: language_matcher,
                     contents: contents_matcher,
@@ -197,18 +202,18 @@ impl Selector {
             }
             Rule::select_html => {
                 let res = HtmlTraverser::traverse(children);
-                let matcher = Matcher::take_from_option(res.text.take()?)?;
+                let matcher = Matcher::take_from_option(res.text.take().map_err(to_parse_error)?)?;
                 Ok(Self::Html(matcher))
             }
             Rule::select_paragraph => {
                 let res = ParagraphTraverser::traverse(children);
-                let matcher = Matcher::take_from_option(res.text.take()?)?;
+                let matcher = Matcher::take_from_option(res.text.take().map_err(to_parse_error)?)?;
                 Ok(Self::Paragraph(matcher))
             }
             Rule::select_table => {
                 let res = TableTraverser::traverse(children);
-                let column_matcher = Matcher::take_from_option(res.column.take()?)?;
-                let row_matcher = Matcher::take_from_option(res.row.take()?)?;
+                let column_matcher = Matcher::take_from_option(res.column.take().map_err(to_parse_error)?)?;
+                let row_matcher = Matcher::take_from_option(res.row.take().map_err(to_parse_error)?)?;
                 Ok(Self::TableSlice(TableSliceMatcher {
                     column: column_matcher,
                     row: row_matcher,
@@ -222,8 +227,8 @@ impl Selector {
                     let found_in_child = Self::find_selector(child)?;
                     one.store(found_in_child);
                 }
-                let maybe = one.take()?;
-                maybe.ok_or_else(|| "no queries found".to_string())
+                let maybe = one.take().map_err(to_parse_error)?;
+                Ok(maybe.unwrap())
             }
         }
     }
@@ -235,14 +240,15 @@ mod tests {
     use crate::query::query::{Query, StringVariant};
     use crate::query::traversal::OneOf;
     use pest::error::ErrorVariant;
+    use std::cmp::{max, min};
 
     impl Matcher {
-        pub fn parse(variant: StringVariant, query_str: &str) -> Result<(Matcher, &str), String> {
+        pub fn parse(variant: StringVariant, query_str: &str) -> Result<(Matcher, &str), ParseError> {
             let parse_attempt = variant.parse(query_str);
             let (only_pair, remaining) = match parse_attempt {
                 Err(err) => {
                     let ErrorVariant::ParsingError { positives, .. } = &err.variant else {
-                        return Err(err.to_string());
+                        return Err(err.into());
                     };
                     // See what this thing tried to parse. If it failed at trying to parse the string variant itself,
                     // it didn't consume any input; just return an empty parse. Otherwise, it found something to parse,
@@ -250,15 +256,20 @@ mod tests {
                     // This is basically equivalent to a `string_variant?` usage in the grammar.
                     match positives.as_slice() {
                         &[only] if only == variant.as_rule() => (None, query_str),
-                        _ => return Err(err.to_string()),
+                        _ => return Err(err.into()),
                     }
                 }
                 Ok((top, remaining)) => {
+                    let mut span = DetachedSpan::default();
                     let mut one_of = OneOf::default();
                     for pair in top {
+                        let pair_span = pair.as_span();
+                        span.start = min(span.start, pair_span.start());
+                        span.end = max(span.end, pair_span.start());
                         one_of.store(pair);
                     }
-                    (one_of.take()?, remaining)
+                    let matcher = one_of.take().map_err(|msg| ParseError::Other(span, msg))?;
+                    (matcher, remaining)
                 }
             };
             let matcher = Matcher::take_from_option(only_pair)?;

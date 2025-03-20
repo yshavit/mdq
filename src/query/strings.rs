@@ -1,4 +1,5 @@
 use crate::query::query::{Pairs, Rule};
+use crate::select::{DetachedSpan, ParseError};
 use std::borrow::Cow;
 use std::fmt::{Debug, Formatter, Write};
 
@@ -68,7 +69,7 @@ impl Debug for ParsedString {
 }
 
 impl TryFrom<Pairs<'_>> for ParsedString {
-    type Error = String;
+    type Error = ParseError;
 
     fn try_from(pairs: Pairs) -> Result<Self, Self::Error> {
         let mut s = Self {
@@ -78,9 +79,10 @@ impl TryFrom<Pairs<'_>> for ParsedString {
             mode: ParsedStringMode::CaseSensitive,
         };
 
-        fn build_string(me: &mut ParsedString, pairs: Pairs) -> Result<(), String> {
+        fn build_string(me: &mut ParsedString, pairs: Pairs) -> Result<(), ParseError> {
             // If you change or move this, update the comment in grammar.pest ("If you add a variant...") as needed.
             for pair in pairs {
+                let span = DetachedSpan::from(&pair);
                 match pair.as_rule() {
                     Rule::quoted_plain_chars => {
                         me.text.push_str(pair.as_str());
@@ -95,7 +97,7 @@ impl TryFrom<Pairs<'_>> for ParsedString {
                                 'r' => '\r',
                                 't' => '\t',
                                 err => {
-                                    return Err(format!("invalid escape char: {err:?}"));
+                                    return Err(ParseError::Other(span, format!("invalid escape char: {err:?}")));
                                 }
                             };
                             me.text.push(result);
@@ -104,10 +106,10 @@ impl TryFrom<Pairs<'_>> for ParsedString {
                     Rule::unicode_seq => {
                         let seq = pair.as_str();
                         let Ok(code_point) = u32::from_str_radix(pair.as_str(), 16) else {
-                            return Err(format!("invalid unicode sequence: {seq}"));
+                            return Err(ParseError::Other(span, format!("invalid unicode sequence: {seq}")));
                         };
                         let Some(ch) = char::from_u32(code_point) else {
-                            return Err(format!("invalid unicode sequence: {seq}"));
+                            return Err(ParseError::Other(span, format!("invalid unicode sequence: {seq}")));
                         };
                         me.text.push(ch);
                     }

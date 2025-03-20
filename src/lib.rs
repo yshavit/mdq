@@ -7,6 +7,8 @@ use crate::tree_ref::MdElemRef;
 use crate::tree_ref_serde::SerdeDoc;
 use cli::{Cli, OutputFormat};
 use output::Output;
+use pest::error::ErrorVariant;
+use pest::Span;
 use std::io;
 use std::io::{stdin, Read, Write};
 
@@ -68,7 +70,7 @@ where
     let selectors = match SelectorAdapter::parse(&selectors_str) {
         Ok(selectors) => selectors,
         Err(err) => {
-            print_select_parse_error(err);
+            print_select_parse_error(err, &selectors_str);
             return false;
         }
     };
@@ -113,7 +115,14 @@ where
     found_any
 }
 
-fn print_select_parse_error(err: ParseError) {
+fn print_select_parse_error(err: ParseError, query_string: &str) {
     eprintln!("Syntax error in select specifier:");
-    eprintln!("{}", err.pest_err);
+    let pest_err = match err {
+        ParseError::Pest(err) => err,
+        ParseError::Other(span, message) => {
+            let full_span = Span::new(query_string, span.start, span.end);
+            query::Error::new_from_span(ErrorVariant::CustomError { message }, full_span.unwrap())
+        }
+    };
+    eprintln!("{}", pest_err);
 }

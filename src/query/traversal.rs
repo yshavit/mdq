@@ -71,7 +71,6 @@ impl<T> Default for OneOf<T> {
 }
 
 impl<T> OneOf<T> {
-    // TODO the Err should be an Error
     pub fn take(self) -> Result<Option<T>, String> {
         self.0.map_err(|_| "multiple items found".to_string())
     }

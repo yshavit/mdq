@@ -1,5 +1,6 @@
+use crate::query;
 use crate::query::Selector as ParsedSelector;
-use crate::query::{Error, Pairs, Query};
+use crate::query::{Pairs, Query};
 use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_link_like::{ImageSelector, LinkSelector};
 use crate::select::sel_list_item::ListItemSelector;
@@ -18,8 +19,37 @@ pub trait Selector<'md, I: Into<MdElemRef<'md>>> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ParseError {
-    pub pest_err: Error,
+pub enum ParseError {
+    Pest(query::Error),
+    Other(DetachedSpan, String),
+}
+
+impl From<query::Error> for ParseError {
+    fn from(err: query::Error) -> Self {
+        Self::Pest(err)
+    }
+}
+
+/// Like a [pest::Span], but without a reference to the underlying `&str`, and thus cheaply Copyable.
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
+pub struct DetachedSpan {
+    pub start: usize,
+    pub end: usize,
+}
+
+impl From<pest::Span<'_>> for DetachedSpan {
+    fn from(value: pest::Span) -> Self {
+        Self {
+            start: value.start(),
+            end: value.end(),
+        }
+    }
+}
+
+impl From<&query::Pair<'_>> for DetachedSpan {
+    fn from(value: &query::Pair<'_>) -> Self {
+        value.as_span().into()
+    }
 }
 
 macro_rules! adapters {
@@ -68,8 +98,8 @@ adapters! {
 
 impl SelectorAdapter {
     pub fn parse(text: &str) -> Result<Vec<Self>, ParseError> {
-        let parsed: Pairs = Query::parse(text).map_err(|pest_err| ParseError { pest_err })?;
-        let parsed_selectors = ParsedSelector::from_top_pairs(parsed).unwrap(); // TODO do I need something better than unwrap? if not, I should just unwrap within from_top_pairs.
+        let parsed: Pairs = Query::parse(text).map_err(|err| ParseError::from(err))?;
+        let parsed_selectors = ParsedSelector::from_top_pairs(parsed).map_err(|e| ParseError::from(e))?;
         Ok(parsed_selectors.into_iter().map(|s| s.into()).collect())
     }
 
