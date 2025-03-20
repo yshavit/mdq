@@ -64,6 +64,18 @@ output = '''
 |             |'''
 
 
+[expect."select only description by regex"]
+ignore = '#211'
+cli_args = [":-: /description/ :-:"]
+output = '''
+| Description |
+|-------------|
+| Not a fizz  |
+| Not a buzz  |
+| Big, red.   |
+|             |'''
+
+
 [expect."select only the big red row"]
 # Note: header row always survives
 cli_args = [":-: * :-: 'Big, red' "]
