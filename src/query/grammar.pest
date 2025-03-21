@@ -18,10 +18,10 @@ selector = {
 selector_delim = _{ explicit_space | EOI }
 explicit_space = !{ " " }
 
-select_section =  { section_start ~ #title = string_to_pipe? }
+select_section =  { section_start ~ PUSH_LITERAL("|") ~ #title = string_to_peek? ~ POP }
 section_start  = @{ "#" ~ selector_delim }
 
-select_list_item  =  { list_start ~ list_task_options? ~ #contents = string_to_pipe? }
+select_list_item  =  { list_start ~ list_task_options? ~ PUSH_LITERAL("|") ~ #contents = string_to_peek? ~ POP }
 list_start        = ${ (list_ordered | "-") ~ selector_delim }
 list_ordered      = ${ "1." }
 list_task_options = ${ "[" ~ (task_unchecked | task_checked | task_either) ~ task_end }
@@ -30,42 +30,30 @@ task_unchecked    = ${ " " }
 task_either       = ${ "?" }
 task_end          = ${ "]" }
 
-select_link =  { link_start ~ #display_text = string_to_bracket? ~ "](" ~ #url_text = string_to_paren? ~ ")" }
+select_link =  { link_start ~ PUSH_LITERAL("]") ~ #display_text = string_to_peek? ~ POP ~ "](" ~ PUSH_LITERAL(")")~ #url_text = string_to_peek? ~ POP ~ ")" }
 link_start  = ${ image_start? ~ "[" }
 image_start = @{ "!" }
 
-select_block_quote       =  { select_block_quote_start ~ #text = string_to_pipe? }
+select_block_quote       =  { select_block_quote_start ~ PUSH_LITERAL("|") ~ #text = string_to_peek? ~ POP }
 select_block_quote_start = @{ ">" ~ selector_delim }
 
-select_code_block =  { code_block_start ~ #text = string_to_pipe? }
-code_block_start  = ${ "```" ~ #language = string_to_space? ~ selector_delim }
+select_code_block =  { code_block_start ~ PUSH_LITERAL("|") ~ #text = string_to_peek? ~ POP }
+code_block_start  = ${ "```" ~ PUSH_LITERAL(" ") ~ #language = string_to_peek? ~ POP ~ selector_delim }
 
-select_html =  { html_start ~ #text = string_to_pipe? }
+select_html =  { html_start ~ PUSH_LITERAL("|") ~ #text = string_to_peek? ~ POP }
 html_start  = @{ "</>" ~ selector_delim }
 
-select_paragraph       =  { select_paragraph_start ~ #text = string_to_pipe? }
+select_paragraph       =  { select_paragraph_start ~ PUSH_LITERAL("|") ~ #text = string_to_peek? ~ POP }
 select_paragraph_start = @{ "P:" ~ selector_delim }
 
-select_table = { table_start ~ (explicit_asterisk | #column = string_to_colon) ~ ":-:" ~ #row = string_to_pipe? }
+select_table = { table_start ~ (explicit_asterisk | (PUSH_LITERAL(":") ~ #column = string_to_peek ~ POP)) ~ ":-:" ~ PUSH_LITERAL("|") ~ #row = string_to_peek? ~ POP }
 table_start = ${":-:" ~ explicit_space }
 explicit_asterisk = ${ "*" }
 
-// What I'd really want is to push a literal for the closing delimiter, and then do (!("|" | PEEK) in unquoted_string.
-// But that's not possible (see GH pest-parser/pest#880), so this is the next best.
-
-// NOTE: If you add a variant here, make sure to add it to the big matcher in strings.rs's "fn build_string":
-
-string_to_pipe    = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_pipe) ~ anchor_end?) | only_anchors }
-string_to_paren   = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_paren) ~ anchor_end? | only_anchors) }
-string_to_bracket = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_bracket) ~ anchor_end? | only_anchors) }
-string_to_space   = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_space) ~ anchor_end? | only_anchors) }
-string_to_colon   = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string_to_colon) ~ anchor_end? | only_anchors) }
-
-unquoted_string_to_pipe    = @{ LETTER ~ (!("|" | "$") ~ ANY)* }
-unquoted_string_to_paren   = @{ LETTER ~ (!(")" | "$") ~ ANY)* }
-unquoted_string_to_bracket = @{ LETTER ~ (!("]" | "$") ~ ANY)* }
-unquoted_string_to_space   = @{ LETTER ~ (!(" " | "$") ~ ANY)* }
-unquoted_string_to_colon   = @{ LETTER ~ (!(":" | "$") ~ ANY)* }
+// helper rule, just for unit tests
+string_for_unit_tests__do_not_use = { PUSH_LITERAL(">") ~ string_to_peek }
+string_to_peek = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string) ~ anchor_end? | only_anchors) }
+unquoted_string = @{ LETTER ~ (!(PEEK | "$") ~ ANY)* }
 
 regex               = ${ "/" ~ regex_char* ~ "/" }
 regex_char          = ${
