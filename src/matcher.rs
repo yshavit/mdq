@@ -127,7 +127,12 @@ mod test {
         parse_and_check("hello / goodbye", re_insensitive("hello / goodbye"), "");
         parse_and_check("hello| goodbye", re_insensitive("hello"), "| goodbye");
         parse_and_check("hello | goodbye", re_insensitive("hello"), "| goodbye");
-        parse_and_check_with(StringVariant::Bracket, "foo] rest", re_insensitive("foo"), "] rest");
+        parse_and_check_with(
+            StringVariant::AngleBracket,
+            "foo> rest",
+            re_insensitive("foo"),
+            "> rest",
+        );
     }
 
     #[test]
@@ -220,11 +225,16 @@ mod test {
 
     #[test]
     fn bareword_end_delimiters() {
-        parse_and_check_with(StringVariant::Colon, "hello:world", re_insensitive("hello"), ":world");
+        parse_and_check_with(
+            StringVariant::AngleBracket,
+            "hello>world",
+            re_insensitive("hello"),
+            ":world",
+        );
 
         // "$" is always an end delimiter
         parse_and_check_with(
-            StringVariant::Colon,
+            StringVariant::AngleBracket,
             "hello$world",
             re_insensitive("hello$"),
             "world", // note: the dollar sign got consumed, since it's part of the string
@@ -300,7 +310,7 @@ mod test {
         parse_and_check("| rest", StringMatcher::any(), "| rest");
         parse_and_check("*| rest", StringMatcher::any(), "| rest");
         parse_and_check("* | rest", StringMatcher::any(), " | rest");
-        parse_and_check_with(StringVariant::Bracket, "] rest", StringMatcher::any(), "] rest");
+        parse_and_check_with(StringVariant::AngleBracket, "> rest", StringMatcher::any(), "> rest");
     }
 
     fn parse_and_check_with(
@@ -317,11 +327,11 @@ mod test {
     }
 
     fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) -> StringMatcher {
-        parse_and_check_with(StringVariant::Pipe, text, expect, expect_remaining)
+        parse_and_check_with(StringVariant::AngleBracket, text, expect, expect_remaining)
     }
 
     fn expect_err(text: &str) {
-        match Matcher::parse(StringVariant::Pipe, text) {
+        match Matcher::parse(StringVariant::AngleBracket, text) {
             Ok(unexpected) => panic!("unexpected success: {unexpected:?}"),
             Err(_) => {}
         }

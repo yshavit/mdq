@@ -47,16 +47,8 @@ impl Query {
                 Rule::select_paragraph | Rule::select_paragraph_start => "_P:_",
                 Rule::select_table | Rule::table_start => "_:-:_",
                 Rule::explicit_asterisk => "explicit _*_",
-                Rule::string_to_pipe
-                | Rule::string_to_paren
-                | Rule::string_to_bracket
-                | Rule::string_to_space
-                | Rule::string_to_colon => "string",
-                Rule::unquoted_string_to_pipe
-                | Rule::unquoted_string_to_paren
-                | Rule::unquoted_string_to_bracket
-                | Rule::unquoted_string_to_space
-                | Rule::unquoted_string_to_colon => "unquoted string",
+                Rule::string_to_peek | Rule::string_for_unit_tests__do_not_use => "string",
+                Rule::unquoted_string => "unquoted string",
                 Rule::regex => "_/_",
                 Rule::regex_char => "regular expression character",
                 Rule::regex_escaped_slash => "_/_",
@@ -84,11 +76,7 @@ mod test_helpers {
 
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub enum StringVariant {
-        Pipe,
-        Paren,
-        Bracket,
-        Space,
-        Colon,
+        AngleBracket,
     }
 
     impl StringVariant {
@@ -105,11 +93,7 @@ mod test_helpers {
 
         pub fn as_rule(self) -> Rule {
             let rule = match self {
-                StringVariant::Pipe => Rule::string_to_pipe,
-                StringVariant::Paren => Rule::string_to_paren,
-                StringVariant::Bracket => Rule::string_to_bracket,
-                StringVariant::Space => Rule::string_to_space,
-                StringVariant::Colon => Rule::string_to_colon,
+                StringVariant::AngleBracket => Rule::string_for_unit_tests__do_not_use,
             };
             rule
         }
