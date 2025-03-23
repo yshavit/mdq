@@ -1,0 +1,13 @@
+name: Upload release assets
+on:
+  pull_request:
+    types: [ "opened", "synchronize" ]
+    branches: [ "releases/*" ]
+
+jobs:
+  bump_version:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "The head of this PR starts with 'releases/'. TODO!"
+
+
