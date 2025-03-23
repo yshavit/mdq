@@ -49,18 +49,17 @@ where
         MdElemRef::Doc(doc) => write_plain_result(out, doc.iter().map(|e| e.into())),
         MdElemRef::BlockQuote(block) => write_plain_result(out, block.body.iter().map(|e| e.into())),
         MdElemRef::CodeBlock(block) => {
-            if block.value.is_empty() {
-                Ok(())
-            } else {
+            if !(block.value.is_empty()) {
                 writeln!(out, "{}", block.value)?;
-                writeln!(out)
+                writeln!(out)?;
             }
+            Ok(())
         }
         MdElemRef::Inline(inline) => write_inline(out, inline),
         MdElemRef::List(List { items, .. }) => {
             for item in items {
                 write_plain_result(out, item.item.iter().map(|e| e.into()))?;
-                writeln!(out, "")?;
+                writeln!(out)?;
             }
             Ok(())
         }
@@ -74,8 +73,8 @@ where
         }
         MdElemRef::Section(s) => {
             write_inlines(out, &s.title)?;
-            writeln!(out, "")?;
-            writeln!(out, "")?;
+            writeln!(out)?;
+            writeln!(out)?;
             write_plain_result(out, s.body.iter().map(|e| e.into()))
         }
         MdElemRef::Table(t) => {
@@ -114,7 +113,7 @@ where
                 write!(out, " ")?;
             }
         }
-        writeln!(out, "")?;
+        writeln!(out)?;
     }
     Ok(())
 }
