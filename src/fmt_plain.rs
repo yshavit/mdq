@@ -52,7 +52,8 @@ where
             if block.value.is_empty() {
                 Ok(())
             } else {
-                writeln!(out, "{}", block.value)
+                writeln!(out, "{}", block.value)?;
+                writeln!(out)
             }
         }
         MdElemRef::Inline(inline) => write_inline(out, inline),
@@ -147,6 +148,7 @@ mod test {
     use crate::tree::*;
     use crate::tree_ref::{MdElemRef, TableSlice};
     use crate::{checked_elem_ref, m_node, md_elem, md_elems, mdq_inline};
+    use indoc::indoc;
     use markdown::mdast;
 
     crate::variants_checker!(VARIANTS_CHECKER = MdElemRef {
@@ -396,6 +398,57 @@ mod test {
             ]
         });
         check_plain(MdElemRef::from(&md), "hello world! sponsored by Example Corp.\n");
+    }
+
+    #[test]
+    fn multiple_blocks() {
+        let md = vec![
+            md_elem!("paragraph 1"),
+            md_elem!("paragraph 2"),
+            md_elem!(BlockQuote {
+                body: md_elems!("block quote paragraph 1", "block quote paragraph 2"),
+            }),
+            md_elem!(CodeBlock {
+                variant: CodeVariant::Toml,
+                value: "code block 1 line 1\ncode block 1 line 2".to_string()
+            }),
+            md_elem!("paragraph 3"),
+            md_elem!(CodeBlock {
+                variant: CodeVariant::Code(None),
+                value: "code block 2".to_string()
+            }),
+            md_elem!(Section {
+                depth: 2,
+                title: vec![mdq_inline!("next section")],
+                body: vec![md_elem!(CodeBlock {
+                    variant: CodeVariant::Code(None),
+                    value: "code block 3".to_string()
+                }),],
+            }),
+        ];
+        check_plain(
+            MdElemRef::Doc(&md),
+            indoc! {r"
+            paragraph 1
+
+            paragraph 2
+
+            block quote paragraph 1
+
+            block quote paragraph 2
+
+            code block 1 line 1
+            code block 1 line 2
+
+            paragraph 3
+
+            code block 2
+
+            next section
+
+            code block 3
+        "},
+        )
     }
 
     fn check_plain(input: MdElemRef, expect: &str) {
