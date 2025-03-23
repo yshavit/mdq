@@ -11,6 +11,7 @@ repository = "https://github.com/yshavit/mdq"
 [dependencies]
 clap = { version = "4.5.7", features = ["derive"] }
 markdown = "1.0.0-alpha.20"
+memchr = "2.7.4"
 paste = "1.0"
 pest = "2.7"
 pest_derive = { version = "2.7", features = ["grammar-extras"] }

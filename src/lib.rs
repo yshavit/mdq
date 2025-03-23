@@ -15,6 +15,8 @@ use std::io::{stdin, Read, Write};
 pub mod cli;
 mod fmt_md;
 mod fmt_md_inlines;
+mod fmt_plain;
+mod fmt_plain_writer;
 mod fmt_str;
 mod footnote_transform;
 mod link_transform;
@@ -108,6 +110,9 @@ where
                     &SerdeDoc::new(&pipeline_nodes, &ctx, md_options.inline_options),
                 )
                 .unwrap();
+            }
+            OutputFormat::Plain => {
+                fmt_plain::write_plain(&mut stdout, pipeline_nodes.into_iter());
             }
         }
     }
