@@ -117,3 +117,11 @@ where
         Inline::Text(Text { value, .. }) => write!(out, "{value}"),
     }
 }
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn todo() {
+        todo!()
+    }
+}
