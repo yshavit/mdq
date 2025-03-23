@@ -51,7 +51,7 @@ pub enum MdElem {
     ThematicBreak,
 
     Inline(Inline),
-    Html(String),
+    Html(String), // TODO rename to BlockHtml
 }
 
 #[derive(Debug, PartialEq)]

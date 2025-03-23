@@ -242,6 +242,7 @@ dependencies = [
  "indoc",
  "lazy_static",
  "markdown",
+ "memchr",
  "paste",
  "pest",
  "pest_derive",
