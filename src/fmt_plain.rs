@@ -84,7 +84,10 @@ where
             }
             Ok(())
         }
-        MdElemRef::Html(h) => write!(out, "{}", h.0),
+        MdElemRef::Html(h) => {
+            writeln!(out, "{}", h.0)?;
+            writeln!(out)
+        }
         MdElemRef::ThematicBreak => Ok(()),
         MdElemRef::ListItem(ListItemRef(_, item)) => write_plain_result(out, item.item.iter().map(|e| e.into())),
         MdElemRef::Link(Link { text, .. }) => write_inlines(out, text),
@@ -411,6 +414,7 @@ mod test {
                 variant: CodeVariant::Toml,
                 value: "code block 1 line 1\ncode block 1 line 2".to_string()
             }),
+            MdElem::Html("<hr>".to_string()),
             md_elem!("paragraph 3"),
             md_elem!(CodeBlock {
                 variant: CodeVariant::Code(None),
@@ -438,6 +442,8 @@ mod test {
 
             code block 1 line 1
             code block 1 line 2
+
+            <hr>
 
             paragraph 3
 
