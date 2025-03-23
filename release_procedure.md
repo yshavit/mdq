@@ -41,7 +41,7 @@
         - The branch should always be against main, and have exactly one extra commit.
         - The release-assets workflow will re-run each time you update the PR.
 
-3. Follow the instructions on the PR description to validate it.
+3. Follow the instructions in the PR description to validate it.
 
 4. When you're satisfied with the PR, merge it via a fast-forward commit. This must be done locally.
 

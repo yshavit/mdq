@@ -13,6 +13,12 @@ on:
           - latest
           - stable
           - none
+  workflow_call:
+    inputs:
+      docker-tag-type:
+        description: The docker tag to upload as
+        required: true
+        type: string
 
 env:
   CARGO_TERM_COLOR: always
