@@ -20,6 +20,13 @@ where
         }
     }
 
+    pub fn have_pending_newlines(&self) -> bool {
+        match self.current_newline_stretch {
+            None | Some(0) => false,
+            Some(_) => true,
+        }
+    }
+
     pub fn take_underlying(self) -> W {
         self.underlying
     }

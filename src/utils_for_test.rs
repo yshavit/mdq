@@ -84,6 +84,23 @@ mod test_utils {
         }};
     }
 
+    /// Converts an `MdElem` into an `MdElemRef`, checking that it got converted to the right one
+    #[macro_export]
+    macro_rules! checked_elem_ref {
+        ($input:expr => $variant:pat) => {{
+            let as_ref: crate::tree_ref::MdElemRef = (&($input)).into();
+            if !matches!(as_ref, $variant) {
+                panic!(
+                    "{} should have been {}, was {:?}",
+                    stringify!($input),
+                    stringify!($variant),
+                    as_ref
+                );
+            }
+            as_ref
+        }};
+    }
+
     /// Creates a static object named `$name` that looks for all the variants of enum `E`.
     ///
     /// ```

@@ -2,7 +2,7 @@
 mod test_utils {
     #[macro_export]
     macro_rules! md_elem {
-        ( $($node_names:ident)::* {$($attr:ident: $val:expr),*}) => {
+        ( $($node_names:ident)::* {$($attr:ident: $val:expr),* $(,)?}) => {
             crate::m_node!(MdElem::$($node_names)::* {$($attr: $val),*})
         };
         ($paragraph_text:literal) => {

@@ -194,6 +194,12 @@ impl<'md> From<ListItemRef<'md>> for MdElemRef<'md> {
     }
 }
 
+impl<'md> From<&'md Inline> for MdElemRef<'md> {
+    fn from(value: &'md Inline) -> Self {
+        Self::Inline(value)
+    }
+}
+
 impl<'md> From<HtmlRef<'md>> for MdElemRef<'md> {
     fn from(value: HtmlRef<'md>) -> Self {
         Self::Html(HtmlRef(value.0))
