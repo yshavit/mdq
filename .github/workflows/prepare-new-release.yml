@@ -34,116 +34,117 @@ jobs:
       pull-requests: write
 
     steps:
-    - name: Configure git
-      run: |
-        set -euo pipefail
-        git config --global user.name 'github-actions[bot]'
-        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-    - uses: actions/checkout@v2
-      with:
-        ref: ${{ github.event.inputs.base_ref }}
+      - name: Configure git
+        run: |
+          set -euo pipefail
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-    - name: Check that tag is available
-      run: |
-        if gh release view "$TAG_NAME" ; then
-          echo "::error ::tag $TAG_NAME already exists"
-          exit 1
-        fi
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.inputs.base_ref }}
 
-    - name: Check Cargo.toml version
-      run: |
-        set -euo pipefail
-        toml_current_version=$(grep '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-        expect_version="${VERIFY_VERSION}-dev"
-        if [[ "$toml_current_version" != "$expect_version" ]]; then
-          echo "::error title=bad version::Expected version $expect_version does not match current version $toml_current_version."
-          exit 1
-        fi
-      env:
-        VERIFY_VERSION: ${{ github.event.inputs.base_ref_version }}
+      - name: Check that tag is available
+        run: |
+          if gh release view "$TAG_NAME" ; then
+            echo "::error ::tag $TAG_NAME already exists"
+            exit 1
+          fi
 
-    - name: Set up Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
+      - name: Check Cargo.toml version
+        run: |
+          set -euo pipefail
+          toml_current_version=$(grep '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          expect_version="${VERIFY_VERSION}-dev"
+          if [[ "$toml_current_version" != "$expect_version" ]]; then
+            echo "::error title=bad version::Expected version $expect_version does not match current version $toml_current_version."
+            exit 1
+          fi
+        env:
+          VERIFY_VERSION: ${{ github.event.inputs.base_ref_version }}
 
-    - name: Release Cargo.toml
-      run: |
-        sed -i 's/^version = ".*"/version = "${{ env.RELEASE_VERSION }}"/' Cargo.toml
-        cargo metadata >/dev/null
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
 
-    - name: Release Commit
-      run: |
-        set -euo pipefail
-        git checkout -b "release-$RELEASE_VERSION"
-        git commit -am "bump version to $RELEASE_VERSION"
-        git push --set-upstream origin "release-$RELEASE_VERSION"
+      - name: Release Cargo.toml
+        run: |
+          sed -i 's/^version = ".*"/version = "${{ env.RELEASE_VERSION }}"/' Cargo.toml
+          cargo metadata >/dev/null
 
-    - name: Release PR
-      run: |
-        gh pr create --title "Release v${RELEASE_VERSION}" --body "Bump version to $RELEASE_VERSION" --base "$TARGET_REF"
-      env:
-        TARGET_REF: ${{ github.event.inputs.base_ref }}
+      - name: Release Commit
+        run: |
+          set -euo pipefail
+          git checkout -b "release-$RELEASE_VERSION"
+          git commit -am "bump version to $RELEASE_VERSION"
+          git push --set-upstream origin "release-$RELEASE_VERSION"
 
-    - name: Dev Cargo.toml
-      run: |
-        sed -i 's/^version = ".*"/version = "${{ env.NEXT_DEV_VERSION }}"/' Cargo.toml
-        cargo metadata >/dev/null
+      - name: Release PR
+        run: |
+          gh pr create --title "Release v${RELEASE_VERSION}" --body "Bump version to $RELEASE_VERSION" --base "$TARGET_REF"
+        env:
+          TARGET_REF: ${{ github.event.inputs.base_ref }}
 
-    - name: Dev Commit
-      run: |
-        set -euo pipefail
-        git checkout -b "release-$RELEASE_VERSION-post"
-        git commit -am "bump version to $NEXT_DEV_VERSION"
-        git push --set-upstream origin "release-$RELEASE_VERSION-post"
+      - name: Dev Cargo.toml
+        run: |
+          sed -i 's/^version = ".*"/version = "${{ env.NEXT_DEV_VERSION }}"/' Cargo.toml
+          cargo metadata >/dev/null
 
-    - name: Dev PR
-      run: |
-        gh pr create --title "Prepare v${NEXT_DEV_VERSION}" --body "Bump version to $NEXT_DEV_VERSION" --base "release-$RELEASE_VERSION"
+      - name: Dev Commit
+        run: |
+          set -euo pipefail
+          git checkout -b "release-$RELEASE_VERSION-post"
+          git commit -am "bump version to $NEXT_DEV_VERSION"
+          git push --set-upstream origin "release-$RELEASE_VERSION-post"
 
-    - name: Prepare random dir
-      id: random-dir
-      run: echo "path=$(mktemp -d)" >> "$GITHUB_OUTPUT"
+      - name: Dev PR
+        run: |
+          gh pr create --title "Prepare v${NEXT_DEV_VERSION}" --body "Bump version to $NEXT_DEV_VERSION" --base "release-$RELEASE_VERSION"
 
-    - name: Find latest build
-      id: latest-build
-      run: |
-        set -euo pipefail
-        run_info="$(gh run list -b "$RUN_REF" -w build-release.yml --limit 1 --json status,conclusion,databaseId)"
-        run_id="$(echo "$run_info" | jq -re '.[].databaseId' )"
+      - name: Prepare random dir
+        id: random-dir
+        run: echo "path=$(mktemp -d)" >> "$GITHUB_OUTPUT"
 
-        if [[ "$(echo "$run_info" | jq -r '.[].conclusion')" != success ]]; then
-          echo "::error ::Found run $run_id but its conclusion was $(echo "$run_info" | jq '.[].conclusion')"
-          exit 1
-        fi
-        echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-      env:
-        RUN_REF: ${{ github.event.inputs.base_ref }}
+      - name: Find latest build
+        id: latest-build
+        run: |
+          set -euo pipefail
+          run_info="$(gh run list -b "$RUN_REF" -w build-release.yml --limit 1 --json status,conclusion,databaseId)"
+          run_id="$(echo "$run_info" | jq -re '.[].databaseId' )"
+          
+          if [[ "$(echo "$run_info" | jq -r '.[].conclusion')" != success ]]; then
+            echo "::error ::Found run $run_id but its conclusion was $(echo "$run_info" | jq '.[].conclusion')"
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+        env:
+          RUN_REF: ${{ github.event.inputs.base_ref }}
 
-    - name: Download build artifacts
-      run: gh run download "$RUN_ID" -p 'mdq-*' --dir "$TMP_DIR"
-      env:
-        TMP_DIR: ${{ steps.random-dir.outputs.path }}
-        RUN_ID: ${{ steps.latest-build.outputs.run_id }}
+      - name: Download build artifacts
+        run: gh run download "$RUN_ID" -p 'mdq-*' --dir "$TMP_DIR"
+        env:
+          TMP_DIR: ${{ steps.random-dir.outputs.path }}
+          RUN_ID: ${{ steps.latest-build.outputs.run_id }}
 
-    - name: Re-zip build artifacts
-      run: |
-        set -euo pipefail
-        for artifact_name in $(ls -1) ; do
-          zip "${artifact_name}.zip" "$artifact_name"/*
-          rm -rf "$artifact_name"/
-        done
-      working-directory: ${{ steps.random-dir.outputs.path }}
+      - name: Re-zip build artifacts
+        run: |
+          set -euo pipefail
+          for artifact_name in $(ls -1) ; do
+            zip "${artifact_name}.zip" "$artifact_name"/*
+            rm -rf "$artifact_name"/
+          done
+        working-directory: ${{ steps.random-dir.outputs.path }}
 
-    - name: Create new release
-      id: create_release
-      run: |
-        release_url="$(gh release create "$TAG_NAME" --draft --title "$TAG_NAME" --generate-notes --target "release-$RELEASE_VERSION")"
-        echo "release_url=$release_url" >> "$GITHUB_OUTPUT"
+      - name: Create new release
+        id: create_release
+        run: |
+          release_url="$(gh release create "$TAG_NAME" --draft --title "$TAG_NAME" --generate-notes --target "release-$RELEASE_VERSION")"
+          echo "release_url=$release_url" >> "$GITHUB_OUTPUT"
 
-    - name: Upload artifacts
-      run: gh release upload "$TAG_NAME" "$TMP_DIR"/*
-      env:
-        TMP_DIR: ${{ steps.random-dir.outputs.path }}
+      - name: Upload artifacts
+        run: gh release upload "$TAG_NAME" "$TMP_DIR"/*
+        env:
+          TMP_DIR: ${{ steps.random-dir.outputs.path }}
