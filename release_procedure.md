@@ -21,7 +21,7 @@
    Select the following options:
 
    | Option                                         | Value    |
-                                                            |------------------------------------------------|----------|
+   |------------------------------------------------|----------|
    | version to cut a release as                    | `v0.2.0` |
    | the new dev to prepare (w/o "-dev" suffix)     | `v0.2.1` |
    | the git ref to go against                      | `main`   |
@@ -67,4 +67,4 @@ That's it!
 
 [build-release]: https://github.com/yshavit/mdq/actions/workflows/build-release.yml
 
-[post-assets]: https://github.com/yshavit/mdq/actions/workflows/post-release.yml
+[post-release]: https://github.com/yshavit/mdq/actions/workflows/post-release.yml
