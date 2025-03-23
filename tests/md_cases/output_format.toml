@@ -80,3 +80,11 @@ output = '''
     }
 }
 '''
+
+[expect."plain"]
+cli_args = ['-o', 'plain']
+output = '''
+Test one two three.
+
+some_markdown("rust");
+'''
