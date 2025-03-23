@@ -29,73 +29,85 @@ jobs:
     environment: Docker Hub
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: get tag
-      id: get-tag
-      run: |
-        if [[ "${DOCKER_TAG_TYPE}" = 'stable' ]]; then
-          tag="$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "mdq") | .version')"
-        else
-          tag=latest
-        fi
-        echo "tag=$tag" >> "$GITHUB_OUTPUT"
-      env:
-        DOCKER_TAG_TYPE: ${{ inputs.docker-tag-type }}
-        DOCKER_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ vars.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_PAT }}
-    - name: Gather metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ vars.DOCKERHUB_USERNAME }}/mdq
-    - name: Build and push
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        push: true
-        tags: ${{ vars.DOCKERHUB_USERNAME}}/mdq:${{ steps.get-tag.outputs.tag }}
-        labels: ${{ steps.meta.outputs.labels }}
+
+      - uses: actions/checkout@v4
+
+      - name: get tag
+        id: get-tag
+        run: |
+          if [[ "${DOCKER_TAG_TYPE}" = 'stable' ]]; then
+            tag="$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "mdq") | .version')"
+          else
+            tag=latest
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+        env:
+          DOCKER_TAG_TYPE: ${{ inputs.docker-tag-type }}
+          DOCKER_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PAT }}
+
+      - name: Gather metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ vars.DOCKERHUB_USERNAME }}/mdq
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ vars.DOCKERHUB_USERNAME}}/mdq:${{ steps.get-tag.outputs.tag }}
+          labels: ${{ steps.meta.outputs.labels }}
 
   build:
     strategy:
       matrix:
-        os: [ubuntu, macos, windows]
+        os: [ ubuntu, macos, windows ]
     runs-on: ${{ matrix.os }}-latest
     steps:
-    - name: setup
-      shell: bash
-      run: |
-        if [[ "$RUNNER_OS" == Windows ]]; then
-          build_file_name=mdq.exe
-        else
-          build_file_name=mdq
-        fi
-        echo "BUILD_FILE_NAME=${build_file_name}" >> "$GITHUB_ENV"
-    - name: rustc version
-      run: rustc --version --verbose
-    - uses: actions/checkout@v4
-    - name: build
-      run: cargo build --release
-    - name: check for any changes in the git tree
-      shell: bash
-      run: |
-        set -euo pipefail
-        if [[ -n "$(git status --porcelain)" ]]; then
-          echo '::error title=post-build check::changes detected in git tree'
-          git status
-          exit 1
-        fi
-    - name: Attest Build Provenance
-      uses: actions/attest-build-provenance@v1
-      with:
-        subject-path: "target/release/${{ env.BUILD_FILE_NAME }}"
-    - name: upload binary
-      uses: actions/upload-artifact@v4
-      with:
-        if-no-files-found: error
-        name: mdq-${{ matrix.os }}
-        path: target/release/${{ env.BUILD_FILE_NAME }}
+
+      - name: setup
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            build_file_name=mdq.exe
+          else
+            build_file_name=mdq
+          fi
+          echo "BUILD_FILE_NAME=${build_file_name}" >> "$GITHUB_ENV"
+
+      - name: rustc version
+        run: rustc --version --verbose
+
+      - uses: actions/checkout@v4
+
+      - name: build
+        run: cargo build --release
+
+      - name: check for any changes in the git tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo '::error title=post-build check::changes detected in git tree'
+            git status
+            exit 1
+          fi
+
+      - name: Attest Build Provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: "target/release/${{ env.BUILD_FILE_NAME }}"
+
+      - name: upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: mdq-${{ matrix.os }}
+          path: target/release/${{ env.BUILD_FILE_NAME }}

@@ -13,56 +13,63 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: cargo build
-      run: RUSTFLAGS=-Awarnings scripts/cargo_to_gh rustc --message-format json
-    - name: check for any changes in the git tree
-      run: |
-        exit_code=0
-        while read -r status_code file_path; do
-          if [[ -z "$status_code" ]]; then
-            continue
-          fi
-          exit_code=1
-          echo "::error file=$file_path,title=git-status::<$status_code> $file_path"
-        done <<<"$(git status --porcelain)"
-        exit "$exit_code"
+
+      - uses: actions/checkout@v4
+
+      - name: cargo build
+        run: RUSTFLAGS=-Awarnings scripts/cargo_to_gh rustc --message-format json
+
+      - name: check for any changes in the git tree
+        run: |
+          exit_code=0
+          while read -r status_code file_path; do
+            if [[ -z "$status_code" ]]; then
+              continue
+            fi
+            exit_code=1
+            echo "::error file=$file_path,title=git-status::<$status_code> $file_path"
+          done <<<"$(git status --porcelain)"
+          exit "$exit_code"
 
   check:
     runs-on: ubuntu-latest
     needs: build
     steps:
-    - uses: actions/checkout@v4
-    - name: cargo check
-      run: scripts/cargo_to_gh check
+      - uses: actions/checkout@v4
+      - name: cargo check
+        run: scripts/cargo_to_gh check
 
   test:
     runs-on: ubuntu-latest
     needs: build
     steps:
-    - uses: actions/checkout@v4
-    - name: cargo test
-      run: |
-        # convert e.g. "thread 'fmt_str::tests::text_html' panicked at src/fmt_str.rs:75:9:" to
-        #              "::error file=src/fmt_str,line=75,col=9,title=test failure:: atfmt_str::tests::text_html"
-        set -o pipefail
-        cargo test --verbose | sed -E "s/thread '([^']+)' panicked at ([^:]+):([0-9]+):([0-9]+):$/::error file=\\2,line=\\3,col=\\4,title=test failure::at \\1/"
-    - name: list ignored tests
-      run: |
-        (find . -name '*.rs' -exec grep --fixed-strings -Hno '#[ignore]' {} \; || true) | sed -E 's/^([^:]+):([^:]+):.*/::warning file=\1,line=\2,title=Ignored test::Regex indicates this test is probably ignored/'
-    - name: check ignored tests all fail
-      run: |
-        exit_code=0
-        while IFS= read -r line; do
-          printf "::error title=Ignored test is passing::%s but expected failure because it's ignored"'\n' "$line"
-          exit_code=1
-        done < <(cargo test -- --ignored --color never | grep '\.\.\. ok$' || true)
-        exit "$exit_code"
+
+      - uses: actions/checkout@v4
+
+      - name: cargo test
+        run: |
+          # convert e.g. "thread 'fmt_str::tests::text_html' panicked at src/fmt_str.rs:75:9:" to
+          #              "::error file=src/fmt_str,line=75,col=9,title=test failure:: atfmt_str::tests::text_html"
+          set -o pipefail
+          cargo test --verbose | sed -E "s/thread '([^']+)' panicked at ([^:]+):([0-9]+):([0-9]+):$/::error file=\\2,line=\\3,col=\\4,title=test failure::at \\1/"
+
+      - name: list ignored tests
+        run: |
+          (find . -name '*.rs' -exec grep --fixed-strings -Hno '#[ignore]' {} \; || true) | sed -E 's/^([^:]+):([^:]+):.*/::warning file=\1,line=\2,title=Ignored test::Regex indicates this test is probably ignored/'
+
+      - name: check ignored tests all fail
+        run: |
+          exit_code=0
+          while IFS= read -r line; do
+            printf "::error title=Ignored test is passing::%s but expected failure because it's ignored"'\n' "$line"
+            exit_code=1
+          done < <(cargo test -- --ignored --color never | grep '\.\.\. ok$' || true)
+          exit "$exit_code"
 
   fmt:
     needs: build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: cargo fmt
-      run: cargo fmt --check
+      - uses: actions/checkout@v4
+      - name: cargo fmt
+        run: cargo fmt --check

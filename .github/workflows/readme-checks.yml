@@ -3,7 +3,7 @@ name: Documentation
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: {}
+  workflow_dispatch: { }
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,31 +12,36 @@ jobs:
   check-msrv:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - run: docker pull yshavit/mdq
-    - name: pull cargo-msrv from docker hub
-      run: docker pull foresterre/cargo-msrv
-    - name: find minimum supported rust version
-      id: run-msrv
-      run: |
-        set -euo pipefail
-        min_version="$(docker run --rm -t -v "$PWD/":/app/ foresterre/cargo-msrv find --no-log --output-format minimal | tr -d $'\r\n')"
-        echo "::notice title=cargo-msrv::$min_version"
-        echo "result=$min_version" >> "$GITHUB_OUTPUT"
-    - name: check versions in readme
-      id: readme-version
-      run: |
-        set -euo pipefail
-        exit_code=0
-        while IFS=: read -r file line_no version_contents; do
-          found_rustc_version="${version_contents//rustc >= /}"
-          if [[ "$found_rustc_version" == "$MSRV_VERSION" ]]; then
-            echo "::notice file=$file,line=$line_no,title=version::✅ $found_rustc_version"
-          else
-            echo "::error file=$file,line=$line_no,title=version::$found_rustc_version should have been $MSRV_VERSION"
-            exit_code=1
-          fi
-        done <<<"$(grep -HnoE 'rustc >= \S+' README.md)"
-        exit "$exit_code"
-      env:
-        MSRV_VERSION: ${{ steps.run-msrv.outputs.result }}
+
+      - uses: actions/checkout@v4
+
+      - run: docker pull yshavit/mdq
+
+      - name: pull cargo-msrv from docker hub
+        run: docker pull foresterre/cargo-msrv
+
+      - name: find minimum supported rust version
+        id: run-msrv
+        run: |
+          set -euo pipefail
+          min_version="$(docker run --rm -t -v "$PWD/":/app/ foresterre/cargo-msrv find --no-log --output-format minimal | tr -d $'\r\n')"
+          echo "::notice title=cargo-msrv::$min_version"
+          echo "result=$min_version" >> "$GITHUB_OUTPUT"
+
+      - name: check versions in readme
+        id: readme-version
+        run: |
+          set -euo pipefail
+          exit_code=0
+          while IFS=: read -r file line_no version_contents; do
+            found_rustc_version="${version_contents//rustc >= /}"
+            if [[ "$found_rustc_version" == "$MSRV_VERSION" ]]; then
+              echo "::notice file=$file,line=$line_no,title=version::✅ $found_rustc_version"
+            else
+              echo "::error file=$file,line=$line_no,title=version::$found_rustc_version should have been $MSRV_VERSION"
+              exit_code=1
+            fi
+          done <<<"$(grep -HnoE 'rustc >= \S+' README.md)"
+          exit "$exit_code"
+        env:
+          MSRV_VERSION: ${{ steps.run-msrv.outputs.result }}
