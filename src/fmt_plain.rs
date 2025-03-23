@@ -107,17 +107,16 @@ where
     W: Write,
     I: Iterator<Item = &'a Line>,
 {
-    let mut line = line.peekable();
-    while let Some(row) = line.next() {
-        let mut cells = row.iter().peekable();
-        while let Some(cell) = cells.next() {
-            write_inline(out, cell)?;
-            if cells.peek().is_some() {
-                write!(out, " ")?;
-            }
+    let mut cols = line.peekable();
+    while let Some(cell) = cols.next() {
+        for span in cell {
+            write_inline(out, span)?;
         }
-        writeln!(out)?;
+        if cols.peek().is_some() {
+            write!(out, " ")?;
+        }
     }
+    writeln!(out)?;
     Ok(())
 }
 
@@ -288,18 +287,22 @@ mod test {
     fn table() {
         let md_elem = md_elem!(Table {
             alignments: vec![mdast::AlignKind::None, mdast::AlignKind::Center],
-            rows: vec![vec![
+            rows: vec![
+                // first row:
                 vec![
-                    // first row
-                    mdq_inline!("1A"), // first column
-                    mdq_inline!("1B"), // second column
+                    // column 1
+                    vec![mdq_inline!("1A")],
+                    // column 2
+                    vec![mdq_inline!("1B")],
                 ],
+                // second row:
                 vec![
-                    // second row
-                    mdq_inline!("2A"), // first column
-                    mdq_inline!("2B"), // second column
-                ]
-            ]]
+                    // column 1
+                    vec![mdq_inline!("2A")],
+                    // column 2
+                    vec![mdq_inline!("2B")],
+                ],
+            ]
         });
         check_plain(checked_elem_ref!(md_elem => MdElemRef::Table(_)), "1A 1B\n2A 2B\n");
     }
@@ -364,18 +367,22 @@ mod test {
     fn table_slice() {
         let table = Table {
             alignments: vec![mdast::AlignKind::None, mdast::AlignKind::Center],
-            rows: vec![vec![
+            rows: vec![
+                // first row:
                 vec![
-                    // first row
-                    mdq_inline!("1A"), // first column
-                    mdq_inline!("1B"), // second column
+                    // column 1
+                    vec![mdq_inline!("1A")],
+                    // column 2
+                    vec![mdq_inline!("1B")],
                 ],
+                // second row:
                 vec![
-                    // second row
-                    mdq_inline!("2A"), // first column
-                    mdq_inline!("2B"), // second column
+                    // column 1
+                    vec![mdq_inline!("2A")],
+                    // column 2
+                    vec![mdq_inline!("2B")],
                 ],
-            ]],
+            ],
         };
         let slice = TableSlice::from(&table);
         check_plain(MdElemRef::TableSlice(slice), "1A 1B\n2A 2B\n");

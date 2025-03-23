@@ -93,3 +93,13 @@ output = '''
 | Bar  | Not a buzz  |                             |
 | Barn | Big, red.   | And this is an extra column |
 | Fuzz |             |                             |'''
+
+[expect."output plain"]
+cli_args = ["-o", "plain", ":-: * :-: *"]
+output = '''
+Name Description
+Foo Not a fizz
+Bar Not a buzz
+Barn Big, red. And this is an extra column
+Fuzz
+'''
