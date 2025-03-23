@@ -91,6 +91,7 @@ impl Cli {
                 }
             }
             OutputFormat::Markdown | OutputFormat::Md => true,
+            OutputFormat::Plain => true,
         }
     }
 }
@@ -106,6 +107,41 @@ pub enum OutputFormat {
     /// Output results as JSON. Spans of inline elements (like within a single paragraph) will be rendered as a single string of
     /// Markdown, not as separate JSON elements.
     Json,
+
+    /// Outputs just the plain text. This retrains the spacing between paragraphs and paragraph-like blocks (code
+    /// blocks, block quotes, etc.) but removes all other formating, including inline formatting. Links are rendered as
+    /// just their display text, and footnotes are removed entirely.
+    ///
+    /// The block:
+    ///
+    /// ````markdown
+    /// hello from [the world](https://example.com)! It's _so easy_ to do do `hello world` in bash[^1]:
+    ///
+    /// ```bash
+    /// echo 'hello world'
+    /// ```
+    ///
+    /// 1. Here's an ordered list
+    ///
+    /// - Here's an unordered list.
+    /// - With multiple items
+    ///
+    /// [^1]: assuming you have bash installed, of course
+    /// ````
+    ///
+    /// would render as:
+    ///
+    /// ```text
+    /// hello from the world! It's so easy to do do hello world in bash:
+    ///
+    /// echo 'hello world'
+    ///
+    /// Here's an ordered list
+    /// With multiple items
+    ///
+    /// Here's an unordered list.
+    /// ```
+    Plain,
 }
 
 impl Display for OutputFormat {
@@ -113,6 +149,7 @@ impl Display for OutputFormat {
         let self_str = match self {
             OutputFormat::Markdown | OutputFormat::Md => "markdown",
             OutputFormat::Json => "json",
+            OutputFormat::Plain => "plain",
         };
         f.write_str(self_str)
     }
