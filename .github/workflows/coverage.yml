@@ -11,11 +11,14 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
     steps:
+
       - uses: actions/checkout@v4
+
       - name: install cargo-tarpaulin
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-tarpaulin
+
       - name: Generate code coverage
         run: |
           cargo tarpaulin -o json --output-dir target/
@@ -24,6 +27,7 @@ jobs:
           echo "LINES_PERCENT=$percent_coverage" >> "$GITHUB_ENV"
         env:
           TEST_TIMEOUT_MULTIPLIER: 10
+
       - name: Upload to gist
         run: ./scripts/percent_to_shields_gist coverage "$LINES_PERCENT"
         env:
@@ -58,7 +62,7 @@ jobs:
         env:
           GIST_URL: ${{ vars.TODOS_GIST_URL }}
           GH_TOKEN: ${{ secrets.API_TOKEN }}
-      
+
       - name: Count Ignored Tests
         run: |
           rs_ignored="$(find . -not -path './target/*' -name '*.rs' -exec grep --fixed-strings -Hno '#[ignore]' {} \; | wc -l)"
@@ -79,7 +83,3 @@ jobs:
         env:
           GIST_URL: ${{ vars.IGNOREDS_GIST_URL }}
           GH_TOKEN: ${{ secrets.API_TOKEN }}
-
-          
-
-
