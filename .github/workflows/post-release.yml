@@ -1,0 +1,11 @@
+name: Post-release
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  bump_version:
+    if: startsWith(github.head_ref, 'releases/')
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "The head of this PR starts with 'releases/'. TODO!"
