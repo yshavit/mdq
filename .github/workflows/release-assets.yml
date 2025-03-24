@@ -1,13 +1,16 @@
-name: Upload release assets
+name: Release assets
 on:
   pull_request:
     types: [ "opened", "synchronize" ]
-    branches: [ "releases/*" ]
+    branches: [ "main" ]
+    paths:
+      - Cargo.toml
 
 jobs:
-  bump_version:
+  upload:
+    if: ${{ startsWith(github.ref, 'pending-releases/') }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo "The head of this PR starts with 'releases/'. TODO!"
+      - run: echo "The head of this PR starts with 'pending-releases/'. TODO!"
 
 
