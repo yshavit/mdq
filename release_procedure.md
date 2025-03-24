@@ -23,7 +23,6 @@
    | Option                                         | Value    |
    |------------------------------------------------|----------|
    | version to cut a release as                    | `v0.2.0` |
-   | the new dev to prepare (w/o "-dev" suffix)     | `v0.2.1` |
    | the git ref to go against                      | `main`   |
    | verify current dev version (w/o "-dev" suffix) | `v0.1.2` |
 

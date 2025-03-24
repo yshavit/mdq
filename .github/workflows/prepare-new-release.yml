@@ -7,10 +7,6 @@ on:
         description: 'version to cut a release as (e.g. `v0.2.0`)'
         required: true
         type: string
-      next_version:
-        description: 'the new dev to prepare, w/o "-dev" suffix (e.g. `v.0.2.1`)'
-        required: true
-        type: string
       base_ref:
         description: 'the git ref to go against (e.g. `main`)'
         required: false
@@ -27,7 +23,6 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_VERSION: ${{ github.event.inputs.version_to_release }}
-      NEXT_DEV_VERSION: "${{ github.event.inputs.next_version }}-dev"
       TAG_NAME: "v${{ github.event.inputs.version_to_release }}"
     permissions:
       contents: write
