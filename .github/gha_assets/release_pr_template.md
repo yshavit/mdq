@@ -1,6 +1,6 @@
 Bump version to **{{RELEASE_VERSION}}** for release.
 
-Validation:
+## Validation:
 
 - linux image:
   - [ ] `bash mdq --version`
@@ -19,3 +19,4 @@ Validation:
     - [ ] `docker run --rm -i yshavit/mdq:{{RELEASE_VERSION}} --version`
 
 - [ ] review release notes
+ 
