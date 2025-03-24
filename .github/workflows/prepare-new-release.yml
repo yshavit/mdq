@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version_to_release:
-        description: 'version to cut a release as (e.g. `v0.2.0`)'
+        description: 'version to cut a release as (e.g. `0.2.0`)'
         required: true
         type: string
       base_ref:
@@ -13,7 +13,7 @@ on:
         type: string
         default: main
       base_ref_version:
-        description: 'verify current dev version, w/o "-dev" suffix (e.g. `v0.1.0`)'
+        description: 'verify current dev version, w/o "-dev" suffix (e.g. `0.1.0`)'
         required: true
         type: string
 
