@@ -1,13 +1,26 @@
-name: Upload release assets
+name: Release assets
 on:
   pull_request:
-    types: [ "opened", "synchronize" ]
-    branches: [ "releases/*" ]
+    types: [ "synchronize" ]
+    branches: [ "main" ]
+    paths:
+      - Cargo.toml
+  workflow_dispatch:
+    inputs:
+      branch_name:
+        description: "The branch to monitor"
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      branch_name:
+        description: "The branch to monitor"
+        type: string
+        required: true
 
 jobs:
-  bump_version:
+  upload:
+    if: startsWith(inputs.branch_name || github.head_ref, 'pending-releases/')
     runs-on: ubuntu-latest
     steps:
-      - run: echo "The head of this PR starts with 'releases/'. TODO!"
-
-
+      - run: echo "The head of this PR starts with 'pending-releases/'. TODO!"
