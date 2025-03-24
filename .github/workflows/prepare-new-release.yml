@@ -47,6 +47,7 @@ jobs:
 
       - name: Check that tag is available
         run: |
+          set -euo pipefail
           if gh release view "$TAG_NAME" ; then
             echo "::error ::tag $TAG_NAME already exists"
             exit 1
@@ -70,81 +71,28 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Release Cargo.toml
+      - name: Update Cargo.toml
         run: |
+          set -euo pipefail
           sed -i 's/^version = ".*"/version = "${{ env.RELEASE_VERSION }}"/' Cargo.toml
           cargo metadata >/dev/null
 
-      - name: Release Commit
+      - name: Create Release Commit
         run: |
           set -euo pipefail
-          git checkout -b "release-$RELEASE_VERSION"
+          git checkout -b "releases/$RELEASE_VERSION"
           git commit -am "bump version to $RELEASE_VERSION"
-          git push --set-upstream origin "release-$RELEASE_VERSION"
+          git push --set-upstream origin "release/$RELEASE_VERSION"
 
-      - name: Release PR
+      - name: Open PR
         run: |
-          gh pr create --title "Release v${RELEASE_VERSION}" --body "Bump version to $RELEASE_VERSION" --base "$TARGET_REF"
+          set -euo pipefail
+          body_text="$(<.github/gha_assets/release_pr_template.md sed 's/{{RELEASE_VERSION}}/$RELEASE_VERSION/g')"
+          gh pr create --title "Release v${RELEASE_VERSION}" --body "$body_text" --base "$TARGET_REF"
         env:
           TARGET_REF: ${{ github.event.inputs.base_ref }}
-
-      - name: Dev Cargo.toml
-        run: |
-          sed -i 's/^version = ".*"/version = "${{ env.NEXT_DEV_VERSION }}"/' Cargo.toml
-          cargo metadata >/dev/null
-
-      - name: Dev Commit
-        run: |
-          set -euo pipefail
-          git checkout -b "release-$RELEASE_VERSION-post"
-          git commit -am "bump version to $NEXT_DEV_VERSION"
-          git push --set-upstream origin "release-$RELEASE_VERSION-post"
-
-      - name: Dev PR
-        run: |
-          gh pr create --title "Prepare v${NEXT_DEV_VERSION}" --body "Bump version to $NEXT_DEV_VERSION" --base "release-$RELEASE_VERSION"
-
-      - name: Prepare random dir
-        id: random-dir
-        run: echo "path=$(mktemp -d)" >> "$GITHUB_OUTPUT"
-
-      - name: Find latest build
-        id: latest-build
-        run: |
-          set -euo pipefail
-          run_info="$(gh run list -b "$RUN_REF" -w build-release.yml --limit 1 --json status,conclusion,databaseId)"
-          run_id="$(echo "$run_info" | jq -re '.[].databaseId' )"
-          
-          if [[ "$(echo "$run_info" | jq -r '.[].conclusion')" != success ]]; then
-            echo "::error ::Found run $run_id but its conclusion was $(echo "$run_info" | jq '.[].conclusion')"
-            exit 1
-          fi
-          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-        env:
-          RUN_REF: ${{ github.event.inputs.base_ref }}
-
-      - name: Download build artifacts
-        run: gh run download "$RUN_ID" -p 'mdq-*' --dir "$TMP_DIR"
-        env:
-          TMP_DIR: ${{ steps.random-dir.outputs.path }}
-          RUN_ID: ${{ steps.latest-build.outputs.run_id }}
-
-      - name: Re-zip build artifacts
-        run: |
-          set -euo pipefail
-          for artifact_name in $(ls -1) ; do
-            zip "${artifact_name}.zip" "$artifact_name"/*
-            rm -rf "$artifact_name"/
-          done
-        working-directory: ${{ steps.random-dir.outputs.path }}
 
       - name: Create new release
         id: create_release
         run: |
-          release_url="$(gh release create "$TAG_NAME" --draft --title "$TAG_NAME" --generate-notes --target "release-$RELEASE_VERSION")"
-          echo "release_url=$release_url" >> "$GITHUB_OUTPUT"
-
-      - name: Upload artifacts
-        run: gh release upload "$TAG_NAME" "$TMP_DIR"/*
-        env:
-          TMP_DIR: ${{ steps.random-dir.outputs.path }}
+          gh release create "$TAG_NAME" --draft --title "$TAG_NAME" --generate-notes --target "releases/$RELEASE_VERSION"
