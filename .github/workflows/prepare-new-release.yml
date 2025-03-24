@@ -4,20 +4,20 @@ on:
   workflow_dispatch:
     inputs:
       version_to_release:
-        description: 'version to cut a release as'
+        description: 'version to cut a release as (e.g. `v0.2.0`)'
         required: true
         type: string
       next_version:
-        description: 'the new dev to prepare (w/o "-dev" suffix)'
+        description: 'the new dev to prepare, w/o "-dev" suffix (e.g. `v.0.2.1`)'
         required: true
         type: string
       base_ref:
-        description: 'the git ref to go against'
+        description: 'the git ref to go against (e.g. `main`)'
         required: false
         type: string
         default: main
       base_ref_version:
-        description: 'verify current dev version (w/o "-dev" suffix)'
+        description: 'verify current dev version, w/o "-dev" suffix (e.g. `v0.1.0`)'
         required: true
         type: string
 
