@@ -1,6 +1,6 @@
 [package]
 name = "mdq"
-version = "0.4.1-03"
+version = "0.4.1-04"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Select specific elements in a Markdown document"
