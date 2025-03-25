@@ -84,7 +84,7 @@ jobs:
       - name: Open PR
         run: |
           set -euo pipefail
-          
+
           body_text="$(<.github/gha_assets/release_pr_template.md sed "s/{{RELEASE_VERSION}}/$RELEASE_VERSION/g")"
           gh pr create --title "Release v${RELEASE_VERSION}" --body "$body_text" --base "$TARGET_REF"
         env:
