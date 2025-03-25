@@ -99,4 +99,4 @@ jobs:
     needs: create_draft
     uses: ./.github/workflows/release-assets.yml
     with:
-      branch_name: "pending-releases/${{ github.event.inputs.version_to_release }} "
+      branch_name: "pending-releases/${{ github.event.inputs.version_to_release }}"
