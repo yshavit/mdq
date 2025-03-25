@@ -92,6 +92,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
 
@@ -148,3 +149,4 @@ jobs:
           gh pr create --title "Bump version to $NEXT_VERSION" --body "Created by release-publish.yml" --base "$TARGET_REF"
         env:
           TARGET_REF: ${{ steps.base-ref.outputs.name }}
+          GH_TOKEN: ${{ github.token }}
