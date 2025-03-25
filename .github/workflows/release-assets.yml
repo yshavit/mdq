@@ -18,9 +18,109 @@ on:
         type: string
         required: true
 
+# for attestations in build-release.yml
+permissions:
+  id-token: write
+  attestations: write
+  contents: write # needed for viewing and uploading to the draft release
+
 jobs:
-  upload:
+
+  validate:
     if: startsWith(inputs.branch_name || github.head_ref, 'pending-releases/')
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH_NAME: ${{ inputs.branch_name || github.head_ref }}
     runs-on: ubuntu-latest
+    outputs:
+      version_tag: ${{ steps.parse_branch.outputs.version_tag }}
+      branch_name: ${{ env.BRANCH_NAME }}
+    
     steps:
-      - run: echo "The head of this PR starts with 'pending-releases/'. TODO!"
+
+      - name: Parse branch name
+        id: parse_branch
+        run: |
+          set -euo pipefail
+          
+          release_version="$(<<<"$BRANCH_NAME" sed 's/.*\///')"
+          if [[ -z "$release_version" ]]; then
+            echo "::error title=invalid branch name::$BRANCH_NAME isn't \"*/<version>\""
+            exit 1
+          fi
+          set -x
+          echo "version_tag=v$release_version" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ env.BRANCH_NAME }}
+          fetch-depth: '50' # all we really need is >1, but this can give us additional context
+
+      - name: Verify release
+        run: gh release view "$VERSION_TAG"
+        env:
+          VERSION_TAG: ${{ steps.parse_branch.outputs.version_tag }}
+
+      - name: Get target branch name from PR
+        run: |
+          set -euo pipefail
+          target_name="$(gh pr view "$BRANCH_NAME" --json baseRefName | jq -r .baseRefName)"
+          echo "TARGET_BRANCH=$target_name" >> "$GITHUB_ENV"
+
+      - name: Fetch target branch
+        run: git fetch origin "$TARGET_BRANCH"
+
+      - name: Check for exactly one commit
+        run: |
+          set -euo pipefail
+          
+          commits_between="$(git log "origin/$TARGET_BRANCH..HEAD" --pretty=format:"%H")"
+          
+          if [[ "$(wc -l <<< "$commits_between")" -ne 1 ]]; then
+            echo "::error title=invalid branch state::require exactly commit between $TARGET_BRANCH and $BRANCH_NAME: found $(wc -l <<<"$commits_between")"
+            exit 1
+          fi
+
+  build:
+    needs: validate
+    uses: ./.github/workflows/build-release.yml
+    secrets: inherit
+    with:
+      docker-tag-type: rc
+      branch_name: ${{ needs.validate.outputs.branch_name }}
+
+  upload:
+    needs: [ build, validate ]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+
+      - name: "Download binaries from job"
+        id: download
+        uses: actions/download-artifact@v4
+        with:
+          pattern: mdq-*
+          merge-multiple: 'false'
+
+      - name: "Zip up the files"
+        working-directory: ${{ steps.download.outputs.download-path }}
+        run: |
+          set -euo pipefail
+          ls -lhtr
+          set -x
+          for f in $(ls -1) ; do
+            pushd "$f"
+            zip -r "$f.zip" *
+            mv "$f.zip" ../
+            popd
+          done
+          ls -lhtr
+
+      - name: "Upload binaries to release"
+        working-directory: ${{ steps.download.outputs.download-path }}
+        run:
+          gh release -R "$REPO_NAME" upload --clobber "$VERSION_TAG" *.zip
+        env:
+          REPO_NAME: ${{ github.repository }}
+          VERSION_TAG: ${{ needs.validate.outputs.version_tag }}

@@ -4,30 +4,25 @@ on:
   workflow_dispatch:
     inputs:
       version_to_release:
-        description: 'version to cut a release as'
-        required: true
-        type: string
-      next_version:
-        description: 'the new dev to prepare (w/o "-dev" suffix)'
+        description: 'version to cut a release as (e.g. `0.2.0`)'
         required: true
         type: string
       base_ref:
-        description: 'the git ref to go against'
+        description: 'the git ref to go against (e.g. `main`)'
         required: false
         type: string
         default: main
       base_ref_version:
-        description: 'verify current dev version (w/o "-dev" suffix)'
+        description: 'verify current dev version, w/o "-dev" suffix (e.g. `0.1.0`)'
         required: true
         type: string
 
 jobs:
-  run:
+  create_draft:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_VERSION: ${{ github.event.inputs.version_to_release }}
-      NEXT_DEV_VERSION: "${{ github.event.inputs.next_version }}-dev"
       TAG_NAME: "v${{ github.event.inputs.version_to_release }}"
     permissions:
       contents: write
@@ -47,6 +42,7 @@ jobs:
 
       - name: Check that tag is available
         run: |
+          set -euo pipefail
           if gh release view "$TAG_NAME" ; then
             echo "::error ::tag $TAG_NAME already exists"
             exit 1
@@ -70,81 +66,37 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Release Cargo.toml
+      - name: Update Cargo.toml
         run: |
+          set -euo pipefail
           sed -i 's/^version = ".*"/version = "${{ env.RELEASE_VERSION }}"/' Cargo.toml
           cargo metadata >/dev/null
 
-      - name: Release Commit
+      - name: Commit change
+        run: git commit -am "bump version to $RELEASE_VERSION"
+
+      - name: Push to branch
         run: |
           set -euo pipefail
-          git checkout -b "release-$RELEASE_VERSION"
-          git commit -am "bump version to $RELEASE_VERSION"
-          git push --set-upstream origin "release-$RELEASE_VERSION"
+          git checkout -b "pending-releases/$RELEASE_VERSION"
+          git push --set-upstream origin "pending-releases/$RELEASE_VERSION"
 
-      - name: Release PR
+      - name: Open PR
         run: |
-          gh pr create --title "Release v${RELEASE_VERSION}" --body "Bump version to $RELEASE_VERSION" --base "$TARGET_REF"
+          set -euo pipefail
+
+          body_text="$(<.github/gha_assets/release_pr_template.md sed "s/{{RELEASE_VERSION}}/$RELEASE_VERSION/g")"
+          gh pr create --title "Release v${RELEASE_VERSION}" --body "$body_text" --base "$TARGET_REF"
         env:
           TARGET_REF: ${{ github.event.inputs.base_ref }}
-
-      - name: Dev Cargo.toml
-        run: |
-          sed -i 's/^version = ".*"/version = "${{ env.NEXT_DEV_VERSION }}"/' Cargo.toml
-          cargo metadata >/dev/null
-
-      - name: Dev Commit
-        run: |
-          set -euo pipefail
-          git checkout -b "release-$RELEASE_VERSION-post"
-          git commit -am "bump version to $NEXT_DEV_VERSION"
-          git push --set-upstream origin "release-$RELEASE_VERSION-post"
-
-      - name: Dev PR
-        run: |
-          gh pr create --title "Prepare v${NEXT_DEV_VERSION}" --body "Bump version to $NEXT_DEV_VERSION" --base "release-$RELEASE_VERSION"
-
-      - name: Prepare random dir
-        id: random-dir
-        run: echo "path=$(mktemp -d)" >> "$GITHUB_OUTPUT"
-
-      - name: Find latest build
-        id: latest-build
-        run: |
-          set -euo pipefail
-          run_info="$(gh run list -b "$RUN_REF" -w build-release.yml --limit 1 --json status,conclusion,databaseId)"
-          run_id="$(echo "$run_info" | jq -re '.[].databaseId' )"
-          
-          if [[ "$(echo "$run_info" | jq -r '.[].conclusion')" != success ]]; then
-            echo "::error ::Found run $run_id but its conclusion was $(echo "$run_info" | jq '.[].conclusion')"
-            exit 1
-          fi
-          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-        env:
-          RUN_REF: ${{ github.event.inputs.base_ref }}
-
-      - name: Download build artifacts
-        run: gh run download "$RUN_ID" -p 'mdq-*' --dir "$TMP_DIR"
-        env:
-          TMP_DIR: ${{ steps.random-dir.outputs.path }}
-          RUN_ID: ${{ steps.latest-build.outputs.run_id }}
-
-      - name: Re-zip build artifacts
-        run: |
-          set -euo pipefail
-          for artifact_name in $(ls -1) ; do
-            zip "${artifact_name}.zip" "$artifact_name"/*
-            rm -rf "$artifact_name"/
-          done
-        working-directory: ${{ steps.random-dir.outputs.path }}
 
       - name: Create new release
         id: create_release
         run: |
-          release_url="$(gh release create "$TAG_NAME" --draft --title "$TAG_NAME" --generate-notes --target "release-$RELEASE_VERSION")"
-          echo "release_url=$release_url" >> "$GITHUB_OUTPUT"
+          gh release create "$TAG_NAME" --draft --title "$TAG_NAME" --generate-notes --target "pending-releases/$RELEASE_VERSION"
 
-      - name: Upload artifacts
-        run: gh release upload "$TAG_NAME" "$TMP_DIR"/*
-        env:
-          TMP_DIR: ${{ steps.random-dir.outputs.path }}
+  upload_assets:
+    needs: create_draft
+    uses: ./.github/workflows/release-assets.yml
+    with:
+      branch_name: "pending-releases/${{ github.event.inputs.version_to_release }}"
