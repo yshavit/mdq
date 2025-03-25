@@ -18,12 +18,14 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+    outputs:
+      pr-json: ${{ steps.pr-info.outputs.json }}
     steps:
       - name: Get PR Info
         id: pr-info
         run: |
           set -euo pipefail
-          pr_json="$(gh pr view -R "$REPO_NAME" "$BRANCH_NAME" --json mergeStateStatus,body)"
+          pr_json="$(gh pr view -R "$REPO_NAME" "$BRANCH_NAME" --json mergeStateStatus,body,baseRefName)"
           <<<"$pr_json" | jq .
           echo "json=$pr_json" >> "$GITHUB_OUTPUT"
         env:
@@ -77,3 +79,29 @@ jobs:
 
       - name: Push
         run: docker push "$DOCKER_PUBLISH_TAG"
+
+  publish:
+
+    needs: [ verify, docker ]
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Get PR base ref
+        id: base-ref
+        run: echo "name=$(echo "$PR_JSON" | jq -r .baseRefName)" >> "$GITHUB_OUTPUT"
+        env:
+          PR_JSON: ${{ needs.verify.outputs.pr-json }}
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.base-ref.outputs.name }}
+
+      - name: Fetch release branch
+        run: git fetch "$BRANCH_NAME"
+
+      - name: Git FF main
+        run: git merge --ff-only "$BRANCH_NAME"
+
+      - name: Publish Release
+        if: false
+        run: gh release edit "v$RELEASE_VERSION" --draft=false
