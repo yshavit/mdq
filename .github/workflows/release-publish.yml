@@ -97,7 +97,7 @@ jobs:
           ref: ${{ steps.base-ref.outputs.name }}
 
       - name: Fetch release branch
-        run: git fetch "$BRANCH_NAME"
+        run: git fetch origin "$BRANCH_NAME"
 
       - name: Git FF main
         run: git merge --ff-only "$BRANCH_NAME"
