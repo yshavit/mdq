@@ -1,0 +1,28 @@
+name: Publish release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version to release, e.g. \"0.1.2\""
+        type: string
+        required: true
+
+env:
+  BRANCH_NAME: "pending-releases/${{ inputs.version }}"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate PR status
+        run: |
+          set -euo pipefail
+          merge_status="$(gh pr view -R "$REPO_NAME" "$BRANCH_NAME" --json mergeStateStatus | jq -r .mergeStateStatus)"
+          if [[ "$merge_status" != CLEAN ]]; then
+            echo "::error title=invalid branch state::require CLEAN, saw $merge_status"
+            exit 1
+          fi
+        env:
+          REPO_NAME: ${{ github.repository }}
