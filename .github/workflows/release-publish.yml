@@ -103,5 +103,5 @@ jobs:
         run: git merge --ff-only "origin/$BRANCH_NAME"
 
       - name: Publish Release
-        if: false
-        run: gh release edit "v$RELEASE_VERSION" --draft=false
+        run: gh release edit "v$RELEASE_VERSION" --title "$(date)"
+        #--draft=false
