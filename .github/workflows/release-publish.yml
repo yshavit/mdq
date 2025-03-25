@@ -19,6 +19,7 @@ jobs:
       - name: Validate PR status
         run: |
           set -euo pipefail
+          set -x
           merge_status="$(gh pr view -R "$REPO_NAME" "$BRANCH_NAME" --json mergeStateStatus | jq -r .mergeStateStatus)"
           if [[ "$merge_status" != CLEAN ]]; then
             echo "::error title=invalid branch state::require CLEAN, saw $merge_status"
