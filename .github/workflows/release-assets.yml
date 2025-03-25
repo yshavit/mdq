@@ -51,7 +51,7 @@ jobs:
           set -x
           echo "version_tag=v$release_version" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           ref: ${{ env.BRANCH_NAME }}
           fetch-depth: '50' # all we really need is >1, but this can give us additional context
