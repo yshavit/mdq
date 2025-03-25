@@ -44,9 +44,8 @@ jobs:
       - name: Look for unfinished checkbox items
         run: |
           exit_status=0
-          set -x
           while read -r line ; do
-            echo "::error title=unfinished-task::$line"
+            echo "::error title=unfinished task::$line"
             exit_status=1
           done < <(
             echo "$PR_JSON" | jq -r .body | docker run --rm -i "yshavit/mdq:${RELEASE_VERSION}-rc" '- [ ]' | grep -v '^ *-* *$'
