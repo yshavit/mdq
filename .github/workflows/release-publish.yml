@@ -123,7 +123,7 @@ jobs:
       - name: Update Cargo.toml
         run: |
           set -euo pipefail
-          sed -i 's/^version = ".*"/version = "$NEXT_VERSION"/' Cargo.toml
+          sed -i 's/^version = ".*"/version = "${{ env.NEXT_VERSION }}"/' Cargo.toml
           cargo metadata >/dev/null
 
       - name: Commit change
