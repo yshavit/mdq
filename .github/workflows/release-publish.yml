@@ -49,5 +49,6 @@ jobs:
             exit_status=1
           done <<<"$(
             echo "$PR_JSON" | jq -r .body | docker run --rm -i "yshavit/mdq:${RELEASE_VERSION}-rc" '- [ ]' | grep -v '^ *-* *$'
+            # note: the grep is to remove the thematic breaks; see https://github.com/yshavit/mdq/issues/270
           )"
           exit "$exit_status"
