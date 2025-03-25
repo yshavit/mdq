@@ -6,23 +6,146 @@ on:
         description: "The version to release, e.g. \"0.1.2\""
         type: string
         required: true
+      next-version:
+        description: "The next revision to set. Will have \"-dev\" appended"
+        type: string
+        required: true
 
 env:
+  RELEASE_VERSION: ${{ inputs.version }}
+  NEXT_VERSION: "${{ inputs.next-version }}-dev"
   BRANCH_NAME: "pending-releases/${{ inputs.version }}"
+  DOCKER_RC_TAG: "yshavit/mdq:${{ inputs.version }}-rc"
+  DOCKER_PUBLISH_TAG: "yshavit/mdq:${{ inputs.version }}"
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+    outputs:
+      pr-json: ${{ steps.pr-info.outputs.json }}
     steps:
+      - name: Get PR Info
+        id: pr-info
+        run: |
+          set -euo pipefail
+          pr_json="$(gh pr view -R "$REPO_NAME" "$BRANCH_NAME" --json mergeStateStatus,body,baseRefName)"
+          <<<"$pr_json" | jq .
+          echo "json=$pr_json" >> "$GITHUB_OUTPUT"
+        env:
+          REPO_NAME: ${{ github.repository }}
+
       - name: Validate PR status
         run: |
           set -euo pipefail
-          merge_status="$(gh pr view -R "$REPO_NAME" "$BRANCH_NAME" --json mergeStateStatus | jq -r .mergeStateStatus)"
+          merge_status="$(<<<"$PR_JSON" jq -r .mergeStateStatus)"
           if [[ "$merge_status" != CLEAN ]]; then
             echo "::error title=invalid branch state::require CLEAN, saw $merge_status"
             exit 1
           fi
         env:
-          REPO_NAME: ${{ github.repository }}
+          PR_JSON: ${{ steps.pr-info.outputs.json }}
+
+      - name: Docker pull
+        run: docker pull "$DOCKER_RC_TAG"
+
+      - name: Look for unfinished checkbox items
+        run: |
+          exit_status=0
+          while read -r line ; do
+            echo "::error title=unfinished task::$line"
+            exit_status=1
+          done < <(
+            echo "$PR_JSON" | jq -r .body | docker run --rm -i "$DOCKER_RC_TAG" -o plain '- [ ]' | grep -v '^ *-* *$'
+            # note: the grep is to remove the thematic breaks; see https://github.com/yshavit/mdq/issues/270
+          )
+          exit "$exit_status"
+        env:
+          PR_JSON: ${{ steps.pr-info.outputs.json }}
+
+  docker:
+    environment: Docker Hub
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PAT }}
+
+      - name: Pull
+        run: docker pull "$DOCKER_RC_TAG"
+
+      - name: Retag
+        run: docker tag "$DOCKER_RC_TAG" "$DOCKER_PUBLISH_TAG"
+
+      - name: Push
+        run: docker push "$DOCKER_PUBLISH_TAG"
+
+  publish:
+
+    needs: [ verify, docker ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+
+      - name: Get PR base ref
+        id: base-ref
+        run: echo "name=$(echo "$PR_JSON" | jq -r .baseRefName)" >> "$GITHUB_OUTPUT"
+        env:
+          PR_JSON: ${{ needs.verify.outputs.pr-json }}
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.base-ref.outputs.name }}
+
+      - name: Fetch release branch
+        run: git fetch origin "$BRANCH_NAME"
+
+      - name: Git FF main
+        run: git merge --ff-only "origin/$BRANCH_NAME"
+
+      - name: Git push
+        run: git push origin "$TARGET_REF"
+        env:
+          TARGET_REF: ${{ steps.base-ref.outputs.name }}
+
+      - name: Publish Release
+        run: gh release edit "v$RELEASE_VERSION" --draft=false
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Update Cargo.toml
+        run: |
+          set -euo pipefail
+          sed -i 's/^version = ".*"/version = "${{ env.NEXT_VERSION }}"/' Cargo.toml
+          cargo metadata >/dev/null
+
+      - name: Configure git
+        run: |
+          set -euo pipefail
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Commit change
+        run: git commit -am "bump version to $NEXT_VERSION"
+
+      - name: Push to branch
+        run: |
+          set -euo pipefail
+          git checkout -b "prepare-$NEXT_VERSION"
+          git push --set-upstream origin "prepare-$NEXT_VERSION"
+
+      - name: Open PR
+        run: |
+          set -euo pipefail
+          gh pr create --title "Bump version to $NEXT_VERSION" --body "Created by release-publish.yml" --base "$TARGET_REF"
+        env:
+          TARGET_REF: ${{ steps.base-ref.outputs.name }}
+          GH_TOKEN: ${{ github.token }}
