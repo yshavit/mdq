@@ -107,8 +107,9 @@ jobs:
 
       - name: Git push
         run: |
-          git checkout -b "tmp.$(date +%s)"
-          git push
+          branch_name="tmp.$(date +%s)"
+          git checkout -b "$branch_name"
+          git push origin "$branch_name"
 
       - name: Publish Release
         run: gh release edit "v$RELEASE_VERSION" --title "$(date)"
