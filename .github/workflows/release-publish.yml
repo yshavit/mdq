@@ -58,6 +58,7 @@ jobs:
           PR_JSON: ${{ steps.pr-info.outputs.json }}
 
   docker:
+    environment: Docker Hub
     needs: verify
     runs-on: ubuntu-latest
     steps:
