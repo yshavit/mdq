@@ -3,11 +3,11 @@ Bump version to **{{RELEASE_VERSION}}** for release.
 ## Validation:
 
 - linux image:
-  - [ ] `bash mdq --version`
+  - [ ] `mdq --version`
   - [ ] `gh attestation verify -o yshavit mdq`
 
 - windows image:
-    - [ ] `bash mdq --version`
+    - [ ] `mdq --version`
     - [ ] `gh attestation verify -o yshavit mdq`
 
 - mac image:
