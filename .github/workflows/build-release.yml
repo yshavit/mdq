@@ -119,7 +119,7 @@ jobs:
           fi
 
       - name: Attest Build Provenance
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v2
         with:
           subject-path: "target/release/${{ env.BUILD_FILE_NAME }}"
 
