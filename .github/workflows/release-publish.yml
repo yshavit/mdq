@@ -127,6 +127,12 @@ jobs:
           sed -i 's/^version = ".*"/version = "${{ env.NEXT_VERSION }}"/' Cargo.toml
           cargo metadata >/dev/null
 
+      - name: Configure git
+        run: |
+          set -euo pipefail
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
       - name: Commit change
         run: git commit -am "bump version to $NEXT_VERSION"
 
