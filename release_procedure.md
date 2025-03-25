@@ -3,9 +3,8 @@
 ## tldr
 
 1. run [prepare-new-release], which will create a PR and draft release
-2. wait for CIs to succeed on the PR
 3. validate the release (instructions will be on the PR)
-4. do a fast-forward commit
+4. run [release-publish]
 5. immediately merge the subsequent PR that gets created (a different one from step 1)
 
 ## Details
@@ -67,4 +66,5 @@ That's it!
 
 [build-release]: https://github.com/yshavit/mdq/actions/workflows/build-release.yml
 
-[post-release]: https://github.com/yshavit/mdq/actions/workflows/post-release.yml
+[release-publish]: https://github.com/yshavit/mdq/actions/workflows/release-publish.yml
+    

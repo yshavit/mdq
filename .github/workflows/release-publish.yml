@@ -6,9 +6,14 @@ on:
         description: "The version to release, e.g. \"0.1.2\""
         type: string
         required: true
+      next-version:
+        description: "The next revision to set. Will have \"-dev\" appended"
+        type: string
+        required: true
 
 env:
   RELEASE_VERSION: ${{ inputs.version }}
+  NEXT_VERSION: "${{ inputs.next-version }}-dev"
   BRANCH_NAME: "pending-releases/${{ inputs.version }}"
   DOCKER_RC_TAG: "yshavit/mdq:${{ inputs.version }}-rc"
   DOCKER_PUBLISH_TAG: "yshavit/mdq:${{ inputs.version }}"
@@ -106,13 +111,33 @@ jobs:
         run: git merge --ff-only "origin/$BRANCH_NAME"
 
       - name: Git push
-        run: |
-          branch_name="tmp.$(date +%s)"
-          git checkout -b "$branch_name"
-          git push origin "$branch_name"
+        run: git push origin "$TARGET_REF"
+        env:
+          TARGET_REF: ${{ steps.base-ref.outputs.name }}
 
       - name: Publish Release
-        run: gh release edit "v$RELEASE_VERSION" --title "$(date)"
-        #--draft=false
+        run: gh release edit "v$RELEASE_VERSION" --draft=false
         env:
           GH_TOKEN: ${{ github.token }}
+
+      - name: Update Cargo.toml
+        run: |
+          set -euo pipefail
+          sed -i 's/^version = ".*"/version = "$NEXT_VERSION"/' Cargo.toml
+          cargo metadata >/dev/null
+
+      - name: Commit change
+        run: git commit -am "bump version to $NEXT_VERSION"
+
+      - name: Push to branch
+        run: |
+          set -euo pipefail
+          git checkout -b "prepare-$NEXT_VERSION"
+          git push --set-upstream origin "prepare-$NEXT_VERSION"
+
+      - name: Open PR
+        run: |
+          set -euo pipefail
+          gh pr create --title "Bump version to $NEXT_VERSION" --body "Created by release-publish.yml" --base "$TARGET_REF"
+        env:
+          TARGET_REF: ${{ steps.base-ref.outputs.name }}
