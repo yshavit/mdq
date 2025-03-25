@@ -104,4 +104,6 @@ jobs:
 
       - name: Publish Release
         run: gh release edit "v$RELEASE_VERSION" --title "$(date)"
+        env:
+          GH_TOKEN: ${{ github.token }}
         #--draft=false
