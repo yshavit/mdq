@@ -23,7 +23,6 @@
    | Option                                         | Value    |
    |------------------------------------------------|----------|
    | version to cut a release as                    | `v0.2.0` |
-   | the new dev to prepare (w/o "-dev" suffix)     | `v0.2.1` |
    | the git ref to go against                      | `main`   |
    | verify current dev version (w/o "-dev" suffix) | `v0.1.2` |
 
@@ -55,9 +54,10 @@
 
 5. Another workflow ([post-release]) will publish the release and create a new PR to bump the version to `v0.2.1-dev`
 
-   > [!important]
-   > Merge this PR immediately! Even if there are any CI failures, just merge it. (It's okay to hit retries on the
-   > CIs if you need to, but don't do any other code change.)
+> [!important]
+> 
+> Merge this PR immediately! Even if there are any CI failures, just merge it. (It's okay to hit retries on the
+> CIs if you need to, but don't do any other code change.)
 
 That's it!
 

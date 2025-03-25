@@ -12,11 +12,16 @@ on:
         options:
           - latest
           - stable
+          - rc
           - none
   workflow_call:
     inputs:
       docker-tag-type:
         description: The docker tag to upload as
+        required: true
+        type: string
+      branch_name:
+        description: The branch to build against
         required: true
         type: string
 
@@ -37,12 +42,17 @@ jobs:
     steps:
 
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch_name }}
 
       - name: get tag
         id: get-tag
         run: |
-          if [[ "${DOCKER_TAG_TYPE}" = 'stable' ]]; then
+          if [[ "${DOCKER_TAG_TYPE}" = 'stable' || "${DOCKER_TAG_TYPE}" = 'rc' ]]; then
             tag="$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "mdq") | .version')"
+            if [[ "${DOCKER_TAG_TYPE}" = 'rc' ]]; then
+              tag="$tag-rc"
+            fi
           else
             tag=latest
           fi
@@ -92,6 +102,8 @@ jobs:
         run: rustc --version --verbose
 
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch_name }}
 
       - name: build
         run: cargo build --release

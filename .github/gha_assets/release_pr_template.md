@@ -15,8 +15,8 @@ Bump version to **{{RELEASE_VERSION}}** for release.
     - [ ] `gh attestation verify -o yshavit mdq`
 
 - docker image:
-    - [ ] `docker pull yshavit/mdq:{{RELEASE_VERSION}}`
-    - [ ] `docker run --rm -i yshavit/mdq:{{RELEASE_VERSION}} --version`
+    - [ ] `docker pull yshavit/mdq:{{RELEASE_VERSION}}-rc`
+    - [ ] `docker run --rm -i yshavit/mdq:{{RELEASE_VERSION}} --version-rc`
 
 - [ ] review release notes
  
