@@ -105,8 +105,13 @@ jobs:
       - name: Git FF main
         run: git merge --ff-only "origin/$BRANCH_NAME"
 
+      - name: Git push
+        run: |
+          git checkout -b "tmp.$(date +%s)"
+          git push
+
       - name: Publish Release
         run: gh release edit "v$RELEASE_VERSION" --title "$(date)"
+        #--draft=false
         env:
           GH_TOKEN: ${{ github.token }}
-        #--draft=false
