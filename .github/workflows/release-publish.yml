@@ -53,3 +53,5 @@ jobs:
             # note: the grep is to remove the thematic breaks; see https://github.com/yshavit/mdq/issues/270
           )
           exit "$exit_status"
+        env:
+          PR_JSON: ${{ steps.pr-info.outputs.json }}
