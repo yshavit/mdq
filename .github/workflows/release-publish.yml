@@ -16,14 +16,22 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Get PR Info
+        id: pr-info
+        run: |
+          set -euo pipefail
+          pr_json="$(gh pr view -R "$REPO_NAME" "$BRANCH_NAME" --json mergeStateStatus,body)"
+          <<<"$pr_json" | jq .
+          echo "json=$pr_json" >> "$GITHUB_OUTPUT"
+        env:
+          REPO_NAME: ${{ github.repository }}
       - name: Validate PR status
         run: |
           set -euo pipefail
-          set -x
-          merge_status="$(gh pr view -R "$REPO_NAME" "$BRANCH_NAME" --json mergeStateStatus | jq -r .mergeStateStatus)"
+          merge_status="$(<<<"$PR_JSON" jq -r .mergeStateStatus)"
           if [[ "$merge_status" != CLEAN ]]; then
             echo "::error title=invalid branch state::require CLEAN, saw $merge_status"
             exit 1
           fi
         env:
-          REPO_NAME: ${{ github.repository }}
+          PR_JSON: ${{ steps.pr-info.outputs.json }}
