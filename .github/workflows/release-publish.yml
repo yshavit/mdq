@@ -100,7 +100,7 @@ jobs:
         run: git fetch origin "$BRANCH_NAME"
 
       - name: Git FF main
-        run: git merge --ff-only "$BRANCH_NAME"
+        run: git merge --ff-only "origin/$BRANCH_NAME"
 
       - name: Publish Release
         if: false
