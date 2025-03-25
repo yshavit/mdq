@@ -45,8 +45,8 @@ jobs:
         run: |
           exit_status=0
           while read -r line ; do
-            echo "::error title=unfinished task::$line"
-            exit_status=1
+            echo "::error title=unfinished-task::$line"
+            exit_status=2
           done <<<"$(
             echo "$PR_JSON" | jq -r .body | docker run --rm -i "yshavit/mdq:${RELEASE_VERSION}-rc" '- [ ]' | grep -v '^ *-* *$'
             # note: the grep is to remove the thematic breaks; see https://github.com/yshavit/mdq/issues/270
