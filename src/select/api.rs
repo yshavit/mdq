@@ -12,6 +12,8 @@ use crate::select::sel_table::TableSliceSelector;
 use crate::tree::{FootnoteId, Formatting, Inline, Link, MdContext, Text, TextVariant};
 use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use paste::paste;
+use pest::error::ErrorVariant;
+use pest::Span;
 use std::collections::HashSet;
 
 pub trait Selector<'md, I: Into<MdElemRef<'md>>> {
@@ -22,6 +24,26 @@ pub trait Selector<'md, I: Into<MdElemRef<'md>>> {
 pub enum ParseError {
     Pest(query::Error),
     Other(DetachedSpan, String),
+}
+
+impl ParseError {
+    pub fn to_string(&self, query_text: &str) -> String {
+        match self {
+            ParseError::Pest(e) => format!("{e}"),
+            ParseError::Other(span, message) => match Span::new(query_text, span.start, span.end) {
+                None => format!("{message}"),
+                Some(span) => {
+                    let pest_err = query::Error::new_from_span(
+                        ErrorVariant::CustomError {
+                            message: message.to_string(),
+                        },
+                        span,
+                    );
+                    pest_err.to_string()
+                }
+            },
+        }
+    }
 }
 
 impl From<query::Error> for ParseError {

@@ -125,8 +125,8 @@ mod test {
         parse_and_check("hello", re_insensitive("hello"), "");
         parse_and_check("hello ", re_insensitive("hello"), "");
         parse_and_check("hello / goodbye", re_insensitive("hello / goodbye"), "");
-        parse_and_check("hello| goodbye", re_insensitive("hello"), "| goodbye");
-        parse_and_check("hello | goodbye", re_insensitive("hello"), "| goodbye");
+        parse_and_check("hello> goodbye", re_insensitive("hello"), "> goodbye");
+        parse_and_check("hello > goodbye", re_insensitive("hello"), "> goodbye");
         parse_and_check_with(
             StringVariant::AngleBracket,
             "foo> rest",
@@ -213,7 +213,7 @@ mod test {
         parse_and_check("bar     $", re("(?i)bar$"), "");
         parse_and_check("'bar'   $", re("bar$"), "");
 
-        parse_and_check("^  foobar  $  ", re("(?i)^foobar$"), "  ");
+        parse_and_check("^  foobar  $  ", re("(?i)^foobar$"), "");
     }
 
     #[test]
@@ -319,7 +319,13 @@ mod test {
         expect: StringMatcher,
         expect_remaining: &str,
     ) -> StringMatcher {
-        let (actual_matcher, actual_remaining) = Matcher::parse(string_variant, text).unwrap();
+        let (actual_matcher, actual_remaining) = match Matcher::parse(string_variant, text) {
+            Ok(parsed) => parsed,
+            Err(err) => {
+                eprintln!("{}", err.to_string(text));
+                panic!("{err:?}")
+            }
+        };
         let actual_string_matcher: StringMatcher = actual_matcher.into();
         assert_eq!(actual_string_matcher, expect);
         assert_eq!(actual_remaining, expect_remaining);

@@ -16,12 +16,12 @@ selector = {
 }
 
 selector_delim = _{ explicit_space | EOI }
-explicit_space = !{ " " }
+explicit_space = !{ " " } // TODO do I really need this as a rule?
 
-select_section =  { section_start ~ PUSH_LITERAL("|") ~ #title = string_to_peek? ~ POP }
+select_section =  { section_start ~ PUSH_LITERAL("|") ~ #title = string }
 section_start  = @{ "#" ~ selector_delim }
 
-select_list_item  =  { list_start ~ list_task_options? ~ PUSH_LITERAL("|") ~ #contents = string_to_peek? ~ POP }
+select_list_item  =  { list_start ~ list_task_options? ~ PUSH_LITERAL("|") ~ #contents = string }
 list_start        = ${ (list_ordered | "-") ~ selector_delim }
 list_ordered      = ${ "1." }
 list_task_options = ${ "[" ~ (task_unchecked | task_checked | task_either) ~ task_end }
@@ -30,29 +30,37 @@ task_unchecked    = ${ " " }
 task_either       = ${ "?" }
 task_end          = ${ "]" }
 
-select_link =  { link_start ~ PUSH_LITERAL("]") ~ #display_text = string_to_peek? ~ POP ~ "](" ~ PUSH_LITERAL(")")~ #url_text = string_to_peek? ~ POP ~ ")" }
+select_link =  { link_start ~ PUSH_LITERAL("]") ~ #display_text = string ~ "](" ~ PUSH_LITERAL(")")~ #url_text = string ~ ")" }
 link_start  = ${ image_start? ~ "[" }
 image_start = @{ "!" }
 
-select_block_quote       =  { select_block_quote_start ~ PUSH_LITERAL("|") ~ #text = string_to_peek? ~ POP }
+select_block_quote       =  { select_block_quote_start ~ PUSH_LITERAL("|") ~ #text = string }
 select_block_quote_start = @{ ">" ~ selector_delim }
 
-select_code_block =  { code_block_start ~ PUSH_LITERAL("|") ~ #text = string_to_peek? ~ POP }
-code_block_start  = ${ "```" ~ PUSH_LITERAL(" ") ~ #language = string_to_peek? ~ POP ~ selector_delim }
+select_code_block =  { code_block_start ~ PUSH_LITERAL("|") ~ #text = string }
+code_block_start  = ${ "```" ~ PUSH_LITERAL(" ") ~ #language = string ~ selector_delim }
 
-select_html =  { html_start ~ PUSH_LITERAL("|") ~ #text = string_to_peek? ~ POP }
+select_html =  { html_start ~ PUSH_LITERAL("|") ~ #text = string }
 html_start  = @{ "</>" ~ selector_delim }
 
-select_paragraph       =  { select_paragraph_start ~ PUSH_LITERAL("|") ~ #text = string_to_peek? ~ POP }
+select_paragraph       =  { select_paragraph_start ~ PUSH_LITERAL("|") ~ #text = string }
 select_paragraph_start = @{ "P:" ~ selector_delim }
 
-select_table = { table_start ~ (explicit_asterisk | (PUSH_LITERAL(":") ~ #column = string_to_peek ~ POP)) ~ ":-:" ~ PUSH_LITERAL("|") ~ #row = string_to_peek? ~ POP }
+select_table = { table_start ~ PUSH_LITERAL(":") ~ #column = string ~ ":-:" ~ PUSH_LITERAL("|") ~ #row = string }
 table_start = ${":-:" ~ explicit_space }
-explicit_asterisk = ${ "*" }
 
 // helper rule, just for unit tests
-string_for_unit_tests__do_not_use = { PUSH_LITERAL(">") ~ string_to_peek }
-string_to_peek = { "*" | regex | (anchor_start? ~ (quoted_string | unquoted_string) ~ anchor_end? | only_anchors) }
+string_for_unit_tests__do_not_use = { PUSH_LITERAL(">") ~ string }
+string = {
+  // end delimiter for unquoted string will have been PUSH_LITERAL'd by here
+  (
+        regex
+      | ( anchor_start ~ anchor_end )
+      | ( anchor_start? ~ ( quoted_string | unquoted_string ) ~ anchor_end? )
+      | "*"?
+  )
+  ~ DROP
+}
 unquoted_string = @{ LETTER ~ (!(PEEK | "$") ~ ANY)* }
 
 regex               = ${ "/" ~ regex_char* ~ "/" }
@@ -72,11 +80,6 @@ quoted_char = ${
 anchor_start = @{ "^" }
 
 anchor_end = @{ "$" }
-
-only_anchors = {
-  (anchor_start ~ anchor_end?)
-  | anchor_end
-}
 
 quoted_plain_chars = @{ (!(PEEK | "\\") ~ ANY)+ }
 
