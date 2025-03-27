@@ -125,8 +125,8 @@ mod test {
         parse_and_check("hello", re_insensitive("hello"), "");
         parse_and_check("hello ", re_insensitive("hello"), "");
         parse_and_check("hello / goodbye", re_insensitive("hello / goodbye"), "");
-        parse_and_check("hello> goodbye", re_insensitive("hello"), "> goodbye");
-        parse_and_check("hello > goodbye", re_insensitive("hello"), "> goodbye");
+        parse_and_check("hello| goodbye", re_insensitive("hello"), "| goodbye");
+        parse_and_check("hello | goodbye", re_insensitive("hello"), "| goodbye");
         parse_and_check_with(
             StringVariant::AngleBracket,
             "foo> rest",
@@ -145,7 +145,7 @@ mod test {
 
     #[test]
     fn bareword_anchor_end() {
-        let m = parse_and_check(" hello $ |after", re_insensitive("hello$"), " |after");
+        let m = parse_and_check(" hello $ |after", re_insensitive("hello$"), "|after");
         assert_eq!(true, m.matches("pre hello"));
         assert_eq!(true, m.matches("hello"));
         assert_eq!(false, m.matches("hello post"));
@@ -159,18 +159,18 @@ mod test {
 
     #[test]
     fn only_ending_anchor() {
-        parse_and_check("$ |", StringMatcher::any(), " |");
+        parse_and_check("$ |", StringMatcher::any(), "|");
         parse_and_check("$", StringMatcher::any(), "");
     }
 
     #[test]
     fn only_both_anchors() {
-        let matcher = parse_and_check("^$ |after", re("^$"), " |after");
+        let matcher = parse_and_check("^$ |after", re("^$"), "|after");
         assert_eq!(matcher.matches(""), true);
         assert_eq!(matcher.matches("x"), false);
         assert_eq!(matcher.matches("\n"), false);
 
-        parse_and_check("^  $ |after", re("^$"), " |after");
+        parse_and_check("^  $ |after", re("^$"), "|after");
     }
 
     #[test]
@@ -229,7 +229,7 @@ mod test {
             StringVariant::AngleBracket,
             "hello>world",
             re_insensitive("hello"),
-            ":world",
+            ">world",
         );
 
         // "$" is always an end delimiter
@@ -337,7 +337,7 @@ mod test {
     }
 
     fn expect_err(text: &str) {
-        match Matcher::parse(StringVariant::AngleBracket, text) {
+        match Matcher::parse(StringVariant::Pipe, text) {
             Ok(unexpected) => panic!("unexpected success: {unexpected:?}"),
             Err(_) => {}
         }
