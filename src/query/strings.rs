@@ -263,7 +263,7 @@ mod tests {
                 StringVariant::AngleBracket,
                 "^ hello $ there",
                 parsed_text(CaseInsensitive, true, "hello", true),
-                " there",
+                "there",
             );
         }
 
@@ -273,7 +273,7 @@ mod tests {
                 StringVariant::AngleBracket,
                 "^hello$ there",
                 parsed_text(CaseInsensitive, true, "hello", true),
-                " there",
+                "there",
             );
         }
     }

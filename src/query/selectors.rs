@@ -690,7 +690,7 @@ mod tests {
                     1 | </> <div>
                       |     ^---
                       |
-                      = expected end of input or string"#},
+                      = expected end of input, unquoted string, regex, quoted string, or "^""#},
             );
         }
 

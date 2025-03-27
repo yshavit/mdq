@@ -50,7 +50,8 @@ select_table = { table_start ~ PUSH_LITERAL(":") ~ #column = string ~ ":-:" ~ PU
 table_start = ${":-:" ~ explicit_space }
 
 // helper rule, just for unit tests
-string_for_unit_tests__do_not_use = { PUSH_LITERAL(">") ~ string }
+string_for_unit_tests__do_not_use_pipe = { PUSH_LITERAL("|") ~ string }
+string_for_unit_tests__do_not_use_angle = { PUSH_LITERAL(">") ~ string }
 string = {
   // end delimiter for unquoted string will have been PUSH_LITERAL'd by here
   (

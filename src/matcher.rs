@@ -309,7 +309,7 @@ mod test {
 
         parse_and_check("| rest", StringMatcher::any(), "| rest");
         parse_and_check("*| rest", StringMatcher::any(), "| rest");
-        parse_and_check("* | rest", StringMatcher::any(), " | rest");
+        parse_and_check("* | rest", StringMatcher::any(), "| rest");
         parse_and_check_with(StringVariant::AngleBracket, "> rest", StringMatcher::any(), "> rest");
     }
 
@@ -333,7 +333,7 @@ mod test {
     }
 
     fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) -> StringMatcher {
-        parse_and_check_with(StringVariant::AngleBracket, text, expect, expect_remaining)
+        parse_and_check_with(StringVariant::Pipe, text, expect, expect_remaining)
     }
 
     fn expect_err(text: &str) {

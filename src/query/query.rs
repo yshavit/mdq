@@ -46,9 +46,11 @@ impl Query {
                 Rule::select_html | Rule::html_start => "_</>_",
                 Rule::select_paragraph | Rule::select_paragraph_start => "_P:_",
                 Rule::select_table | Rule::table_start => "_:-:_",
-                Rule::string | Rule::string_for_unit_tests__do_not_use => "string",
+                Rule::string
+                | Rule::string_for_unit_tests__do_not_use_angle
+                | Rule::string_for_unit_tests__do_not_use_pipe => "string",
                 Rule::unquoted_string => "unquoted string",
-                Rule::regex => "_/_",
+                Rule::regex => "regex",
                 Rule::regex_char => "regular expression character",
                 Rule::regex_escaped_slash => "_/_",
                 Rule::regex_normal_char => "regular expression character",
@@ -74,6 +76,7 @@ mod test_helpers {
 
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub enum StringVariant {
+        Pipe,
         AngleBracket,
     }
 
@@ -91,7 +94,8 @@ mod test_helpers {
 
         pub fn as_rule(self) -> Rule {
             let rule = match self {
-                StringVariant::AngleBracket => Rule::string_for_unit_tests__do_not_use,
+                StringVariant::AngleBracket => Rule::string_for_unit_tests__do_not_use_angle,
+                StringVariant::Pipe => Rule::string_for_unit_tests__do_not_use_pipe,
             };
             rule
         }
