@@ -153,14 +153,14 @@ mod test {
 
     #[test]
     fn only_starting_anchor() {
-        parse_and_check("^ |", StringMatcher::any(), "|");
-        parse_and_check("^", StringMatcher::any(), "");
+        parse_and_check("^ |", StringMatcher::any(), "^ |");
+        parse_and_check("^", StringMatcher::any(), "^");
     }
 
     #[test]
     fn only_ending_anchor() {
-        parse_and_check("$ |", StringMatcher::any(), "|");
-        parse_and_check("$", StringMatcher::any(), "");
+        parse_and_check("$ |", StringMatcher::any(), "$ |");
+        parse_and_check("$", StringMatcher::any(), "$");
     }
 
     #[test]
