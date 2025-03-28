@@ -98,5 +98,9 @@ jobs:
   upload_assets:
     needs: create_draft
     uses: ./.github/workflows/release-assets.yml
+    permissions:
+      id-token: write
+      attestations: write
+      contents: write
     with:
       branch_name: "pending-releases/${{ github.event.inputs.version_to_release }}"
