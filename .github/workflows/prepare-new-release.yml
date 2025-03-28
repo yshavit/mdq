@@ -81,15 +81,6 @@ jobs:
           git checkout -b "pending-releases/$RELEASE_VERSION"
           git push --set-upstream origin "pending-releases/$RELEASE_VERSION"
 
-      - name: Open PR
-        run: |
-          set -euo pipefail
-
-          body_text="$(<.github/gha_assets/release_pr_template.md sed "s/{{RELEASE_VERSION}}/$RELEASE_VERSION/g")"
-          gh pr create --title "Release v${RELEASE_VERSION}" --body "$body_text" --base "$TARGET_REF"
-        env:
-          TARGET_REF: ${{ github.event.inputs.base_ref }}
-
       - name: Create new release
         id: create_release
         run: |
@@ -105,3 +96,26 @@ jobs:
     secrets: inherit
     with:
       branch_name: "pending-releases/${{ github.event.inputs.version_to_release }}"
+
+  open_pr:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_VERSION: ${{ github.event.inputs.version_to_release }}
+    permissions:
+      pull-requests: write
+    needs: [ create_draft, upload_assets ]
+    steps:
+
+      - uses: actions/checkout@v4
+        with:
+          ref: pending-releases/${{ env.RELEASE_VERSION }}
+
+      - name: Open PR
+        run: |
+          set -euo pipefail
+
+          body_text="$(<.github/gha_assets/release_pr_template.md sed "s/{{RELEASE_VERSION}}/$RELEASE_VERSION/g")"
+          gh pr create --title "Release v${RELEASE_VERSION}" --body "$body_text" --base "$TARGET_REF"
+        env:
+          TARGET_REF: ${{ github.event.inputs.base_ref }}
