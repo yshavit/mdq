@@ -118,6 +118,10 @@ jobs:
             exit 1
           fi
 
+      - name: chmod
+        if: ${{ env.RUNNER_OS  != 'Windows' }}
+        run: chmod +x "target/release/$BUILD_FILE_NAME"
+
       - name: Attest Build Provenance
         uses: actions/attest-build-provenance@v2
         with:
