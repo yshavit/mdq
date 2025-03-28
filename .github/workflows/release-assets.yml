@@ -111,6 +111,9 @@ jobs:
           set -x
           for f in $(ls -1) ; do
             pushd "$f"
+            if [[ -e mdq ]]; then
+              chmod +x mdq
+            fi
             zip -r "$f.zip" *
             mv "$f.zip" ../
             popd
