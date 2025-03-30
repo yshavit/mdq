@@ -2,13 +2,15 @@ use crate::fmt_md::MdOptions;
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
 use crate::output::{OutputOpts, Stream};
 use crate::select::{ParseError, SelectorAdapter};
-use crate::tree::{MdDoc, ReadOptions};
+use crate::tree::{InvalidMd, MdDoc, ReadOptions};
 use crate::tree_ref::MdElemRef;
 use crate::tree_ref_serde::SerdeDoc;
 use cli::{Cli, OutputFormat};
 use output::Output;
 use pest::error::ErrorVariant;
 use pest::Span;
+use std::borrow::Cow;
+use std::fmt::{Display, Formatter};
 use std::io;
 use std::io::{stdin, Read, Write};
 
@@ -33,12 +35,46 @@ mod utils_for_test;
 mod vec_utils;
 mod words_buffer;
 
-pub fn run_in_memory(cli: &Cli, contents: &str) -> (bool, String) {
+#[derive(Debug)]
+pub enum Error {
+    QueryParse { query_string: String, error: ParseError },
+    MarkdownParse(InvalidMd),
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::QueryParse { query_string, error } => {
+                let pest_err = match error {
+                    ParseError::Pest(err) => Cow::Borrowed(err),
+                    ParseError::Other(span, message) => {
+                        let full_span = Span::new(query_string, span.start, span.end);
+                        Cow::Owned(query::Error::new_from_span(
+                            ErrorVariant::CustomError {
+                                message: message.to_string(),
+                            },
+                            full_span.unwrap(),
+                        ))
+                    }
+                };
+
+                writeln!(f, "Syntax error in select specifier:")?;
+                writeln!(f, "{pest_err}")
+            }
+            Error::MarkdownParse(err) => {
+                writeln!(f, "Markdown parse error:")?;
+                writeln!(f, "{err}")
+            }
+        }
+    }
+}
+
+pub fn run_in_memory(cli: &Cli, contents: &str) -> Result<(bool, String), Error> {
     let mut out = Vec::with_capacity(256); // just a guess
 
-    let result = run(&cli, contents.to_string(), || &mut out);
-    let out_str = String::from_utf8(out).map_err(|_| "UTF-8 decode error").unwrap();
-    (result, out_str)
+    let result = run(&cli, contents.to_string(), || &mut out)?;
+    let out_str = String::from_utf8(out).unwrap_or_else(|err| String::from_utf8_lossy(err.as_bytes()).into_owned());
+    Ok((result, out_str))
 }
 
 pub fn run_stdio(cli: &Cli) -> bool {
@@ -47,10 +83,13 @@ pub fn run_stdio(cli: &Cli) -> bool {
     }
     let mut contents = String::new();
     stdin().read_to_string(&mut contents).expect("invalid input (not utf8)");
-    run(&cli, contents, || io::stdout().lock())
+    run(&cli, contents, || io::stdout().lock()).unwrap_or_else(|err| {
+        eprintln!("{err}");
+        false
+    })
 }
 
-fn run<W, F>(cli: &Cli, contents: String, get_out: F) -> bool
+fn run<W, F>(cli: &Cli, contents: String, get_out: F) -> Result<bool, Error>
 where
     F: FnOnce() -> W,
     W: Write,
@@ -63,17 +102,18 @@ where
     let MdDoc { roots, ctx } = match MdDoc::read(ast, &read_options) {
         Ok(mdqs) => mdqs,
         Err(err) => {
-            eprintln!("error: {}", err);
-            return false;
+            return Err(Error::MarkdownParse(err));
         }
     };
 
     let selectors_str = cli.selector_string();
     let selectors = match SelectorAdapter::parse(&selectors_str) {
         Ok(selectors) => selectors,
-        Err(err) => {
-            print_select_parse_error(err, &selectors_str);
-            return false;
+        Err(error) => {
+            return Err(Error::QueryParse {
+                query_string: selectors_str.into_owned(),
+                error,
+            });
         }
     };
 
@@ -117,17 +157,5 @@ where
         }
     }
 
-    found_any
-}
-
-fn print_select_parse_error(err: ParseError, query_string: &str) {
-    eprintln!("Syntax error in select specifier:");
-    let pest_err = match err {
-        ParseError::Pest(err) => err,
-        ParseError::Other(span, message) => {
-            let full_span = Span::new(query_string, span.start, span.end);
-            query::Error::new_from_span(ErrorVariant::CustomError { message }, full_span.unwrap())
-        }
-    };
-    eprintln!("{}", pest_err);
+    Ok(found_any)
 }

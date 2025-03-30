@@ -52,7 +52,14 @@ output = '''
 [expect."unquoted tag"]
 cli_args = ['</> <span>']
 expect_success = false # unquoted string must start with a letter, not a '<'
-output = '''
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:5
+  |
+1 | </> <span>
+  |     ^---
+  |
+  = expected end of input or string
 '''
 
 

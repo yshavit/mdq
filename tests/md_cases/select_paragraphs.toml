@@ -56,14 +56,28 @@ This paragraph has _inline_ **formatting**.
 [expect."no colon after p"]
 cli_args = ["P *"]
 expect_success = false
-output = '''
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:1
+  |
+1 | P *
+  | ^---
+  |
+  = expected valid query
 '''
 
 
 [expect."space before colon"]
 cli_args = ["P : *"]
 expect_success = false
-output = '''
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:1
+  |
+1 | P : *
+  | ^---
+  |
+  = expected valid query
 '''
 
 
