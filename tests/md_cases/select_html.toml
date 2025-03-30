@@ -59,7 +59,7 @@ output_err = '''Syntax error in select specifier:
 1 | </> <span>
   |     ^---
   |
-  = expected end of input or string
+  = expected end of input, "*", unquoted string, regex, quoted string, or "^"
 '''
 
 

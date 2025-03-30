@@ -168,12 +168,12 @@ cli_args = ['# $hello^']
 expect_success = false
 output = ''
 output_err = '''Syntax error in select specifier:
- --> 1:4
+ --> 1:3
   |
 1 | # $hello^
-  |    ^---
+  |   ^---
   |
-  = expected end of input
+  = expected end of input, "*", unquoted string, regex, quoted string, or "^"
 '''
 
 [expect."invalid selector"]
@@ -223,9 +223,9 @@ output_err = '''Syntax error in select specifier:
  --> 1:5
   |
 1 | :-: :-: row
-  |     ^---
+  |     ^
   |
-  = expected explicit "*" or string
+  = table column matcher cannot empty; use an explicit "*"
 '''
 
 [expect."table missing second delimiter"]

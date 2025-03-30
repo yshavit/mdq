@@ -82,7 +82,7 @@ impl From<Matcher> for StringMatcher {
             }
             .to_string_matcher(),
             Matcher::Regex(re) => Self::regex(re),
-            Matcher::Any => Self::any(),
+            Matcher::Any(_) => Self::any(),
         }
     }
 }
@@ -127,7 +127,12 @@ mod test {
         parse_and_check("hello / goodbye", re_insensitive("hello / goodbye"), "");
         parse_and_check("hello| goodbye", re_insensitive("hello"), "| goodbye");
         parse_and_check("hello | goodbye", re_insensitive("hello"), "| goodbye");
-        parse_and_check_with(StringVariant::Bracket, "foo] rest", re_insensitive("foo"), "] rest");
+        parse_and_check_with(
+            StringVariant::AngleBracket,
+            "foo> rest",
+            re_insensitive("foo"),
+            "> rest",
+        );
     }
 
     #[test]
@@ -140,7 +145,7 @@ mod test {
 
     #[test]
     fn bareword_anchor_end() {
-        let m = parse_and_check(" hello $ |after", re_insensitive("hello$"), " |after");
+        let m = parse_and_check(" hello $ |after", re_insensitive("hello$"), "|after");
         assert_eq!(true, m.matches("pre hello"));
         assert_eq!(true, m.matches("hello"));
         assert_eq!(false, m.matches("hello post"));
@@ -148,24 +153,24 @@ mod test {
 
     #[test]
     fn only_starting_anchor() {
-        parse_and_check("^ |", StringMatcher::any(), "|");
-        parse_and_check("^", StringMatcher::any(), "");
+        parse_and_check("^ |", StringMatcher::any(), "^ |");
+        parse_and_check("^", StringMatcher::any(), "^");
     }
 
     #[test]
     fn only_ending_anchor() {
-        parse_and_check("$ |", StringMatcher::any(), " |");
-        parse_and_check("$", StringMatcher::any(), "");
+        parse_and_check("$ |", StringMatcher::any(), "$ |");
+        parse_and_check("$", StringMatcher::any(), "$");
     }
 
     #[test]
     fn only_both_anchors() {
-        let matcher = parse_and_check("^$ |after", re("^$"), " |after");
+        let matcher = parse_and_check("^$ |after", re("^$"), "|after");
         assert_eq!(matcher.matches(""), true);
         assert_eq!(matcher.matches("x"), false);
         assert_eq!(matcher.matches("\n"), false);
 
-        parse_and_check("^  $ |after", re("^$"), " |after");
+        parse_and_check("^  $ |after", re("^$"), "|after");
     }
 
     #[test]
@@ -208,7 +213,7 @@ mod test {
         parse_and_check("bar     $", re("(?i)bar$"), "");
         parse_and_check("'bar'   $", re("bar$"), "");
 
-        parse_and_check("^  foobar  $  ", re("(?i)^foobar$"), "  ");
+        parse_and_check("^  foobar  $  ", re("(?i)^foobar$"), "");
     }
 
     #[test]
@@ -220,11 +225,16 @@ mod test {
 
     #[test]
     fn bareword_end_delimiters() {
-        parse_and_check_with(StringVariant::Colon, "hello:world", re_insensitive("hello"), ":world");
+        parse_and_check_with(
+            StringVariant::AngleBracket,
+            "hello>world",
+            re_insensitive("hello"),
+            ">world",
+        );
 
         // "$" is always an end delimiter
         parse_and_check_with(
-            StringVariant::Colon,
+            StringVariant::AngleBracket,
             "hello$world",
             re_insensitive("hello$"),
             "world", // note: the dollar sign got consumed, since it's part of the string
@@ -261,15 +271,15 @@ mod test {
 
     #[test]
     fn quote_errs() {
-        expect_err(r#"" "#);
-        expect_err(r#"' "#);
-        expect_err(r#"'\"#);
-        expect_err(r#""\x" "#);
-        expect_err(r#""\u2603" "#);
-        expect_err(r#""\u{}" "#);
-        expect_err(r#""\u{12345678}" "#); // out of range
-        expect_err(r#""\u{snowman}" "#);
-        expect_err(r#""\u{2603"#);
+        expect_empty(r#"" "#);
+        expect_empty(r#"' "#);
+        expect_empty(r#"'\"#);
+        expect_empty(r#""\x" "#);
+        expect_empty(r#""\u2603" "#);
+        expect_empty(r#""\u{}" "#);
+        expect_empty(r#""\u{12345678}" "#); // out of range
+        expect_empty(r#""\u{snowman}" "#);
+        expect_empty(r#""\u{2603"#);
     }
 
     //noinspection RegExpSingleCharAlternation (for the "(a|b)" case)
@@ -287,7 +297,7 @@ mod test {
             "",
         );
 
-        expect_err(r#"/unclosed"#);
+        expect_empty(r#"/unclosed"#);
 
         expect_err(r#"/(unclosed paren/"#);
     }
@@ -299,8 +309,8 @@ mod test {
 
         parse_and_check("| rest", StringMatcher::any(), "| rest");
         parse_and_check("*| rest", StringMatcher::any(), "| rest");
-        parse_and_check("* | rest", StringMatcher::any(), " | rest");
-        parse_and_check_with(StringVariant::Bracket, "] rest", StringMatcher::any(), "] rest");
+        parse_and_check("* | rest", StringMatcher::any(), "| rest");
+        parse_and_check_with(StringVariant::AngleBracket, "> rest", StringMatcher::any(), "> rest");
     }
 
     fn parse_and_check_with(
@@ -309,7 +319,13 @@ mod test {
         expect: StringMatcher,
         expect_remaining: &str,
     ) -> StringMatcher {
-        let (actual_matcher, actual_remaining) = Matcher::parse(string_variant, text).unwrap();
+        let (actual_matcher, actual_remaining) = match Matcher::parse(string_variant, text) {
+            Ok(parsed) => parsed,
+            Err(err) => {
+                eprintln!("{}", err.to_string(text));
+                panic!("{err:?}")
+            }
+        };
         let actual_string_matcher: StringMatcher = actual_matcher.into();
         assert_eq!(actual_string_matcher, expect);
         assert_eq!(actual_remaining, expect_remaining);
@@ -318,6 +334,10 @@ mod test {
 
     fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) -> StringMatcher {
         parse_and_check_with(StringVariant::Pipe, text, expect, expect_remaining)
+    }
+
+    fn expect_empty(text: &str) {
+        parse_and_check(text, StringMatcher::any(), text);
     }
 
     fn expect_err(text: &str) {

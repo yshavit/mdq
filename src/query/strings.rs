@@ -9,6 +9,7 @@ pub struct ParsedString {
     pub anchor_start: bool,
     pub anchor_end: bool,
     pub mode: ParsedStringMode,
+    pub explicit_wildcard: bool,
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -37,7 +38,7 @@ impl ParsedString {
 impl Debug for ParsedString {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.is_equivalent_to_asterisk() {
-            return f.write_char('*');
+            return write!(f, "{} *", if self.explicit_wildcard { "explicit" } else { "implicit" });
         }
 
         match self.mode {
@@ -77,6 +78,7 @@ impl TryFrom<Pairs<'_>> for ParsedString {
             anchor_start: false,
             anchor_end: false,
             mode: ParsedStringMode::CaseSensitive,
+            explicit_wildcard: false,
         };
 
         fn build_string(me: &mut ParsedString, pairs: Pairs) -> Result<(), ParseError> {
@@ -86,6 +88,9 @@ impl TryFrom<Pairs<'_>> for ParsedString {
                 match pair.as_rule() {
                     Rule::quoted_plain_chars => {
                         me.text.push_str(pair.as_str());
+                    }
+                    Rule::asterisk => {
+                        me.explicit_wildcard = true;
                     }
                     Rule::escaped_char => {
                         // we'll iterate, but we should really only have one
@@ -119,11 +124,7 @@ impl TryFrom<Pairs<'_>> for ParsedString {
                     Rule::anchor_end => {
                         me.anchor_end = true;
                     }
-                    Rule::unquoted_string_to_pipe
-                    | Rule::unquoted_string_to_paren
-                    | Rule::unquoted_string_to_bracket
-                    | Rule::unquoted_string_to_space
-                    | Rule::unquoted_string_to_colon => {
+                    Rule::unquoted_string => {
                         me.mode = ParsedStringMode::CaseInsensitive;
                         me.text.push_str(pair.as_str().trim_end());
                     }
@@ -163,7 +164,7 @@ mod tests {
         #[test]
         fn single_quoted_string() {
             check_parse(
-                StringVariant::Pipe,
+                StringVariant::AngleBracket,
                 "'hello'\"X",
                 parsed_text(CaseSensitive, false, "hello", false),
                 "\"X",
@@ -173,7 +174,7 @@ mod tests {
         #[test]
         fn double_quoted_string() {
             check_parse(
-                StringVariant::Pipe,
+                StringVariant::AngleBracket,
                 "\"hello\"'X",
                 parsed_text(CaseSensitive, false, "hello", false),
                 "'X",
@@ -183,7 +184,7 @@ mod tests {
         #[test]
         fn quoted_string_newline() {
             check_parse(
-                StringVariant::Pipe,
+                StringVariant::AngleBracket,
                 r"'hello\nworld'",
                 parsed_text(CaseSensitive, false, "hello\nworld", false),
                 "",
@@ -193,7 +194,7 @@ mod tests {
         #[test]
         fn quoted_string_snowman() {
             check_parse(
-                StringVariant::Pipe,
+                StringVariant::AngleBracket,
                 r"'hello\u{2603}world'",
                 parsed_text(CaseSensitive, false, "hello☃world", false),
                 "",
@@ -201,101 +202,21 @@ mod tests {
         }
 
         #[test]
-        fn unquoted_string_to_pipe() {
+        fn unquoted_string_to_angle_bracket() {
             check_parse(
-                StringVariant::Pipe,
-                r"hello'\n | world | multiple | pipes",
+                StringVariant::AngleBracket,
+                r"hello'\n > world > multiple > brackets",
                 parsed_text(CaseInsensitive, false, r"hello'\n", false),
-                "| world | multiple | pipes",
+                "> world > multiple > brackets",
             );
         }
 
         #[test]
         fn unquoted_no_end_pipe() {
             check_parse(
-                StringVariant::Pipe,
+                StringVariant::AngleBracket,
                 r"hello world   ",
                 parsed_text(CaseInsensitive, false, r"hello world", false),
-                "",
-            );
-        }
-
-        #[test]
-        fn unquoted_string_to_paren() {
-            check_parse(
-                StringVariant::Paren,
-                r"hello'\n ) world ) multiple ) parens",
-                parsed_text(CaseInsensitive, false, r"hello'\n", false),
-                ") world ) multiple ) parens",
-            );
-        }
-
-        #[test]
-        fn unquoted_no_end_paren() {
-            check_parse(
-                StringVariant::Paren,
-                r"hello world   ",
-                parsed_text(CaseInsensitive, false, r"hello world", false),
-                "",
-            );
-        }
-
-        #[test]
-        fn unquoted_string_to_bracket() {
-            check_parse(
-                StringVariant::Bracket,
-                r"hello'\n ] world ] multiple ] brackets",
-                parsed_text(CaseInsensitive, false, r"hello'\n", false),
-                "] world ] multiple ] brackets",
-            );
-        }
-
-        #[test]
-        fn unquoted_no_end_bracket() {
-            check_parse(
-                StringVariant::Bracket,
-                r"hello world   ",
-                parsed_text(CaseInsensitive, false, r"hello world", false),
-                "",
-            );
-        }
-
-        #[test]
-        fn unquoted_string_to_colon() {
-            check_parse(
-                StringVariant::Colon,
-                r"hello :-: there",
-                parsed_text(CaseInsensitive, false, r"hello", false),
-                ":-: there",
-            );
-        }
-
-        #[test]
-        fn unquoted_no_end_colon() {
-            check_parse(
-                StringVariant::Colon,
-                r"hello",
-                parsed_text(CaseInsensitive, false, r"hello", false),
-                "",
-            );
-        }
-
-        #[test]
-        fn unquoted_string_to_space() {
-            check_parse(
-                StringVariant::Space,
-                r"hello there world",
-                parsed_text(CaseInsensitive, false, r"hello", false),
-                "there world", // note: the trailing space gets trimmed, but that's fine
-            );
-        }
-
-        #[test]
-        fn unquoted_no_end_space() {
-            check_parse(
-                StringVariant::Space,
-                r"hello",
-                parsed_text(CaseInsensitive, false, r"hello", false),
                 "",
             );
         }
@@ -303,7 +224,7 @@ mod tests {
         #[test]
         fn unquoted_string_to_pipe_unicode() {
             check_parse(
-                StringVariant::Pipe,
+                StringVariant::AngleBracket,
                 r"ἀλφα",
                 parsed_text(CaseInsensitive, false, r"ἀλφα", false),
                 "",
@@ -312,19 +233,25 @@ mod tests {
 
         #[test]
         fn asterisk() {
+            check_parse(StringVariant::AngleBracket, r"*", parsed_wildcard(), "");
+            assert!(parsed_wildcard().is_equivalent_to_asterisk());
+        }
+
+        #[test]
+        fn empty() {
             check_parse(
-                StringVariant::Pipe,
-                r"*",
-                parsed_text(CaseSensitive, false, r"", false),
+                StringVariant::AngleBracket,
+                r"",
+                parsed_text(CaseSensitive, false, "", false),
                 "",
             );
-            assert!(parsed_text(CaseSensitive, false, r"", false).is_equivalent_to_asterisk());
+            assert!(parsed_text(CaseSensitive, false, "", false).is_equivalent_to_asterisk());
         }
 
         #[test]
         fn anchors_double_quoted_no_space() {
             check_parse(
-                StringVariant::Pipe,
+                StringVariant::AngleBracket,
                 "^\"hello\"$",
                 parsed_text(CaseSensitive, true, "hello", true),
                 "",
@@ -334,7 +261,7 @@ mod tests {
         #[test]
         fn anchors_single_quoted_with_space() {
             check_parse(
-                StringVariant::Pipe,
+                StringVariant::AngleBracket,
                 "^ 'hello' $",
                 parsed_text(CaseSensitive, true, "hello", true),
                 "",
@@ -344,20 +271,20 @@ mod tests {
         #[test]
         fn anchors_unquoted_to_pipe_with_space() {
             check_parse(
-                StringVariant::Pipe,
+                StringVariant::AngleBracket,
                 "^ hello $ there",
                 parsed_text(CaseInsensitive, true, "hello", true),
-                " there",
+                "there",
             );
         }
 
         #[test]
         fn anchors_unquoted_to_pipe_no_space() {
             check_parse(
-                StringVariant::Pipe,
+                StringVariant::AngleBracket,
                 "^hello$ there",
                 parsed_text(CaseInsensitive, true, "hello", true),
-                " there",
+                "there",
             );
         }
     }
@@ -367,12 +294,22 @@ mod tests {
 
         #[test]
         fn normal_regex() {
-            check_parse(StringVariant::Pipe, "/hello there$/", parsed_regex("hello there$"), "");
+            check_parse(
+                StringVariant::AngleBracket,
+                "/hello there$/",
+                parsed_regex("hello there$"),
+                "",
+            );
         }
 
         #[test]
         fn regex_with_escaped_slash() {
-            check_parse(StringVariant::Pipe, r"/hello\/there/", parsed_regex(r"hello/there"), "");
+            check_parse(
+                StringVariant::AngleBracket,
+                r"/hello\/there/",
+                parsed_regex(r"hello/there"),
+                "",
+            );
         }
     }
 
@@ -401,6 +338,7 @@ mod tests {
                 CaseMode::CaseSensitive => ParsedStringMode::CaseSensitive,
                 CaseMode::CaseInsensitive => ParsedStringMode::CaseInsensitive,
             },
+            explicit_wildcard: false,
         }
     }
 
@@ -410,6 +348,17 @@ mod tests {
             text: text.to_string(),
             anchor_end: false,
             mode: ParsedStringMode::Regex,
+            explicit_wildcard: false,
+        }
+    }
+
+    fn parsed_wildcard() -> ParsedString {
+        ParsedString {
+            anchor_start: false,
+            text: String::new(),
+            anchor_end: false,
+            mode: ParsedStringMode::CaseSensitive,
+            explicit_wildcard: true,
         }
     }
 }
