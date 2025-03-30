@@ -1,0 +1,255 @@
+[given]
+md = ''
+
+[chained]
+needed = false
+
+[expect."start with string"]
+cli_args = ['"hello"']
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:1
+  |
+1 | "hello"
+  | ^---
+  |
+  = expected valid query
+'''
+
+[expect."double quote isn't closed"]
+cli_args = ['# "hello']
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:9
+  |
+1 | # "hello
+  |         ^---
+  |
+  = expected character in quoted string
+'''
+
+[expect."single quote isn't closed"]
+cli_args = ["# 'hello"]
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:9
+  |
+1 | # 'hello
+  |         ^---
+  |
+  = expected character in quoted string
+'''
+
+[expect."regex isn't closed"]
+cli_args = ['# /hello']
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:9
+  |
+1 | # /hello
+  |         ^---
+  |
+  = expected regex character
+'''
+
+[expect."invalid regex"]
+cli_args = ['# /\P{/']
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:3
+  |
+1 | # /\P{/
+  |   ^---^
+  |
+  = regex parse error:
+    \P{
+       ^
+error: incomplete escape sequence, reached end of pattern prematurely
+'''
+
+[expect."bareword isn't closed"]
+cli_args = ['[](http']
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:8
+  |
+1 | [](http
+  |        ^---
+  |
+  = expected "$"
+'''
+
+[expect."quoted string bad escape"]
+cli_args = ['# "\x"']
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:5
+  |
+1 | # "\x"
+  |     ^---
+  |
+  = expected ", ', `, \, n, r, or t
+'''
+
+[expect."quoted string bad unicode: not hex"]
+cli_args = ['# "\u{snowman}"']
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:7
+  |
+1 | # "\u{snowman}"
+  |       ^---
+  |
+  = expected 1 - 6 hex characters
+'''
+
+[expect."quoted string bad unicode: no chars"]
+cli_args = ['# "\u{}"']
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:7
+  |
+1 | # "\u{}"
+  |       ^---
+  |
+  = expected 1 - 6 hex characters
+'''
+
+[expect."quoted string bad unicode: too many chars"]
+cli_args = ['# "\u{1234567}"']
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:5
+  |
+1 | # "\u{1234567}"
+  |     ^---
+  |
+  = expected ", ', `, \, n, r, or t
+'''
+
+[expect."invalid unicode: invalid codepoint"]
+cli_args = ['# "\u{FFFFFF}"']
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:7
+  |
+1 | # "\u{FFFFFF}"
+  |       ^----^
+  |
+  = invalid unicode sequence: FFFFFF
+'''
+
+[expect."no space after selector"]
+cli_args = ["#foo"]
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:2
+  |
+1 | #foo
+  |  ^---
+  |
+  = expected space
+'''
+
+[expect."anchors in incorrect order"]
+cli_args = ['# $hello^']
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:4
+  |
+1 | # $hello^
+  |    ^---
+  |
+  = expected end of input
+'''
+
+[expect."invalid selector"]
+cli_args = ["~"]
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:1
+  |
+1 | ~
+  | ^---
+  |
+  = expected valid query
+'''
+
+[expect."invalid task"]
+cli_args = ["- [*]"]
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:4
+  |
+1 | - [*]
+  |    ^---
+  |
+  = expected "[x]", "[x]", or "[?]"
+'''
+
+[expect."numbered list not 1"]
+cli_args = ["2. hello"]
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:1
+  |
+1 | 2. hello
+  | ^---
+  |
+  = expected valid query
+'''
+
+[expect."table missing explicit column matcher"]
+cli_args = [":-: :-: row"]
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:5
+  |
+1 | :-: :-: row
+  |     ^---
+  |
+  = expected explicit "*" or string
+'''
+
+[expect."table missing second delimiter"]
+cli_args = [":-: *"]
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:1
+  |
+1 | :-: *
+  | ^---
+  |
+  = expected valid query
+'''
+
+[expect."invalid selector after valid one"]
+cli_args = ["# * | :-: *"]
+expect_success = false
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:7
+  |
+1 | # * | :-: *
+  |       ^---
+  |
+  = expected end of input or selector
+'''

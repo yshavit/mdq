@@ -16,7 +16,7 @@ selector = {
 }
 
 selector_delim = _{ explicit_space | EOI }
-explicit_space = !{ " " }
+explicit_space = !{ " " } // making this a rule lets us have nicer error messages if the user doesn't include it
 
 select_section =  { section_start ~ #title = string_to_pipe? }
 section_start  = @{ "#" ~ selector_delim }
