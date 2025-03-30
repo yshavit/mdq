@@ -46,26 +46,19 @@ impl Query {
                 Rule::select_html | Rule::html_start => "_</>_",
                 Rule::select_paragraph | Rule::select_paragraph_start => "_P:_",
                 Rule::select_table | Rule::table_start => "_:-:_",
-                Rule::explicit_asterisk => "explicit _*_",
-                Rule::string_to_pipe
-                | Rule::string_to_paren
-                | Rule::string_to_bracket
-                | Rule::string_to_space
-                | Rule::string_to_colon => "string",
-                Rule::unquoted_string_to_pipe
-                | Rule::unquoted_string_to_paren
-                | Rule::unquoted_string_to_bracket
-                | Rule::unquoted_string_to_space
-                | Rule::unquoted_string_to_colon => "unquoted string",
-                Rule::regex => "_/_",
+                Rule::string
+                | Rule::string_for_unit_tests__do_not_use_angle
+                | Rule::string_for_unit_tests__do_not_use_pipe => "string",
+                Rule::unquoted_string => "unquoted string",
+                Rule::regex => "regex",
                 Rule::regex_char => "regex character",
                 Rule::regex_escaped_slash => "_/_",
                 Rule::regex_normal_char => "regex character",
                 Rule::quoted_string => "quoted string",
                 Rule::quoted_char => "character in quoted string",
+                Rule::asterisk => "_*_",
                 Rule::anchor_start => "_^_",
                 Rule::anchor_end => "_$_",
-                Rule::only_anchors => "_^_ _$_",
                 Rule::quoted_plain_chars => "character in quoted string",
                 Rule::escaped_char => "\", ', `, \\, n, r, or t",
                 Rule::unicode_seq => "1 - 6 hex characters",
@@ -85,10 +78,7 @@ mod test_helpers {
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub enum StringVariant {
         Pipe,
-        Paren,
-        Bracket,
-        Space,
-        Colon,
+        AngleBracket,
     }
 
     impl StringVariant {
@@ -105,11 +95,8 @@ mod test_helpers {
 
         pub fn as_rule(self) -> Rule {
             let rule = match self {
-                StringVariant::Pipe => Rule::string_to_pipe,
-                StringVariant::Paren => Rule::string_to_paren,
-                StringVariant::Bracket => Rule::string_to_bracket,
-                StringVariant::Space => Rule::string_to_space,
-                StringVariant::Colon => Rule::string_to_colon,
+                StringVariant::AngleBracket => Rule::string_for_unit_tests__do_not_use_angle,
+                StringVariant::Pipe => Rule::string_for_unit_tests__do_not_use_pipe,
             };
             rule
         }
