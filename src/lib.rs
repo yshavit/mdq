@@ -35,6 +35,7 @@ mod utils_for_test;
 mod vec_utils;
 mod words_buffer;
 
+#[derive(Debug)]
 pub enum Error {
     QueryParse { query_string: String, error: ParseError },
     MarkdownParse(InvalidMd),
@@ -72,7 +73,7 @@ pub fn run_in_memory(cli: &Cli, contents: &str) -> Result<(bool, String), Error>
     let mut out = Vec::with_capacity(256); // just a guess
 
     let result = run(&cli, contents.to_string(), || &mut out)?;
-    let out_str = String::from_utf8(out).map_err(|_| "UTF-8 decode error").unwrap();
+    let out_str = String::from_utf8(out).unwrap_or_else(|err| String::from_utf8_lossy(err.as_bytes()).into_owned());
     Ok((result, out_str))
 }
 
