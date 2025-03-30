@@ -85,7 +85,7 @@ pub fn run_stdio(cli: &Cli) -> bool {
     let mut contents = String::new();
     stdin().read_to_string(&mut contents).expect("invalid input (not utf8)");
     run(&cli, contents, || io::stdout().lock()).unwrap_or_else(|err| {
-        eprintln!("{err}");
+        eprint!("{err}");
         false
     })
 }

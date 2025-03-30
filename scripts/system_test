@@ -1,0 +1,120 @@
+#!/bin/bash
+set -euo pipefail
+
+source "$(dirname "$0")/common.sh" || exit 1
+
+require_tool jq
+require_tool toml2json
+
+usage_string="Usage: $0 <mdq executable> <path to toml test> [test case grep pattern]"
+if [[ "$#" -lt 2 ]]; then
+  err 'too few args' "$usage_string"
+fi
+if [[ "$#" -gt 3 ]]; then
+  err 'too many args' "$usage_string"
+fi
+
+mdq="$1"
+test_file="$2"
+pattern="${3:-.*}"
+
+msg debug mdq "$mdq"
+msg debug test_file "$test_file"
+msg debug pattern "$pattern"
+
+if [[ -x "$mdq" ]]; then
+  mdq="$(readlink -f "$mdq")"
+  msg debug 'mdq full path' "$mdq"
+  msg debug "mdq version" "$("$mdq" --version)"
+else
+  err 'not executable' "$mdq"
+fi
+
+test_json="$(<"$test_file" toml2json)"
+
+function nice_diff() {
+  local title="$1"
+  local expected="$2"
+  local actual="$3"
+  if diff --strip-trailing-cr "$expected" "$actual" &>/dev/null ; then
+    msg debug "$title" "diff succeeded"
+  else
+    msg error "$title" "diff failed"
+    diff --color=always --strip-trailing-cr -y <(cat <(echo EXPECTED) "$expected") <(cat <(echo ACTUAL) "$actual")
+    return 1
+  fi
+}
+
+format_file_json() {
+  local file="$1"
+  local as_json
+  if as_json="$(jq -S . <(cat "$file"))"; then
+    echo "$as_json" > "$file"
+  fi
+}
+
+function run_test_spec() {
+  local spec="$1"
+  local spec_name
+  spec_name="$(jq -r '.name' <<<"$spec")"
+  full_name="$test_file > $spec_name"
+
+  (
+    local stdin
+    pushd "$(mktemp -d)"
+
+    if jq -e '.expect.ignore' <<<"$spec" &>/dev/null ; then
+      msg warning "$full_name" 'skipping test case'
+      return 0
+    fi
+
+    jq -j '.expect.output' <<<"$spec" >expect_out.txt
+    jq -j '.expect.output_err // ""' <<<"$spec" >expect_err.txt
+    expect_success="$(jq -r '.expect.expect_success | if . == null then true else . end' <<<"$spec")"
+    output_json="$(jq -r '.expect.output_json // false' <<<"$spec")"
+
+    stdin="$(jq -r '.given.md' <<<"$spec")"
+    cli_args=()
+    while read -r cli_arg ; do
+      cli_args+=("$cli_arg")
+    done <<<"$(jq -r '.expect.cli_args[]' <<<"$spec")"
+
+    local actual_success=true
+    set -x
+    "$mdq" <<<"$stdin" "${cli_args[@]}" >actual_out.txt 2>actual_err.txt || actual_success=false
+    set +x
+
+    if [[ "$output_json" == true ]]; then
+      for file in actual_out.txt actual_err.txt expect_out.txt expect_err.txt ; do
+        format_file_json "$file"
+      done
+    fi
+
+    local any_errors=()
+    nice_diff "$full_name: stdout" expect_out.txt actual_out.txt || any_errors+=('stdout')
+    nice_diff "$full_name: stderr" expect_err.txt actual_err.txt || any_errors+=('stderr')
+    [[ "$expect_success" == "$actual_success" ]] || any_errors+=('exit code')
+
+    if [[ "${#any_errors[@]}" -eq 0 ]]; then
+      msg notice "$full_name" 'test passed'
+    else
+      msg error "$full_name" "test failed due to ${any_errors[*]}"
+      exit 1
+    fi
+  )
+}
+
+failures=0
+while read -r test_case ; do
+  if ! grep -qE "$pattern" <<<"$test_case"; then
+    msg debug 'skipping test case' "$test_case"
+    continue
+  fi
+  group "$test_file > $test_case"
+  run_test_spec \
+    "$(jq '{name: $test_case, given: .given, expect: .expect[$test_case]}' <<<"$test_json" --arg test_case "$test_case")" \
+    || failures=$((failures + 1))
+  end_group
+done <<<"$(jq -r '.expect| keys[]' <<<"$test_json")"
+
+[[ "$failures" -eq 0 ]]
