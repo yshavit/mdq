@@ -34,7 +34,7 @@ echo 'some bash'
 '''
 
 [expect."default codes"]
-cli_args = ['--br=false', '```']
+cli_args = ['```']
 output = '''
 ```rust
 some_markdown("rust");
@@ -50,7 +50,7 @@ echo 'some bash'
 
 
 [expect."codes with no breaks"]
-cli_args = ['--br=false', '```']
+cli_args = ['--no-br', '```']
 output = '''
 ```rust
 some_markdown("rust");
@@ -95,7 +95,7 @@ echo 'some bash'
 
 
 [expect."md with no breaks"]
-cli_args = ['--br=false', '--output', 'md', '```']
+cli_args = ['--no-br', '--output', 'md', '```']
 output = '''
 ```rust
 some_markdown("rust");
@@ -139,7 +139,7 @@ echo 'some bash'
 '''
 
 [expect."markdown with no breaks"]
-cli_args = ['--br=false', '--output', 'markdown', '```']
+cli_args = ['--no-br', '--output', 'markdown', '```']
 output = '''
 ```rust
 some_markdown("rust");
@@ -196,7 +196,7 @@ echo 'some bash'
 '''
 
 [expect."plain with breaks"]
-cli_args = ['-o', 'plain', '--no-br']
+cli_args = ['-o', 'plain', '--br']
 output = '''
 Test one two three.
 

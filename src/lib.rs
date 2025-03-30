@@ -131,6 +131,7 @@ where
             link_format: cli.link_format,
             renumber_footnotes: cli.renumber_footnotes,
         },
+        include_thematic_breaks: cli.should_add_breaks(),
     };
 
     let found_any = !pipeline_nodes.is_empty();
@@ -153,7 +154,9 @@ where
                 .unwrap();
             }
             OutputFormat::Plain => {
-                let output_opts = PlainOutputOpts { include_breaks: cli.br };
+                let output_opts = PlainOutputOpts {
+                    include_breaks: cli.should_add_breaks(),
+                };
                 fmt_plain::write_plain(&mut stdout, output_opts, pipeline_nodes.into_iter());
             }
         }
