@@ -133,6 +133,7 @@ struct TestExpect {
     output_json: Option<bool>,
     expect_success: Option<bool>,
     ignore: Option<String>,
+    output_err: Option<String>,
 }
 
 #[derive(Deserialize, Copy, Clone)]
@@ -148,6 +149,7 @@ impl TestSpecFile {
                 case_name,
                 cli_args: test_expect.cli_args,
                 expect_output: test_expect.output,
+                expect_error: test_expect.output_err.unwrap_or_default(),
                 output_json: test_expect.output_json.unwrap_or(false),
                 expect_success: test_expect.expect_success.unwrap_or(true),
                 ignored: test_expect.ignore.is_some(),
@@ -163,6 +165,7 @@ struct Case {
     ignored: bool,
     cli_args: Vec<String>,
     expect_output: String,
+    expect_error: String,
     output_json: bool,
     expect_success: bool,
 }
@@ -195,11 +198,27 @@ impl Case {
                 out.writeln(&format!("cli_args: {:?},", &self.cli_args));
                 out.writeln(&format!("expect_output_json: {},", self.output_json));
                 if self.expect_output.is_empty() {
-                    out.write("expect_output: \"\",");
+                    out.writeln("expect_output: \"\",");
                 } else {
                     out.write("expect_output: indoc::indoc! {r#\"");
                     out.with_indent(|out| {
                         let mut iter = self.expect_output.split('\n').peekable();
+                        while let Some(line) = iter.next() {
+                            out.write(line);
+                            if iter.peek().is_some() {
+                                out.nl();
+                            } else {
+                                out.write("\"#},");
+                            }
+                        }
+                    });
+                }
+                if self.expect_error.is_empty() {
+                    out.writeln("expect_error: \"\",");
+                } else {
+                    out.write("expect_error: indoc::indoc! {r#\"");
+                    out.with_indent(|out| {
+                        let mut iter = self.expect_error.split('\n').peekable();
                         while let Some(line) = iter.next() {
                             out.write(line);
                             if iter.peek().is_some() {
