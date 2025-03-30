@@ -35,12 +35,12 @@ jobs:
           set -euo pipefail
 
           test_failures=0
-          
+
           # Run each test toml file
           for test_file in tests/md_cases/*.toml; do
             ./scripts/system_test ./target/debug/mdq "$test_file" || test_failures=$((test_failures + 1))
           done
-          
+
           # Report any failures
           if [ "$test_failures" -ne 0 ]; then
             echo "::error title=failures::$test_failures test(s) failed"
