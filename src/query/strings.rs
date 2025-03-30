@@ -164,7 +164,7 @@ mod tests {
         #[test]
         fn single_quoted_string() {
             check_parse(
-                StringVariant::AngleBracket,
+                StringVariant::Pipe,
                 "'hello'\"X",
                 parsed_text(CaseSensitive, false, "hello", false),
                 "\"X",
@@ -174,7 +174,7 @@ mod tests {
         #[test]
         fn double_quoted_string() {
             check_parse(
-                StringVariant::AngleBracket,
+                StringVariant::Pipe,
                 "\"hello\"'X",
                 parsed_text(CaseSensitive, false, "hello", false),
                 "'X",
@@ -184,7 +184,7 @@ mod tests {
         #[test]
         fn quoted_string_newline() {
             check_parse(
-                StringVariant::AngleBracket,
+                StringVariant::Pipe,
                 r"'hello\nworld'",
                 parsed_text(CaseSensitive, false, "hello\nworld", false),
                 "",
@@ -194,7 +194,7 @@ mod tests {
         #[test]
         fn quoted_string_snowman() {
             check_parse(
-                StringVariant::AngleBracket,
+                StringVariant::Pipe,
                 r"'hello\u{2603}world'",
                 parsed_text(CaseSensitive, false, "hello☃world", false),
                 "",
@@ -214,7 +214,7 @@ mod tests {
         #[test]
         fn unquoted_no_end_pipe() {
             check_parse(
-                StringVariant::AngleBracket,
+                StringVariant::Pipe,
                 r"hello world   ",
                 parsed_text(CaseInsensitive, false, r"hello world", false),
                 "",
@@ -224,7 +224,7 @@ mod tests {
         #[test]
         fn unquoted_string_to_pipe_unicode() {
             check_parse(
-                StringVariant::AngleBracket,
+                StringVariant::Pipe,
                 r"ἀλφα",
                 parsed_text(CaseInsensitive, false, r"ἀλφα", false),
                 "",
@@ -233,14 +233,14 @@ mod tests {
 
         #[test]
         fn asterisk() {
-            check_parse(StringVariant::AngleBracket, r"*", parsed_wildcard(), "");
+            check_parse(StringVariant::Pipe, r"*", parsed_wildcard(), "");
             assert!(parsed_wildcard().is_equivalent_to_asterisk());
         }
 
         #[test]
         fn empty() {
             check_parse(
-                StringVariant::AngleBracket,
+                StringVariant::Pipe,
                 r"",
                 parsed_text(CaseSensitive, false, "", false),
                 "",
@@ -251,7 +251,7 @@ mod tests {
         #[test]
         fn anchors_double_quoted_no_space() {
             check_parse(
-                StringVariant::AngleBracket,
+                StringVariant::Pipe,
                 "^\"hello\"$",
                 parsed_text(CaseSensitive, true, "hello", true),
                 "",
@@ -261,7 +261,7 @@ mod tests {
         #[test]
         fn anchors_single_quoted_with_space() {
             check_parse(
-                StringVariant::AngleBracket,
+                StringVariant::Pipe,
                 "^ 'hello' $",
                 parsed_text(CaseSensitive, true, "hello", true),
                 "",
@@ -271,7 +271,7 @@ mod tests {
         #[test]
         fn anchors_unquoted_to_pipe_with_space() {
             check_parse(
-                StringVariant::AngleBracket,
+                StringVariant::Pipe,
                 "^ hello $ there",
                 parsed_text(CaseInsensitive, true, "hello", true),
                 "there",
@@ -281,7 +281,7 @@ mod tests {
         #[test]
         fn anchors_unquoted_to_pipe_no_space() {
             check_parse(
-                StringVariant::AngleBracket,
+                StringVariant::Pipe,
                 "^hello$ there",
                 parsed_text(CaseInsensitive, true, "hello", true),
                 "there",
@@ -294,22 +294,12 @@ mod tests {
 
         #[test]
         fn normal_regex() {
-            check_parse(
-                StringVariant::AngleBracket,
-                "/hello there$/",
-                parsed_regex("hello there$"),
-                "",
-            );
+            check_parse(StringVariant::Pipe, "/hello there$/", parsed_regex("hello there$"), "");
         }
 
         #[test]
         fn regex_with_escaped_slash() {
-            check_parse(
-                StringVariant::AngleBracket,
-                r"/hello\/there/",
-                parsed_regex(r"hello/there"),
-                "",
-            );
+            check_parse(StringVariant::Pipe, r"/hello\/there/", parsed_regex(r"hello/there"), "");
         }
     }
 
