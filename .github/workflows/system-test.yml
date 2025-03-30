@@ -9,8 +9,6 @@ on:
 jobs:
   toml-cases:
     runs-on: ubuntu-latest
-    outputs:
-      test-names: ${{ steps.find-tests.outputs.test-names }}
     steps:
 
       - uses: actions/cache@v4
@@ -24,7 +22,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Build mdq
         run: cargo build
@@ -35,7 +33,7 @@ jobs:
       - name: Run tests
         run: |
           set -euo pipefail
-          
+
           test_failures=0
           
           # Run each test toml file
