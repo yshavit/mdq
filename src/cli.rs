@@ -29,6 +29,25 @@ pub struct Cli {
     #[arg(long, short, default_value_t = OutputFormat::Markdown)]
     pub(crate) output: OutputFormat,
 
+    /// Include breaks between elements in plain and markdown output mode.
+    ///
+    /// For plain, this will add a blank line between elements. For markdown, this will add a thematic break
+    /// ("-----") between elements.
+    ///
+    /// This has no effect in JSON output mode.
+    ///
+    /// This defaults to false for plain output, and true for markdown output.
+    #[arg(long = "[no]-br", action)]
+    pub(crate) br_umbrella: bool,
+
+    /// Negates the --br option.
+    #[arg(long, hide = true)]
+    pub(crate) br: bool,
+
+    /// Negates the --br option.
+    #[arg(long, conflicts_with = "br", hide = true)]
+    pub(crate) no_br: bool,
+
     /// The number of characters to wrap text at. This is only valid when the output format is
     /// markdown.
     ///
@@ -75,6 +94,14 @@ impl Cli {
         }
     }
 
+    pub fn should_add_breaks(&self) -> bool {
+        match self.output {
+            OutputFormat::Json => false,
+            OutputFormat::Markdown | OutputFormat::Md => !self.no_br,
+            OutputFormat::Plain => self.br,
+        }
+    }
+
     pub fn extra_validation(&self) -> bool {
         match self.output {
             OutputFormat::Json => {
@@ -85,14 +112,22 @@ impl Cli {
                             "Can't set text width with JSON output format",
                         )
                         .print();
-                    false
-                } else {
-                    true
+                    return false;
                 }
             }
-            OutputFormat::Markdown | OutputFormat::Md => true,
-            OutputFormat::Plain => true,
+            OutputFormat::Markdown | OutputFormat::Md => {}
+            OutputFormat::Plain => {}
         }
+        if self.br_umbrella {
+            let _ = Cli::command()
+                .error(
+                    ErrorKind::UnknownArgument,
+                    r"invalid argument '--[no]-br'; use '--br' or '--no-br'.",
+                )
+                .print();
+            return false;
+        }
+        true
     }
 }
 

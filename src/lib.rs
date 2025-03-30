@@ -1,5 +1,6 @@
 use crate::fmt_md::MdOptions;
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
+use crate::fmt_plain::PlainOutputOpts;
 use crate::output::{OutputOpts, Stream};
 use crate::select::{ParseError, SelectorAdapter};
 use crate::tree::{InvalidMd, MdDoc, ReadOptions};
@@ -152,7 +153,8 @@ where
                 .unwrap();
             }
             OutputFormat::Plain => {
-                fmt_plain::write_plain(&mut stdout, pipeline_nodes.into_iter());
+                let output_opts = PlainOutputOpts { include_breaks: cli.br };
+                fmt_plain::write_plain(&mut stdout, output_opts, pipeline_nodes.into_iter());
             }
         }
     }
