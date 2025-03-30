@@ -1,0 +1,48 @@
+name: System tests
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: { }
+
+jobs:
+  toml-cases:
+    runs-on: ubuntu-latest
+    steps:
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build mdq
+        run: cargo build
+
+      - name: Install toml2json
+        run: command -v toml2json || cargo install toml2json
+
+      - name: Run tests
+        run: |
+          set -euo pipefail
+
+          test_failures=0
+
+          # Run each test toml file
+          for test_file in tests/md_cases/*.toml; do
+            ./scripts/system_test ./target/debug/mdq "$test_file" || test_failures=$((test_failures + 1))
+          done
+
+          # Report any failures
+          if [ "$test_failures" -ne 0 ]; then
+            echo "::error title=failures::$test_failures test(s) failed"
+            exit 1
+          fi
