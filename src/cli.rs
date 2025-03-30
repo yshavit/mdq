@@ -36,7 +36,10 @@ pub struct Cli {
     ///
     /// This has no effect in JSON output mode.
     ///
-    /// This defaults to false for plain output, and true for markdown output.
+    /// This defaults to true for Markdown output, and false for plain text output.
+    // Note: this is a fake arg so we have explicit validation below to ensure it isn't invoked. Clap doesn't let us
+    // add boolean flags with 'no-' to disable, so I'm using this trick to fake that out. Basically, this fake arg is
+    // only for the help text, and then --br and --no-br are fake but hidden args.
     #[arg(long = "[no]-br", action)]
     pub(crate) br_umbrella: bool,
 
