@@ -3,20 +3,26 @@ use crate::tree::{Formatting, Image, Inline, Line, Link, List, Text};
 use crate::tree_ref::{ListItemRef, MdElemRef};
 use std::io::{Error, LineWriter, Write};
 
-pub fn write_plain<'md, I, W>(out: &mut W, nodes: I)
-where
-    I: Iterator<Item = MdElemRef<'md>>,
-    W: Write,
-{
-    write_top_level(out, nodes).expect("while writing output");
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct PlainOutputOpts {
+    pub include_breaks: bool,
 }
 
-fn write_top_level<'md, I, W>(out: &mut W, nodes: I) -> std::io::Result<()>
+pub fn write_plain<'md, I, W>(out: &mut W, opts: PlainOutputOpts, nodes: I)
 where
     I: Iterator<Item = MdElemRef<'md>>,
     W: Write,
 {
-    let mut writer = NewlineCollapser::new(LineWriter::new(out), 2);
+    write_top_level(out, opts, nodes).expect("while writing output");
+}
+
+fn write_top_level<'md, I, W>(out: &mut W, opts: PlainOutputOpts, nodes: I) -> std::io::Result<()>
+where
+    I: Iterator<Item = MdElemRef<'md>>,
+    W: Write,
+{
+    let newlines_max = if opts.include_breaks { 2 } else { 1 };
+    let mut writer = NewlineCollapser::new(LineWriter::new(out), newlines_max);
     write_plain_result(&mut writer, nodes)?;
     writer.flush()?;
     if writer.have_pending_newlines() {
@@ -173,20 +179,38 @@ mod test {
     fn doc_empty() {
         let empty = vec![];
         let doc = MdElemRef::Doc(&empty);
-        check_plain(doc, "");
+        check_plain(
+            doc,
+            Expect {
+                with_breaks: "",
+                no_breaks: "",
+            },
+        );
     }
 
     #[test]
     fn doc_not_empty() {
         let body = md_elems!("hello", "world");
         let doc = MdElemRef::Doc(&body);
-        check_plain(doc, "hello\n\nworld\n");
+        check_plain(
+            doc,
+            Expect {
+                with_breaks: "hello\n\nworld\n",
+                no_breaks: "hello\nworld\n",
+            },
+        );
     }
 
     #[test]
     fn block_quote_empty() {
         let md_elem = md_elem!(BlockQuote { body: vec![] });
-        check_plain(checked_elem_ref!(md_elem => MdElemRef::BlockQuote(_)), "")
+        check_plain(
+            checked_elem_ref!(md_elem => MdElemRef::BlockQuote(_)),
+            Expect {
+                with_breaks: "",
+                no_breaks: "",
+            },
+        )
     }
 
     #[test]
@@ -194,7 +218,13 @@ mod test {
         let md_elem = md_elem!(BlockQuote {
             body: md_elems!("hello, world")
         });
-        check_plain(checked_elem_ref!(md_elem => MdElemRef::BlockQuote(_)), "hello, world\n")
+        check_plain(
+            checked_elem_ref!(md_elem => MdElemRef::BlockQuote(_)),
+            Expect {
+                with_breaks: "hello, world\n",
+                no_breaks: "hello, world\n",
+            },
+        )
     }
 
     #[test]
@@ -203,7 +233,13 @@ mod test {
             variant: CodeVariant::Code(None),
             value: "".to_string()
         });
-        check_plain(checked_elem_ref!(md_elem => MdElemRef::CodeBlock(_)), "")
+        check_plain(
+            checked_elem_ref!(md_elem => MdElemRef::CodeBlock(_)),
+            Expect {
+                with_breaks: "",
+                no_breaks: "",
+            },
+        )
     }
 
     #[test]
@@ -212,14 +248,26 @@ mod test {
             variant: CodeVariant::Code(None),
             value: "hello, world".to_string()
         });
-        check_plain(checked_elem_ref!(md_elem => MdElemRef::CodeBlock(_)), "hello, world\n")
+        check_plain(
+            checked_elem_ref!(md_elem => MdElemRef::CodeBlock(_)),
+            Expect {
+                with_breaks: "hello, world\n",
+                no_breaks: "hello, world\n",
+            },
+        )
     }
 
     #[test]
     fn inline() {
         let md_elem =
             mdq_inline!(span Emphasis [mdq_inline!("hello, "), mdq_inline!(span Strong [mdq_inline!("world")])]);
-        check_plain(checked_elem_ref!(md_elem => MdElemRef::Inline(_)), "hello, world\n");
+        check_plain(
+            checked_elem_ref!(md_elem => MdElemRef::Inline(_)),
+            Expect {
+                with_breaks: "hello, world\n",
+                no_breaks: "hello, world\n",
+            },
+        );
     }
 
     #[test]
@@ -228,7 +276,13 @@ mod test {
             starting_index: None,
             items: vec![]
         });
-        check_plain(checked_elem_ref!(md_elem => MdElemRef::List(_)), "");
+        check_plain(
+            checked_elem_ref!(md_elem => MdElemRef::List(_)),
+            Expect {
+                with_breaks: "",
+                no_breaks: "",
+            },
+        );
     }
 
     #[test]
@@ -240,7 +294,13 @@ mod test {
                 item: md_elems!("only item"),
             }]
         });
-        check_plain(checked_elem_ref!(md_elem => MdElemRef::List(_)), "only item\n");
+        check_plain(
+            checked_elem_ref!(md_elem => MdElemRef::List(_)),
+            Expect {
+                with_breaks: "only item\n",
+                no_breaks: "only item\n",
+            },
+        );
     }
 
     #[test]
@@ -260,14 +320,23 @@ mod test {
         });
         check_plain(
             checked_elem_ref!(md_elem => MdElemRef::List(_)),
-            "first item\n\nsecond item\n",
+            Expect {
+                with_breaks: "first item\n\nsecond item\n",
+                no_breaks: "first item\nsecond item\n",
+            },
         );
     }
 
     #[test]
     fn paragraph() {
         let md_elem = md_elem!("hello, world");
-        check_plain(checked_elem_ref!(md_elem => MdElemRef::Paragraph(_)), "hello, world\n");
+        check_plain(
+            checked_elem_ref!(md_elem => MdElemRef::Paragraph(_)),
+            Expect {
+                with_breaks: "hello, world\n",
+                no_breaks: "hello, world\n",
+            },
+        );
     }
 
     #[test]
@@ -279,7 +348,10 @@ mod test {
         });
         check_plain(
             checked_elem_ref!(md_elem => MdElemRef::Section(_)),
-            "section heading\n\nsection body\n",
+            Expect {
+                with_breaks: "section heading\n\nsection body\n",
+                no_breaks: "section heading\nsection body\n",
+            },
         );
     }
 
@@ -288,35 +360,41 @@ mod test {
         let md_elem = md_elem!(Table {
             alignments: vec![mdast::AlignKind::None, mdast::AlignKind::Center],
             rows: vec![
-                // first row:
-                vec![
-                    // column 1
-                    vec![mdq_inline!("1A")],
-                    // column 2
-                    vec![mdq_inline!("1B")],
-                ],
-                // second row:
-                vec![
-                    // column 1
-                    vec![mdq_inline!("2A")],
-                    // column 2
-                    vec![mdq_inline!("2B")],
-                ],
+                vec![vec![mdq_inline!("1A")], vec![mdq_inline!("1B")]],
+                vec![vec![mdq_inline!("2A")], vec![mdq_inline!("2B")]],
             ]
         });
-        check_plain(checked_elem_ref!(md_elem => MdElemRef::Table(_)), "1A 1B\n2A 2B\n");
+        check_plain(
+            checked_elem_ref!(md_elem => MdElemRef::Table(_)),
+            Expect {
+                with_breaks: "1A 1B\n2A 2B\n",
+                no_breaks: "1A 1B\n2A 2B\n",
+            },
+        );
     }
 
     #[test]
     fn html() {
         let md_elem = MdElem::Html("<div>".to_string());
-        check_plain(checked_elem_ref!(md_elem => MdElemRef::Html(_)), "<div>\n");
+        check_plain(
+            checked_elem_ref!(md_elem => MdElemRef::Html(_)),
+            Expect {
+                with_breaks: "<div>\n",
+                no_breaks: "<div>\n",
+            },
+        );
     }
 
     #[test]
     fn thematic_break() {
         let md_elem = MdElem::ThematicBreak;
-        check_plain(checked_elem_ref!(md_elem => MdElemRef::ThematicBreak), "");
+        check_plain(
+            checked_elem_ref!(md_elem => MdElemRef::ThematicBreak),
+            Expect {
+                with_breaks: "",
+                no_breaks: "",
+            },
+        );
     }
 
     #[test]
@@ -325,7 +403,13 @@ mod test {
             checked: None,
             item: md_elems!("hello, world"),
         };
-        check_plain(MdElemRef::ListItem(ListItemRef(None, &list_item)), "hello, world\n");
+        check_plain(
+            MdElemRef::ListItem(ListItemRef(None, &list_item)),
+            Expect {
+                with_breaks: "hello, world\n",
+                no_breaks: "hello, world\n",
+            },
+        );
     }
 
     #[test]
@@ -334,7 +418,13 @@ mod test {
             checked: None,
             item: md_elems!("first", "second"),
         };
-        check_plain(MdElemRef::ListItem(ListItemRef(None, &list_item)), "first\n\nsecond\n");
+        check_plain(
+            MdElemRef::ListItem(ListItemRef(None, &list_item)),
+            Expect {
+                with_breaks: "first\n\nsecond\n",
+                no_breaks: "first\nsecond\n",
+            },
+        );
     }
 
     #[test]
@@ -347,7 +437,13 @@ mod test {
                 reference: LinkReference::Inline,
             },
         };
-        check_plain(checked_elem_ref!(link => MdElemRef::Link(_)), "display text\n");
+        check_plain(
+            checked_elem_ref!(link => MdElemRef::Link(_)),
+            Expect {
+                with_breaks: "display text\n",
+                no_breaks: "display text\n",
+            },
+        );
     }
 
     #[test]
@@ -360,7 +456,13 @@ mod test {
                 reference: LinkReference::Inline,
             },
         };
-        check_plain(checked_elem_ref!(image => MdElemRef::Image(_)), "alt text\n");
+        check_plain(
+            checked_elem_ref!(image => MdElemRef::Image(_)),
+            Expect {
+                with_breaks: "alt text\n",
+                no_breaks: "alt text\n",
+            },
+        );
     }
 
     #[test]
@@ -368,24 +470,18 @@ mod test {
         let table = Table {
             alignments: vec![mdast::AlignKind::None, mdast::AlignKind::Center],
             rows: vec![
-                // first row:
-                vec![
-                    // column 1
-                    vec![mdq_inline!("1A")],
-                    // column 2
-                    vec![mdq_inline!("1B")],
-                ],
-                // second row:
-                vec![
-                    // column 1
-                    vec![mdq_inline!("2A")],
-                    // column 2
-                    vec![mdq_inline!("2B")],
-                ],
+                vec![vec![mdq_inline!("1A")], vec![mdq_inline!("1B")]],
+                vec![vec![mdq_inline!("2A")], vec![mdq_inline!("2B")]],
             ],
         };
         let slice = TableSlice::from(&table);
-        check_plain(MdElemRef::TableSlice(slice), "1A 1B\n2A 2B\n");
+        check_plain(
+            MdElemRef::TableSlice(slice),
+            Expect {
+                with_breaks: "1A 1B\n2A 2B\n",
+                no_breaks: "1A 1B\n2A 2B\n",
+            },
+        );
     }
 
     #[test]
@@ -406,7 +502,13 @@ mod test {
                 mdq_inline!("."),
             ]
         });
-        check_plain(MdElemRef::from(&md), "hello world! sponsored by Example Corp.\n");
+        check_plain(
+            MdElemRef::from(&md),
+            Expect {
+                with_breaks: "hello world! sponsored by Example Corp.\n",
+                no_breaks: "hello world! sponsored by Example Corp.\n",
+            },
+        );
     }
 
     #[test]
@@ -438,36 +540,69 @@ mod test {
         ];
         check_plain(
             MdElemRef::Doc(&md),
-            indoc! {r"
-            paragraph 1
+            Expect {
+                with_breaks: indoc! {r"
+                paragraph 1
 
-            paragraph 2
+                paragraph 2
 
-            block quote paragraph 1
+                block quote paragraph 1
 
-            block quote paragraph 2
+                block quote paragraph 2
 
-            code block 1 line 1
-            code block 1 line 2
+                code block 1 line 1
+                code block 1 line 2
 
-            <hr>
+                <hr>
 
-            paragraph 3
+                paragraph 3
 
-            code block 2
+                code block 2
 
-            next section
+                next section
 
-            code block 3
-        "},
+                code block 3
+            "},
+                no_breaks: indoc! {r"
+                paragraph 1
+                paragraph 2
+                block quote paragraph 1
+                block quote paragraph 2
+                code block 1 line 1
+                code block 1 line 2
+                <hr>
+                paragraph 3
+                code block 2
+                next section
+                code block 3
+            "},
+            },
         )
     }
 
-    fn check_plain(input: MdElemRef, expect: &str) {
+    struct Expect {
+        with_breaks: &'static str,
+        no_breaks: &'static str,
+    }
+
+    fn check_plain(input: MdElemRef, expect: Expect) {
         VARIANTS_CHECKER.see(&input);
-        let mut bytes = Vec::with_capacity(expect.len());
-        write_plain(&mut bytes, [input].into_iter());
+        let mut bytes = Vec::with_capacity(expect.with_breaks.len());
+        write_plain(
+            &mut bytes,
+            PlainOutputOpts { include_breaks: true },
+            [input.clone()].into_iter(),
+        );
         let actual = String::from_utf8(bytes).expect("got invalid utf8");
-        assert_eq!(actual, expect);
+        assert_eq!(actual, expect.with_breaks);
+
+        let mut bytes = Vec::with_capacity(expect.no_breaks.len());
+        write_plain(
+            &mut bytes,
+            PlainOutputOpts { include_breaks: false },
+            [input].into_iter(),
+        );
+        let actual = String::from_utf8(bytes).expect("got invalid utf8");
+        assert_eq!(actual, expect.no_breaks);
     }
 }

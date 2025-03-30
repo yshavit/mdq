@@ -1,5 +1,6 @@
 use crate::fmt_md::MdOptions;
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
+use crate::fmt_plain::PlainOutputOpts;
 use crate::output::{OutputOpts, Stream};
 use crate::select::{ParseError, SelectorAdapter};
 use crate::tree::{InvalidMd, MdDoc, ReadOptions};
@@ -130,6 +131,7 @@ where
             link_format: cli.link_format,
             renumber_footnotes: cli.renumber_footnotes,
         },
+        include_thematic_breaks: cli.should_add_breaks(),
     };
 
     let found_any = !pipeline_nodes.is_empty();
@@ -152,7 +154,10 @@ where
                 .unwrap();
             }
             OutputFormat::Plain => {
-                fmt_plain::write_plain(&mut stdout, pipeline_nodes.into_iter());
+                let output_opts = PlainOutputOpts {
+                    include_breaks: cli.should_add_breaks(),
+                };
+                fmt_plain::write_plain(&mut stdout, output_opts, pipeline_nodes.into_iter());
             }
         }
     }

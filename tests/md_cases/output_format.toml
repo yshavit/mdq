@@ -6,6 +6,10 @@ Test _one_ [two][1] three.
 some_markdown("rust");
 ```
 
+```bash
+echo 'some bash'
+```
+
 [1]: https://example.com/1
 '''
 
@@ -22,7 +26,39 @@ Test _one_ [two][1] three.
 some_markdown("rust");
 ```
 
+```bash
+echo 'some bash'
+```
+
 [1]: https://example.com/1
+'''
+
+[expect."default codes"]
+cli_args = ['```']
+output = '''
+```rust
+some_markdown("rust");
+```
+
+   -----
+
+```bash
+echo 'some bash'
+```
+'''
+
+
+
+[expect."codes with no breaks"]
+cli_args = ['--no-br', '```']
+output = '''
+```rust
+some_markdown("rust");
+```
+
+```bash
+echo 'some bash'
+```
 '''
 
 
@@ -35,7 +71,39 @@ Test _one_ [two][1] three.
 some_markdown("rust");
 ```
 
+```bash
+echo 'some bash'
+```
+
 [1]: https://example.com/1
+'''
+
+
+[expect."md codes"]
+cli_args = ['--output', 'md', '```']
+output = '''
+```rust
+some_markdown("rust");
+```
+
+   -----
+
+```bash
+echo 'some bash'
+```
+'''
+
+
+[expect."md with no breaks"]
+cli_args = ['--no-br', '--output', 'md', '```']
+output = '''
+```rust
+some_markdown("rust");
+```
+
+```bash
+echo 'some bash'
+```
 '''
 
 
@@ -48,7 +116,38 @@ Test _one_ [two][1] three.
 some_markdown("rust");
 ```
 
+```bash
+echo 'some bash'
+```
+
 [1]: https://example.com/1
+'''
+
+
+[expect."markdown codes"]
+cli_args = ['--output', 'markdown', '```']
+output = '''
+```rust
+some_markdown("rust");
+```
+
+   -----
+
+```bash
+echo 'some bash'
+```
+'''
+
+[expect."markdown with no breaks"]
+cli_args = ['--no-br', '--output', 'markdown', '```']
+output = '''
+```rust
+some_markdown("rust");
+```
+
+```bash
+echo 'some bash'
+```
 '''
 
 
@@ -69,6 +168,13 @@ output = '''
                     "language": "rust",
                     "type": "code"
                   }
+                },
+                {
+                  "code_block": {
+                    "code": "echo 'some bash'",
+                    "language": "bash",
+                    "type": "code"
+                  }
                 }
             ]
         }
@@ -85,6 +191,17 @@ output = '''
 cli_args = ['-o', 'plain']
 output = '''
 Test one two three.
+some_markdown("rust");
+echo 'some bash'
+'''
+
+[expect."plain with breaks"]
+cli_args = ['-o', 'plain', '--br']
+output = '''
+Test one two three.
 
 some_markdown("rust");
+
+echo 'some bash'
 '''
+

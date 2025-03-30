@@ -31,6 +31,7 @@ mod test_utils {
                     link_format: LinkTransform::default_for_tests(),
                     renumber_footnotes: false,
                 },
+                include_thematic_breaks: true,
             }
         }
 

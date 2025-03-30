@@ -14,6 +14,7 @@ pub struct MdOptions {
     pub link_reference_placement: ReferencePlacement,
     pub footnote_reference_placement: ReferencePlacement,
     pub inline_options: MdInlinesWriterOptions,
+    pub include_thematic_breaks: bool,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -68,7 +69,7 @@ where
         prev_was_thematic_break: false,
         inlines_writer: &mut MdInlinesWriter::new(ctx, options.inline_options),
     };
-    let nodes_count = writer_state.write_md(out, nodes, true);
+    let nodes_count = writer_state.write_md(out, nodes, options.include_thematic_breaks);
 
     // Always write the pending definitions at the end of the doc. If there were no sections, then BottomOfSection
     // won't have been triggered, but we still want to write them. We'll add a thematic break before the links if there
