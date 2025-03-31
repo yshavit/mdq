@@ -69,7 +69,7 @@ where
         prev_was_thematic_break: false,
         inlines_writer: &mut MdInlinesWriter::new(ctx, options.inline_options),
     };
-    let nodes_count = writer_state.write_md(out, nodes, options.include_thematic_breaks);
+    let nodes_count = writer_state.write_md(out, nodes, true);
 
     // Always write the pending definitions at the end of the doc. If there were no sections, then BottomOfSection
     // won't have been triggered, but we still want to write them. We'll add a thematic break before the links if there
@@ -101,7 +101,11 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
             if add_break {
                 self.write_link_refs_as_needed(out);
                 if iter.peek().is_some() {
-                    self.write_one_md(out, MdElemRef::ThematicBreak);
+                    if self.opts.include_thematic_breaks {
+                        self.write_one_md(out, MdElemRef::ThematicBreak);
+                    } else {
+                        out.write_char('\n');
+                    }
                 }
             }
         }
@@ -1723,6 +1727,41 @@ pub mod tests {
                 indoc! {r#"
                 [link text one](https://example.com/1)
                 [link text two](https://example.com/2)"#},
+            );
+        }
+
+        #[test]
+        fn two_links_doc_pos_no_thematic_break() {
+            let mut options = MdOptions::default_for_tests();
+            options.include_thematic_breaks = false;
+            options.inline_options.link_format = LinkTransform::Reference;
+            options.link_reference_placement = ReferencePlacement::Doc;
+            check_render_refs_with(
+                &options,
+                vec![
+                    MdElemRef::Link(&Link {
+                        text: vec![mdq_inline!("link text one")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com/1".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    }),
+                    MdElemRef::Link(&Link {
+                        text: vec![mdq_inline!("link text two")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com/2".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    }),
+                ],
+                indoc! {r#"
+                [link text one][1]
+                [link text two][2]
+
+                [1]: https://example.com/1
+                [2]: https://example.com/2"#},
             );
         }
 
