@@ -149,7 +149,7 @@ jobs:
 
       - name: Push to target ref
         run: |
-          git checkout "origin/$TARGET_REF"
+          git checkout -B "$TARGET_REF" "origin/$TARGET_REF"
           git merge --ff-only "prepare-$NEXT_VERSION"
           git push
         env:
