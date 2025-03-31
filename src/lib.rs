@@ -87,7 +87,10 @@ pub trait OsFacade {
                     have_read_stdin = true
                 }
             } else {
-                contents.push_str(&self.read_file(path)?);
+                let path_contents = self
+                    .read_file(path)
+                    .map_err(|err| io::Error::new(err.kind(), format!("{err} while reading {path}")))?;
+                contents.push_str(&path_contents);
             }
             contents.push('\n');
         }
@@ -108,7 +111,13 @@ pub fn run_stdio(cli: &Cli, os: impl OsFacade) -> bool {
     if !cli.extra_validation() {
         return false;
     }
-    let contents = os.read_all(&cli).expect("failed to read input");
+    let contents = match os.read_all(&cli) {
+        Ok(s) => s,
+        Err(err) => {
+            eprintln!("{}", err.to_string());
+            return false;
+        }
+    };
 
     run(&cli, contents, || io::stdout().lock()).unwrap_or_else(|err| {
         eprint!("{err}");
