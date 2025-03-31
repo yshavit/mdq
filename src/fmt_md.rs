@@ -1696,6 +1696,36 @@ pub mod tests {
             );
         }
 
+        #[test]
+        fn two_links_inline_no_thematic_break() {
+            let mut options = MdOptions::default_for_tests();
+            options.include_thematic_breaks = false;
+            check_render_refs_with(
+                &options,
+                vec![
+                    MdElemRef::Link(&Link {
+                        text: vec![mdq_inline!("link text one")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com/1".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    }),
+                    MdElemRef::Link(&Link {
+                        text: vec![mdq_inline!("link text two")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com/2".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    }),
+                ],
+                indoc! {r#"
+                [link text one](https://example.com/1)
+                [link text two](https://example.com/2)"#},
+            );
+        }
+
         /// see [crate::link_transform::tests] for more extensive tests
         #[test]
         fn reference_transform_smoke_test() {
