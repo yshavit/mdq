@@ -133,3 +133,12 @@ jobs:
         env:
           REPO_NAME: ${{ github.repository }}
           VERSION_TAG: ${{ needs.validate.outputs.version_tag }}
+
+  verify-binaries:
+    needs: upload
+    permissions:
+      contents: write
+    uses: ./.github/workflows/binary-verify.yml
+    with:
+      version: ${{ inputs.version }}}
+      docker-rc: true # since they won't have been published yet
