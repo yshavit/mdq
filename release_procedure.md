@@ -3,9 +3,9 @@
 ## tldr
 
 1. run [prepare-new-release], which will create a PR and draft release
-2. validate the release (instructions will be on the PR)
+2. follow the instructions on the PR
 3. run [release-publish]
-4. immediately merge the subsequent PR that gets created (a different one from step 1)
+4. check that the PR that gets created (a different one from step 1) is merged; if not, merge it immediately
 
 ## Details
 
@@ -49,14 +49,7 @@
       matches the commit sha that the binaries and docker were built against.)
    4. Open up a new PR for the next `-dev` version bump
 
-4. Merge the new PR immediately.
-
-> [!important]
-> 
-> Merge this PR immediately! Even if there are any CI failures, just merge it. (It's okay to hit retries on the
-> CIs if you need to, but don't do any other code change.)
-
-That's it!
+4. Make sure the new PR gets merged immediately. The automation should do this for you; but if it doesn't, do it now.
 
 [prepare-new-release]: https://github.com/yshavit/mdq/actions/workflows/prepare-new-release.yml
 
