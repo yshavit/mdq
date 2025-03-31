@@ -8,7 +8,7 @@ Bump version to **{{RELEASE_VERSION}}** for release.
 
 - docker image:
     - [ ] `docker pull yshavit/mdq:{{RELEASE_VERSION}}-rc`
-    - [ ] `docker run --rm -i yshavit/mdq:{{RELEASE_VERSION}} --version-rc`
+    - [ ] `docker run --rm -i yshavit/mdq:{{RELEASE_VERSION}}-rc --version`
 
 - [ ] review release notes
  

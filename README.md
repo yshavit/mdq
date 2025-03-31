@@ -51,7 +51,7 @@ To install mdq locally, any of these will work:
    docker pull yshavit/mdq
    echo 'My [example](https://github.com/yshavit/mdq) markdown' | docker run --rm -i yshavit/mdq '[]()'
    ```
-   To use a specific release version, use `yshavit/mdq:0.3.1` (or whichever version). See [Docker Hub] for available tags.
+   To use a specific release version, use `yshavit/mdq:<version>`. See [Docker Hub] for available version tags.
 1. Download binaries from [the latest release] (or any other release, of course).
    <details>
    <summary>Mac users</summary>

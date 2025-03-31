@@ -72,7 +72,7 @@ pub struct Cli {
     #[arg(group = "selectors_group", value_name = "selectors")]
     pub(crate) selectors: Option<String>,
 
-    /// Quiet: do not print anything to stdout. The exit code will still be 0 if-and-only-iff any elements match.
+    /// Quiet: do not print anything to stdout. The exit code will still be 0 if any elements match, and non-0 if none do.
     #[arg(long, short)]
     pub(crate) quiet: bool,
 
