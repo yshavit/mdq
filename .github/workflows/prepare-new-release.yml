@@ -96,6 +96,7 @@ jobs:
     secrets: inherit
     with:
       branch_name: "pending-releases/${{ github.event.inputs.version_to_release }}"
+      target_branch_name: ${{ github.event.inputs.base_ref }}
 
   open_pr:
     runs-on: ubuntu-latest
