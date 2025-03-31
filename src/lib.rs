@@ -13,7 +13,7 @@ use pest::Span;
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 use std::io;
-use std::io::{stdin, Read, Write};
+use std::io::Write;
 
 pub mod cli;
 mod fmt_md;
@@ -70,32 +70,58 @@ impl Display for Error {
     }
 }
 
-pub fn run_in_memory(cli: &Cli, contents: &str) -> Result<(bool, String), Error> {
+pub trait OsFacade {
+    fn read_stdin(&self) -> io::Result<String>;
+    fn read_file(&self, path: &str) -> io::Result<String>;
+
+    fn read_all(&self, cli: &Cli) -> io::Result<String> {
+        if cli.markdown_file_paths.is_empty() {
+            return self.read_stdin();
+        }
+        let mut contents = String::new();
+        let mut have_read_stdin = false;
+        for path in &cli.markdown_file_paths {
+            if path == "-" {
+                if !have_read_stdin {
+                    contents.push_str(&self.read_stdin()?);
+                    have_read_stdin = true
+                }
+            } else {
+                contents.push_str(&self.read_file(path)?);
+            }
+            contents.push('\n');
+        }
+        Ok(contents)
+    }
+}
+
+pub fn run_in_memory(cli: &Cli, os: impl OsFacade) -> Result<(bool, String), Error> {
+    let contents_str = os.read_all(&cli).expect("failed to read input");
     let mut out = Vec::with_capacity(256); // just a guess
 
-    let result = run(&cli, contents.to_string(), || &mut out)?;
+    let result = run(&cli, contents_str, || &mut out)?;
     let out_str = String::from_utf8(out).unwrap_or_else(|err| String::from_utf8_lossy(err.as_bytes()).into_owned());
     Ok((result, out_str))
 }
 
-pub fn run_stdio(cli: &Cli) -> bool {
+pub fn run_stdio(cli: &Cli, os: impl OsFacade) -> bool {
     if !cli.extra_validation() {
         return false;
     }
-    let mut contents = String::new();
-    stdin().read_to_string(&mut contents).expect("invalid input (not utf8)");
+    let contents = os.read_all(&cli).expect("failed to read input");
+
     run(&cli, contents, || io::stdout().lock()).unwrap_or_else(|err| {
         eprint!("{err}");
         false
     })
 }
 
-fn run<W, F>(cli: &Cli, contents: String, get_out: F) -> Result<bool, Error>
+fn run<W, F>(cli: &Cli, stdin_content: String, get_out: F) -> Result<bool, Error>
 where
     F: FnOnce() -> W,
     W: Write,
 {
-    let ast = markdown::to_mdast(&contents, &markdown::ParseOptions::gfm()).unwrap();
+    let ast = markdown::to_mdast(&stdin_content, &markdown::ParseOptions::gfm()).unwrap();
     let read_options = ReadOptions {
         validate_no_conflicting_links: false,
         allow_unknown_markdown: cli.allow_unknown_markdown,

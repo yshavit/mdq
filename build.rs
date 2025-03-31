@@ -46,6 +46,18 @@ fn generate_integ_test_cases(out_dir: &String) -> Result<(), String> {
                 }
             });
 
+            out.write("const FILES: [(&str, &str); ");
+            out.write(&format!("{}", &spec_file_parsed.given.get_files_count()));
+            out.write("] = [");
+            if let Some(files) = &spec_file_parsed.given.files {
+                out.with_indent(|out| {
+                    for (file_name, file_content) in files {
+                        out.writeln(&format!("({:?}, {:?}),", file_name, file_content));
+                    }
+                });
+            }
+            out.writeln("];");
+
             let mut found_chained_case = false;
             for case in spec_file_parsed.get_cases() {
                 found_chained_case |= case.case_name.eq("chained");
@@ -124,6 +136,16 @@ struct TestSpecFile {
 #[derive(Deserialize)]
 struct TestGiven {
     md: String,
+    files: Option<HashMap<String, String>>,
+}
+
+impl TestGiven {
+    fn get_files_count(&self) -> usize {
+        match &self.files {
+            None => 0,
+            Some(files) => files.len(),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -232,7 +254,8 @@ impl Case {
                 out.write("expect_success: ")
                     .write(&self.expect_success.to_string())
                     .writeln(",");
-                out.write("md: MD,");
+                out.writeln("md: MD,");
+                out.write("files: &FILES,");
             });
             out.write("}.check();");
         });
