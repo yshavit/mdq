@@ -1,0 +1,26 @@
+name: Formatting
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  newlines:
+    runs-on: ubuntu-latest
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - name: check for carriage returns
+        run: |
+          set -euo pipefail
+          
+          exit_code=0
+          while read -r file_name; do
+            if grep -q $'\r' "$file_name"; then
+                echo "::error file=$file_name,title=bad newlines::file contains carriage returns"
+                exit_code=1
+            fi
+          done <<<"$(git ls-files)"
+          exit "$exit_code"
