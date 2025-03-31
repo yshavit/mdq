@@ -1,6 +1,7 @@
 use clap::Parser;
-use std::io;
+use std::ffi::OsString;
 use std::io::ErrorKind;
+use std::{env, io};
 
 #[derive(Debug)]
 struct Case<const N: usize> {
@@ -49,9 +50,31 @@ impl<const N: usize> Case<N> {
     fn run(&self) -> (bool, String, String) {
         let all_cli_args = ["cmd"].iter().chain(&self.cli_args);
         let cli = mdq::cli::Cli::try_parse_from(all_cli_args).unwrap();
-        match mdq::run_in_memory(&cli, self) {
+        let restore = EnvVarRestore::set_var("MDQ_PORTABLE_ERRORS", "1");
+        let result = match mdq::run_in_memory(&cli, self) {
             Ok((found, stdout)) => (found, stdout, String::new()),
             Err(err) => (false, String::new(), err.to_string()),
+        };
+        drop(restore);
+        result
+    }
+}
+
+struct EnvVarRestore(&'static str, Option<OsString>);
+
+impl EnvVarRestore {
+    fn set_var(key: &'static str, value: &str) -> Self {
+        let restore = Self(key, env::var_os(key));
+        env::set_var(key, value);
+        restore
+    }
+}
+
+impl Drop for EnvVarRestore {
+    fn drop(&mut self) {
+        match (&self.0, &self.1) {
+            (key, None) => env::remove_var(key),
+            (key, Some(old)) => env::set_var(key, old),
         }
     }
 }
