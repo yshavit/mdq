@@ -69,7 +69,7 @@ where
         prev_was_thematic_break: false,
         inlines_writer: &mut MdInlinesWriter::new(ctx, options.inline_options),
     };
-    let nodes_count = writer_state.write_md(out, nodes, options.include_thematic_breaks);
+    let nodes_count = writer_state.write_md(out, nodes, true);
 
     // Always write the pending definitions at the end of the doc. If there were no sections, then BottomOfSection
     // won't have been triggered, but we still want to write them. We'll add a thematic break before the links if there
@@ -101,11 +101,19 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
             if add_break {
                 self.write_link_refs_as_needed(out);
                 if iter.peek().is_some() {
-                    self.write_one_md(out, MdElemRef::ThematicBreak);
+                    self.print_separator(out);
                 }
             }
         }
         count
+    }
+
+    fn print_separator(&mut self, out: &mut Output<impl SimpleWrite>) {
+        if self.opts.include_thematic_breaks {
+            self.write_one_md(out, MdElemRef::ThematicBreak);
+        } else {
+            out.write_char('\n');
+        }
     }
 
     pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node_ref: MdElemRef<'md>)
@@ -418,7 +426,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
             return;
         }
         if add_break {
-            self.write_one_md(out, MdElemRef::ThematicBreak);
+            self.print_separator(out);
         }
         out.with_block(Block::Plain, move |out| {
             let mut remaining_defs = 0;
@@ -673,6 +681,33 @@ pub mod tests {
                 Hello, world"#},
             );
         }
+
+        #[test]
+        fn two_paragraphs_with_thematic_break() {
+            check_render(
+                md_elems!["Alpha", "Bravo"],
+                indoc! {r#"
+                    Alpha
+
+                       -----
+
+                    Bravo"#},
+            );
+        }
+
+        #[test]
+        fn two_paragraphs_no_thematic_break() {
+            let mut options = MdOptions::default_for_tests();
+            options.include_thematic_breaks = false;
+            check_render_with(
+                &options,
+                md_elems!["Alpha", "Bravo"],
+                indoc! {r#"
+                    Alpha
+
+                    Bravo"#},
+            );
+        }
     }
 
     mod block_quote {
@@ -861,6 +896,54 @@ pub mod tests {
         #[test]
         fn ordered_checked() {
             create_li_singleton(Some(3), Some(true), md_elems!("plain text"), "3. [x] plain text");
+        }
+
+        #[test]
+        fn multiple_with_thematic_breaks() {
+            let li1 = ListItem {
+                checked: Some(false),
+                item: md_elems!("first item"),
+            };
+            let li2 = ListItem {
+                checked: Some(true),
+                item: md_elems!("second item"),
+            };
+            check_render_refs(
+                vec![
+                    MdElemRef::ListItem(ListItemRef(None, &li1)),
+                    MdElemRef::ListItem(ListItemRef(None, &li2)),
+                ],
+                indoc! {r#"
+                - [ ] first item
+
+                   -----
+
+                - [x] second item"#},
+            );
+        }
+
+        #[test]
+        fn multiple_no_thematic_breaks() {
+            let li1 = ListItem {
+                checked: Some(false),
+                item: md_elems!("first item"),
+            };
+            let li2 = ListItem {
+                checked: Some(true),
+                item: md_elems!("second item"),
+            };
+            let mut options = MdOptions::default_for_tests();
+            options.include_thematic_breaks = false;
+            check_render_refs_with(
+                &options,
+                vec![
+                    MdElemRef::ListItem(ListItemRef(None, &li1)),
+                    MdElemRef::ListItem(ListItemRef(None, &li2)),
+                ],
+                indoc! {r#"
+                - [ ] first item
+                - [x] second item"#},
+            );
         }
 
         fn create_li_singleton(idx: Option<u32>, checked: Option<bool>, item: Vec<MdElem>, expected: &str) {
@@ -1211,6 +1294,59 @@ pub mod tests {
                 ````"#},
             );
         }
+
+        #[test]
+        fn two_blocks_with_thematic_break() {
+            check_render(
+                md_elems![
+                    CodeBlock {
+                        variant: CodeVariant::Code(None),
+                        value: "one".to_string(),
+                    },
+                    CodeBlock {
+                        variant: CodeVariant::Code(None),
+                        value: "two".to_string(),
+                    }
+                ],
+                indoc! {r#"
+                ```
+                one
+                ```
+
+                   -----
+
+                ```
+                two
+                ```"#},
+            );
+        }
+
+        #[test]
+        fn two_blocks_no_thematic_break() {
+            let mut options = MdOptions::default_for_tests();
+            options.include_thematic_breaks = false;
+            check_render_with(
+                &options,
+                md_elems![
+                    CodeBlock {
+                        variant: CodeVariant::Code(None),
+                        value: "one".to_string(),
+                    },
+                    CodeBlock {
+                        variant: CodeVariant::Code(None),
+                        value: "two".to_string(),
+                    }
+                ],
+                indoc! {r#"
+                ```
+                one
+                ```
+
+                ```
+                two
+                ```"#},
+            );
+        }
     }
 
     mod inline {
@@ -1256,6 +1392,32 @@ pub mod tests {
                         ]),
                     ]))],
                     indoc! {"_one **two ~~three~~**_"},
+                );
+            }
+
+            #[test]
+            fn with_thematic_break() {
+                check_render(
+                    vec![MdElem::Inline(mdq_inline!("one")), MdElem::Inline(mdq_inline!("two"))],
+                    indoc! {r"
+                    one
+
+                       -----
+
+                    two"},
+                );
+            }
+
+            #[test]
+            fn no_thematic_break() {
+                let mut options = MdOptions::default_for_tests();
+                options.include_thematic_breaks = false;
+                check_render_with(
+                    &options,
+                    vec![MdElem::Inline(mdq_inline!("one")), MdElem::Inline(mdq_inline!("two"))],
+                    indoc! {r"
+                    one
+                    two"},
                 );
             }
         }
@@ -1693,6 +1855,71 @@ pub mod tests {
                    -----
 
                 [link text two](https://example.com/2)"#},
+            );
+        }
+
+        #[test]
+        fn two_links_inline_no_thematic_break() {
+            let mut options = MdOptions::default_for_tests();
+            options.include_thematic_breaks = false;
+            check_render_refs_with(
+                &options,
+                vec![
+                    MdElemRef::Link(&Link {
+                        text: vec![mdq_inline!("link text one")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com/1".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    }),
+                    MdElemRef::Link(&Link {
+                        text: vec![mdq_inline!("link text two")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com/2".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    }),
+                ],
+                indoc! {r#"
+                [link text one](https://example.com/1)
+                [link text two](https://example.com/2)"#},
+            );
+        }
+
+        #[test]
+        fn two_links_doc_pos_no_thematic_break() {
+            let mut options = MdOptions::default_for_tests();
+            options.include_thematic_breaks = false;
+            options.inline_options.link_format = LinkTransform::Reference;
+            options.link_reference_placement = ReferencePlacement::Doc;
+            check_render_refs_with(
+                &options,
+                vec![
+                    MdElemRef::Link(&Link {
+                        text: vec![mdq_inline!("link text one")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com/1".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    }),
+                    MdElemRef::Link(&Link {
+                        text: vec![mdq_inline!("link text two")],
+                        link_definition: LinkDefinition {
+                            url: "https://example.com/2".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    }),
+                ],
+                indoc! {r#"
+                [link text one][1]
+                [link text two][2]
+
+                [1]: https://example.com/1
+                [2]: https://example.com/2"#},
             );
         }
 
