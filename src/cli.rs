@@ -220,10 +220,27 @@ mod tests {
     }
 
     #[test]
+    fn no_args() {
+        let result = Cli::try_parse_from(["mdq"]);
+        unwrap!(result, Ok(cli));
+        assert_eq!(cli.selector_string().as_str(), "");
+        assert!(cli.markdown_file_paths.is_empty());
+    }
+
+    #[test]
     fn standard_selectors() {
         let result = Cli::try_parse_from(["mdq", "# hello"]);
         unwrap!(result, Ok(cli));
         assert_eq!(cli.selector_string().as_str(), "# hello");
+        assert!(cli.markdown_file_paths.is_empty());
+    }
+
+    #[test]
+    fn selector_and_file() {
+        let result = Cli::try_parse_from(["mdq", "# hello", "file.txt"]);
+        unwrap!(result, Ok(cli));
+        assert_eq!(cli.selector_string().as_str(), "# hello");
+        assert_eq!(cli.markdown_file_paths, ["file.txt"]);
     }
 
     #[test]
