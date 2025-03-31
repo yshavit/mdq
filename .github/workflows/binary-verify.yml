@@ -1,0 +1,140 @@
+name: binary-verify.yml
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The published version, like \"0.2.0\""
+        type: string
+        required: true
+      docker-rc:
+        description: "-rc or not"
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      version:
+        description: "The published version, like \"0.2.0\""
+        type: string
+        required: true
+      docker-rc:
+        description: "-rc or not"
+        type: boolean
+        required: true
+
+env:
+  VERSION: "${{ inputs.version }}"
+  RELEASE_TAG: "v${{ inputs.version }}"
+
+jobs:
+  linuxy:
+    strategy:
+      matrix:
+        os: [ macos, ubuntu ]
+    runs-on: ${{ matrix.os }}-latest
+    steps:
+      - name: Download zip
+        run: gh release -R ${{ github.repository }} download "$RELEASE_TAG" -p mdq-${{ matrix.os }}.zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Expand
+        run: unzip mdq-${{ matrix.os }}.zip
+
+      - name: Run --version
+        id: mdq-version
+        run: |
+          set -euo pipefail
+          mdq_output="$(./mdq --version)"
+          echo "version-b64=$(base64 <<<"$mdq_output")" >> "$GITHUB_OUTPUT"
+
+      - name: Verify version
+        run:
+          diff -y <(echo "mdq $VERSION") <(base64 -d <<<"$ACTUAL_VERSION")
+        env:
+          ACTUAL_VERSION: ${{ steps.mdq-version.outputs.version-b64 }}
+
+
+  windows:
+    runs-on: windows-latest
+    steps:
+
+      - name: Download zip
+        run: gh release -R ${{ github.repository }} download "$RELEASE_TAG" -p mdq-windows.zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Expand
+        run: Expand-Archive mdq-windows.zip
+
+      # Use JSON, because base64 is a pain in powershell
+      - name: Run --version
+        id: mdq-version
+        run: |
+          $version_json = .\mdq-windows\mdq.exe --version | ConvertTo-Json
+          echo "version_json=$version_json" > $env:GITHUB_OUTPUT
+
+      - name: Verify version
+        run: |
+          $diff = Compare-Object -CaseSensitive (echo "mdq $env:VERSION" | ConvertTo-Json) $env:ACTUAL
+          if ($diff) {
+            Write-Output "Difference found:"
+            $diff | Format-Table
+            exit 1
+          }
+        env:
+          ACTUAL: ${{ steps.mdq-version.outputs.version_json }}
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Calculate tag
+        id: tag
+        run: |
+          tag="${VERSION}"
+          if [[ ${{ inputs.docker-rc }} == true ]]; then
+            tag="${VERSION}-rc"
+          fi
+          echo "id=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Pull tag
+        run: docker pull "yshavit/mdq:$DOCKER_TAG"
+        env:
+          DOCKER_TAG: ${{ steps.tag.outputs.id }}
+
+      - name: Run --version
+        id: mdq-version
+        run: |
+          mdq_output="$(docker run --rm -i "yshavit/mdq:$DOCKER_TAG" --version)"
+          echo "version-b64=$(base64 <<<"$mdq_output")" >> "$GITHUB_OUTPUT"
+        env:
+          DOCKER_TAG: ${{ steps.tag.outputs.id }}
+
+      - name: Verify version
+        run:
+          diff -y <(echo "mdq $VERSION") <(base64 -d <<<"$ACTUAL_VERSION")
+        env:
+          ACTUAL_VERSION: ${{ steps.mdq-version.outputs.version-b64 }}
+
+
+  attestations:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download zip
+        run: gh release -R ${{ github.repository }} download "$RELEASE_TAG"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Attestations
+        run: |
+          set -euo pipefail
+          for z_file in *.zip; do
+            echo "::group::$z_file"
+            z_dir="${z_file}.dir"
+            mkdir "$z_dir"
+            unzip "$z_file" -d "$z_dir"
+            echo "Will verify: " "$z_dir"/*
+            gh attestation verify -o ${{ github.repository_owner }} "$z_dir"/*
+            echo '::endgroup::'
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
