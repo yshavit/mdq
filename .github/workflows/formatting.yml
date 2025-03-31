@@ -21,5 +21,5 @@ jobs:
                 echo "::error file=$file_name,title=bad newlines::file contains carriage returns"
                 exit_code=1
             fi
-          fi
+          done <<<"$(git ls-files -r HEAD --name-only)"
           exit "$exit_code"
