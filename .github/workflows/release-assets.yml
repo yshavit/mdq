@@ -38,6 +38,7 @@ jobs:
       TARGET_BRANCH: ${{ inputs.target_branch_name }}
     runs-on: ubuntu-latest
     outputs:
+      version: ${{ steps.parse_branch.outputs.version }}
       version_tag: ${{ steps.parse_branch.outputs.version_tag }}
       branch_name: ${{ env.BRANCH_NAME }}
     
@@ -54,6 +55,7 @@ jobs:
             exit 1
           fi
           set -x
+          echo "version=$release_version" >> "$GITHUB_OUTPUT"
           echo "version_tag=v$release_version" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v4
@@ -135,10 +137,10 @@ jobs:
           VERSION_TAG: ${{ needs.validate.outputs.version_tag }}
 
   verify-binaries:
-    needs: upload
+    needs: [ validate, upload ]
     permissions:
       contents: write
     uses: ./.github/workflows/binary-verify.yml
     with:
-      version: ${{ inputs.version }}}
+      version: ${{ needs.validate.outputs.version }}
       docker-rc: true # since they won't have been published yet

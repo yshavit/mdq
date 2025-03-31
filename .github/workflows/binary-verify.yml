@@ -22,8 +22,8 @@ on:
         required: true
 
 env:
-  VERSION: "${{ inputs.version || '0.5.0' }}"
-  RELEASE_TAG: "v${{ inputs.version || '0.5.0' }}"
+  VERSION: "${{ inputs.version }}"
+  RELEASE_TAG: "v${{ inputs.version }}"
 
 jobs:
   linuxy:
@@ -129,7 +129,7 @@ jobs:
           set -euo pipefail
           for z_file in *.zip; do
             echo "::group::$z_file"
-            z_dir="${z_file/^[a-zA-Z0-9]/-/}.dir"
+            z_dir="${z_file}.dir"
             mkdir "$z_dir"
             unzip "$z_file" -d "$z_dir"
             echo "Will verify: " "$z_dir"/*
