@@ -63,6 +63,11 @@ function run_test_spec() {
     local stdin
     pushd "$(mktemp -d)"
 
+    while read -r md_test_file; do
+      local write_to="$md_test_file"
+      jq -r '.given.files[$name]' <<<"$spec" --arg name "$md_test_file" > "$write_to"
+    done <<<"$(jq -r '.given.files | keys | .[]' <<<"$spec")"
+
     if jq -e '.expect.ignore' <<<"$spec" &>/dev/null ; then
       msg warning "$full_name" 'skipping test case'
       return 0
@@ -81,7 +86,7 @@ function run_test_spec() {
 
     local actual_success=true
     set -x
-    "$mdq" <<<"$stdin" "${cli_args[@]}" >actual_out.txt 2>actual_err.txt || actual_success=false
+    MDQ_PORTABLE_ERRORS=1 "$mdq" <<<"$stdin" "${cli_args[@]}" >actual_out.txt 2>actual_err.txt || actual_success=false
     set +x
 
     if [[ "$output_json" == true ]]; then

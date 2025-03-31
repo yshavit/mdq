@@ -79,6 +79,19 @@ pub struct Cli {
     // See: tree.rs > Lookups::unknown_markdown.
     #[arg(long, hide = true)]
     pub(crate) allow_unknown_markdown: bool,
+
+    /// An optional list of Markdown files to parse, by path. If not provided, standard input will be used.
+    ///
+    /// If these are provided, mdq will act as if they were all concatenated into a single file. For example, if you
+    /// use --link-pos=doc, the link definitions for all input files will be at the very end of the output.
+    ///
+    /// A path of "-" represents standard input.
+    ///
+    /// If these are provided, standard input will not be used unless one of the arguments is "-". Files will be
+    /// processed in the order you provide them. If you provide the same file twice, mdq will process it twice, unless
+    /// that file is "-"; all but the first "-" paths are ignored.
+    #[arg()]
+    pub(crate) markdown_file_paths: Vec<String>,
 }
 
 impl Cli {
@@ -207,16 +220,27 @@ mod tests {
     }
 
     #[test]
+    fn no_args() {
+        let result = Cli::try_parse_from(["mdq"]);
+        unwrap!(result, Ok(cli));
+        assert_eq!(cli.selector_string().as_str(), "");
+        assert!(cli.markdown_file_paths.is_empty());
+    }
+
+    #[test]
     fn standard_selectors() {
         let result = Cli::try_parse_from(["mdq", "# hello"]);
         unwrap!(result, Ok(cli));
         assert_eq!(cli.selector_string().as_str(), "# hello");
+        assert!(cli.markdown_file_paths.is_empty());
     }
 
     #[test]
-    fn two_standard_selectors() {
-        let result = Cli::try_parse_from(["mdq", "# hello", "# world"]);
-        check_err(&result, "unexpected argument '# world' found");
+    fn selector_and_file() {
+        let result = Cli::try_parse_from(["mdq", "# hello", "file.txt"]);
+        unwrap!(result, Ok(cli));
+        assert_eq!(cli.selector_string().as_str(), "# hello");
+        assert_eq!(cli.markdown_file_paths, ["file.txt"]);
     }
 
     #[test]
