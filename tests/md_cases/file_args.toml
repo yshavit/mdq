@@ -49,5 +49,4 @@ cli_args = ['-', '-oplain', 'missing-err.txt']
 expect_success = false
 output = ''
 output_err = '''entity not found while reading file "missing-err.txt"
-
 '''

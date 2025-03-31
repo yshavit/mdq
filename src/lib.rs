@@ -90,9 +90,9 @@ impl Display for Error {
             }
             Error::FileReadError(file, err) => {
                 if env::var("MDQ_PORTABLE_ERRORS").unwrap_or(String::new()).is_empty() {
-                    writeln!(f, "{err} while reading {file}")
-                } else {
                     writeln!(f, "{} while reading {file}", err.kind())
+                } else {
+                    writeln!(f, "{err} while reading {file}")
                 }
             }
         }
@@ -147,7 +147,7 @@ pub fn run_stdio(cli: &Cli, os: impl OsFacade) -> bool {
     let contents = match os.read_all(&cli) {
         Ok(s) => s,
         Err(err) => {
-            eprintln!("{err}");
+            eprint!("{err}");
             return false;
         }
     };
