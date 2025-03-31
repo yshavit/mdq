@@ -63,6 +63,11 @@ function run_test_spec() {
     local stdin
     pushd "$(mktemp -d)"
 
+    while read -r md_test_file; do
+      local write_to="$md_test_file"
+      jq -r '.given.files[$name]' <<<"$spec" --arg name "$md_test_file" > "$write_to"
+    done <<<"$(jq -r '.given.files | keys | .[]' <<<"$spec")"
+
     if jq -e '.expect.ignore' <<<"$spec" &>/dev/null ; then
       msg warning "$full_name" 'skipping test case'
       return 0
