@@ -1,4 +1,5 @@
 use clap::Parser;
+use mdq::Error;
 use std::ffi::OsString;
 use std::io::ErrorKind;
 use std::{env, io};
@@ -14,23 +15,38 @@ struct Case<const N: usize> {
     expect_success: bool,
 }
 
-impl<const N: usize> mdq::OsFacade for &Case<N> {
+#[derive(Debug)]
+struct CaseRunner<'a, const N: usize> {
+    case: &'a Case<N>,
+    stdout: Vec<u8>,
+    stderr: String,
+}
+
+impl<const N: usize> mdq::OsFacade for CaseRunner<'_, N> {
     fn read_stdin(&self) -> io::Result<String> {
-        Ok(self.md.to_string())
+        Ok(self.case.md.to_string())
     }
 
     fn read_file(&self, path: &str) -> io::Result<String> {
-        for (name, content) in self.files {
+        for (name, content) in self.case.files {
             if path == *name {
                 return Ok(content.to_string());
             }
         }
         Err(io::Error::new(ErrorKind::NotFound, format!("File not found: {}", path)))
     }
+
+    fn get_stdout(&mut self) -> impl io::Write {
+        &mut self.stdout
+    }
+
+    fn write_error(&mut self, err: Error) {
+        self.stderr.push_str(&err.to_string())
+    }
 }
 
 impl<const N: usize> Case<N> {
-    fn check(&self) {
+    fn check(&mut self) {
         let (actual_success, actual_out, actual_err) = self.run();
         let (actual_out, expect_out) = if self.expect_output_json {
             let actual_obj = serde_json::from_str::<serde_json::Value>(&actual_out).unwrap();
@@ -51,12 +67,17 @@ impl<const N: usize> Case<N> {
         let all_cli_args = ["cmd"].iter().chain(&self.cli_args);
         let cli = mdq::cli::Cli::try_parse_from(all_cli_args).unwrap();
         let restore = EnvVarRestore::set_var("MDQ_PORTABLE_ERRORS", "1");
-        let result = match mdq::run_in_memory(&cli, self) {
-            Ok((found, stdout)) => (found, stdout, String::new()),
-            Err(err) => (false, String::new(), err.to_string()),
+        let mut runner = CaseRunner {
+            case: self,
+            stdout: vec![],
+            stderr: "".to_string(),
         };
+        let result = mdq::run_generic(&cli, &mut runner);
+
+        let out_str =
+            String::from_utf8(runner.stdout).unwrap_or_else(|err| String::from_utf8_lossy(err.as_bytes()).into_owned());
         drop(restore);
-        result
+        (result, out_str, runner.stderr)
     }
 }
 

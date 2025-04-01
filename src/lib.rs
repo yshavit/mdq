@@ -102,6 +102,8 @@ impl Display for Error {
 pub trait OsFacade {
     fn read_stdin(&self) -> io::Result<String>;
     fn read_file(&self, path: &str) -> io::Result<String>;
+    fn get_stdout(&mut self) -> impl Write;
+    fn write_error(&mut self, err: Error);
 
     fn read_all(&self, cli: &Cli) -> Result<String, Error> {
         if cli.markdown_file_paths.is_empty() {
@@ -131,39 +133,22 @@ pub trait OsFacade {
     }
 }
 
-pub fn run_in_memory(cli: &Cli, os: impl OsFacade) -> Result<(bool, String), Error> {
-    let contents_str = os.read_all(&cli)?;
-    let mut out = Vec::with_capacity(256); // just a guess
-
-    let result = run(&cli, contents_str, || &mut out)?;
-    let out_str = String::from_utf8(out).unwrap_or_else(|err| String::from_utf8_lossy(err.as_bytes()).into_owned());
-    Ok((result, out_str))
-}
-
-pub fn run_stdio(cli: &Cli, os: impl OsFacade) -> bool {
+pub fn run_generic(cli: &Cli, os: &mut impl OsFacade) -> bool {
     if !cli.extra_validation() {
         return false;
     }
-    let contents = match os.read_all(&cli) {
-        Ok(s) => s,
+    match run_or_error(cli, os) {
+        Ok(ok) => ok,
         Err(err) => {
-            eprint!("{err}");
-            return false;
+            os.write_error(err);
+            false
         }
-    };
-
-    run(&cli, contents, || io::stdout().lock()).unwrap_or_else(|err| {
-        eprint!("{err}");
-        false
-    })
+    }
 }
 
-fn run<W, F>(cli: &Cli, stdin_content: String, get_out: F) -> Result<bool, Error>
-where
-    F: FnOnce() -> W,
-    W: Write,
-{
-    let ast = markdown::to_mdast(&stdin_content, &markdown::ParseOptions::gfm()).unwrap();
+fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
+    let contents_str = os.read_all(&cli)?;
+    let ast = markdown::to_mdast(&contents_str, &markdown::ParseOptions::gfm()).unwrap();
     let read_options = ReadOptions {
         validate_no_conflicting_links: false,
         allow_unknown_markdown: cli.allow_unknown_markdown,
@@ -205,7 +190,7 @@ where
     let found_any = !pipeline_nodes.is_empty();
 
     if !cli.quiet {
-        let mut stdout = get_out();
+        let mut stdout = os.get_stdout();
         match cli.output {
             OutputFormat::Markdown | OutputFormat::Md => {
                 let output_opts = OutputOpts {
