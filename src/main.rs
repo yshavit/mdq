@@ -30,7 +30,7 @@ impl OsFacade for RealOs {
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
-    if mdq::run_generic(&cli, &mut RealOs) {
+    if mdq::run(&cli, &mut RealOs) {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE

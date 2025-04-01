@@ -133,7 +133,7 @@ pub trait OsFacade {
     }
 }
 
-pub fn run_generic(cli: &Cli, os: &mut impl OsFacade) -> bool {
+pub fn run(cli: &Cli, os: &mut impl OsFacade) -> bool {
     if !cli.extra_validation() {
         return false;
     }

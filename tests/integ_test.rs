@@ -72,7 +72,7 @@ impl<const N: usize> Case<N> {
             stdout: vec![],
             stderr: "".to_string(),
         };
-        let result = mdq::run_generic(&cli, &mut runner);
+        let result = mdq::run(&cli, &mut runner);
 
         let out_str =
             String::from_utf8(runner.stdout).unwrap_or_else(|err| String::from_utf8_lossy(err.as_bytes()).into_owned());
