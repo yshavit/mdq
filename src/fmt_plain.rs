@@ -376,7 +376,7 @@ mod test {
 
     #[test]
     fn html() {
-        let md_elem = MdElem::Html("<div>".to_string());
+        let md_elem = MdElem::BlockHtml("<div>".to_string());
         check_plain(
             checked_elem_ref!(md_elem => MdElemRef::Html(_)),
             Expect {
@@ -524,7 +524,7 @@ mod test {
                 variant: CodeVariant::Toml,
                 value: "code block 1 line 1\ncode block 1 line 2".to_string()
             }),
-            MdElem::Html("<hr>".to_string()),
+            MdElem::BlockHtml("<hr>".to_string()),
             md_elem!("paragraph 3"),
             md_elem!(CodeBlock {
                 variant: CodeVariant::Code(None),

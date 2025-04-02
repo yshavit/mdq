@@ -51,7 +51,7 @@ pub enum MdElem {
     ThematicBreak,
 
     Inline(Inline),
-    Html(String), // TODO rename to BlockHtml
+    BlockHtml(String),
 }
 
 #[derive(Debug, PartialEq)]
@@ -502,7 +502,7 @@ impl MdElem {
                 variant: CodeVariant::Yaml,
                 value: node.value,
             }),
-            mdast::Node::Html(node) => MdElem::Html(node.value),
+            mdast::Node::Html(node) => MdElem::BlockHtml(node.value),
 
             mdx_nodes! {} => {
                 // If you implement this, make sure to remove the mdx_nodes macro. That means you'll also need to
@@ -632,7 +632,7 @@ impl MdElem {
             // return it as a block, but we can just extract the String and convert it to an Inline.
             let inline = match child {
                 MdElem::Inline(inline) => inline,
-                MdElem::Html(html) => Inline::Text(Text {
+                MdElem::BlockHtml(html) => Inline::Text(Text {
                     variant: TextVariant::Html,
                     value: html,
                 }),
@@ -1170,7 +1170,7 @@ mod tests {
                     Hello, world
                 "#});
 
-                check!(&root.children[0], Node::Html(_), lookups => MdElem::Html(html) = {
+                check!(&root.children[0], Node::Html(_), lookups => MdElem::BlockHtml(html) = {
                     assert_eq!(html, "<div>");
                 });
                 check!(&root.children[1], Node::Paragraph(_), lookups => m_node!(MdElem::Paragraph{body}) = {
@@ -1184,7 +1184,7 @@ mod tests {
                     world. />
                 "#});
 
-                check!(&root.children[0], Node::Html(_), lookups => MdElem::Html(html) = {
+                check!(&root.children[0], Node::Html(_), lookups => MdElem::BlockHtml(html) = {
                     assert_eq!(html, "<div Hello\nworld. />");
                 });
                 assert_eq!(root.children.len(), 1);
@@ -1192,7 +1192,7 @@ mod tests {
             {
                 let (root, lookups) = parse("<a href>");
 
-                check!(&root.children[0], Node::Html(_), lookups => MdElem::Html(inline) = {
+                check!(&root.children[0], Node::Html(_), lookups => MdElem::BlockHtml(inline) = {
                     assert_eq!(inline, "<a href>");
                 });
                 assert_eq!(root.children.len(), 1);
