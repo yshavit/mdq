@@ -40,26 +40,26 @@ mod words_buffer;
 pub enum Error {
     QueryParse { query_string: String, error: ParseError },
     MarkdownParse(InvalidMd),
-    FileReadError(File, io::Error),
+    FileReadError(Input, io::Error),
 }
 
 #[derive(Debug)]
-pub enum File {
+pub enum Input {
     Stdin,
-    Path(String),
+    File(String),
 }
 
 impl Error {
-    pub fn from_io_error(error: io::Error, file: File) -> Self {
+    pub fn from_io_error(error: io::Error, file: Input) -> Self {
         Error::FileReadError(file, error)
     }
 }
 
-impl Display for File {
+impl Display for Input {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            File::Stdin => f.write_str("stdin"),
-            File::Path(file) => write!(f, "file {file:?}"),
+            Input::Stdin => f.write_str("stdin"),
+            Input::File(file) => write!(f, "file {file:?}"),
         }
     }
 }
@@ -107,7 +107,7 @@ pub trait OsFacade {
 
     fn read_all(&self, cli: &Cli) -> Result<String, Error> {
         if cli.markdown_file_paths.is_empty() {
-            return self.read_stdin().map_err(|err| Error::from_io_error(err, File::Stdin));
+            return self.read_stdin().map_err(|err| Error::from_io_error(err, Input::Stdin));
         }
         let mut contents = String::new();
         let mut have_read_stdin = false;
@@ -117,14 +117,14 @@ pub trait OsFacade {
                     contents.push_str(
                         &self
                             .read_stdin()
-                            .map_err(|err| Error::from_io_error(err, File::Stdin))?,
+                            .map_err(|err| Error::from_io_error(err, Input::Stdin))?,
                     );
                     have_read_stdin = true
                 }
             } else {
                 let path_contents = self
                     .read_file(path)
-                    .map_err(|err| Error::from_io_error(err, File::Path(path.to_string())))?;
+                    .map_err(|err| Error::from_io_error(err, Input::File(path.to_string())))?;
                 contents.push_str(&path_contents);
             }
             contents.push('\n');
