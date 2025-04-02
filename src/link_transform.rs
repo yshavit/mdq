@@ -204,9 +204,9 @@ fn inlines_to_string<'md>(inline_writer: &mut MdInlinesWriter<'md>, inlines: &'m
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mdq_inline;
     use crate::tree::{Link, LinkDefinition, MdContext, Text, TextVariant};
-    use crate::variants_checker;
+    use crate::tree_test_utils::*;
+    use crate::utils_for_test::*;
 
     enum Combo {
         Of(LinkTransform, LinkReference),

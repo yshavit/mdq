@@ -1,5 +1,5 @@
 #[cfg(test)]
-pub use test_utils::*;
+pub(crate) use test_utils::*;
 
 // We this file's contents from prod by putting them in a submodule guarded by cfg(test), but then "pub use" it to
 // export its contents.
@@ -63,7 +63,6 @@ mod test_utils {
     }
 
     /// Turn a pattern match into an `if let ... { else panic! }`.
-    #[macro_export]
     macro_rules! unwrap {
         ($enum_value:expr, $enum_variant:pat) => {
             let node = $enum_value;
@@ -73,8 +72,8 @@ mod test_utils {
             };
         };
     }
+    pub(crate) use unwrap;
 
-    #[macro_export]
     macro_rules! test_delay_ms {
         ($i:literal) => {{
             time::Duration::from_millis(
@@ -84,9 +83,9 @@ mod test_utils {
             )
         }};
     }
+    pub(crate) use test_delay_ms;
 
     /// Converts an `MdElem` into an `MdElemRef`, checking that it got converted to the right one
-    #[macro_export]
     macro_rules! checked_elem_ref {
         ($input:expr => $variant:pat) => {{
             let as_ref: crate::tree_ref::MdElemRef = (&($input)).into();
@@ -101,6 +100,7 @@ mod test_utils {
             as_ref
         }};
     }
+    pub(crate) use checked_elem_ref;
 
     /// Creates a static object named `$name` that looks for all the variants of enum `E`.
     ///
@@ -136,7 +136,6 @@ mod test_utils {
     ///
     /// This requires that each pattern matches exactly one shape of item; in other words, that there aren't any
     /// dead-code branches.
-    #[macro_export]
     macro_rules! variants_checker {
         ($name:ident = $enum_type:ty { $($variant:pat),* $(,)? } $(ignore { $($ignore_variant:pat),* $(,)? })?) => {
 
@@ -159,7 +158,7 @@ mod test_utils {
                     fn wait_for_all(&self) {
                         use std::{thread, time};
 
-                        let timeout = crate::test_delay_ms!(500);
+                        let timeout = test_delay_ms!(500);
                         let retry_delay = time::Duration::from_millis(50);
                         let start = time::Instant::now();
                         loop {
@@ -201,4 +200,5 @@ mod test_utils {
             }
         };
     }
+    pub(crate) use variants_checker;
 }

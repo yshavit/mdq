@@ -305,13 +305,11 @@ mod tests {
     use super::*;
     use crate::fmt_md_inlines::MdInlinesWriterOptions;
     use crate::link_transform::LinkTransform;
-    use crate::m_node;
-    use crate::md_elems;
     use crate::tree::MdElem;
     use crate::tree::*;
     use crate::tree_ref::ListItemRef;
-    use crate::variants_checker;
-    use crate::{md_elem, mdq_inline};
+    use crate::tree_test_utils::*;
+    use crate::utils_for_test::*;
 
     variants_checker!(CHECKER = MdElemRef {
         Doc(_),

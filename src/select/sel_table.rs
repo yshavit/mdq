@@ -42,7 +42,7 @@ mod tests {
 
     use crate::select::Selector;
     use crate::tree::{Inline, Line, Table, Text, TextVariant};
-    use crate::unwrap;
+    use crate::utils_for_test::*;
     use markdown::mdast;
 
     #[test]

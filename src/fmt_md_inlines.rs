@@ -457,13 +457,12 @@ mod tests {
     use super::*;
     use crate::output::{Output, OutputOpts};
     use crate::tree::{MdDoc, ReadOptions};
-    use crate::unwrap;
-    use crate::utils_for_test::get_only;
+    use crate::utils_for_test::*;
 
     mod title_quoting {
         use super::*;
 
-        crate::variants_checker!(TITLE_QUOTING_CHECKER = TitleQuote { Double, Single, Paren });
+        variants_checker!(TITLE_QUOTING_CHECKER = TitleQuote { Double, Single, Paren });
 
         #[test]
         fn bareword_uses_double() {
