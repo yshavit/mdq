@@ -687,7 +687,7 @@ mod tests {
     #[test]
     fn block_html() {
         check(
-            MdElem::Html("<div />".to_string()),
+            MdElem::BlockHtml("<div />".to_string()),
             json_str!(
                 {"items":[
                     {"html":{

@@ -50,7 +50,7 @@ impl StringMatcher {
                 }
                 self.matches_any(&section.body)
             }
-            MdElem::Html(html) => self.matches(html),
+            MdElem::BlockHtml(html) => self.matches(html),
             MdElem::Inline(inline) => self.matches_inlines(&[inline]),
         }
     }

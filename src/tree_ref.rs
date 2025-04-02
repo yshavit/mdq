@@ -171,7 +171,7 @@ impl<'md> From<&'md MdElem> for MdElemRef<'md> {
             MdElem::BlockQuote(block) => Self::BlockQuote(block),
             MdElem::Section(section) => Self::Section(section),
             MdElem::Inline(child) => MdElemRef::Inline(child),
-            MdElem::Html(html) => MdElemRef::Html(HtmlRef(html)),
+            MdElem::BlockHtml(html) => MdElemRef::Html(HtmlRef(html)),
         }
     }
 }
