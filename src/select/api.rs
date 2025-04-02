@@ -239,10 +239,10 @@ impl<'md> SearchContext<'md> {
 mod test {
     /// Only a smoke test, because the code is pretty straightforward, and I don't feel like writing more. :-)
     mod find_children_smoke {
-        use crate::mdq_inline;
         use crate::select::api::{SearchContext, SelectorAdapter};
         use crate::tree::{Inline, Link, LinkDefinition, LinkReference, MdContext, Text, TextVariant};
         use crate::tree_ref::MdElemRef;
+        use crate::tree_test_utils::*;
 
         #[test]
         fn link_direct() {

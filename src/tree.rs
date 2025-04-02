@@ -313,7 +313,6 @@ macro_rules! mdx_nodes {
 /// ```compile_fail
 /// A::B(B::C(C { foo: 123 }))
 /// ```
-#[macro_export]
 macro_rules! m_node {
     // Terminal cases for Foo{ bar: bazz } in its various configurations
     ($last:ident { $($args:tt)* }) => {
@@ -332,6 +331,7 @@ macro_rules! m_node {
         $head::$next( m_node!($next $(:: $($tail)::*)? $({ $($args)* })?) )
     };
 }
+pub(crate) use m_node;
 
 impl MdDoc {
     pub fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
@@ -801,9 +801,8 @@ impl Lookups {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::md_elem;
-    use crate::md_elems;
-    use crate::mdq_inline;
+    use crate::tree_test_utils::*;
+    use crate::utils_for_test::*;
 
     impl MdContext {
         pub fn empty() -> Self {
@@ -832,7 +831,6 @@ mod tests {
     /// For example, footnote are `[^a]` in markdown; does that identifier get parsed as `"^a"` or `"a"`?
     mod all_nodes {
         use super::*;
-        use crate::unwrap;
         use indoc::indoc;
         use markdown::mdast::Node;
         use markdown::{mdast, ParseOptions};
@@ -1955,7 +1953,7 @@ mod tests {
             (root, lookups)
         }
 
-        crate::variants_checker!(NODES_CHECKER = Node {
+        variants_checker!(NODES_CHECKER = Node {
             Blockquote(_),
             Break(_),
             Code(_),

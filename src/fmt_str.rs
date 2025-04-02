@@ -33,10 +33,10 @@ mod tests {
     use indoc::indoc;
 
     use crate::tree::{FormattingVariant, Inline, MdDoc, MdElem, ReadOptions, TextVariant};
-    use crate::unwrap;
+    use crate::utils_for_test::*;
     use markdown::ParseOptions;
 
-    crate::variants_checker!(VARIANTS_CHECKER = Inline {
+    variants_checker!(VARIANTS_CHECKER = Inline {
         Formatting(Formatting{ variant: FormattingVariant::Delete, .. }),
         Formatting(Formatting{ variant: FormattingVariant::Emphasis, .. }),
         Formatting(Formatting{ variant: FormattingVariant::Strong, .. }),

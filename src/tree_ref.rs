@@ -242,18 +242,6 @@ impl<'md> From<TableSlice<'md>> for MdElemRef<'md> {
     }
 }
 
-#[macro_export]
-macro_rules! wrap_mdq_refs {
-    ($variant:ident: $source:expr) => {{
-        let source = $source;
-        let mut result: Vec<MdElemRef> = Vec::with_capacity(source.len());
-        for elem in source {
-            result.push(MdElemRef::$variant(elem));
-        }
-        result
-    }};
-}
-
 #[cfg(test)]
 mod tests {
     mod tables {

@@ -502,17 +502,15 @@ pub mod tests {
 
     use crate::fmt_md::MdOptions;
     use crate::link_transform::LinkTransform;
-    use crate::m_node;
-    use crate::md_elem;
-    use crate::md_elems;
-    use crate::mdq_inline;
     use crate::output::Output;
     use crate::tree::*;
     use crate::tree_ref::MdElemRef;
+    use crate::tree_test_utils::*;
+    use crate::utils_for_test::*;
 
     use super::{write_md, ReferencePlacement};
 
-    crate::variants_checker!(VARIANTS_CHECKER = MdElemRef {
+    variants_checker!(VARIANTS_CHECKER = MdElemRef {
         Doc(..),
         Section(_),
         ListItem(..),
@@ -607,8 +605,6 @@ pub mod tests {
     }
 
     mod header {
-        use crate::mdq_inline;
-
         use super::*;
 
         #[test]
@@ -2103,7 +2099,6 @@ pub mod tests {
 
     mod annotation_and_footnote_layouts {
         use super::*;
-        use crate::md_elems;
         use indoc::indoc;
 
         #[test]

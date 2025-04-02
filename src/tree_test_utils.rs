@@ -1,26 +1,28 @@
 #[cfg(test)]
+pub(crate) use test_utils::*;
+
+#[cfg(test)]
 mod test_utils {
-    #[macro_export]
     macro_rules! md_elem {
         ( $($node_names:ident)::* {$($attr:ident: $val:expr),* $(,)?}) => {
-            crate::m_node!(MdElem::$($node_names)::* {$($attr: $val),*})
+            crate::tree::m_node!(MdElem::$($node_names)::* {$($attr: $val),*})
         };
         ($paragraph_text:literal) => {
-            crate::m_node!(MdElem::Paragraph{body: vec![crate::mdq_inline!($paragraph_text)]})
+            crate::tree::m_node!(MdElem::Paragraph{body: vec![mdq_inline!($paragraph_text)]})
         };
     }
+    pub(crate) use md_elem;
 
-    #[macro_export]
     macro_rules! md_elems {
         [$($first:tt $( $(:: $($rest:ident)::* )? {$($attr:ident: $val:expr),*$(,)?})? ),*$(,)?] => {
             vec![$(
-                crate::md_elem!($first$( $(:: $($rest)::*)? { $($attr: $val),* })?)
+                md_elem!($first$( $(:: $($rest)::*)? { $($attr: $val),* })?)
                 ),*
             ]
         };
     }
+    pub(crate) use md_elems;
 
-    #[macro_export]
     macro_rules! mdq_inline {
         (span $which:ident [$($contents:expr),*$(,)?]) => {
             crate::tree::Inline::Formatting(Formatting {
@@ -35,4 +37,5 @@ mod test_utils {
             })
         };
     }
+    pub(crate) use mdq_inline;
 }

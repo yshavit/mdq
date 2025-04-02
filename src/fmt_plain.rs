@@ -154,11 +154,12 @@ mod test {
     use super::*;
     use crate::tree::*;
     use crate::tree_ref::{MdElemRef, TableSlice};
-    use crate::{checked_elem_ref, m_node, md_elem, md_elems, mdq_inline};
+    use crate::tree_test_utils::*;
+    use crate::utils_for_test::*;
     use indoc::indoc;
     use markdown::mdast;
 
-    crate::variants_checker!(VARIANTS_CHECKER = MdElemRef {
+    variants_checker!(VARIANTS_CHECKER = MdElemRef {
         Doc(_),
         BlockQuote(_),
         CodeBlock(_),
