@@ -1,4 +1,4 @@
-name: Prepare New Release
+name: "Release: (01) Prepare"
 
 on:
   workflow_dispatch:

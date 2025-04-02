@@ -1,4 +1,4 @@
-name: Publish release
+name: "Release: (03) Publish"
 on:
   workflow_dispatch:
     inputs:

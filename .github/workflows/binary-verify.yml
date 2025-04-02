@@ -1,4 +1,5 @@
-name: binary-verify.yml
+name: Validate Binaries
+
 on:
   workflow_dispatch:
     inputs:

@@ -1,4 +1,4 @@
-name: Release assets
+name: "Release: (02) Assets"
 on:
   pull_request:
     types: [ "synchronize" ]
