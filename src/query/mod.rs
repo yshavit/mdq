@@ -1,5 +1,5 @@
 mod query;
-mod selectors;
+mod selectors_parse;
 
 mod strings;
 mod traversal;
@@ -9,4 +9,4 @@ mod traversal_composites;
 pub use query::StringVariant;
 #[allow(unused_imports)]
 pub use query::{Error, Pair, Pairs, Query};
-pub use selectors::*;
+pub use selectors_parse::*;

@@ -6,5 +6,6 @@ mod sel_list_item;
 mod sel_section;
 mod sel_single_matcher;
 mod sel_table;
+mod selectors;
 
 pub use api::*;
