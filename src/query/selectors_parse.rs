@@ -140,23 +140,27 @@ pub enum Selector {
     TableSlice(TableSliceMatcher),
 }
 
-impl Selector {
-    pub fn from_top_pairs(root: Pairs) -> Result<SelectorChain, ParseError> {
+impl TryFrom<Pairs<'_>> for SelectorChain {
+    type Error = ParseError;
+
+    fn try_from(root: Pairs) -> Result<Self, Self::Error> {
         // Get "all" the selector chains; there should be at most 1.
         let selector_chains = ByRule::new(Rule::selector_chain).find_all_in(root);
-        let mut selectors: Vec<Self> = Vec::new();
+        let mut selectors: Vec<Selector> = Vec::new();
         for chain in selector_chains {
             // within the chain, get the selectors; for each one, get its inners (there should be exactly one) and get
             // its selector.
             let selector_inners = ByRule::new(Rule::selector).find_all_in(chain.into_inner());
             for selector_pair in selector_inners {
-                let selector = Self::find_selector(selector_pair)?;
+                let selector = Selector::find_selector(selector_pair)?;
                 selectors.push(selector);
             }
         }
         Ok(SelectorChain { selectors })
     }
+}
 
+impl Selector {
     fn find_selector(root: Pair) -> Result<Self, ParseError> {
         let span = DetachedSpan::from(&root);
         let to_parse_error = |es: String| -> ParseError { ParseError::Other(span, es) };
@@ -864,14 +868,14 @@ mod tests {
             }
         };
 
-        let result = Selector::from_top_pairs(pairs);
+        let result = SelectorChain::try_from(pairs);
         assert_eq!(result.map(|chain| chain.selectors), Ok(expect));
     }
 
     fn expect_parse_error(query_text: &str, expect: &str) {
         let pairs = Query::parse(query_text);
         let err_msg = match pairs {
-            Ok(pairs) => match Selector::from_top_pairs(pairs) {
+            Ok(pairs) => match SelectorChain::try_from(pairs) {
                 Ok(selectors) => panic!("{selectors:?}"),
                 Err(ParseError::Pest(err)) => format!("{err}"),
                 Err(ParseError::Other(span, message)) => {
