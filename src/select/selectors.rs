@@ -24,17 +24,18 @@ pub enum Selector {
 
 impl Selector {
     pub fn parse(text: &str) -> Result<Vec<Self>, ParseError> {
+        // TODo most of this impl should be in query
         let parsed: Pairs = Query::parse(text).map_err(|err| ParseError::from(err))?;
         let parsed_selectors = SelectorChain::try_from(parsed).map_err(|e| ParseError::from(e))?;
         Ok(parsed_selectors.selectors.into_iter().map(|s| Self::from(s)).collect())
     }
 
     pub fn find_nodes<'md>(&self, ctx: &'md MdContext, nodes: Vec<MdElemRef<'md>>) -> Vec<MdElemRef<'md>> {
-        let adapter: SelectorAdapter = self.clone().into(); // TODO rm this clone!
+        // TODo most of this impl should be in adapter, maybe?
         let mut result = Vec::with_capacity(8); // arbitrary guess
         let mut search_context = crate::select::adapter::SearchContext::new(ctx);
         for node in nodes {
-            adapter.build_output(&mut result, &mut search_context, node);
+            SelectorAdapter::build_output(self, &mut result, &mut search_context, node);
         }
         result
     }

@@ -9,6 +9,7 @@ use crate::select::sel_single_matcher::HtmlSelector;
 use crate::select::sel_single_matcher::ParagraphSelector;
 use crate::select::sel_table::TableSliceSelector;
 use crate::select::selectors::Selector as ParsedSelector;
+use crate::select::Selector;
 use crate::tree::{FootnoteId, Formatting, Inline, Link, MdContext, Text, TextVariant};
 use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use paste::paste;
@@ -72,28 +73,20 @@ impl From<&query::Pair<'_>> for DetachedSpan {
 
 macro_rules! adapters {
     { $($name:ident $(| $alias:ident)?),+ $(,)?} => {
-        pub enum SelectorAdapter {
-            $(
-            $name( paste!{[<$name Selector>]} ),
-            )+
-        }
-
-        impl From<ParsedSelector> for SelectorAdapter {
-            fn from(parsed: ParsedSelector) -> Self {
-                match parsed {
-                    $(
-                    ParsedSelector::$name(matcher) => Self::$name(matcher.into()),
-                    )+
-                }
-            }
-        }
+        pub struct SelectorAdapter;
 
         impl SelectorAdapter {
-            fn try_select_node<'md>(&self, node: MdElemRef<'md>) -> Option<MdElemRef<'md>> {
-                match (&self, node) {
+            fn try_select_node<'md>(selector: &ParsedSelector, node: MdElemRef<'md>) -> Option<MdElemRef<'md>> {
+                match (selector, node) {
                     $(
-                    (Self::$name(adapter), MdElemRef::$name(elem)) => adapter.try_select(elem),
-                    $((Self::$name(adapter), MdElemRef::$alias(elem)) => adapter.try_select(elem.into()),)?
+                    (ParsedSelector::$name(sel), MdElemRef::$name(elem)) => {
+                        let adapter: paste!{[<$name Selector>]} = sel.clone().into(); // TODO the selectors should take borrows, so I can rm this clone
+                        adapter.try_select(elem)
+                    },
+                    $((ParsedSelector::$name(sel), MdElemRef::$alias(elem)) => {
+                        let adapter: paste!{[<$name Selector>]} = sel.clone().into(); // TODO the selectors should take borrows, so I can rm this clone
+                        adapter.try_select(elem.into())
+                    },)?
                     )+
                     _ => None,
                 }
@@ -115,13 +108,18 @@ adapters! {
 }
 
 impl SelectorAdapter {
-    pub fn build_output<'md>(&self, out: &mut Vec<MdElemRef<'md>>, ctx: &mut SearchContext<'md>, node: MdElemRef<'md>) {
+    pub fn build_output<'md>(
+        selector: &Selector,
+        out: &mut Vec<MdElemRef<'md>>,
+        ctx: &mut SearchContext<'md>,
+        node: MdElemRef<'md>,
+    ) {
         // GH #168 can we remove the clone()? Maybe by having try_select_node take a reference.
-        match self.try_select_node(node.clone()) {
+        match Self::try_select_node(selector, node.clone()) {
             Some(found) => out.push(found),
             None => {
                 for child in Self::find_children(ctx, node) {
-                    self.build_output(out, ctx, child);
+                    Self::build_output(selector, out, ctx, child);
                 }
             }
         }
