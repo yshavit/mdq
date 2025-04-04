@@ -71,9 +71,11 @@ impl From<&query::Pair<'_>> for DetachedSpan {
     }
 }
 
+/// Really just a namespace. TODO I should rm this.
+pub struct SelectorAdapter;
+
 macro_rules! adapters {
     { $($name:ident $(| $alias:ident)?),+ $(,)?} => {
-        pub struct SelectorAdapter;
 
         impl SelectorAdapter {
             fn try_select_node<'md>(selector: &ParsedSelector, node: MdElemRef<'md>) -> Option<MdElemRef<'md>> {
