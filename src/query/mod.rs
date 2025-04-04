@@ -9,4 +9,3 @@ mod traversal_composites;
 pub use query::StringVariant;
 #[allow(unused_imports)]
 pub use query::{Error, Pair, Pairs, Query};
-pub use selectors_parse::*;

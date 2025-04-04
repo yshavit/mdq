@@ -5,58 +5,17 @@ use crate::query::traversal_composites::{
     BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, ParagraphTraverser,
     SectionResults, SectionTraverser, TableTraverser,
 };
+use crate::select::matchers::*;
 use crate::select::selectors::{Selector, SelectorChain};
 use crate::select::{DetachedSpan, ParseError};
 use regex::Regex;
 
-#[derive(Debug, Clone)]
-pub enum Matcher {
-    Text {
-        case_sensitive: bool,
-        anchor_start: bool,
-        text: String,
-        anchor_end: bool,
-    },
-    Regex(Regex),
-    Any(AnyVariant),
-}
+impl TryFrom<Option<Pair<'_>>> for Matcher {
+    type Error = ParseError;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AnyVariant {
-    Implicit,
-    Explicit,
-}
-
-impl PartialEq for Matcher {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (
-                Self::Text {
-                    case_sensitive: s1,
-                    anchor_start: a1,
-                    text: t1,
-                    anchor_end: e1,
-                },
-                Self::Text {
-                    case_sensitive: s2,
-                    anchor_start: a2,
-                    text: t2,
-                    anchor_end: e2,
-                },
-            ) => s1 == s2 && a1 == a2 && e1 == e2 && t1 == t2,
-            (Self::Regex(r1), Self::Regex(r2)) => r1.as_str() == r2.as_str(),
-            (Self::Any(_), Self::Any(_)) => true,
-            _ => false,
-        }
-    }
-}
-
-impl Eq for Matcher {}
-
-impl Matcher {
-    fn take_from_option(pair: Option<Pair>) -> Result<Matcher, ParseError> {
+    fn try_from(pair: Option<Pair>) -> Result<Self, Self::Error> {
         let Some(pair) = pair else {
-            return Ok(Matcher::Any(AnyVariant::Implicit));
+            return Ok(Self::Any(AnyVariant::Implicit));
         };
         let span = DetachedSpan::from(&pair);
         let parsed_string: ParsedString = pair.into_inner().try_into()?;
@@ -66,16 +25,16 @@ impl Matcher {
             } else {
                 AnyVariant::Implicit
             };
-            return Ok(Matcher::Any(any_variant));
+            return Ok(Self::Any(any_variant));
         }
         let matcher = match parsed_string.mode {
-            ParsedStringMode::CaseSensitive => Matcher::Text {
+            ParsedStringMode::CaseSensitive => Self::Text {
                 case_sensitive: true,
                 anchor_start: parsed_string.anchor_start,
                 text: parsed_string.text,
                 anchor_end: parsed_string.anchor_end,
             },
-            ParsedStringMode::CaseInsensitive => Matcher::Text {
+            ParsedStringMode::CaseInsensitive => Self::Text {
                 case_sensitive: false,
                 anchor_start: parsed_string.anchor_start,
                 text: parsed_string.text,
@@ -83,44 +42,11 @@ impl Matcher {
             },
             ParsedStringMode::Regex => {
                 let re = Regex::new(&parsed_string.text).map_err(|e| ParseError::Other(span.into(), e.to_string()))?;
-                Matcher::Regex(re)
+                Self::Regex(re)
             }
         };
         Ok(matcher)
     }
-}
-
-#[derive(Eq, PartialEq, Debug, Copy, Clone)]
-pub enum ListItemTask {
-    Selected,
-    Unselected,
-    Either,
-    None,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub struct ListItemMatcher {
-    pub ordered: bool,
-    pub task: ListItemTask,
-    pub matcher: Matcher,
-}
-
-#[derive(Eq, PartialEq, Debug, Clone)]
-pub struct LinklikeMatcher {
-    pub display_matcher: Matcher,
-    pub url_matcher: Matcher,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub struct CodeBlockMatcher {
-    pub language: Matcher,
-    pub contents: Matcher,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub struct TableSliceMatcher {
-    pub column: Matcher,
-    pub row: Matcher,
 }
 
 impl TryFrom<Pairs<'_>> for SelectorChain {
@@ -155,7 +81,7 @@ impl TryFrom<Pair<'_>> for Selector {
         match as_rule {
             Rule::select_section => {
                 let SectionResults { title } = SectionTraverser::traverse(children);
-                let matcher = Matcher::take_from_option(title.take().map_err(to_parse_error)?)?;
+                let matcher = Matcher::try_from(title.take().map_err(to_parse_error)?)?;
                 Ok(Self::Section(matcher))
             }
             Rule::select_list_item => {
@@ -171,13 +97,13 @@ impl TryFrom<Pair<'_>> for Selector {
                     ListItemTask::None
                 };
                 let m = res.contents.take().map_err(to_parse_error)?;
-                let matcher = Matcher::take_from_option(m)?;
+                let matcher = Matcher::try_from(m)?;
                 Ok(Self::ListItem(ListItemMatcher { ordered, task, matcher }))
             }
             Rule::select_link => {
                 let res = LinkTraverser::traverse(children);
-                let display_matcher = Matcher::take_from_option(res.display_text.take().map_err(to_parse_error)?)?;
-                let url_matcher = Matcher::take_from_option(res.url_text.take().map_err(to_parse_error)?)?;
+                let display_matcher = Matcher::try_from(res.display_text.take().map_err(to_parse_error)?)?;
+                let url_matcher = Matcher::try_from(res.url_text.take().map_err(to_parse_error)?)?;
                 let link_matcher = LinklikeMatcher {
                     display_matcher,
                     url_matcher,
@@ -190,13 +116,13 @@ impl TryFrom<Pair<'_>> for Selector {
             }
             Rule::select_block_quote => {
                 let res = BlockQuoteTraverser::traverse(children);
-                let matcher = Matcher::take_from_option(res.text.take().map_err(to_parse_error)?)?;
+                let matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
                 Ok(Self::BlockQuote(matcher))
             }
             Rule::select_code_block => {
                 let res = CodeBlockTraverser::traverse(children);
-                let language_matcher = Matcher::take_from_option(res.language.take().map_err(to_parse_error)?)?;
-                let contents_matcher = Matcher::take_from_option(res.text.take().map_err(to_parse_error)?)?;
+                let language_matcher = Matcher::try_from(res.language.take().map_err(to_parse_error)?)?;
+                let contents_matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
                 Ok(Self::CodeBlock(CodeBlockMatcher {
                     language: language_matcher,
                     contents: contents_matcher,
@@ -204,12 +130,12 @@ impl TryFrom<Pair<'_>> for Selector {
             }
             Rule::select_html => {
                 let res = HtmlTraverser::traverse(children);
-                let matcher = Matcher::take_from_option(res.text.take().map_err(to_parse_error)?)?;
+                let matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
                 Ok(Self::Html(matcher))
             }
             Rule::select_paragraph => {
                 let res = ParagraphTraverser::traverse(children);
-                let matcher = Matcher::take_from_option(res.text.take().map_err(to_parse_error)?)?;
+                let matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
                 Ok(Self::Paragraph(matcher))
             }
             Rule::select_table => {
@@ -219,14 +145,14 @@ impl TryFrom<Pair<'_>> for Selector {
                     None => DetachedSpan::from(span),
                     Some(column_matcher_span) => DetachedSpan::from(column_matcher_span),
                 };
-                let column_matcher = Matcher::take_from_option(column_matcher_span)?;
+                let column_matcher = Matcher::try_from(column_matcher_span)?;
                 if matches!(column_matcher, Matcher::Any(AnyVariant::Implicit)) {
                     return Err(ParseError::Other(
                         detached_span,
                         "table column matcher cannot empty; use an explicit \"*\"".to_string(),
                     ));
                 }
-                let row_matcher = Matcher::take_from_option(res.row.take().map_err(to_parse_error)?)?;
+                let row_matcher = Matcher::try_from(res.row.take().map_err(to_parse_error)?)?;
                 Ok(Self::TableSlice(TableSliceMatcher {
                     column: column_matcher,
                     row: row_matcher,
@@ -287,13 +213,14 @@ mod tests {
                     (matcher, remaining)
                 }
             };
-            let matcher = Matcher::take_from_option(only_pair)?;
+            let matcher = Matcher::try_from(only_pair)?;
             Ok((matcher, remaining))
         }
     }
 
     mod chaining {
         use super::*;
+        use crate::select::matchers::AnyVariant;
 
         #[test]
         fn totally_empty() {
@@ -356,6 +283,7 @@ mod tests {
 
     mod section {
         use super::*;
+        use crate::select::matchers::AnyVariant;
 
         #[test]
         fn section_no_matcher() {
@@ -370,6 +298,7 @@ mod tests {
 
     mod list_item {
         use super::*;
+        use crate::select::matchers::AnyVariant;
         use indoc::indoc;
 
         #[test]
@@ -523,6 +452,7 @@ mod tests {
 
     mod link {
         use super::*;
+        use crate::select::matchers::AnyVariant;
 
         #[test]
         fn link_no_matchers() {
@@ -593,6 +523,7 @@ mod tests {
 
     mod block_quote {
         use super::*;
+        use crate::select::matchers::AnyVariant;
 
         #[test]
         fn block_quote_no_matcher() {
@@ -618,6 +549,7 @@ mod tests {
 
     mod code_block {
         use super::*;
+        use crate::select::matchers::AnyVariant;
 
         #[test]
         fn code_block_no_matchers() {
@@ -677,6 +609,7 @@ mod tests {
 
     mod html {
         use super::*;
+        use crate::select::matchers::AnyVariant;
         use indoc::indoc;
 
         #[test]
@@ -720,6 +653,7 @@ mod tests {
 
     mod paragraph {
         use super::*;
+        use crate::select::matchers::AnyVariant;
 
         #[test]
         fn paragraph_no_matcher() {
@@ -742,6 +676,7 @@ mod tests {
 
     mod table {
         use super::*;
+        use crate::select::matchers::AnyVariant;
         use indoc::indoc;
 
         #[test]

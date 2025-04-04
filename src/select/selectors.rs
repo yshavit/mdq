@@ -1,4 +1,4 @@
-use crate::query::{CodeBlockMatcher, LinklikeMatcher, ListItemMatcher, Matcher, TableSliceMatcher};
+use crate::select::matchers::{CodeBlockMatcher, LinklikeMatcher, ListItemMatcher, Matcher, TableSliceMatcher};
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct SelectorChain {
