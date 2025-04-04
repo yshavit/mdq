@@ -1,6 +1,5 @@
 use crate::query;
 use crate::query::{Pairs, Query};
-use crate::query::{Selector as ParsedSelector, SelectorChain};
 use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_link_like::{ImageSelector, LinkSelector};
 use crate::select::sel_list_item::ListItemSelector;
@@ -9,6 +8,7 @@ use crate::select::sel_single_matcher::BlockQuoteSelector;
 use crate::select::sel_single_matcher::HtmlSelector;
 use crate::select::sel_single_matcher::ParagraphSelector;
 use crate::select::sel_table::TableSliceSelector;
+use crate::select::selectors::{Selector as ParsedSelector, SelectorChain};
 use crate::tree::{FootnoteId, Formatting, Inline, Link, MdContext, Text, TextVariant};
 use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use paste::paste;

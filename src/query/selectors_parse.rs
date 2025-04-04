@@ -5,6 +5,7 @@ use crate::query::traversal_composites::{
     BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, ParagraphTraverser,
     SectionResults, SectionTraverser, TableTraverser,
 };
+use crate::select::selectors::{Selector, SelectorChain};
 use crate::select::{DetachedSpan, ParseError};
 use regex::Regex;
 
@@ -120,24 +121,6 @@ pub struct CodeBlockMatcher {
 pub struct TableSliceMatcher {
     pub column: Matcher,
     pub row: Matcher,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub struct SelectorChain {
-    pub selectors: Vec<Selector>,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub enum Selector {
-    Section(Matcher),
-    ListItem(ListItemMatcher),
-    Link(LinklikeMatcher),
-    Image(LinklikeMatcher),
-    BlockQuote(Matcher),
-    CodeBlock(CodeBlockMatcher),
-    Html(Matcher),
-    Paragraph(Matcher),
-    TableSlice(TableSliceMatcher),
 }
 
 impl TryFrom<Pairs<'_>> for SelectorChain {
