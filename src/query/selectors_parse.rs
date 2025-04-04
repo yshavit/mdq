@@ -6,8 +6,7 @@ use crate::query::traversal_composites::{
     SectionResults, SectionTraverser, TableTraverser,
 };
 use crate::select::matchers::*;
-use crate::select::selectors::{Selector, SelectorChain};
-use crate::select::{DetachedSpan, ParseError};
+use crate::select::*;
 use regex::Regex;
 
 impl TryFrom<Option<Pair<'_>>> for Matcher {
