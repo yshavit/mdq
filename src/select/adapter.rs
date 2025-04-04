@@ -49,15 +49,15 @@ impl From<query::Error> for ParseError {
     }
 }
 
-/// Like a [pest::Span], but without a reference to the underlying `&str`, and thus cheaply Copyable.
+/// Like a [Span], but without a reference to the underlying `&str`, and thus cheaply Copyable.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
 pub struct DetachedSpan {
     pub start: usize,
     pub end: usize,
 }
 
-impl From<pest::Span<'_>> for DetachedSpan {
-    fn from(value: pest::Span) -> Self {
+impl From<Span<'_>> for DetachedSpan {
+    fn from(value: Span) -> Self {
         Self {
             start: value.start(),
             end: value.end(),

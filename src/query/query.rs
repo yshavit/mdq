@@ -2,9 +2,6 @@ use pest::Parser;
 use pest_derive::Parser;
 use std::fmt::Debug;
 
-#[cfg(test)]
-pub use crate::query::query::test_helpers::StringVariant;
-
 #[derive(Parser)]
 #[grammar = "query/grammar.pest"]
 struct QueryPairs;
@@ -68,6 +65,9 @@ impl Query {
         })
     }
 }
+
+#[cfg(test)]
+pub use crate::query::query::test_helpers::StringVariant;
 
 /// Test-only helpers for parsing strings directly, for more direct testing of those grammar rules.
 #[cfg(test)]
