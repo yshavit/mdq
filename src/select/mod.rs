@@ -1,4 +1,4 @@
-mod api;
+mod adapter;
 mod match_selector;
 pub mod matchers;
 mod sel_code_block;
@@ -9,4 +9,4 @@ mod sel_single_matcher;
 mod sel_table;
 pub mod selectors;
 
-pub use api::*;
+pub use adapter::*;
