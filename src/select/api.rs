@@ -122,7 +122,7 @@ impl SelectorAdapter {
     pub fn parse(text: &str) -> Result<Vec<Self>, ParseError> {
         let parsed: Pairs = Query::parse(text).map_err(|err| ParseError::from(err))?;
         let parsed_selectors = ParsedSelector::from_top_pairs(parsed).map_err(|e| ParseError::from(e))?;
-        Ok(parsed_selectors.into_iter().map(|s| s.into()).collect())
+        Ok(parsed_selectors.selectors.into_iter().map(|s| s.into()).collect())
     }
 
     pub fn find_nodes<'md>(&self, ctx: &'md MdContext, nodes: Vec<MdElemRef<'md>>) -> Vec<MdElemRef<'md>> {

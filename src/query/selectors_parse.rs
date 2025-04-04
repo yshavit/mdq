@@ -141,20 +141,20 @@ pub enum Selector {
 }
 
 impl Selector {
-    pub fn from_top_pairs(root: Pairs) -> Result<Vec<Self>, ParseError> {
+    pub fn from_top_pairs(root: Pairs) -> Result<SelectorChain, ParseError> {
         // Get "all" the selector chains; there should be at most 1.
         let selector_chains = ByRule::new(Rule::selector_chain).find_all_in(root);
-        let mut all_selectors: Vec<Self> = Vec::new();
+        let mut selectors: Vec<Self> = Vec::new();
         for chain in selector_chains {
             // within the chain, get the selectors; for each one, get its inners (there should be exactly one) and get
             // its selector.
             let selector_inners = ByRule::new(Rule::selector).find_all_in(chain.into_inner());
             for selector_pair in selector_inners {
                 let selector = Self::find_selector(selector_pair)?;
-                all_selectors.push(selector);
+                selectors.push(selector);
             }
         }
-        Ok(all_selectors)
+        Ok(SelectorChain { selectors })
     }
 
     fn find_selector(root: Pair) -> Result<Self, ParseError> {
@@ -865,7 +865,7 @@ mod tests {
         };
 
         let result = Selector::from_top_pairs(pairs);
-        assert_eq!(result, Ok(expect));
+        assert_eq!(result.map(|chain| chain.selectors), Ok(expect));
     }
 
     fn expect_parse_error(query_text: &str, expect: &str) {
