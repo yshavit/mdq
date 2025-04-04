@@ -1,5 +1,6 @@
 use crate::query;
 use crate::query::{Pairs, Query};
+use crate::select::match_selector::Selector;
 use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_link_like::{ImageSelector, LinkSelector};
 use crate::select::sel_list_item::ListItemSelector;
@@ -15,10 +16,6 @@ use paste::paste;
 use pest::error::ErrorVariant;
 use pest::Span;
 use std::collections::HashSet;
-
-pub trait Selector<'md, I: Into<MdElemRef<'md>>> {
-    fn try_select(&self, item: I) -> Option<MdElemRef<'md>>;
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParseError {

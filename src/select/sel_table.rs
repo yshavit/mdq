@@ -1,6 +1,6 @@
 use crate::matcher::StringMatcher;
+use crate::select::match_selector::Selector;
 use crate::select::matchers::TableSliceMatcher;
-use crate::select::Selector;
 use crate::tree_ref::{MdElemRef, TableSlice};
 
 #[derive(Debug, PartialEq)]
@@ -40,7 +40,6 @@ impl From<TableSliceMatcher> for TableSliceSelector {
 mod tests {
     use super::*;
 
-    use crate::select::Selector;
     use crate::tree::{Inline, Line, Table, Text, TextVariant};
     use crate::utils_for_test::*;
     use markdown::mdast;
