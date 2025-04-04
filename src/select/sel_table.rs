@@ -1,5 +1,5 @@
 use crate::matcher::StringMatcher;
-use crate::select::match_selector::Selector;
+use crate::select::match_selector::SelectorAction;
 use crate::select::matchers::TableSliceMatcher;
 use crate::tree_ref::{MdElemRef, TableSlice};
 
@@ -9,7 +9,7 @@ pub struct TableSliceSelector {
     rows_matcher: StringMatcher,
 }
 
-impl<'md> Selector<'md, TableSlice<'md>> for TableSliceSelector {
+impl<'md> SelectorAction<'md, TableSlice<'md>> for TableSliceSelector {
     fn try_select(&self, slice: TableSlice<'md>) -> Option<MdElemRef<'md>> {
         let mut slice = slice.clone(); // GH #168 is there any way to avoid this? There may not be.
         slice.normalize();

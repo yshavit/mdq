@@ -1,16 +1,16 @@
 use crate::tree_ref::MdElemRef;
 
-/// MatchSelector is a helper trait for implementing [Selector]. Simply provide the boolean predicate for whether a
+/// MatchSelector is a helper trait for implementing [SelectorAction]. Simply provide the boolean predicate for whether a
 /// given item matches, and MatchSelector will do the rest.
 pub trait MatchSelector<I> {
     fn matches(&self, item: I) -> bool;
 }
 
-pub trait Selector<'md, I: Into<MdElemRef<'md>>> {
+pub trait SelectorAction<'md, I: Into<MdElemRef<'md>>> {
     fn try_select(&self, item: I) -> Option<MdElemRef<'md>>;
 }
 
-impl<'md, I, M> Selector<'md, I> for M
+impl<'md, I, M> SelectorAction<'md, I> for M
 where
     I: Copy + Into<MdElemRef<'md>>,
     M: MatchSelector<I>,

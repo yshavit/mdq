@@ -1,6 +1,6 @@
 use crate::query;
 use crate::query::{Pairs, Query};
-use crate::select::match_selector::Selector;
+use crate::select::match_selector::SelectorAction;
 use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_link_like::{ImageSelector, LinkSelector};
 use crate::select::sel_list_item::ListItemSelector;
@@ -10,6 +10,7 @@ use crate::select::sel_single_matcher::HtmlSelector;
 use crate::select::sel_single_matcher::ParagraphSelector;
 use crate::select::sel_table::TableSliceSelector;
 use crate::select::selectors::{Selector as ParsedSelector, SelectorChain};
+use crate::select::Selector;
 use crate::tree::{FootnoteId, Formatting, Inline, Link, MdContext, Text, TextVariant};
 use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use paste::paste;
@@ -119,7 +120,7 @@ impl SelectorAdapter {
     pub fn parse(text: &str) -> Result<Vec<Self>, ParseError> {
         let parsed: Pairs = Query::parse(text).map_err(|err| ParseError::from(err))?;
         let parsed_selectors = SelectorChain::try_from(parsed).map_err(|e| ParseError::from(e))?;
-        Ok(parsed_selectors.selectors.into_iter().map(|s| s.into()).collect())
+        Ok(parsed_selectors.selectors.into_iter().map(|s| Self::from(s)).collect())
     }
 
     pub fn find_nodes<'md>(&self, ctx: &'md MdContext, nodes: Vec<MdElemRef<'md>>) -> Vec<MdElemRef<'md>> {
