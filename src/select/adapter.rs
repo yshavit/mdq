@@ -1,5 +1,4 @@
 use crate::query;
-use crate::query::{Pairs, Query};
 use crate::select::match_selector::SelectorAction;
 use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_link_like::{ImageSelector, LinkSelector};
@@ -9,8 +8,7 @@ use crate::select::sel_single_matcher::BlockQuoteSelector;
 use crate::select::sel_single_matcher::HtmlSelector;
 use crate::select::sel_single_matcher::ParagraphSelector;
 use crate::select::sel_table::TableSliceSelector;
-use crate::select::selectors::{Selector as ParsedSelector, SelectorChain};
-use crate::select::Selector;
+use crate::select::selectors::Selector as ParsedSelector;
 use crate::tree::{FootnoteId, Formatting, Inline, Link, MdContext, Text, TextVariant};
 use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use paste::paste;
@@ -117,22 +115,7 @@ adapters! {
 }
 
 impl SelectorAdapter {
-    pub fn parse(text: &str) -> Result<Vec<Self>, ParseError> {
-        let parsed: Pairs = Query::parse(text).map_err(|err| ParseError::from(err))?;
-        let parsed_selectors = SelectorChain::try_from(parsed).map_err(|e| ParseError::from(e))?;
-        Ok(parsed_selectors.selectors.into_iter().map(|s| Self::from(s)).collect())
-    }
-
-    pub fn find_nodes<'md>(&self, ctx: &'md MdContext, nodes: Vec<MdElemRef<'md>>) -> Vec<MdElemRef<'md>> {
-        let mut result = Vec::with_capacity(8); // arbitrary guess
-        let mut search_context = SearchContext::new(ctx);
-        for node in nodes {
-            self.build_output(&mut result, &mut search_context, node);
-        }
-        result
-    }
-
-    fn build_output<'md>(&self, out: &mut Vec<MdElemRef<'md>>, ctx: &mut SearchContext<'md>, node: MdElemRef<'md>) {
+    pub fn build_output<'md>(&self, out: &mut Vec<MdElemRef<'md>>, ctx: &mut SearchContext<'md>, node: MdElemRef<'md>) {
         // GH #168 can we remove the clone()? Maybe by having try_select_node take a reference.
         match self.try_select_node(node.clone()) {
             Some(found) => out.push(found),
@@ -219,13 +202,13 @@ impl SelectorAdapter {
     }
 }
 
-struct SearchContext<'md> {
+pub struct SearchContext<'md> {
     md_context: &'md MdContext,
     seen_footnotes: HashSet<&'md FootnoteId>,
 }
 
 impl<'md> SearchContext<'md> {
-    fn new(ctx: &'md MdContext) -> Self {
+    pub fn new(ctx: &'md MdContext) -> Self {
         Self {
             md_context: ctx,
             seen_footnotes: HashSet::with_capacity(4), // guess

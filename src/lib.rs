@@ -2,7 +2,7 @@ use crate::fmt_md::MdOptions;
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
 use crate::fmt_plain::PlainOutputOpts;
 use crate::output::{OutputOpts, Stream};
-use crate::select::{ParseError, SelectorAdapter};
+use crate::select::{ParseError, Selector};
 use crate::tree::{InvalidMd, MdDoc, ReadOptions};
 use crate::tree_ref::MdElemRef;
 use crate::tree_ref_serde::SerdeDoc;
@@ -161,7 +161,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
     };
 
     let selectors_str = cli.selector_string();
-    let selectors = match SelectorAdapter::parse(&selectors_str) {
+    let selectors = match Selector::parse(&selectors_str) {
         Ok(selectors) => selectors,
         Err(error) => {
             return Err(Error::QueryParse {

@@ -52,7 +52,7 @@ pub enum ListItemTask {
     None,
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ListItemMatcher {
     pub ordered: bool,
     pub task: ListItemTask,
@@ -65,13 +65,13 @@ pub struct LinklikeMatcher {
     pub url_matcher: Matcher,
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct CodeBlockMatcher {
     pub language: Matcher,
     pub contents: Matcher,
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct TableSliceMatcher {
     pub column: Matcher,
     pub row: Matcher,
