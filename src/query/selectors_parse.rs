@@ -152,7 +152,7 @@ impl TryFrom<Pairs<'_>> for SelectorChain {
             // its selector.
             let selector_inners = ByRule::new(Rule::selector).find_all_in(chain.into_inner());
             for selector_pair in selector_inners {
-                let selector = Selector::find_selector(selector_pair)?;
+                let selector = Selector::try_from(selector_pair)?;
                 selectors.push(selector);
             }
         }
@@ -160,8 +160,10 @@ impl TryFrom<Pairs<'_>> for SelectorChain {
     }
 }
 
-impl Selector {
-    fn find_selector(root: Pair) -> Result<Self, ParseError> {
+impl TryFrom<Pair<'_>> for Selector {
+    type Error = ParseError;
+
+    fn try_from(root: Pair) -> Result<Self, Self::Error> {
         let span = DetachedSpan::from(&root);
         let to_parse_error = |es: String| -> ParseError { ParseError::Other(span, es) };
 
@@ -252,7 +254,7 @@ impl Selector {
                 // (there should only be one) will get us the actual, concrete selector for this selector union.
                 let mut one = OneOf::default();
                 for child in children {
-                    let found_in_child = Self::find_selector(child)?;
+                    let found_in_child = Self::try_from(child)?;
                     one.store(found_in_child);
                 }
                 let maybe = one.take().map_err(to_parse_error)?;
