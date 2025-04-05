@@ -13,7 +13,7 @@ use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use paste::paste;
 use std::collections::HashSet;
 
-pub trait Selector<'md, I: Into<MdElemRef<'md>>> {
+pub trait TrySelector<'md, I: Into<MdElemRef<'md>>> {
     fn try_select(&self, item: I) -> Option<MdElemRef<'md>>;
 }
 
