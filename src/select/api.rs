@@ -1,6 +1,5 @@
-use crate::query;
-use crate::query::Selector as ParsedSelector;
-use crate::query::{Pairs, Query};
+use crate::query::{Pairs, Query, SelectorChain};
+use crate::query::{ParseError, Selector as ParsedSelector};
 use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_link_like::{ImageSelector, LinkSelector};
 use crate::select::sel_list_item::ListItemSelector;
@@ -12,66 +11,10 @@ use crate::select::sel_table::TableSliceSelector;
 use crate::tree::{FootnoteId, Formatting, Inline, Link, MdContext, Text, TextVariant};
 use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use paste::paste;
-use pest::error::ErrorVariant;
-use pest::Span;
 use std::collections::HashSet;
 
 pub trait Selector<'md, I: Into<MdElemRef<'md>>> {
     fn try_select(&self, item: I) -> Option<MdElemRef<'md>>;
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ParseError {
-    Pest(query::Error),
-    Other(DetachedSpan, String),
-}
-
-impl ParseError {
-    pub fn to_string(&self, query_text: &str) -> String {
-        match self {
-            ParseError::Pest(e) => format!("{e}"),
-            ParseError::Other(span, message) => match Span::new(query_text, span.start, span.end) {
-                None => format!("{message}"),
-                Some(span) => {
-                    let pest_err = query::Error::new_from_span(
-                        ErrorVariant::CustomError {
-                            message: message.to_string(),
-                        },
-                        span,
-                    );
-                    pest_err.to_string()
-                }
-            },
-        }
-    }
-}
-
-impl From<query::Error> for ParseError {
-    fn from(err: query::Error) -> Self {
-        Self::Pest(err)
-    }
-}
-
-/// Like a [pest::Span], but without a reference to the underlying `&str`, and thus cheaply Copyable.
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
-pub struct DetachedSpan {
-    pub start: usize,
-    pub end: usize,
-}
-
-impl From<pest::Span<'_>> for DetachedSpan {
-    fn from(value: pest::Span) -> Self {
-        Self {
-            start: value.start(),
-            end: value.end(),
-        }
-    }
-}
-
-impl From<&query::Pair<'_>> for DetachedSpan {
-    fn from(value: &query::Pair<'_>) -> Self {
-        value.as_span().into()
-    }
 }
 
 macro_rules! adapters {
@@ -121,8 +64,8 @@ adapters! {
 impl SelectorAdapter {
     pub fn parse(text: &str) -> Result<Vec<Self>, ParseError> {
         let parsed: Pairs = Query::parse(text).map_err(|err| ParseError::from(err))?;
-        let parsed_selectors = ParsedSelector::from_top_pairs(parsed).map_err(|e| ParseError::from(e))?;
-        Ok(parsed_selectors.into_iter().map(|s| s.into()).collect())
+        let parsed_selectors = SelectorChain::try_from(parsed).map_err(|e| ParseError::from(e))?;
+        Ok(parsed_selectors.selectors.into_iter().map(|s| s.into()).collect())
     }
 
     pub fn find_nodes<'md>(&self, ctx: &'md MdContext, nodes: Vec<MdElemRef<'md>>) -> Vec<MdElemRef<'md>> {
