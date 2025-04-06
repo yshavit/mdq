@@ -1,13 +1,13 @@
-use crate::tree::{
-    BlockQuote, CodeBlock, Image, Inline, Line, Link, List, ListItem, MdElem, Paragraph, Section, Table,
-};
-use crate::vec_utils::{IndexKeeper, ItemRetainer};
+use crate::md_elem::elem::*;
+use crate::md_elem::*;
+use crate::vec_utils::ItemRetainer;
+use elem_ref::*;
 use markdown::mdast;
 
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
 /// selected.
 ///
-/// To be useful, this needs to be paired with a [crate::tree::MdContext]; otherwise, there's no
+/// To be useful, this needs to be paired with a [crate::md_elem::tree::MdContext]; otherwise, there's no
 /// way to resolve footnotes. Because we almost always want that pairing together, the helper struct
 /// [MdRef] does just that.
 ///
@@ -39,124 +39,129 @@ pub enum MdElemRef<'md> {
     TableSlice(TableSlice<'md>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ListItemRef<'md>(pub Option<u32>, pub &'md ListItem);
+pub mod elem_ref {
+    use super::*;
+    use crate::vec_utils::IndexKeeper;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct HtmlRef<'md>(pub &'md String);
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct ListItemRef<'md>(pub Option<u32>, pub &'md ListItem);
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct TableSlice<'md> {
-    alignments: Vec<mdast::AlignKind>,
-    rows: Vec<TableRowSlice<'md>>,
-}
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct HtmlRef<'md>(pub &'md String);
 
-pub type TableRowSlice<'md> = Vec<Option<&'md Line>>;
-
-impl<'md> From<&'md Table> for TableSlice<'md> {
-    fn from(table: &'md Table) -> Self {
-        let alignments = table.alignments.clone();
-        let mut rows = Vec::with_capacity(table.rows.len());
-        for table_row in &table.rows {
-            let cols: Vec<_> = table_row.iter().map(Some).collect();
-            rows.push(cols);
-        }
-        Self { alignments, rows }
-    }
-}
-
-impl<'md> TableSlice<'md> {
-    pub fn alignments(&self) -> &Vec<mdast::AlignKind> {
-        &self.alignments
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct TableSlice<'md> {
+        pub(crate) alignments: Vec<mdast::AlignKind>,
+        pub(crate) rows: Vec<TableRowSlice<'md>>,
     }
 
-    pub fn rows(&self) -> &Vec<TableRowSlice<'md>> {
-        &self.rows
-    }
+    pub type TableRowSlice<'md> = Vec<Option<&'md Line>>;
 
-    /// Normalizes this slice, so that every row has the same number of columns.
-    ///
-    /// If the table is jagged, all jagged rows will be filled in with [None] cells. Any missing
-    /// alignments will be filled in as `None`.
-    /// This is a departure from the Markdown standard, which specifies that the first row defines
-    /// the number of rows, and extras are discarded.
-    pub fn normalize(&mut self) {
-        let max_cols = self.rows.iter().map(Vec::len).max().unwrap_or(0);
-
-        for row in &mut self.rows {
-            let n_missing = max_cols - row.len();
-            for _ in 0..n_missing {
-                row.push(None);
+    impl<'md> From<&'md Table> for TableSlice<'md> {
+        fn from(table: &'md Table) -> Self {
+            let alignments = table.alignments.clone();
+            let mut rows = Vec::with_capacity(table.rows.len());
+            for table_row in &table.rows {
+                let cols: Vec<_> = table_row.iter().map(Some).collect();
+                rows.push(cols);
             }
-        }
-        if self.alignments.len() > max_cols {
-            self.alignments.truncate(max_cols);
-        } else {
-            let nones = [mdast::AlignKind::None]
-                .iter()
-                .cycle()
-                .take(max_cols - self.alignments.len());
-            self.alignments.extend(nones);
+            Self { alignments, rows }
         }
     }
 
-    pub fn retain_columns_by_header<F>(&mut self, mut f: F)
-    where
-        F: FnMut(&Line) -> bool,
-    {
-        let Some(first_row) = self.rows.first() else {
-            return;
-        };
-        let mut keeper_indices = IndexKeeper::new();
-        keeper_indices.retain_when(first_row, |_, opt_cell| {
-            let empty_cell = Line::new();
-            let resolved_cell = opt_cell.unwrap_or(&empty_cell);
-            f(resolved_cell)
-        });
+    impl<'md> TableSlice<'md> {
+        pub fn alignments(&self) -> &Vec<mdast::AlignKind> {
+            &self.alignments
+        }
 
-        match keeper_indices.count_keeps() {
-            0 => {
-                // no columns match: clear everything out
-                self.alignments.clear();
-                self.rows.clear();
-                return;
-            }
-            n if n == first_row.len() => {
-                // all columns match: no need to go one by one, just return without modifications
-                return;
-            }
-            _ => {
-                // some columns match: retain those, and discard the rest
-                self.alignments.retain_with_index(keeper_indices.retain_fn());
-                for row in self.rows.iter_mut() {
-                    row.retain_with_index(keeper_indices.retain_fn());
+        pub fn rows(&self) -> &Vec<TableRowSlice<'md>> {
+            &self.rows
+        }
+
+        /// Normalizes this slice, so that every row has the same number of columns.
+        ///
+        /// If the table is jagged, all jagged rows will be filled in with [None] cells. Any missing
+        /// alignments will be filled in as `None`.
+        /// This is a departure from the Markdown standard, which specifies that the first row defines
+        /// the number of rows, and extras are discarded.
+        pub fn normalize(&mut self) {
+            let max_cols = self.rows.iter().map(Vec::len).max().unwrap_or(0);
+
+            for row in &mut self.rows {
+                let n_missing = max_cols - row.len();
+                for _ in 0..n_missing {
+                    row.push(None);
                 }
             }
-        }
-    }
-
-    pub fn retain_rows<F>(&mut self, mut f: F)
-    where
-        F: FnMut(&Line) -> bool,
-    {
-        self.rows.retain_with_index(|idx, row| {
-            if idx == 0 {
-                return true;
+            if self.alignments.len() > max_cols {
+                self.alignments.truncate(max_cols);
+            } else {
+                let nones = [mdast::AlignKind::None]
+                    .iter()
+                    .cycle()
+                    .take(max_cols - self.alignments.len());
+                self.alignments.extend(nones);
             }
-            row.iter().any(|opt_cell| {
+        }
+
+        pub fn retain_columns_by_header<F>(&mut self, mut f: F)
+        where
+            F: FnMut(&Line) -> bool,
+        {
+            let Some(first_row) = self.rows.first() else {
+                return;
+            };
+            let mut keeper_indices = IndexKeeper::new();
+            keeper_indices.retain_when(first_row, |_, opt_cell| {
                 let empty_cell = Line::new();
                 let resolved_cell = opt_cell.unwrap_or(&empty_cell);
                 f(resolved_cell)
-            })
-        });
-    }
+            });
 
-    pub fn is_empty(&self) -> bool {
-        // We always keep the first row; but if we then removed all the other rows, this TableSlice is empty.
-        if self.rows.len() <= 1 {
-            return true;
+            match keeper_indices.count_keeps() {
+                0 => {
+                    // no columns match: clear everything out
+                    self.alignments.clear();
+                    self.rows.clear();
+                    return;
+                }
+                n if n == first_row.len() => {
+                    // all columns match: no need to go one by one, just return without modifications
+                    return;
+                }
+                _ => {
+                    // some columns match: retain those, and discard the rest
+                    self.alignments.retain_with_index(keeper_indices.retain_fn());
+                    for row in self.rows.iter_mut() {
+                        row.retain_with_index(keeper_indices.retain_fn());
+                    }
+                }
+            }
         }
-        self.rows.iter().all(Vec::is_empty)
+
+        pub fn retain_rows<F>(&mut self, mut f: F)
+        where
+            F: FnMut(&Line) -> bool,
+        {
+            self.rows.retain_with_index(|idx, row| {
+                if idx == 0 {
+                    return true;
+                }
+                row.iter().any(|opt_cell| {
+                    let empty_cell = Line::new();
+                    let resolved_cell = opt_cell.unwrap_or(&empty_cell);
+                    f(resolved_cell)
+                })
+            });
+        }
+
+        pub fn is_empty(&self) -> bool {
+            // We always keep the first row; but if we then removed all the other rows, this TableSlice is empty.
+            if self.rows.len() <= 1 {
+                return true;
+            }
+            self.rows.iter().all(Vec::is_empty)
+        }
     }
 }
 
@@ -244,9 +249,10 @@ impl<'md> From<TableSlice<'md>> for MdElemRef<'md> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     mod tables {
-        use crate::tree::{Inline, Line, Table, Text, TextVariant};
-        use crate::tree_ref::TableSlice;
+        use super::*;
         use markdown::mdast;
 
         #[test]

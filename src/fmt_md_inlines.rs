@@ -1,10 +1,8 @@
 use crate::footnote_transform::FootnoteTransformer;
 use crate::link_transform::{LinkLabel, LinkTransform, LinkTransformation, LinkTransformer};
+use crate::md_elem::elem::*;
+use crate::md_elem::*;
 use crate::output::{Output, SimpleWrite};
-use crate::tree::{
-    FootnoteId, Formatting, FormattingVariant, Image, Inline, Link, LinkDefinition, LinkReference, MdContext, MdElem,
-    Text, TextVariant,
-};
 use serde::Serialize;
 use std::borrow::Cow;
 use std::cmp::max;
@@ -133,11 +131,11 @@ impl<'md> MdInlinesWriter<'md> {
         W: SimpleWrite,
     {
         match elem {
-            Inline::Formatting(Formatting { variant, children }) => {
+            Inline::Span(Span { variant, children }) => {
                 let surround = match variant {
-                    FormattingVariant::Delete => "~~",
-                    FormattingVariant::Emphasis => "_",
-                    FormattingVariant::Strong => "**",
+                    SpanVariant::Delete => "~~",
+                    SpanVariant::Emphasis => "_",
+                    SpanVariant::Strong => "**",
                 };
                 out.write_str(surround);
                 self.write_line(out, children);
@@ -235,7 +233,7 @@ impl<'md> MdInlinesWriter<'md> {
                 Inline::Footnote(footnote) => {
                     self.add_footnote(footnote);
                 }
-                Inline::Formatting(item) => {
+                Inline::Span(item) => {
                     self.find_references_in_footnote_inlines(&item.children);
                 }
                 Inline::Link(link) => {
@@ -456,7 +454,6 @@ impl TitleQuote {
 mod tests {
     use super::*;
     use crate::output::{Output, OutputOpts};
-    use crate::tree::{MdDoc, ReadOptions};
     use crate::utils_for_test::*;
 
     mod title_quoting {

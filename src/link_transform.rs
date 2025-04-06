@@ -1,6 +1,7 @@
 use crate::fmt_md_inlines::{LinkLike, MdInlinesWriter, MdInlinesWriterOptions};
+use crate::md_elem::elem::*;
+use crate::md_elem::*;
 use crate::output::Output;
-use crate::tree::{Inline, LinkReference, MdContext};
 use clap::ValueEnum;
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
@@ -204,8 +205,6 @@ fn inlines_to_string<'md>(inline_writer: &mut MdInlinesWriter<'md>, inlines: &'m
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tree::{Link, LinkDefinition, MdContext, Text, TextVariant};
-    use crate::tree_test_utils::*;
     use crate::utils_for_test::*;
 
     enum Combo {
@@ -300,7 +299,6 @@ mod tests {
 
     mod reference {
         use super::*;
-        use crate::tree::{Formatting, FormattingVariant};
 
         #[test]
         fn inline() {
@@ -403,8 +401,8 @@ mod tests {
         fn shortcut_label_inlines_are_emphasized_number() {
             Given {
                 transform: LinkTransform::Reference,
-                label: Inline::Formatting(Formatting {
-                    variant: FormattingVariant::Emphasis,
+                label: Inline::Span(Span {
+                    variant: SpanVariant::Emphasis,
                     children: vec![Inline::Text(Text {
                         variant: TextVariant::Plain,
                         value: "123".to_string(),

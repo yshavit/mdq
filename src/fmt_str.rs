@@ -1,4 +1,4 @@
-use crate::tree::{Formatting, Image, Inline, Link, Text};
+use crate::md_elem::elem::*;
 use std::borrow::Borrow;
 
 pub fn inlines_to_plain_string<N: Borrow<Inline>>(inlines: &[N]) -> String {
@@ -15,7 +15,7 @@ fn build_inlines<N: Borrow<Inline>>(out: &mut String, inlines: &[N]) {
 
 fn build_inline(out: &mut String, elem: &Inline) {
     match elem {
-        Inline::Formatting(Formatting { children, .. }) => build_inlines(out, children),
+        Inline::Span(Span { children, .. }) => build_inlines(out, children),
         Inline::Text(Text { value, .. }) => out.push_str(value),
         Inline::Link(Link { text, .. }) => build_inlines(out, text),
         Inline::Image(Image { alt, .. }) => out.push_str(alt),
@@ -30,16 +30,16 @@ fn build_inline(out: &mut String, elem: &Inline) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::md_elem::*;
     use indoc::indoc;
 
-    use crate::tree::{FormattingVariant, Inline, MdDoc, MdElem, ReadOptions, TextVariant};
     use crate::utils_for_test::*;
     use markdown::ParseOptions;
 
     variants_checker!(VARIANTS_CHECKER = Inline {
-        Formatting(Formatting{ variant: FormattingVariant::Delete, .. }),
-        Formatting(Formatting{ variant: FormattingVariant::Emphasis, .. }),
-        Formatting(Formatting{ variant: FormattingVariant::Strong, .. }),
+        Span(Span{ variant: SpanVariant::Delete, .. }),
+        Span(Span{ variant: SpanVariant::Emphasis, .. }),
+        Span(Span{ variant: SpanVariant::Strong, .. }),
         Text(Text { variant: TextVariant::Plain, .. }),
         Text(Text { variant: TextVariant::Code, .. }),
         Text(Text { variant: TextVariant::Math, .. }),
