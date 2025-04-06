@@ -1,4 +1,4 @@
-use crate::tree::{Formatting, Image, Inline, Link, Text};
+use crate::md_elem::*;
 use std::borrow::Borrow;
 
 pub fn inlines_to_plain_string<N: Borrow<Inline>>(inlines: &[N]) -> String {
@@ -32,7 +32,6 @@ mod tests {
     use super::*;
     use indoc::indoc;
 
-    use crate::tree::{FormattingVariant, Inline, MdDoc, MdElem, ReadOptions, TextVariant};
     use crate::utils_for_test::*;
     use markdown::ParseOptions;
 

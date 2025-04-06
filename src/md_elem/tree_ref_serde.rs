@@ -1,8 +1,8 @@
 use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions, UrlAndTitle};
 use crate::link_transform::LinkLabel;
+use crate::md_elem::tree::{CodeBlock, CodeVariant, Inline, LinkDefinition, LinkReference, MdContext, MdElem, Section};
+use crate::md_elem::tree_ref::MdElemRef;
 use crate::output::Output;
-use crate::tree::{CodeBlock, CodeVariant, Inline, LinkDefinition, LinkReference, MdContext, MdElem, Section};
-use crate::tree_ref::MdElemRef;
 use markdown::mdast::AlignKind;
 use serde::{Serialize, Serializer};
 use std::borrow::{Borrow, Cow};
@@ -305,10 +305,10 @@ mod tests {
     use super::*;
     use crate::fmt_md_inlines::MdInlinesWriterOptions;
     use crate::link_transform::LinkTransform;
-    use crate::tree::MdElem;
-    use crate::tree::*;
-    use crate::tree_ref::ListItemRef;
-    use crate::tree_test_utils::*;
+    use crate::md_elem::tree::MdElem;
+    use crate::md_elem::tree::*;
+    use crate::md_elem::tree_ref::ListItemRef;
+    use crate::md_elem::tree_test_utils::*;
     use crate::utils_for_test::*;
 
     variants_checker!(CHECKER = MdElemRef {

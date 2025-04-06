@@ -1,4 +1,4 @@
-use crate::tree::{
+use crate::md_elem::tree::{
     BlockQuote, CodeBlock, Image, Inline, Line, Link, List, ListItem, MdElem, Paragraph, Section, Table,
 };
 use crate::vec_utils::{IndexKeeper, ItemRetainer};
@@ -7,7 +7,7 @@ use markdown::mdast;
 /// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
 /// selected.
 ///
-/// To be useful, this needs to be paired with a [crate::tree::MdContext]; otherwise, there's no
+/// To be useful, this needs to be paired with a [crate::md_elem::tree::MdContext]; otherwise, there's no
 /// way to resolve footnotes. Because we almost always want that pairing together, the helper struct
 /// [MdRef] does just that.
 ///
@@ -245,8 +245,8 @@ impl<'md> From<TableSlice<'md>> for MdElemRef<'md> {
 #[cfg(test)]
 mod tests {
     mod tables {
-        use crate::tree::{Inline, Line, Table, Text, TextVariant};
-        use crate::tree_ref::TableSlice;
+        use crate::md_elem::tree::{Inline, Line, Table, Text, TextVariant};
+        use crate::md_elem::tree_ref::TableSlice;
         use markdown::mdast;
 
         #[test]

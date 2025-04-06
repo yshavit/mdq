@@ -1,3 +1,4 @@
+use crate::md_elem::*;
 use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_link_like::{ImageSelector, LinkSelector};
 use crate::select::sel_list_item::ListItemSelector;
@@ -7,8 +8,6 @@ use crate::select::sel_single_matcher::HtmlSelector;
 use crate::select::sel_single_matcher::ParagraphSelector;
 use crate::select::sel_table::TableSliceSelector;
 use crate::select::{Selector, SelectorChain};
-use crate::tree::{FootnoteId, Formatting, Inline, Link, MdContext, Text, TextVariant};
-use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use paste::paste;
 use std::collections::HashSet;
 
@@ -177,12 +176,12 @@ impl<'md> SearchContext<'md> {
 
 #[cfg(test)]
 mod test {
+    use super::*;
+
     /// Only a smoke test, because the code is pretty straightforward, and I don't feel like writing more. :-)
     mod find_children_smoke {
+        use super::*;
         use crate::select::api::{SearchContext, SelectorAdapter};
-        use crate::tree::{Inline, Link, LinkDefinition, LinkReference, MdContext, Text, TextVariant};
-        use crate::tree_ref::MdElemRef;
-        use crate::tree_test_utils::*;
 
         #[test]
         fn link_direct() {

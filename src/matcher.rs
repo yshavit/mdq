@@ -1,6 +1,6 @@
 use crate::fmt_str::inlines_to_plain_string;
+use crate::md_elem::*;
 use crate::select::Matcher;
-use crate::tree::{Inline, MdElem};
 use regex::Regex;
 use std::borrow::Borrow;
 

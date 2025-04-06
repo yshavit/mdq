@@ -1,5 +1,5 @@
+use crate::md_elem::*;
 use crate::select::TrySelector;
-use crate::tree_ref::MdElemRef;
 
 /// MatchSelector is a helper trait for implementing [TrySelector]. Simply provide the boolean predicate for whether a
 /// given item matches, and MatchSelector will do the rest.

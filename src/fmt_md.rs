@@ -1,9 +1,8 @@
 use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
 use crate::link_transform::LinkLabel;
+use crate::md_elem::*;
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};
-use crate::tree::*;
-use crate::tree_ref::{ListItemRef, MdElemRef, TableSlice};
 use clap::ValueEnum;
 use std::borrow::Cow;
 use std::cmp::max;
@@ -500,12 +499,10 @@ enum DefinitionsToWrite {
 pub mod tests {
     use indoc::indoc;
 
+    use super::*;
     use crate::fmt_md::MdOptions;
     use crate::link_transform::LinkTransform;
     use crate::output::Output;
-    use crate::tree::*;
-    use crate::tree_ref::MdElemRef;
-    use crate::tree_test_utils::*;
     use crate::utils_for_test::*;
 
     use super::{write_md, ReferencePlacement};
@@ -860,9 +857,8 @@ pub mod tests {
     }
 
     mod list_item {
-        use crate::tree_ref::{ListItemRef, MdElemRef};
-
         use super::*;
+        use crate::md_elem::md_elems;
 
         #[test]
         fn unordered_no_checkbox() {
@@ -1467,8 +1463,6 @@ pub mod tests {
         }
 
         mod link {
-            use crate::tree::{Inline, LinkDefinition, MdElem};
-
             use super::*;
 
             #[test]
@@ -1620,8 +1614,6 @@ pub mod tests {
         }
 
         mod image {
-            use crate::tree::{Inline, LinkDefinition, MdElem};
-
             use super::*;
 
             #[test]

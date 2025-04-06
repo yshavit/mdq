@@ -88,7 +88,7 @@ mod test_utils {
     /// Converts an `MdElem` into an `MdElemRef`, checking that it got converted to the right one
     macro_rules! checked_elem_ref {
         ($input:expr => $variant:pat) => {{
-            let as_ref: crate::tree_ref::MdElemRef = (&($input)).into();
+            let as_ref: crate::md_elem::MdElemRef = (&($input)).into();
             if !matches!(as_ref, $variant) {
                 panic!(
                     "{} should have been {}, was {:?}",

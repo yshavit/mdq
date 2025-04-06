@@ -1,7 +1,7 @@
 use crate::matcher::StringMatcher;
+use crate::md_elem::*;
 use crate::select::match_selector::MatchSelector;
 use crate::select::Matcher;
-use crate::tree::Section;
 
 #[derive(Debug, PartialEq)]
 pub struct SectionSelector {

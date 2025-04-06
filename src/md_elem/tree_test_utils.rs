@@ -5,10 +5,10 @@ pub(crate) use test_utils::*;
 mod test_utils {
     macro_rules! md_elem {
         ( $($node_names:ident)::* {$($attr:ident: $val:expr),* $(,)?}) => {
-            crate::tree::m_node!(MdElem::$($node_names)::* {$($attr: $val),*})
+            crate::md_elem::m_node!(MdElem::$($node_names)::* {$($attr: $val),*})
         };
         ($paragraph_text:literal) => {
-            crate::tree::m_node!(MdElem::Paragraph{body: vec![mdq_inline!($paragraph_text)]})
+            crate::md_elem::m_node!(MdElem::Paragraph{body: vec![mdq_inline!($paragraph_text)]})
         };
     }
     pub(crate) use md_elem;
@@ -25,14 +25,14 @@ mod test_utils {
 
     macro_rules! mdq_inline {
         (span $which:ident [$($contents:expr),*$(,)?]) => {
-            crate::tree::Inline::Formatting(Formatting {
-                variant: crate::tree::FormattingVariant::$which,
+            crate::md_elem::Inline::Formatting(Formatting {
+                variant: crate::md_elem::FormattingVariant::$which,
                 children: vec![$($contents),*],
             })
         };
         ($text:literal) => {
-            crate::tree::Inline::Text(Text {
-                variant: crate::tree::TextVariant::Plain,
+            crate::md_elem::Inline::Text(Text {
+                variant: crate::md_elem::TextVariant::Plain,
                 value: $text.to_string(),
             })
         };

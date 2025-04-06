@@ -1,10 +1,7 @@
 use crate::footnote_transform::FootnoteTransformer;
 use crate::link_transform::{LinkLabel, LinkTransform, LinkTransformation, LinkTransformer};
+use crate::md_elem::*;
 use crate::output::{Output, SimpleWrite};
-use crate::tree::{
-    FootnoteId, Formatting, FormattingVariant, Image, Inline, Link, LinkDefinition, LinkReference, MdContext, MdElem,
-    Text, TextVariant,
-};
 use serde::Serialize;
 use std::borrow::Cow;
 use std::cmp::max;
@@ -456,7 +453,6 @@ impl TitleQuote {
 mod tests {
     use super::*;
     use crate::output::{Output, OutputOpts};
-    use crate::tree::{MdDoc, ReadOptions};
     use crate::utils_for_test::*;
 
     mod title_quoting {

@@ -801,7 +801,7 @@ impl Lookups {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tree_test_utils::*;
+    use crate::md_elem::tree_test_utils::*;
     use crate::utils_for_test::*;
 
     impl MdContext {

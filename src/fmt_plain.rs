@@ -1,6 +1,5 @@
 use crate::fmt_plain_writer::NewlineCollapser;
-use crate::tree::{Formatting, Image, Inline, Line, Link, List, Text};
-use crate::tree_ref::{ListItemRef, MdElemRef};
+use crate::md_elem::*;
 use std::io::{Error, LineWriter, Write};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -152,9 +151,6 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::tree::*;
-    use crate::tree_ref::{MdElemRef, TableSlice};
-    use crate::tree_test_utils::*;
     use crate::utils_for_test::*;
     use indoc::indoc;
     use markdown::mdast;
