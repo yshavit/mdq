@@ -25,7 +25,7 @@ mod test_utils {
 
     macro_rules! mdq_inline {
         (span $which:ident [$($contents:expr),*$(,)?]) => {
-            crate::md_elem::Inline::Formatting(Formatting {
+            crate::md_elem::Inline::Span(Formatting {
                 variant: crate::md_elem::FormattingVariant::$which,
                 children: vec![$($contents),*],
             })

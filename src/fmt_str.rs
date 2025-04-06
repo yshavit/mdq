@@ -15,7 +15,7 @@ fn build_inlines<N: Borrow<Inline>>(out: &mut String, inlines: &[N]) {
 
 fn build_inline(out: &mut String, elem: &Inline) {
     match elem {
-        Inline::Formatting(Formatting { children, .. }) => build_inlines(out, children),
+        Inline::Span(Span { children, .. }) => build_inlines(out, children),
         Inline::Text(Text { value, .. }) => out.push_str(value),
         Inline::Link(Link { text, .. }) => build_inlines(out, text),
         Inline::Image(Image { alt, .. }) => out.push_str(alt),
@@ -36,9 +36,9 @@ mod tests {
     use markdown::ParseOptions;
 
     variants_checker!(VARIANTS_CHECKER = Inline {
-        Formatting(Formatting{ variant: FormattingVariant::Delete, .. }),
-        Formatting(Formatting{ variant: FormattingVariant::Emphasis, .. }),
-        Formatting(Formatting{ variant: FormattingVariant::Strong, .. }),
+        Span(Span{ variant: FormattingVariant::Delete, .. }),
+        Span(Span{ variant: FormattingVariant::Emphasis, .. }),
+        Span(Span{ variant: FormattingVariant::Strong, .. }),
         Text(Text { variant: TextVariant::Plain, .. }),
         Text(Text { variant: TextVariant::Code, .. }),
         Text(Text { variant: TextVariant::Math, .. }),

@@ -134,9 +134,7 @@ impl SelectorAdapter {
             }
             MdElemRef::ThematicBreak | MdElemRef::CodeBlock(_) => Vec::new(),
             MdElemRef::Inline(inline) => match inline {
-                Inline::Formatting(Formatting { children, .. }) => {
-                    children.iter().map(|child| MdElemRef::Inline(child)).collect()
-                }
+                Inline::Span(Span { children, .. }) => children.iter().map(|child| MdElemRef::Inline(child)).collect(),
                 Inline::Footnote(footnote) => {
                     // guard against cycles
                     if ctx.seen_footnotes.insert(footnote) {

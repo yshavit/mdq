@@ -130,7 +130,7 @@ impl<'md> MdInlinesWriter<'md> {
         W: SimpleWrite,
     {
         match elem {
-            Inline::Formatting(Formatting { variant, children }) => {
+            Inline::Span(Span { variant, children }) => {
                 let surround = match variant {
                     FormattingVariant::Delete => "~~",
                     FormattingVariant::Emphasis => "_",
@@ -232,7 +232,7 @@ impl<'md> MdInlinesWriter<'md> {
                 Inline::Footnote(footnote) => {
                     self.add_footnote(footnote);
                 }
-                Inline::Formatting(item) => {
+                Inline::Span(item) => {
                     self.find_references_in_footnote_inlines(&item.children);
                 }
                 Inline::Link(link) => {

@@ -400,7 +400,7 @@ mod tests {
         fn shortcut_label_inlines_are_emphasized_number() {
             Given {
                 transform: LinkTransform::Reference,
-                label: Inline::Formatting(Formatting {
+                label: Inline::Span(Span {
                     variant: FormattingVariant::Emphasis,
                     children: vec![Inline::Text(Text {
                         variant: TextVariant::Plain,

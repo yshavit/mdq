@@ -141,7 +141,7 @@ where
 {
     match inline {
         Inline::Footnote(_) => Ok(()),
-        Inline::Formatting(Formatting { children, .. }) => write_inlines(out, children),
+        Inline::Span(Span { children, .. }) => write_inlines(out, children),
         Inline::Image(Image { alt, .. }) => write!(out, "{alt}"),
         Inline::Link(Link { text, .. }) => write_inlines(out, text),
         Inline::Text(Text { value, .. }) => write!(out, "{value}"),
