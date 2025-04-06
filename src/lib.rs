@@ -1,7 +1,7 @@
 use crate::fmt_md::MdOptions;
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
 use crate::fmt_plain::PlainOutputOpts;
-use crate::md_elem::{InvalidMd, MdDoc, MdElemRef, MdSerde, ReadOptions};
+use crate::md_elem::{InvalidMd, MdDoc, MdElemRef, MdSerde, ParseOptions};
 use crate::output::{OutputOpts, Stream};
 use crate::query::ParseError;
 use crate::select::{SelectorAdapter, SelectorChain};
@@ -145,12 +145,9 @@ pub fn run(cli: &Cli, os: &mut impl OsFacade) -> bool {
 
 fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
     let contents_str = os.read_all(&cli)?;
-    let ast = markdown::to_mdast(&contents_str, &markdown::ParseOptions::gfm()).unwrap();
-    let read_options = ReadOptions {
-        validate_no_conflicting_links: false,
-        allow_unknown_markdown: cli.allow_unknown_markdown,
-    };
-    let MdDoc { roots, ctx } = match MdDoc::read(ast, &read_options) {
+    let mut options = ParseOptions::gfm();
+    options.allow_unknown_markdown = cli.allow_unknown_markdown;
+    let MdDoc { roots, ctx } = match md_elem::parse(&contents_str, &options).map_err(|e| e.into()) {
         Ok(mdqs) => mdqs,
         Err(err) => {
             return Err(Error::MarkdownParse(err));
