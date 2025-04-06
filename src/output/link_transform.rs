@@ -1,6 +1,7 @@
-use crate::fmt_md_inlines::{LinkLike, MdInlinesWriter, MdInlinesWriterOptions};
-use crate::output::Output;
-use crate::tree::{Inline, LinkReference, MdContext};
+use crate::md_elem::elem::*;
+use crate::md_elem::*;
+use crate::output::fmt_md_inlines::{LinkLike, MdInlinesWriter, MdInlinesWriterOptions};
+use crate::util::output::Output;
 use clap::ValueEnum;
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
@@ -92,7 +93,7 @@ pub struct LinkTransformation<'md> {
 ///
 /// This lets us use the `transform_variant()`'s Copy-ability to release the borrow.
 impl<'md> LinkTransformation<'md> {
-    pub fn new<L>(transform: LinkTransform, inline_writer: &mut MdInlinesWriter<'md>, item: L) -> Self
+    pub(crate) fn new<L>(transform: LinkTransform, inline_writer: &mut MdInlinesWriter<'md>, item: L) -> Self
     where
         L: LinkLike<'md> + Copy,
     {
@@ -191,7 +192,7 @@ impl ReferenceAssigner {
     }
 }
 
-/// Turns the inlines into a String. Unlike [crate::fmt_str::inlines_to_plain_string], this respects formatting spans
+/// Turns the inlines into a String. Unlike [crate::output::fmt_plain_str::inlines_to_plain_string], this respects formatting spans
 /// like emphasis, strong, etc.
 fn inlines_to_string<'md>(inline_writer: &mut MdInlinesWriter<'md>, inlines: &'md Vec<Inline>) -> String {
     let mut string_writer = Output::without_text_wrapping(String::with_capacity(32)); // guess at capacity
@@ -204,9 +205,7 @@ fn inlines_to_string<'md>(inline_writer: &mut MdInlinesWriter<'md>, inlines: &'m
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tree::{Link, LinkDefinition, MdContext, Text, TextVariant};
-    use crate::tree_test_utils::*;
-    use crate::utils_for_test::*;
+    use crate::util::utils_for_test::*;
 
     enum Combo {
         Of(LinkTransform, LinkReference),
@@ -300,7 +299,6 @@ mod tests {
 
     mod reference {
         use super::*;
-        use crate::tree::{Formatting, FormattingVariant};
 
         #[test]
         fn inline() {
@@ -403,8 +401,8 @@ mod tests {
         fn shortcut_label_inlines_are_emphasized_number() {
             Given {
                 transform: LinkTransform::Reference,
-                label: Inline::Formatting(Formatting {
-                    variant: FormattingVariant::Emphasis,
+                label: Inline::Span(Span {
+                    variant: SpanVariant::Emphasis,
                     children: vec![Inline::Text(Text {
                         variant: TextVariant::Plain,
                         value: "123".to_string(),

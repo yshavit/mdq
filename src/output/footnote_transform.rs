@@ -1,4 +1,4 @@
-use crate::output::{Output, SimpleWrite};
+use crate::util::output::{Output, SimpleWrite};
 use std::collections::HashMap;
 
 pub struct FootnoteTransformer<'md> {
@@ -67,8 +67,8 @@ impl<'a, 'md> FootnoteTransformerToString<'a, 'md> {
 
 #[cfg(test)]
 mod test {
-    use crate::footnote_transform::FootnoteTransformer;
-    use crate::output::Output;
+    use crate::output::footnote_transform::FootnoteTransformer;
+    use crate::util::output::Output;
 
     #[test]
     fn inactive() {

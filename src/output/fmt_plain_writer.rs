@@ -97,7 +97,7 @@ impl<W: Write> Write for NewlineCollapser<W> {
 
 #[cfg(test)]
 mod test {
-    use crate::fmt_plain_writer::NewlineCollapser;
+    use crate::output::fmt_plain_writer::NewlineCollapser;
     use std::io::Write;
 
     #[test]

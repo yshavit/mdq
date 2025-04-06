@@ -3,9 +3,9 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter, Write};
 use std::hash::Hash;
-use std::ops::Deref;
 use std::vec::IntoIter;
 
+use elem::*;
 use markdown::mdast;
 
 // If we ever need any additional document-wide state, we can rename this
@@ -54,51 +54,30 @@ pub enum MdElem {
     BlockHtml(String),
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Section {
-    pub depth: u8,
-    pub title: Vec<Inline>,
-    pub body: Vec<MdElem>,
+pub struct ParseOptions {
+    pub(crate) mdast_options: markdown::ParseOptions,
+    pub allow_unknown_markdown: bool,
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Paragraph {
-    pub body: Vec<Inline>,
+impl ParseOptions {
+    pub fn gfm() -> Self {
+        Self {
+            mdast_options: markdown::ParseOptions::gfm(),
+            allow_unknown_markdown: true,
+        }
+    }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct BlockQuote {
-    pub body: Vec<MdElem>,
+pub fn parse(text: &str, options: &ParseOptions) -> Result<MdDoc, InvalidMd> {
+    let ast = markdown::to_mdast(text, &options.mdast_options).map_err(|e| InvalidMd::ParseError(format!("{e}")))?;
+    let read_options = ReadOptions {
+        validate_no_conflicting_links: false,
+        allow_unknown_markdown: options.allow_unknown_markdown,
+    };
+    MdDoc::read(ast, &read_options)
 }
 
-#[derive(Debug, PartialEq)]
-pub struct List {
-    pub starting_index: Option<u32>,
-    pub items: Vec<ListItem>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Table {
-    pub alignments: Vec<mdast::AlignKind>,
-    pub rows: Vec<TableRow>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct CodeBlock {
-    pub variant: CodeVariant,
-    pub value: String,
-}
-
-/// See https://github.github.com/gfm/#link-reference-definitions
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
-pub enum LinkReference {
-    Inline,
-    Full(String),
-    Collapsed,
-    Shortcut,
-}
-
-pub struct ReadOptions {
+pub(crate) struct ReadOptions {
     /// For links and images, enforce that reference-style links have at most one definition. If this value is
     /// `false` and a link has multiple definitions, the first one will be picked.
     ///
@@ -124,107 +103,6 @@ pub struct ReadOptions {
     pub allow_unknown_markdown: bool,
 }
 
-pub type TableRow = Vec<Line>;
-pub type Line = Vec<Inline>;
-
-#[derive(Debug, PartialEq, Hash)]
-pub enum CodeVariant {
-    Code(Option<CodeOpts>),
-    Math { metadata: Option<String> },
-    Toml,
-    Yaml,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub enum Inline {
-    Footnote(FootnoteId),
-    Formatting(Formatting),
-    Image(Image),
-    Link(Link),
-    Text(Text),
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Formatting {
-    pub variant: FormattingVariant,
-    pub children: Vec<Inline>,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Text {
-    pub variant: TextVariant,
-    pub value: String,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Link {
-    pub text: Vec<Inline>,
-    pub link_definition: LinkDefinition,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Image {
-    pub alt: String,
-    pub link: LinkDefinition,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct FootnoteId {
-    id: String,
-}
-
-impl From<String> for FootnoteId {
-    fn from(id: String) -> Self {
-        Self { id }
-    }
-}
-
-impl Deref for FootnoteId {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.id
-    }
-}
-
-impl FootnoteId {
-    fn new(id: String, label: Option<String>) -> FootnoteId {
-        let id = label.unwrap_or(id);
-        Self { id }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct LinkDefinition {
-    pub url: String,
-    /// If you have `[1]: https://example.com "my title"`, this is the "my title".
-    ///
-    /// See: https://github.github.com/gfm/#link-reference-definitions
-    pub title: Option<String>,
-    pub reference: LinkReference,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct ListItem {
-    pub checked: Option<bool>,
-    pub item: Vec<MdElem>,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub enum FormattingVariant {
-    Delete,
-    Emphasis,
-    Strong,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub enum TextVariant {
-    Plain,
-    Code,
-    Math,
-    Html,
-}
-
 #[derive(Debug, PartialEq)]
 pub enum InvalidMd {
     Unsupported(mdast::Node),
@@ -233,16 +111,17 @@ pub enum InvalidMd {
     NonInlineWhereInlineExpected(MdElem),
     MissingReferenceDefinition(String),
     ConflictingReferenceDefinition(String),
-    InternalError(PartialEqBacktrace),
+    InternalError(InternalErrorState),
     UnknownMarkdown(&'static str),
+    ParseError(String),
 }
 
 /// A wrapper for [Backtrace] that implements [PartialEq] to always return `true`. This lets us use it in a struct
 /// while still letting us use `#[derive(PartialEq)]`
 #[derive(Debug)]
-pub struct PartialEqBacktrace(Backtrace);
+pub struct InternalErrorState(Backtrace);
 
-impl PartialEq for PartialEqBacktrace {
+impl PartialEq for InternalErrorState {
     fn eq(&self, _other: &Self) -> bool {
         true
     }
@@ -278,15 +157,170 @@ impl Display for InvalidMd {
                 f.write_str("* Please consider reporting this at https://github.com/yshavit/mdq/issues\n")?;
                 f.write_str("* You can suppress this error by using --allow-unknown-markdown.")
             }
+            InvalidMd::ParseError(s) => {
+                write!(f, "encountered when parsing markdown")?;
+                f.write_str("* Please consider reporting this at https://github.com/yshavit/mdq/issues\n")?;
+                write!(f, "{s}")
+            }
         }?;
         f.write_char('\n')
     }
 }
 
-#[derive(Debug, PartialEq, Hash)]
-pub struct CodeOpts {
-    pub language: String,
-    pub metadata: Option<String>,
+pub mod elem {
+    use super::*;
+    use std::ops::Deref;
+
+    pub type TableRow = Vec<Line>;
+    pub type Line = Vec<Inline>;
+
+    #[derive(Debug, PartialEq, Hash)]
+    pub enum CodeVariant {
+        Code(Option<CodeOpts>),
+        Math { metadata: Option<String> },
+        Toml,
+        Yaml,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub enum Inline {
+        Footnote(crate::md_elem::tree::elem::FootnoteId),
+        Span(crate::md_elem::tree::elem::Span),
+        Image(crate::md_elem::tree::elem::Image),
+        Link(crate::md_elem::tree::elem::Link),
+        Text(crate::md_elem::tree::elem::Text),
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct Span {
+        pub variant: crate::md_elem::tree::elem::SpanVariant,
+        pub children: Vec<crate::md_elem::tree::elem::Inline>,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct Text {
+        pub variant: crate::md_elem::tree::elem::TextVariant,
+        pub value: String,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct Link {
+        pub text: Vec<crate::md_elem::tree::elem::Inline>,
+        pub link_definition: crate::md_elem::tree::elem::LinkDefinition,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct Image {
+        pub alt: String,
+        pub link: crate::md_elem::tree::elem::LinkDefinition,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct FootnoteId {
+        pub id: String,
+    }
+
+    impl From<String> for crate::md_elem::tree::elem::FootnoteId {
+        fn from(id: String) -> Self {
+            Self { id }
+        }
+    }
+
+    impl Deref for crate::md_elem::tree::elem::FootnoteId {
+        type Target = String;
+
+        fn deref(&self) -> &Self::Target {
+            &self.id
+        }
+    }
+
+    impl crate::md_elem::tree::elem::FootnoteId {
+        pub(crate) fn new(id: String, label: Option<String>) -> crate::md_elem::tree::elem::FootnoteId {
+            let id = label.unwrap_or(id);
+            Self { id }
+        }
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct LinkDefinition {
+        pub url: String,
+        /// If you have `[1]: https://example.com "my title"`, this is the "my title".
+        ///
+        /// See: https://github.github.com/gfm/#link-reference-definitions
+        pub title: Option<String>,
+        pub reference: LinkReference,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct ListItem {
+        pub checked: Option<bool>,
+        pub item: Vec<MdElem>,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub enum SpanVariant {
+        Delete,
+        Emphasis,
+        Strong,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub enum TextVariant {
+        Plain,
+        Code,
+        Math,
+        Html,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct Section {
+        pub depth: u8,
+        pub title: Vec<Inline>,
+        pub body: Vec<MdElem>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct Paragraph {
+        pub body: Vec<Inline>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct BlockQuote {
+        pub body: Vec<MdElem>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct List {
+        pub starting_index: Option<u32>,
+        pub items: Vec<ListItem>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct Table {
+        pub alignments: Vec<mdast::AlignKind>,
+        pub rows: Vec<TableRow>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct CodeBlock {
+        pub variant: CodeVariant,
+        pub value: String,
+    }
+
+    /// See https://github.github.com/gfm/#link-reference-definitions
+    #[derive(Debug, PartialEq, Eq, Clone, Hash)]
+    pub enum LinkReference {
+        Inline,
+        Full(String),
+        Collapsed,
+        Shortcut,
+    }
+
+    #[derive(Debug, PartialEq, Hash)]
+    pub struct CodeOpts {
+        pub language: String,
+        pub metadata: Option<String>,
+    }
 }
 
 /// Defines all the mdx nodes as match arms. This let us easily mark them as ignored, and in particular makes it so that
@@ -334,11 +368,11 @@ macro_rules! m_node {
 pub(crate) use m_node;
 
 impl MdDoc {
-    pub fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
+    fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
         let lookups = Lookups::new(&node, opts)?;
         let mut ctx = MdContext::new();
         let roots = MdElem::from_mdast_0(node, &lookups, &mut ctx)?;
-        Ok(Self { roots, ctx: ctx })
+        Ok(Self { roots, ctx })
     }
 }
 
@@ -378,12 +412,12 @@ impl MdElem {
                 variant: TextVariant::Math,
                 value: node.value,
             })),
-            mdast::Node::Delete(node) => MdElem::Inline(Inline::Formatting(Formatting {
-                variant: FormattingVariant::Delete,
+            mdast::Node::Delete(node) => MdElem::Inline(Inline::Span(Span {
+                variant: SpanVariant::Delete,
                 children: MdElem::inlines(node.children, lookups, ctx)?,
             })),
-            mdast::Node::Emphasis(node) => MdElem::Inline(Inline::Formatting(Formatting {
-                variant: FormattingVariant::Emphasis,
+            mdast::Node::Emphasis(node) => MdElem::Inline(Inline::Span(Span {
+                variant: SpanVariant::Emphasis,
                 children: MdElem::inlines(node.children, lookups, ctx)?,
             })),
             mdast::Node::Image(node) => MdElem::Inline(Inline::Image(Image {
@@ -427,8 +461,8 @@ impl MdElem {
                     }
                 };
             }
-            mdast::Node::Strong(node) => MdElem::Inline(Inline::Formatting(Formatting {
-                variant: FormattingVariant::Strong,
+            mdast::Node::Strong(node) => MdElem::Inline(Inline::Span(Span {
+                variant: SpanVariant::Strong,
                 children: MdElem::inlines(node.children, lookups, ctx)?,
             })),
             mdast::Node::Text(node) => MdElem::Inline(Inline::Text(Text {
@@ -473,7 +507,7 @@ impl MdElem {
                     let mut column = Vec::with_capacity(cell_nodes.len());
                     for cell_node in cell_nodes {
                         let mdast::Node::TableCell(table_cell) = cell_node else {
-                            return Err(InvalidMd::InternalError(PartialEqBacktrace(Backtrace::force_capture())));
+                            return Err(InvalidMd::InternalError(InternalErrorState(Backtrace::force_capture())));
                         };
                         let cell_contents = Self::inlines(table_cell.children, lookups, ctx)?;
                         column.push(cell_contents);
@@ -488,7 +522,7 @@ impl MdElem {
             mdast::Node::ThematicBreak(_) => m_node!(MdElem::ThematicBreak),
             mdast::Node::TableRow(_) | mdast::Node::TableCell(_) | mdast::Node::ListItem(_) => {
                 // should have been handled by Node::Table
-                return Err(InvalidMd::InternalError(PartialEqBacktrace(Backtrace::force_capture())));
+                return Err(InvalidMd::InternalError(InternalErrorState(Backtrace::force_capture())));
             }
             mdast::Node::Definition(_) => return Ok(Vec::new()),
             mdast::Node::Paragraph(node) => m_node!(MdElem::Paragraph {
@@ -801,8 +835,8 @@ impl Lookups {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tree_test_utils::*;
-    use crate::utils_for_test::*;
+    use crate::md_elem::tree_test_utils::*;
+    use crate::util::utils_for_test::*;
 
     impl MdContext {
         pub fn empty() -> Self {
@@ -1122,8 +1156,8 @@ mod tests {
 
             unwrap!(&root.children[0], Node::Paragraph(p));
             check!(&p.children[0], Node::Delete(_), lookups => MdElem::Inline(inline) = {
-                assert_eq!(inline, Inline::Formatting(Formatting{
-                    variant: FormattingVariant::Delete,
+                assert_eq!(inline, Inline::Span(Span{
+                    variant: SpanVariant::Delete,
                     children: vec![
                         Inline::Text (Text{ variant: TextVariant::Plain, value: "86 me".to_string()}),
                     ]
@@ -1137,8 +1171,8 @@ mod tests {
 
             unwrap!(&root.children[0], Node::Paragraph(p));
             check!(&p.children[0], Node::Emphasis(_), lookups => MdElem::Inline(inline) = {
-                assert_eq!(inline, Inline::Formatting(Formatting{
-                    variant: FormattingVariant::Emphasis,
+                assert_eq!(inline, Inline::Span(Span{
+                    variant: SpanVariant::Emphasis,
                     children: vec![
                         Inline::Text (Text{ variant: TextVariant::Plain, value: "86 me".to_string()}),
                     ]
@@ -1152,8 +1186,8 @@ mod tests {
 
             unwrap!(&root.children[0], Node::Paragraph(p));
             check!(&p.children[0], Node::Strong(_), lookups => MdElem::Inline(inline) = {
-                assert_eq!(inline, Inline::Formatting(Formatting{
-                    variant: FormattingVariant::Strong,
+                assert_eq!(inline, Inline::Span(Span{
+                    variant: SpanVariant::Strong,
                     children: vec![
                         Inline::Text (Text{ variant: TextVariant::Plain, value: "strongman".to_string()}),
                     ]
@@ -1320,8 +1354,8 @@ mod tests {
                     assert_eq!(link, Inline::Link(Link {
                         text: vec![
                             mdq_inline!("hello "),
-                            Inline::Formatting(Formatting{
-                                variant: FormattingVariant::Emphasis,
+                            Inline::Span(Span{
+                                variant: SpanVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             })
                         ],
@@ -1342,8 +1376,8 @@ mod tests {
                     assert_eq!(link, Inline::Link(Link {
                         text: vec![
                             mdq_inline!("hello "),
-                            Inline::Formatting(Formatting {
-                                variant: FormattingVariant::Emphasis,
+                            Inline::Span(Span {
+                                variant: SpanVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             })
                         ],
@@ -1371,8 +1405,8 @@ mod tests {
                     assert_eq!(link, Inline::Link(Link {
                         text: vec![
                             mdq_inline!("hello "),
-                            Inline::Formatting(Formatting{
-                                variant: FormattingVariant::Emphasis,
+                            Inline::Span(Span{
+                                variant: SpanVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             }),
                         ],
@@ -1401,8 +1435,8 @@ mod tests {
                     assert_eq!(link, Inline::Link(Link {
                         text: vec![
                             mdq_inline!("hello "),
-                            Inline::Formatting(Formatting{
-                                variant: FormattingVariant::Emphasis,
+                            Inline::Span(Span{
+                                variant: SpanVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             }),
                         ],
@@ -1431,8 +1465,8 @@ mod tests {
                     assert_eq!(link, Inline::Link(Link {
                         text: vec![
                             mdq_inline!("hello "),
-                            Inline::Formatting(Formatting{
-                                variant: FormattingVariant::Emphasis,
+                            Inline::Span(Span{
+                                variant: SpanVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             }),
                         ],
@@ -1631,8 +1665,8 @@ mod tests {
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
                     assert_eq!(link, Inline::Link(Link {
                         text: vec![
-                            Inline::Formatting(Formatting{
-                                variant: FormattingVariant::Emphasis,
+                            Inline::Span(Span{
+                                variant: SpanVariant::Emphasis,
                                 children: vec![
                                     Inline::Text (Text{variant: TextVariant::Plain,value: "my".to_string()})
                                 ],
@@ -1816,8 +1850,8 @@ mod tests {
                 assert_eq!(depth, 2);
                 assert_eq!(title, vec![
                     Inline::Text (Text{ variant: TextVariant::Plain, value: "Header with ".to_string()}),
-                    Inline::Formatting (Formatting{
-                        variant: FormattingVariant::Emphasis,
+                    Inline::Span (Span{
+                        variant: SpanVariant::Emphasis,
                         children: vec![
                             Inline::Text (Text{ variant: TextVariant::Plain, value: "emphasis".to_string()}),
                         ]
@@ -2508,7 +2542,7 @@ mod tests {
     }
 
     fn internal_error() -> InvalidMd {
-        InvalidMd::InternalError(PartialEqBacktrace(Backtrace::force_capture()))
+        InvalidMd::InternalError(InternalErrorState(Backtrace::force_capture()))
     }
 
     impl Default for ReadOptions {

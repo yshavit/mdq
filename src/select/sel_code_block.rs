@@ -1,7 +1,7 @@
-use crate::matcher::StringMatcher;
-use crate::query::CodeBlockMatcher;
+use crate::md_elem::elem::*;
 use crate::select::match_selector::MatchSelector;
-use crate::tree::{CodeBlock, CodeVariant};
+use crate::select::string_matcher::StringMatcher;
+use crate::select::CodeBlockMatcher;
 
 #[derive(Debug, PartialEq)]
 pub struct CodeBlockSelector {

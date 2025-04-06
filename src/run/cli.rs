@@ -1,5 +1,4 @@
-use crate::fmt_md::ReferencePlacement;
-use crate::link_transform::LinkTransform;
+use crate::output::md::{LinkTransform, ReferencePlacement};
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, ValueEnum};
 use std::borrow::Cow;
@@ -7,6 +6,7 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
+#[doc(hidden)]
 pub struct Cli {
     /// Where to put link references.
     ///
@@ -208,13 +208,12 @@ impl Display for OutputFormat {
 
 #[cfg(test)]
 mod tests {
-    use crate::cli::Cli;
-    use crate::utils_for_test::*;
+    use crate::run::cli::Cli;
+    use crate::util::utils_for_test::*;
     use clap::{Error, Parser};
 
     #[test]
     fn verify_cli() {
-        use crate::cli::Cli;
         use clap::CommandFactory;
         Cli::command().debug_assert();
     }

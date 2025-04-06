@@ -1,8 +1,8 @@
-use crate::matcher::StringMatcher;
-use crate::query::Matcher;
+use crate::md_elem::elem::*;
+use crate::md_elem::elem_ref::*;
 use crate::select::match_selector::MatchSelector;
-use crate::tree::{BlockQuote, Paragraph, Section};
-use crate::tree_ref::HtmlRef;
+use crate::select::string_matcher::StringMatcher;
+use crate::select::Matcher;
 use paste::paste;
 
 macro_rules! single_matcher_adapter {

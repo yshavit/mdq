@@ -1,7 +1,7 @@
-use crate::matcher::StringMatcher;
-use crate::query::LinklikeMatcher;
+use crate::md_elem::elem::*;
 use crate::select::match_selector::MatchSelector;
-use crate::tree::{Image, Link};
+use crate::select::string_matcher::StringMatcher;
+use crate::select::LinklikeMatcher;
 
 #[derive(Debug, PartialEq)]
 pub struct LinkSelector {

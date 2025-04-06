@@ -1,6 +1,6 @@
-use crate::query;
-use crate::query::Selector as ParsedSelector;
-use crate::query::{Pairs, Query};
+use crate::md_elem::elem::*;
+use crate::md_elem::elem_ref::*;
+use crate::md_elem::*;
 use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_link_like::{ImageSelector, LinkSelector};
 use crate::select::sel_list_item::ListItemSelector;
@@ -9,69 +9,12 @@ use crate::select::sel_single_matcher::BlockQuoteSelector;
 use crate::select::sel_single_matcher::HtmlSelector;
 use crate::select::sel_single_matcher::ParagraphSelector;
 use crate::select::sel_table::TableSliceSelector;
-use crate::tree::{FootnoteId, Formatting, Inline, Link, MdContext, Text, TextVariant};
-use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
+use crate::select::{Selector, SelectorChain};
 use paste::paste;
-use pest::error::ErrorVariant;
-use pest::Span;
 use std::collections::HashSet;
 
-pub trait Selector<'md, I: Into<MdElemRef<'md>>> {
+pub trait TrySelector<'md, I: Into<MdElemRef<'md>>> {
     fn try_select(&self, item: I) -> Option<MdElemRef<'md>>;
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ParseError {
-    Pest(query::Error),
-    Other(DetachedSpan, String),
-}
-
-impl ParseError {
-    pub fn to_string(&self, query_text: &str) -> String {
-        match self {
-            ParseError::Pest(e) => format!("{e}"),
-            ParseError::Other(span, message) => match Span::new(query_text, span.start, span.end) {
-                None => format!("{message}"),
-                Some(span) => {
-                    let pest_err = query::Error::new_from_span(
-                        ErrorVariant::CustomError {
-                            message: message.to_string(),
-                        },
-                        span,
-                    );
-                    pest_err.to_string()
-                }
-            },
-        }
-    }
-}
-
-impl From<query::Error> for ParseError {
-    fn from(err: query::Error) -> Self {
-        Self::Pest(err)
-    }
-}
-
-/// Like a [pest::Span], but without a reference to the underlying `&str`, and thus cheaply Copyable.
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
-pub struct DetachedSpan {
-    pub start: usize,
-    pub end: usize,
-}
-
-impl From<pest::Span<'_>> for DetachedSpan {
-    fn from(value: pest::Span) -> Self {
-        Self {
-            start: value.start(),
-            end: value.end(),
-        }
-    }
-}
-
-impl From<&query::Pair<'_>> for DetachedSpan {
-    fn from(value: &query::Pair<'_>) -> Self {
-        value.as_span().into()
-    }
 }
 
 macro_rules! adapters {
@@ -82,11 +25,11 @@ macro_rules! adapters {
             )+
         }
 
-        impl From<ParsedSelector> for SelectorAdapter {
-            fn from(parsed: ParsedSelector) -> Self {
+        impl From<Selector> for SelectorAdapter {
+            fn from(parsed: Selector) -> Self {
                 match parsed {
                     $(
-                    ParsedSelector::$name(matcher) => Self::$name(matcher.into()),
+                    Selector::$name(matcher) => Self::$name(matcher.into()),
                     )+
                 }
             }
@@ -119,12 +62,12 @@ adapters! {
 }
 
 impl SelectorAdapter {
-    pub fn parse(text: &str) -> Result<Vec<Self>, ParseError> {
-        let parsed: Pairs = Query::parse(text).map_err(|err| ParseError::from(err))?;
-        let parsed_selectors = ParsedSelector::from_top_pairs(parsed).map_err(|e| ParseError::from(e))?;
-        Ok(parsed_selectors.into_iter().map(|s| s.into()).collect())
+    // TODO remove this struct, and just have Selector do everything
+    pub fn from_chain(chain: SelectorChain) -> Vec<Self> {
+        chain.selectors.into_iter().map(|s| s.into()).collect()
     }
 
+    // TODO this should take and return a Vec<MdElem>, not Vec<MdElemRef>
     pub fn find_nodes<'md>(&self, ctx: &'md MdContext, nodes: Vec<MdElemRef<'md>>) -> Vec<MdElemRef<'md>> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
         let mut search_context = SearchContext::new(ctx);
@@ -195,9 +138,7 @@ impl SelectorAdapter {
             }
             MdElemRef::ThematicBreak | MdElemRef::CodeBlock(_) => Vec::new(),
             MdElemRef::Inline(inline) => match inline {
-                Inline::Formatting(Formatting { children, .. }) => {
-                    children.iter().map(|child| MdElemRef::Inline(child)).collect()
-                }
+                Inline::Span(Span { children, .. }) => children.iter().map(|child| MdElemRef::Inline(child)).collect(),
                 Inline::Footnote(footnote) => {
                     // guard against cycles
                     if ctx.seen_footnotes.insert(footnote) {
@@ -237,12 +178,12 @@ impl<'md> SearchContext<'md> {
 
 #[cfg(test)]
 mod test {
+    use super::*;
+
     /// Only a smoke test, because the code is pretty straightforward, and I don't feel like writing more. :-)
     mod find_children_smoke {
+        use super::*;
         use crate::select::api::{SearchContext, SelectorAdapter};
-        use crate::tree::{Inline, Link, LinkDefinition, LinkReference, MdContext, Text, TextVariant};
-        use crate::tree_ref::MdElemRef;
-        use crate::tree_test_utils::*;
 
         #[test]
         fn link_direct() {

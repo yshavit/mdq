@@ -1,5 +1,5 @@
 use crate::query::query::{Pairs, Rule};
-use crate::select::{DetachedSpan, ParseError};
+use crate::query::{DetachedSpan, ParseError};
 use std::borrow::Cow;
 use std::fmt::{Debug, Formatter, Write};
 

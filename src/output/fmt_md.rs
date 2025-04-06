@@ -1,9 +1,10 @@
-use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
-use crate::link_transform::LinkLabel;
-use crate::output::{Block, Output, SimpleWrite};
-use crate::str_utils::{pad_to, standard_align, CountingWriter};
-use crate::tree::*;
-use crate::tree_ref::{ListItemRef, MdElemRef, TableSlice};
+use crate::md_elem::elem::*;
+use crate::md_elem::elem_ref::*;
+use crate::md_elem::*;
+use crate::output::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
+use crate::output::link_transform::LinkLabel;
+use crate::util::output::{Block, Output, SimpleWrite};
+use crate::util::str_utils::{pad_to, standard_align, CountingWriter};
 use clap::ValueEnum;
 use std::borrow::Cow;
 use std::cmp::max;
@@ -500,13 +501,11 @@ enum DefinitionsToWrite {
 pub mod tests {
     use indoc::indoc;
 
-    use crate::fmt_md::MdOptions;
-    use crate::link_transform::LinkTransform;
-    use crate::output::Output;
-    use crate::tree::*;
-    use crate::tree_ref::MdElemRef;
-    use crate::tree_test_utils::*;
-    use crate::utils_for_test::*;
+    use super::*;
+    use crate::output::fmt_md::MdOptions;
+    use crate::output::link_transform::LinkTransform;
+    use crate::util::output::Output;
+    use crate::util::utils_for_test::*;
 
     use super::{write_md, ReferencePlacement};
 
@@ -518,9 +517,9 @@ pub mod tests {
         Image(..),
         Html(..),
 
-        Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Delete, ..})),
-        Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Emphasis, ..})),
-        Inline(Inline::Formatting(Formatting{variant: FormattingVariant::Strong, ..})),
+        Inline(Inline::Span(Span{variant: SpanVariant::Delete, ..})),
+        Inline(Inline::Span(Span{variant: SpanVariant::Emphasis, ..})),
+        Inline(Inline::Span(Span{variant: SpanVariant::Strong, ..})),
 
         Inline(Inline::Text(Text{variant: TextVariant::Plain, ..})),
         Inline(Inline::Text(Text{variant: TextVariant::Code, ..})),
@@ -860,9 +859,8 @@ pub mod tests {
     }
 
     mod list_item {
-        use crate::tree_ref::{ListItemRef, MdElemRef};
-
         use super::*;
+        use crate::md_elem::md_elems;
 
         #[test]
         fn unordered_no_checkbox() {
@@ -1467,8 +1465,6 @@ pub mod tests {
         }
 
         mod link {
-            use crate::tree::{Inline, LinkDefinition, MdElem};
-
             use super::*;
 
             #[test]
@@ -1620,8 +1616,6 @@ pub mod tests {
         }
 
         mod image {
-            use crate::tree::{Inline, LinkDefinition, MdElem};
-
             use super::*;
 
             #[test]
@@ -1919,7 +1913,7 @@ pub mod tests {
             );
         }
 
-        /// see [crate::link_transform::tests] for more extensive tests
+        /// see [crate::output::link_transform::tests] for more extensive tests
         #[test]
         fn reference_transform_smoke_test() {
             check_render_refs_with(
@@ -1995,7 +1989,7 @@ pub mod tests {
             );
         }
 
-        /// see [crate::link_transform::tests] for more extensive tests
+        /// see [crate::output::link_transform::tests] for more extensive tests
         #[test]
         fn reference_transform_smoke_test() {
             check_render_refs_with(
@@ -2060,7 +2054,7 @@ pub mod tests {
             )
         }
 
-        /// see [crate::footnote_transform::test] for more extensive tests
+        /// see [crate::output::footnote_transform::test] for more extensive tests
         #[test]
         fn footnote_transform_smoke_test() {
             let (ctx, graf) = footnote_a_in_paragraph();

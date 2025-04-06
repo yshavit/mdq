@@ -1,6 +1,7 @@
-use crate::fmt_str::inlines_to_plain_string;
-use crate::query::Matcher;
-use crate::tree::{Inline, MdElem};
+use crate::md_elem::elem::*;
+use crate::md_elem::*;
+use crate::output::plain::inlines_to_plain_string;
+use crate::select::Matcher;
 use regex::Regex;
 use std::borrow::Borrow;
 
@@ -117,7 +118,7 @@ impl SubstringToRegex {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::query::{Matcher, StringVariant};
+    use crate::query::StringVariant;
     use std::str::FromStr;
 
     #[test]

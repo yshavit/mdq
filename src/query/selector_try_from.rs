@@ -1,160 +1,40 @@
-use crate::query::query::{Pair, Pairs, Rule};
-use crate::query::strings::{ParsedString, ParsedStringMode};
+use crate::query::query::Rule;
 use crate::query::traversal::{ByRule, OneOf, PairMatcher};
 use crate::query::traversal_composites::{
     BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, ParagraphTraverser,
     SectionResults, SectionTraverser, TableTraverser,
 };
-use crate::select::{DetachedSpan, ParseError};
-use regex::Regex;
+use crate::query::{DetachedSpan, Pair, Pairs, ParseError, Query};
+use crate::select::{
+    AnyVariant, CodeBlockMatcher, LinklikeMatcher, ListItemMatcher, ListItemTask, Matcher, Selector, SelectorChain,
+    TableSliceMatcher,
+};
 
-#[derive(Debug, Clone)]
-pub enum Matcher {
-    Text {
-        case_sensitive: bool,
-        anchor_start: bool,
-        text: String,
-        anchor_end: bool,
-    },
-    Regex(Regex),
-    Any(AnyVariant),
-}
+impl TryFrom<Pairs<'_>> for SelectorChain {
+    type Error = ParseError;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AnyVariant {
-    Implicit,
-    Explicit,
-}
-
-impl PartialEq for Matcher {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (
-                Self::Text {
-                    case_sensitive: s1,
-                    anchor_start: a1,
-                    text: t1,
-                    anchor_end: e1,
-                },
-                Self::Text {
-                    case_sensitive: s2,
-                    anchor_start: a2,
-                    text: t2,
-                    anchor_end: e2,
-                },
-            ) => s1 == s2 && a1 == a2 && e1 == e2 && t1 == t2,
-            (Self::Regex(r1), Self::Regex(r2)) => r1.as_str() == r2.as_str(),
-            (Self::Any(_), Self::Any(_)) => true,
-            _ => false,
-        }
-    }
-}
-
-impl Eq for Matcher {}
-
-impl Matcher {
-    fn take_from_option(pair: Option<Pair>) -> Result<Matcher, ParseError> {
-        let Some(pair) = pair else {
-            return Ok(Matcher::Any(AnyVariant::Implicit));
-        };
-        let span = DetachedSpan::from(&pair);
-        let parsed_string: ParsedString = pair.into_inner().try_into()?;
-        if parsed_string.is_equivalent_to_asterisk() {
-            let any_variant = if parsed_string.explicit_wildcard {
-                AnyVariant::Explicit
-            } else {
-                AnyVariant::Implicit
-            };
-            return Ok(Matcher::Any(any_variant));
-        }
-        let matcher = match parsed_string.mode {
-            ParsedStringMode::CaseSensitive => Matcher::Text {
-                case_sensitive: true,
-                anchor_start: parsed_string.anchor_start,
-                text: parsed_string.text,
-                anchor_end: parsed_string.anchor_end,
-            },
-            ParsedStringMode::CaseInsensitive => Matcher::Text {
-                case_sensitive: false,
-                anchor_start: parsed_string.anchor_start,
-                text: parsed_string.text,
-                anchor_end: parsed_string.anchor_end,
-            },
-            ParsedStringMode::Regex => {
-                let re = Regex::new(&parsed_string.text).map_err(|e| ParseError::Other(span.into(), e.to_string()))?;
-                Matcher::Regex(re)
-            }
-        };
-        Ok(matcher)
-    }
-}
-
-#[derive(Eq, PartialEq, Debug, Copy, Clone)]
-pub enum ListItemTask {
-    Selected,
-    Unselected,
-    Either,
-    None,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub struct ListItemMatcher {
-    pub ordered: bool,
-    pub task: ListItemTask,
-    pub matcher: Matcher,
-}
-
-#[derive(Eq, PartialEq, Debug, Clone)]
-pub struct LinklikeMatcher {
-    pub display_matcher: Matcher,
-    pub url_matcher: Matcher,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub struct CodeBlockMatcher {
-    pub language: Matcher,
-    pub contents: Matcher,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub struct TableSliceMatcher {
-    pub column: Matcher,
-    pub row: Matcher,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub struct SelectorChain {
-    pub selectors: Vec<Selector>,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub enum Selector {
-    Section(Matcher),
-    ListItem(ListItemMatcher),
-    Link(LinklikeMatcher),
-    Image(LinklikeMatcher),
-    BlockQuote(Matcher),
-    CodeBlock(CodeBlockMatcher),
-    Html(Matcher),
-    Paragraph(Matcher),
-    TableSlice(TableSliceMatcher),
-}
-
-impl Selector {
-    pub fn from_top_pairs(root: Pairs) -> Result<Vec<Self>, ParseError> {
+    fn try_from(root: Pairs) -> Result<Self, Self::Error> {
         // Get "all" the selector chains; there should be at most 1.
         let selector_chains = ByRule::new(Rule::selector_chain).find_all_in(root);
-        let mut all_selectors: Vec<Self> = Vec::new();
+        let mut selectors: Vec<Selector> = Vec::new();
         for chain in selector_chains {
             // within the chain, get the selectors; for each one, get its inners (there should be exactly one) and get
             // its selector.
             let selector_inners = ByRule::new(Rule::selector).find_all_in(chain.into_inner());
             for selector_pair in selector_inners {
-                let selector = Self::find_selector(selector_pair)?;
-                all_selectors.push(selector);
+                let selector = Selector::find_selector(selector_pair)?;
+                selectors.push(selector);
             }
         }
-        Ok(all_selectors)
+        Ok(Self { selectors })
+    }
+}
+
+impl Selector {
+    pub fn try_parse(value: &'_ str) -> Result<SelectorChain, ParseError> {
+        let parsed: Pairs = Query::parse(value).map_err(|err| ParseError::from(err))?;
+        let parsed_selectors = SelectorChain::try_from(parsed).map_err(|e| ParseError::from(e))?;
+        Ok(parsed_selectors)
     }
 
     fn find_selector(root: Pair) -> Result<Self, ParseError> {
@@ -166,7 +46,7 @@ impl Selector {
         match as_rule {
             Rule::select_section => {
                 let SectionResults { title } = SectionTraverser::traverse(children);
-                let matcher = Matcher::take_from_option(title.take().map_err(to_parse_error)?)?;
+                let matcher = Matcher::try_from(title.take().map_err(to_parse_error)?)?;
                 Ok(Self::Section(matcher))
             }
             Rule::select_list_item => {
@@ -182,13 +62,13 @@ impl Selector {
                     ListItemTask::None
                 };
                 let m = res.contents.take().map_err(to_parse_error)?;
-                let matcher = Matcher::take_from_option(m)?;
+                let matcher = Matcher::try_from(m)?;
                 Ok(Self::ListItem(ListItemMatcher { ordered, task, matcher }))
             }
             Rule::select_link => {
                 let res = LinkTraverser::traverse(children);
-                let display_matcher = Matcher::take_from_option(res.display_text.take().map_err(to_parse_error)?)?;
-                let url_matcher = Matcher::take_from_option(res.url_text.take().map_err(to_parse_error)?)?;
+                let display_matcher = Matcher::try_from(res.display_text.take().map_err(to_parse_error)?)?;
+                let url_matcher = Matcher::try_from(res.url_text.take().map_err(to_parse_error)?)?;
                 let link_matcher = LinklikeMatcher {
                     display_matcher,
                     url_matcher,
@@ -201,13 +81,13 @@ impl Selector {
             }
             Rule::select_block_quote => {
                 let res = BlockQuoteTraverser::traverse(children);
-                let matcher = Matcher::take_from_option(res.text.take().map_err(to_parse_error)?)?;
+                let matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
                 Ok(Self::BlockQuote(matcher))
             }
             Rule::select_code_block => {
                 let res = CodeBlockTraverser::traverse(children);
-                let language_matcher = Matcher::take_from_option(res.language.take().map_err(to_parse_error)?)?;
-                let contents_matcher = Matcher::take_from_option(res.text.take().map_err(to_parse_error)?)?;
+                let language_matcher = Matcher::try_from(res.language.take().map_err(to_parse_error)?)?;
+                let contents_matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
                 Ok(Self::CodeBlock(CodeBlockMatcher {
                     language: language_matcher,
                     contents: contents_matcher,
@@ -215,12 +95,12 @@ impl Selector {
             }
             Rule::select_html => {
                 let res = HtmlTraverser::traverse(children);
-                let matcher = Matcher::take_from_option(res.text.take().map_err(to_parse_error)?)?;
+                let matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
                 Ok(Self::Html(matcher))
             }
             Rule::select_paragraph => {
                 let res = ParagraphTraverser::traverse(children);
-                let matcher = Matcher::take_from_option(res.text.take().map_err(to_parse_error)?)?;
+                let matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
                 Ok(Self::Paragraph(matcher))
             }
             Rule::select_table => {
@@ -230,14 +110,14 @@ impl Selector {
                     None => DetachedSpan::from(span),
                     Some(column_matcher_span) => DetachedSpan::from(column_matcher_span),
                 };
-                let column_matcher = Matcher::take_from_option(column_matcher_span)?;
+                let column_matcher = Matcher::try_from(column_matcher_span)?;
                 if matches!(column_matcher, Matcher::Any(AnyVariant::Implicit)) {
                     return Err(ParseError::Other(
                         detached_span,
                         "table column matcher cannot empty; use an explicit \"*\"".to_string(),
                     ));
                 }
-                let row_matcher = Matcher::take_from_option(res.row.take().map_err(to_parse_error)?)?;
+                let row_matcher = Matcher::try_from(res.row.take().map_err(to_parse_error)?)?;
                 Ok(Self::TableSlice(TableSliceMatcher {
                     column: column_matcher,
                     row: row_matcher,
@@ -298,7 +178,7 @@ mod tests {
                     (matcher, remaining)
                 }
             };
-            let matcher = Matcher::take_from_option(only_pair)?;
+            let matcher = Matcher::try_from(only_pair)?;
             Ok((matcher, remaining))
         }
     }
@@ -689,6 +569,7 @@ mod tests {
     mod html {
         use super::*;
         use indoc::indoc;
+        use regex::Regex;
 
         #[test]
         fn html_no_matcher() {
@@ -864,15 +745,15 @@ mod tests {
             }
         };
 
-        let result = Selector::from_top_pairs(pairs);
-        assert_eq!(result, Ok(expect));
+        let result = SelectorChain::try_from(pairs);
+        assert_eq!(result, Ok(SelectorChain { selectors: expect }));
     }
 
     fn expect_parse_error(query_text: &str, expect: &str) {
         let pairs = Query::parse(query_text);
         let err_msg = match pairs {
-            Ok(pairs) => match Selector::from_top_pairs(pairs) {
-                Ok(selectors) => panic!("{selectors:?}"),
+            Ok(pairs) => match SelectorChain::try_from(pairs) {
+                Ok(SelectorChain { selectors }) => panic!("{selectors:?}"),
                 Err(ParseError::Pest(err)) => format!("{err}"),
                 Err(ParseError::Other(span, message)) => {
                     let error = Error::new_from_span(

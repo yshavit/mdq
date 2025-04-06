@@ -1,10 +1,8 @@
-use crate::footnote_transform::FootnoteTransformer;
-use crate::link_transform::{LinkLabel, LinkTransform, LinkTransformation, LinkTransformer};
-use crate::output::{Output, SimpleWrite};
-use crate::tree::{
-    FootnoteId, Formatting, FormattingVariant, Image, Inline, Link, LinkDefinition, LinkReference, MdContext, MdElem,
-    Text, TextVariant,
-};
+use crate::md_elem::elem::*;
+use crate::md_elem::*;
+use crate::output::footnote_transform::FootnoteTransformer;
+use crate::output::link_transform::{LinkLabel, LinkTransform, LinkTransformation, LinkTransformer};
+use crate::util::output::{Output, SimpleWrite};
 use serde::Serialize;
 use std::borrow::Cow;
 use std::cmp::max;
@@ -16,7 +14,7 @@ pub struct MdInlinesWriterOptions {
     pub renumber_footnotes: bool,
 }
 
-pub struct MdInlinesWriter<'md> {
+pub(crate) struct MdInlinesWriter<'md> {
     ctx: &'md MdContext,
     seen_links: HashSet<LinkLabel<'md>>,
     seen_footnotes: HashSet<&'md String>,
@@ -133,11 +131,11 @@ impl<'md> MdInlinesWriter<'md> {
         W: SimpleWrite,
     {
         match elem {
-            Inline::Formatting(Formatting { variant, children }) => {
+            Inline::Span(Span { variant, children }) => {
                 let surround = match variant {
-                    FormattingVariant::Delete => "~~",
-                    FormattingVariant::Emphasis => "_",
-                    FormattingVariant::Strong => "**",
+                    SpanVariant::Delete => "~~",
+                    SpanVariant::Emphasis => "_",
+                    SpanVariant::Strong => "**",
                 };
                 out.write_str(surround);
                 self.write_line(out, children);
@@ -235,7 +233,7 @@ impl<'md> MdInlinesWriter<'md> {
                 Inline::Footnote(footnote) => {
                     self.add_footnote(footnote);
                 }
-                Inline::Formatting(item) => {
+                Inline::Span(item) => {
                     self.find_references_in_footnote_inlines(&item.children);
                 }
                 Inline::Link(link) => {
@@ -455,9 +453,8 @@ impl TitleQuote {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::output::{Output, OutputOpts};
-    use crate::tree::{MdDoc, ReadOptions};
-    use crate::utils_for_test::*;
+    use crate::util::output::{Output, OutputOpts};
+    use crate::util::utils_for_test::*;
 
     mod title_quoting {
         use super::*;
@@ -700,8 +697,8 @@ mod tests {
         writer.write_inline_element(&mut output, &orig);
         let md_str = output.take_underlying().unwrap();
 
-        let ast = markdown::to_mdast(&md_str, &markdown::ParseOptions::gfm()).unwrap();
-        let md_tree = MdDoc::read(ast, &ReadOptions::default()).unwrap().roots;
+        let options = ParseOptions::gfm();
+        let md_tree = parse(&md_str, &options).unwrap().roots;
 
         unwrap!(&md_tree[0], MdElem::Paragraph(p));
         let parsed = get_only(&p.body);

@@ -5,9 +5,9 @@ pub(crate) use test_utils::*;
 // export its contents.
 #[cfg(test)]
 mod test_utils {
-    use crate::fmt_md::{MdOptions, ReferencePlacement};
-    use crate::fmt_md_inlines::MdInlinesWriterOptions;
-    use crate::link_transform::LinkTransform;
+    use crate::output::md::LinkTransform;
+    use crate::output::md::MdInlinesWriterOptions;
+    use crate::output::md::{MdOptions, ReferencePlacement};
     use std::fmt::Debug;
 
     impl LinkTransform {
@@ -88,7 +88,7 @@ mod test_utils {
     /// Converts an `MdElem` into an `MdElemRef`, checking that it got converted to the right one
     macro_rules! checked_elem_ref {
         ($input:expr => $variant:pat) => {{
-            let as_ref: crate::tree_ref::MdElemRef = (&($input)).into();
+            let as_ref: crate::md_elem::MdElemRef = (&($input)).into();
             if !matches!(as_ref, $variant) {
                 panic!(
                     "{} should have been {}, was {:?}",

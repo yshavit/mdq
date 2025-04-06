@@ -1,7 +1,7 @@
-use crate::matcher::StringMatcher;
-use crate::query::TableSliceMatcher;
-use crate::select::Selector;
-use crate::tree_ref::{MdElemRef, TableSlice};
+use crate::md_elem::elem_ref::*;
+use crate::md_elem::*;
+use crate::select::string_matcher::StringMatcher;
+use crate::select::{TableSliceMatcher, TrySelector};
 
 #[derive(Debug, PartialEq)]
 pub struct TableSliceSelector {
@@ -9,7 +9,7 @@ pub struct TableSliceSelector {
     rows_matcher: StringMatcher,
 }
 
-impl<'md> Selector<'md, TableSlice<'md>> for TableSliceSelector {
+impl<'md> TrySelector<'md, TableSlice<'md>> for TableSliceSelector {
     fn try_select(&self, slice: TableSlice<'md>) -> Option<MdElemRef<'md>> {
         let mut slice = slice.clone(); // GH #168 is there any way to avoid this? There may not be.
         slice.normalize();
@@ -40,9 +40,9 @@ impl From<TableSliceMatcher> for TableSliceSelector {
 mod tests {
     use super::*;
 
-    use crate::select::Selector;
-    use crate::tree::{Inline, Line, Table, Text, TextVariant};
-    use crate::utils_for_test::*;
+    use crate::md_elem::elem::*;
+    use crate::select::TrySelector;
+    use crate::util::utils_for_test::*;
     use markdown::mdast;
 
     #[test]
