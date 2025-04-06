@@ -1,7 +1,7 @@
-use crate::footnote_transform::FootnoteTransformer;
-use crate::link_transform::{LinkLabel, LinkTransform, LinkTransformation, LinkTransformer};
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
+use crate::output::footnote_transform::FootnoteTransformer;
+use crate::output::link_transform::{LinkLabel, LinkTransform, LinkTransformation, LinkTransformer};
 use crate::util::output::{Output, SimpleWrite};
 use serde::Serialize;
 use std::borrow::Cow;

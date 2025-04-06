@@ -1,5 +1,5 @@
-use crate::fmt_md::ReferencePlacement;
-use crate::link_transform::LinkTransform;
+use crate::output::fmt_md::ReferencePlacement;
+use crate::output::link_transform::LinkTransform;
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, ValueEnum};
 use std::borrow::Cow;

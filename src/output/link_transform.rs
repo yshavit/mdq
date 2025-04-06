@@ -1,6 +1,6 @@
-use crate::fmt_md_inlines::{LinkLike, MdInlinesWriter, MdInlinesWriterOptions};
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
+use crate::output::fmt_md_inlines::{LinkLike, MdInlinesWriter, MdInlinesWriterOptions};
 use crate::util::output::Output;
 use clap::ValueEnum;
 use std::borrow::Cow;
@@ -192,7 +192,7 @@ impl ReferenceAssigner {
     }
 }
 
-/// Turns the inlines into a String. Unlike [crate::fmt_str::inlines_to_plain_string], this respects formatting spans
+/// Turns the inlines into a String. Unlike [crate::output::fmt_str::inlines_to_plain_string], this respects formatting spans
 /// like emphasis, strong, etc.
 fn inlines_to_string<'md>(inline_writer: &mut MdInlinesWriter<'md>, inlines: &'md Vec<Inline>) -> String {
     let mut string_writer = Output::without_text_wrapping(String::with_capacity(32)); // guess at capacity

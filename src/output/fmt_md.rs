@@ -1,8 +1,8 @@
-use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
-use crate::link_transform::LinkLabel;
 use crate::md_elem::elem::*;
 use crate::md_elem::elem_ref::*;
 use crate::md_elem::*;
+use crate::output::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
+use crate::output::link_transform::LinkLabel;
 use crate::util::output::{Block, Output, SimpleWrite};
 use crate::util::str_utils::{pad_to, standard_align, CountingWriter};
 use clap::ValueEnum;
@@ -502,8 +502,8 @@ pub mod tests {
     use indoc::indoc;
 
     use super::*;
-    use crate::fmt_md::MdOptions;
-    use crate::link_transform::LinkTransform;
+    use crate::output::fmt_md::MdOptions;
+    use crate::output::link_transform::LinkTransform;
     use crate::util::output::Output;
     use crate::util::utils_for_test::*;
 
@@ -1913,7 +1913,7 @@ pub mod tests {
             );
         }
 
-        /// see [crate::link_transform::tests] for more extensive tests
+        /// see [crate::output::link_transform::tests] for more extensive tests
         #[test]
         fn reference_transform_smoke_test() {
             check_render_refs_with(
@@ -1989,7 +1989,7 @@ pub mod tests {
             );
         }
 
-        /// see [crate::link_transform::tests] for more extensive tests
+        /// see [crate::output::link_transform::tests] for more extensive tests
         #[test]
         fn reference_transform_smoke_test() {
             check_render_refs_with(
@@ -2054,7 +2054,7 @@ pub mod tests {
             )
         }
 
-        /// see [crate::footnote_transform::test] for more extensive tests
+        /// see [crate::output::footnote_transform::test] for more extensive tests
         #[test]
         fn footnote_transform_smoke_test() {
             let (ctx, graf) = footnote_a_in_paragraph();
