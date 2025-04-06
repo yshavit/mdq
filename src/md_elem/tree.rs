@@ -240,7 +240,7 @@ pub enum InvalidMd {
 /// A wrapper for [Backtrace] that implements [PartialEq] to always return `true`. This lets us use it in a struct
 /// while still letting us use `#[derive(PartialEq)]`
 #[derive(Debug)]
-struct InternalErrorState(Backtrace);
+pub struct InternalErrorState(Backtrace);
 
 impl PartialEq for InternalErrorState {
     fn eq(&self, _other: &Self) -> bool {
