@@ -8,6 +8,7 @@ mod sel_section;
 mod sel_single_matcher;
 mod sel_table;
 mod selector;
+mod string_matcher;
 
 pub use api::*;
 pub use matcher::*;
