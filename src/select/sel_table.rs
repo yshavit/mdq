@@ -1,4 +1,5 @@
 use crate::matcher::StringMatcher;
+use crate::md_elem::elem_ref::*;
 use crate::md_elem::*;
 use crate::select::{TableSliceMatcher, TrySelector};
 
@@ -39,6 +40,7 @@ impl From<TableSliceMatcher> for TableSliceSelector {
 mod tests {
     use super::*;
 
+    use crate::md_elem::elem::*;
     use crate::select::TrySelector;
     use crate::utils_for_test::*;
     use markdown::mdast;

@@ -1,5 +1,5 @@
 use crate::matcher::StringMatcher;
-use crate::md_elem::*;
+use crate::md_elem::elem::*;
 use crate::select::match_selector::MatchSelector;
 use crate::select::LinklikeMatcher;
 

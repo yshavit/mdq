@@ -1,4 +1,5 @@
 use crate::fmt_md_inlines::{LinkLike, MdInlinesWriter, MdInlinesWriterOptions};
+use crate::md_elem::elem::*;
 use crate::md_elem::*;
 use crate::output::Output;
 use clap::ValueEnum;

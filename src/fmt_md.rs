@@ -1,5 +1,7 @@
 use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
 use crate::link_transform::LinkLabel;
+use crate::md_elem::elem::*;
+use crate::md_elem::elem_ref::*;
 use crate::md_elem::*;
 use crate::output::{Block, Output, SimpleWrite};
 use crate::str_utils::{pad_to, standard_align, CountingWriter};

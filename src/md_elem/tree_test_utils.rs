@@ -25,14 +25,14 @@ mod test_utils {
 
     macro_rules! mdq_inline {
         (span $which:ident [$($contents:expr),*$(,)?]) => {
-            crate::md_elem::Inline::Span(Span {
-                variant: crate::md_elem::SpanVariant::$which,
+            crate::md_elem::elem::Inline::Span(Span {
+                variant: crate::md_elem::elem::SpanVariant::$which,
                 children: vec![$($contents),*],
             })
         };
         ($text:literal) => {
-            crate::md_elem::Inline::Text(Text {
-                variant: crate::md_elem::TextVariant::Plain,
+            crate::md_elem::elem::Inline::Text(Text {
+                variant: crate::md_elem::elem::TextVariant::Plain,
                 value: $text.to_string(),
             })
         };

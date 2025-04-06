@@ -3,9 +3,9 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter, Write};
 use std::hash::Hash;
-use std::ops::Deref;
 use std::vec::IntoIter;
 
+use elem::*;
 use markdown::mdast;
 
 // If we ever need any additional document-wide state, we can rename this
@@ -54,50 +54,6 @@ pub enum MdElem {
     BlockHtml(String),
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Section {
-    pub depth: u8,
-    pub title: Vec<Inline>,
-    pub body: Vec<MdElem>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Paragraph {
-    pub body: Vec<Inline>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct BlockQuote {
-    pub body: Vec<MdElem>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct List {
-    pub starting_index: Option<u32>,
-    pub items: Vec<ListItem>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Table {
-    pub alignments: Vec<mdast::AlignKind>,
-    pub rows: Vec<TableRow>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct CodeBlock {
-    pub variant: CodeVariant,
-    pub value: String,
-}
-
-/// See https://github.github.com/gfm/#link-reference-definitions
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
-pub enum LinkReference {
-    Inline,
-    Full(String),
-    Collapsed,
-    Shortcut,
-}
-
 pub struct ReadOptions {
     /// For links and images, enforce that reference-style links have at most one definition. If this value is
     /// `false` and a link has multiple definitions, the first one will be picked.
@@ -122,107 +78,6 @@ pub struct ReadOptions {
     pub validate_no_conflicting_links: bool,
 
     pub allow_unknown_markdown: bool,
-}
-
-pub type TableRow = Vec<Line>;
-pub type Line = Vec<Inline>;
-
-#[derive(Debug, PartialEq, Hash)]
-pub enum CodeVariant {
-    Code(Option<CodeOpts>),
-    Math { metadata: Option<String> },
-    Toml,
-    Yaml,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub enum Inline {
-    Footnote(FootnoteId),
-    Span(Span),
-    Image(Image),
-    Link(Link),
-    Text(Text),
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Span {
-    pub variant: SpanVariant,
-    pub children: Vec<Inline>,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Text {
-    pub variant: TextVariant,
-    pub value: String,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Link {
-    pub text: Vec<Inline>,
-    pub link_definition: LinkDefinition,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Image {
-    pub alt: String,
-    pub link: LinkDefinition,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct FootnoteId {
-    id: String,
-}
-
-impl From<String> for FootnoteId {
-    fn from(id: String) -> Self {
-        Self { id }
-    }
-}
-
-impl Deref for FootnoteId {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.id
-    }
-}
-
-impl FootnoteId {
-    fn new(id: String, label: Option<String>) -> FootnoteId {
-        let id = label.unwrap_or(id);
-        Self { id }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct LinkDefinition {
-    pub url: String,
-    /// If you have `[1]: https://example.com "my title"`, this is the "my title".
-    ///
-    /// See: https://github.github.com/gfm/#link-reference-definitions
-    pub title: Option<String>,
-    pub reference: LinkReference,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct ListItem {
-    pub checked: Option<bool>,
-    pub item: Vec<MdElem>,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub enum SpanVariant {
-    Delete,
-    Emphasis,
-    Strong,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub enum TextVariant {
-    Plain,
-    Code,
-    Math,
-    Html,
 }
 
 #[derive(Debug, PartialEq)]
@@ -283,10 +138,160 @@ impl Display for InvalidMd {
     }
 }
 
-#[derive(Debug, PartialEq, Hash)]
-pub struct CodeOpts {
-    pub language: String,
-    pub metadata: Option<String>,
+pub mod elem {
+    use super::*;
+    use std::ops::Deref;
+
+    pub type TableRow = Vec<Line>;
+    pub type Line = Vec<Inline>;
+
+    #[derive(Debug, PartialEq, Hash)]
+    pub enum CodeVariant {
+        Code(Option<CodeOpts>),
+        Math { metadata: Option<String> },
+        Toml,
+        Yaml,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub enum Inline {
+        Footnote(crate::md_elem::tree::elem::FootnoteId),
+        Span(crate::md_elem::tree::elem::Span),
+        Image(crate::md_elem::tree::elem::Image),
+        Link(crate::md_elem::tree::elem::Link),
+        Text(crate::md_elem::tree::elem::Text),
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct Span {
+        pub variant: crate::md_elem::tree::elem::SpanVariant,
+        pub children: Vec<crate::md_elem::tree::elem::Inline>,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct Text {
+        pub variant: crate::md_elem::tree::elem::TextVariant,
+        pub value: String,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct Link {
+        pub text: Vec<crate::md_elem::tree::elem::Inline>,
+        pub link_definition: crate::md_elem::tree::elem::LinkDefinition,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct Image {
+        pub alt: String,
+        pub link: crate::md_elem::tree::elem::LinkDefinition,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct FootnoteId {
+        pub id: String,
+    }
+
+    impl From<String> for crate::md_elem::tree::elem::FootnoteId {
+        fn from(id: String) -> Self {
+            Self { id }
+        }
+    }
+
+    impl Deref for crate::md_elem::tree::elem::FootnoteId {
+        type Target = String;
+
+        fn deref(&self) -> &Self::Target {
+            &self.id
+        }
+    }
+
+    impl crate::md_elem::tree::elem::FootnoteId {
+        pub(crate) fn new(id: String, label: Option<String>) -> crate::md_elem::tree::elem::FootnoteId {
+            let id = label.unwrap_or(id);
+            Self { id }
+        }
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct LinkDefinition {
+        pub url: String,
+        /// If you have `[1]: https://example.com "my title"`, this is the "my title".
+        ///
+        /// See: https://github.github.com/gfm/#link-reference-definitions
+        pub title: Option<String>,
+        pub reference: LinkReference,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct ListItem {
+        pub checked: Option<bool>,
+        pub item: Vec<MdElem>,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub enum SpanVariant {
+        Delete,
+        Emphasis,
+        Strong,
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub enum TextVariant {
+        Plain,
+        Code,
+        Math,
+        Html,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct Section {
+        pub depth: u8,
+        pub title: Vec<Inline>,
+        pub body: Vec<MdElem>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct Paragraph {
+        pub body: Vec<Inline>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct BlockQuote {
+        pub body: Vec<MdElem>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct List {
+        pub starting_index: Option<u32>,
+        pub items: Vec<ListItem>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct Table {
+        pub alignments: Vec<mdast::AlignKind>,
+        pub rows: Vec<TableRow>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct CodeBlock {
+        pub variant: CodeVariant,
+        pub value: String,
+    }
+
+    /// See https://github.github.com/gfm/#link-reference-definitions
+    #[derive(Debug, PartialEq, Eq, Clone, Hash)]
+    pub enum LinkReference {
+        Inline,
+        Full(String),
+        Collapsed,
+        Shortcut,
+    }
+
+    #[derive(Debug, PartialEq, Hash)]
+    pub struct CodeOpts {
+        pub language: String,
+        pub metadata: Option<String>,
+    }
 }
 
 /// Defines all the mdx nodes as match arms. This let us easily mark them as ignored, and in particular makes it so that

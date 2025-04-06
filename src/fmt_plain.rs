@@ -1,4 +1,6 @@
 use crate::fmt_plain_writer::NewlineCollapser;
+use crate::md_elem::elem::*;
+use crate::md_elem::elem_ref::*;
 use crate::md_elem::*;
 use std::io::{Error, LineWriter, Write};
 

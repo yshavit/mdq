@@ -1,7 +1,7 @@
 use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions, UrlAndTitle};
 use crate::link_transform::LinkLabel;
-use crate::md_elem::tree::{CodeBlock, CodeVariant, Inline, LinkDefinition, LinkReference, MdContext, MdElem, Section};
-use crate::md_elem::tree_ref::MdElemRef;
+use crate::md_elem::elem::*;
+use crate::md_elem::*;
 use crate::output::Output;
 use markdown::mdast::AlignKind;
 use serde::{Serialize, Serializer};
@@ -9,7 +9,7 @@ use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 
 #[derive(Serialize)]
-pub struct SerdeDoc<'md> {
+pub struct MdSerde<'md> {
     items: Vec<SerdeElem<'md>>,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     links: HashMap<Cow<'md, str>, UrlAndTitle<'md>>,
@@ -147,11 +147,11 @@ pub enum CodeBlockType {
     Yaml,
 }
 
-impl<'md> SerdeDoc<'md> {
+impl<'md> MdSerde<'md> {
     pub fn new(elems: &[MdElemRef<'md>], ctx: &'md MdContext, opts: MdInlinesWriterOptions) -> Self {
         let mut inlines_writer = MdInlinesWriter::new(ctx, opts);
         const DEFAULT_CAPACITY: usize = 16; // we could compute these, but it's not really worth it
-        let mut result = Self {
+        let mut result = MdSerde {
             items: Vec::with_capacity(elems.len()),
             links: HashMap::with_capacity(DEFAULT_CAPACITY),
             footnotes: HashMap::with_capacity(DEFAULT_CAPACITY),
@@ -305,9 +305,7 @@ mod tests {
     use super::*;
     use crate::fmt_md_inlines::MdInlinesWriterOptions;
     use crate::link_transform::LinkTransform;
-    use crate::md_elem::tree::MdElem;
-    use crate::md_elem::tree::*;
-    use crate::md_elem::tree_ref::ListItemRef;
+    use crate::md_elem::elem_ref::*;
     use crate::md_elem::tree_test_utils::*;
     use crate::utils_for_test::*;
 
@@ -717,11 +715,7 @@ mod tests {
     fn check_with(opts: MdInlinesWriterOptions, elem_ref: MdElemRef, expect: &str) {
         CHECKER.see(&elem_ref);
         let mut actual_bytes = Vec::with_capacity(32);
-        serde_json::to_writer(
-            &mut actual_bytes,
-            &SerdeDoc::new(&[elem_ref], &MdContext::empty(), opts),
-        )
-        .unwrap();
+        serde_json::to_writer(&mut actual_bytes, &MdSerde::new(&[elem_ref], &MdContext::empty(), opts)).unwrap();
         let actual_string = String::from_utf8(actual_bytes).unwrap();
         assert_eq!(actual_string, expect);
     }

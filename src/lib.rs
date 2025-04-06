@@ -1,7 +1,7 @@
 use crate::fmt_md::MdOptions;
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
 use crate::fmt_plain::PlainOutputOpts;
-use crate::md_elem::{InvalidMd, MdDoc, MdElemRef, ReadOptions, SerdeDoc};
+use crate::md_elem::{InvalidMd, MdDoc, MdElemRef, MdSerde, ReadOptions};
 use crate::output::{OutputOpts, Stream};
 use crate::query::ParseError;
 use crate::select::{SelectorAdapter, SelectorChain};
@@ -200,7 +200,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
             OutputFormat::Json => {
                 serde_json::to_writer(
                     &mut stdout,
-                    &SerdeDoc::new(&pipeline_nodes, &ctx, md_options.inline_options),
+                    &MdSerde::new(&pipeline_nodes, &ctx, md_options.inline_options),
                 )
                 .unwrap();
             }

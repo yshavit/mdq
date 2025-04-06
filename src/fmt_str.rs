@@ -1,4 +1,4 @@
-use crate::md_elem::*;
+use crate::md_elem::elem::*;
 use std::borrow::Borrow;
 
 pub fn inlines_to_plain_string<N: Borrow<Inline>>(inlines: &[N]) -> String {
@@ -30,6 +30,7 @@ fn build_inline(out: &mut String, elem: &Inline) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::md_elem::*;
     use indoc::indoc;
 
     use crate::utils_for_test::*;
