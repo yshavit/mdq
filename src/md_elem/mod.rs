@@ -1,7 +1,6 @@
 mod tree;
 mod tree_ref;
 
-pub use crate::output::tree_ref_serde::MdSerde;
 pub use tree::*;
 pub use tree_ref::*;
 

@@ -1,4 +1,5 @@
-use crate::md_elem::{InvalidMd, MdDoc, MdElemRef, MdSerde, ParseOptions};
+use crate::md_elem::{InvalidMd, MdDoc, MdElemRef, ParseOptions};
+use crate::output::serde::MdSerde;
 use crate::query::ParseError;
 use crate::run::cli::{Cli, OutputFormat};
 use crate::select::{SelectorAdapter, SelectorChain};
@@ -110,6 +111,8 @@ pub trait OsFacade {
     }
 }
 
+// TODO: replace with a method that doesn't take OsFacade (that should be defined in main.rs), but instead takes
+//  an FnOnce(MdElem) -> R
 pub fn run(cli: &Cli, os: &mut impl OsFacade) -> bool {
     if !cli.extra_validation() {
         return false;
@@ -152,10 +155,10 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
         pipeline_nodes = new_pipeline;
     }
 
-    let md_options = output::MdOptions {
+    let md_options = output::md::MdOptions {
         link_reference_placement: cli.link_pos,
         footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
-        inline_options: output::MdInlinesWriterOptions {
+        inline_options: output::md::MdInlinesWriterOptions {
             link_format: cli.link_format,
             renumber_footnotes: cli.renumber_footnotes,
         },
@@ -172,7 +175,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
                     text_width: cli.wrap_width,
                 };
                 let mut out = Output::new(Stream(&mut stdout), output_opts);
-                output::write_md(&md_options, &mut out, &ctx, pipeline_nodes.into_iter());
+                output::md::write_md(&md_options, &mut out, &ctx, pipeline_nodes.into_iter());
             }
             OutputFormat::Json => {
                 serde_json::to_writer(
@@ -182,10 +185,10 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
                 .unwrap();
             }
             OutputFormat::Plain => {
-                let output_opts = output::PlainOutputOpts {
+                let output_opts = output::plain::PlainOutputOpts {
                     include_breaks: cli.should_add_breaks(),
                 };
-                output::write_plain(&mut stdout, output_opts, pipeline_nodes.into_iter());
+                output::plain::write_plain(&mut stdout, output_opts, pipeline_nodes.into_iter());
             }
         }
     }

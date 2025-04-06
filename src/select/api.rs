@@ -62,10 +62,12 @@ adapters! {
 }
 
 impl SelectorAdapter {
+    // TODO remove this struct, and just have Selector do everything
     pub fn from_chain(chain: SelectorChain) -> Vec<Self> {
         chain.selectors.into_iter().map(|s| s.into()).collect()
     }
 
+    // TODO this should take and return a Vec<MdElem>, not Vec<MdElemRef>
     pub fn find_nodes<'md>(&self, ctx: &'md MdContext, nodes: Vec<MdElemRef<'md>>) -> Vec<MdElemRef<'md>> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
         let mut search_context = SearchContext::new(ctx);

@@ -1,12 +1,21 @@
 mod fmt_md;
-pub mod fmt_md_inlines;
-mod fmt_plain;
+mod fmt_md_inlines;
+pub mod fmt_plain_inline;
+mod fmt_plain_str;
 mod fmt_plain_writer;
-pub mod fmt_str;
 mod footnote_transform;
-pub mod link_transform;
-pub mod tree_ref_serde;
+mod link_transform;
+mod tree_ref_serde;
 
-pub use fmt_md::*;
-pub use fmt_md_inlines::*;
-pub use fmt_plain::*;
+pub mod md {
+    pub use crate::output::fmt_md::*;
+    pub use crate::output::fmt_md_inlines::*;
+    pub use crate::output::link_transform::*;
+}
+pub mod plain {
+    pub use crate::output::fmt_plain_inline::*;
+    pub use crate::output::fmt_plain_str::*;
+}
+pub mod serde {
+    pub use crate::output::tree_ref_serde::*;
+}
