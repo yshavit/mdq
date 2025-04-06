@@ -1,6 +1,6 @@
-use crate::matcher::StringMatcher;
 use crate::md_elem::elem_ref::*;
 use crate::md_elem::*;
+use crate::select::string_matcher::StringMatcher;
 use crate::select::{TableSliceMatcher, TrySelector};
 
 #[derive(Debug, PartialEq)]

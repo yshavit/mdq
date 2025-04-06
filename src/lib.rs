@@ -17,7 +17,6 @@ use util::output::Output;
 use util::output::{OutputOpts, Stream};
 
 pub mod cli;
-mod matcher;
 pub mod md_elem;
 mod output;
 mod query;
