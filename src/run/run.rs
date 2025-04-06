@@ -1,14 +1,10 @@
 use crate::md_elem::{InvalidMd, MdDoc, MdElemRef, MdSerde, ParseOptions};
-use crate::output::fmt_md::MdOptions;
-use crate::output::fmt_md_inlines::MdInlinesWriterOptions;
-use crate::output::fmt_plain::PlainOutputOpts;
-use crate::output::{fmt_md, fmt_plain};
 use crate::query::ParseError;
 use crate::run::cli::{Cli, OutputFormat};
 use crate::select::{SelectorAdapter, SelectorChain};
 use crate::util::output::Output;
 use crate::util::output::{OutputOpts, Stream};
-use crate::{md_elem, query};
+use crate::{md_elem, output, query};
 use pest::error::ErrorVariant;
 use pest::Span;
 use std::borrow::Cow;
@@ -156,10 +152,10 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
         pipeline_nodes = new_pipeline;
     }
 
-    let md_options = MdOptions {
+    let md_options = output::MdOptions {
         link_reference_placement: cli.link_pos,
         footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
-        inline_options: MdInlinesWriterOptions {
+        inline_options: output::MdInlinesWriterOptions {
             link_format: cli.link_format,
             renumber_footnotes: cli.renumber_footnotes,
         },
@@ -176,7 +172,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
                     text_width: cli.wrap_width,
                 };
                 let mut out = Output::new(Stream(&mut stdout), output_opts);
-                fmt_md::write_md(&md_options, &mut out, &ctx, pipeline_nodes.into_iter());
+                output::write_md(&md_options, &mut out, &ctx, pipeline_nodes.into_iter());
             }
             OutputFormat::Json => {
                 serde_json::to_writer(
@@ -186,10 +182,10 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
                 .unwrap();
             }
             OutputFormat::Plain => {
-                let output_opts = PlainOutputOpts {
+                let output_opts = output::PlainOutputOpts {
                     include_breaks: cli.should_add_breaks(),
                 };
-                fmt_plain::write_plain(&mut stdout, output_opts, pipeline_nodes.into_iter());
+                output::write_plain(&mut stdout, output_opts, pipeline_nodes.into_iter());
             }
         }
     }

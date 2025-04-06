@@ -5,9 +5,9 @@ pub(crate) use test_utils::*;
 // export its contents.
 #[cfg(test)]
 mod test_utils {
-    use crate::output::fmt_md::{MdOptions, ReferencePlacement};
     use crate::output::fmt_md_inlines::MdInlinesWriterOptions;
     use crate::output::link_transform::LinkTransform;
+    use crate::output::{MdOptions, ReferencePlacement};
     use std::fmt::Debug;
 
     impl LinkTransform {

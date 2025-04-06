@@ -14,7 +14,7 @@ pub struct MdInlinesWriterOptions {
     pub renumber_footnotes: bool,
 }
 
-pub struct MdInlinesWriter<'md> {
+pub(crate) struct MdInlinesWriter<'md> {
     ctx: &'md MdContext,
     seen_links: HashSet<LinkLabel<'md>>,
     seen_footnotes: HashSet<&'md String>,
