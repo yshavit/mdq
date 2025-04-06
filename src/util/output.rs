@@ -1,4 +1,4 @@
-use crate::words_buffer::{WordBoundary, WordsBuffer};
+use crate::util::words_buffer::{WordBoundary, WordsBuffer};
 use std::cmp::PartialEq;
 use std::ops::Range;
 

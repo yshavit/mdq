@@ -33,7 +33,7 @@ mod tests {
     use crate::md_elem::*;
     use indoc::indoc;
 
-    use crate::utils_for_test::*;
+    use crate::util::utils_for_test::*;
 
     variants_checker!(VARIANTS_CHECKER = Inline {
         Span(Span{ variant: SpanVariant::Delete, .. }),

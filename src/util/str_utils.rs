@@ -3,7 +3,7 @@ use std::fmt::Alignment;
 
 use markdown::mdast::AlignKind;
 
-use crate::output::{Output, SimpleWrite};
+use crate::util::output::{Output, SimpleWrite};
 
 pub fn pad_to<A, W>(output: &mut Output<W>, input: &str, min_width: usize, alignment: A)
 where

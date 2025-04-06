@@ -2,11 +2,9 @@ use crate::fmt_md::MdOptions;
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
 use crate::fmt_plain::PlainOutputOpts;
 use crate::md_elem::{InvalidMd, MdDoc, MdElemRef, MdSerde, ParseOptions};
-use crate::output::{OutputOpts, Stream};
 use crate::query::ParseError;
 use crate::select::{SelectorAdapter, SelectorChain};
 use cli::{Cli, OutputFormat};
-use output::Output;
 use pest::error::ErrorVariant;
 use pest::Span;
 use std::borrow::Cow;
@@ -14,6 +12,8 @@ use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::ops::Deref;
 use std::{env, io};
+use util::output::Output;
+use util::output::{OutputOpts, Stream};
 
 pub mod cli;
 mod fmt_md;
@@ -25,13 +25,9 @@ mod footnote_transform;
 mod link_transform;
 mod matcher;
 pub mod md_elem;
-mod output;
 mod query;
 mod select;
-mod str_utils;
-mod utils_for_test;
-mod vec_utils;
-mod words_buffer;
+mod util;
 
 #[derive(Debug)]
 pub enum Error {

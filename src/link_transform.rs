@@ -1,7 +1,7 @@
 use crate::fmt_md_inlines::{LinkLike, MdInlinesWriter, MdInlinesWriterOptions};
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
-use crate::output::Output;
+use crate::util::output::Output;
 use clap::ValueEnum;
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
@@ -205,7 +205,7 @@ fn inlines_to_string<'md>(inline_writer: &mut MdInlinesWriter<'md>, inlines: &'m
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils_for_test::*;
+    use crate::util::utils_for_test::*;
 
     enum Combo {
         Of(LinkTransform, LinkReference),

@@ -1,6 +1,6 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
-use crate::vec_utils::ItemRetainer;
+use crate::util::vec_utils::ItemRetainer;
 use elem_ref::*;
 use markdown::mdast;
 
@@ -41,7 +41,7 @@ pub enum MdElemRef<'md> {
 
 pub mod elem_ref {
     use super::*;
-    use crate::vec_utils::IndexKeeper;
+    use crate::util::vec_utils::IndexKeeper;
 
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub struct ListItemRef<'md>(pub Option<u32>, pub &'md ListItem);

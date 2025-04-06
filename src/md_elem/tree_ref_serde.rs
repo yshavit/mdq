@@ -2,7 +2,7 @@ use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions, UrlAndTitle
 use crate::link_transform::LinkLabel;
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
-use crate::output::Output;
+use crate::util::output::Output;
 use markdown::mdast::AlignKind;
 use serde::{Serialize, Serializer};
 use std::borrow::{Borrow, Cow};
@@ -307,7 +307,7 @@ mod tests {
     use crate::link_transform::LinkTransform;
     use crate::md_elem::elem_ref::*;
     use crate::md_elem::tree_test_utils::*;
-    use crate::utils_for_test::*;
+    use crate::util::utils_for_test::*;
 
     variants_checker!(CHECKER = MdElemRef {
         Doc(_),

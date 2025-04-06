@@ -209,7 +209,7 @@ impl Display for OutputFormat {
 #[cfg(test)]
 mod tests {
     use crate::cli::Cli;
-    use crate::utils_for_test::*;
+    use crate::util::utils_for_test::*;
     use clap::{Error, Parser};
 
     #[test]
