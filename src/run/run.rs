@@ -86,13 +86,13 @@ pub trait OsFacade {
     fn get_stdout(&mut self) -> impl Write;
     fn write_error(&mut self, err: Error);
 
-    fn read_all(&self, cli: &Cli) -> Result<String, Error> {
-        if cli.markdown_file_paths.is_empty() {
+    fn read_all(&self, markdown_file_paths: &Vec<String>) -> Result<String, Error> {
+        if markdown_file_paths.is_empty() {
             return self.read_stdin().map_err(|err| Error::from_io_error(err, Input::Stdin));
         }
         let mut contents = String::new();
         let mut have_read_stdin = false;
-        for path in &cli.markdown_file_paths {
+        for path in markdown_file_paths {
             if path == "-" {
                 if !have_read_stdin {
                     contents.push_str(
@@ -128,7 +128,7 @@ pub fn run(cli: &Cli, os: &mut impl OsFacade) -> bool {
 }
 
 fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
-    let contents_str = os.read_all(&cli)?;
+    let contents_str = os.read_all(&cli.markdown_file_paths)?;
     let mut options = ParseOptions::gfm();
     options.allow_unknown_markdown = cli.allow_unknown_markdown;
     let MdDoc { roots, ctx } = match md_elem::parse(&contents_str, &options).map_err(|e| e.into()) {
