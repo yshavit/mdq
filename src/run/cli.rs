@@ -7,6 +7,7 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
+#[doc(hidden)]
 pub struct Cli {
     /// Where to put link references.
     ///

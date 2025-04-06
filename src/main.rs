@@ -6,6 +6,7 @@ use std::process::ExitCode;
 
 struct RealOs;
 
+#[doc(hidden)]
 impl OsFacade for RealOs {
     fn read_stdin(&self) -> io::Result<String> {
         let mut contents = String::new();
