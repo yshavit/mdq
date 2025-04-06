@@ -214,7 +214,6 @@ mod tests {
 
     #[test]
     fn verify_cli() {
-        use crate::run::cli::Cli;
         use clap::CommandFactory;
         Cli::command().debug_assert();
     }
