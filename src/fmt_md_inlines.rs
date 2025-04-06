@@ -132,9 +132,9 @@ impl<'md> MdInlinesWriter<'md> {
         match elem {
             Inline::Span(Span { variant, children }) => {
                 let surround = match variant {
-                    FormattingVariant::Delete => "~~",
-                    FormattingVariant::Emphasis => "_",
-                    FormattingVariant::Strong => "**",
+                    SpanVariant::Delete => "~~",
+                    SpanVariant::Emphasis => "_",
+                    SpanVariant::Strong => "**",
                 };
                 out.write_str(surround);
                 self.write_line(out, children);

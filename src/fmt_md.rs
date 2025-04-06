@@ -515,9 +515,9 @@ pub mod tests {
         Image(..),
         Html(..),
 
-        Inline(Inline::Span(Span{variant: FormattingVariant::Delete, ..})),
-        Inline(Inline::Span(Span{variant: FormattingVariant::Emphasis, ..})),
-        Inline(Inline::Span(Span{variant: FormattingVariant::Strong, ..})),
+        Inline(Inline::Span(Span{variant: SpanVariant::Delete, ..})),
+        Inline(Inline::Span(Span{variant: SpanVariant::Emphasis, ..})),
+        Inline(Inline::Span(Span{variant: SpanVariant::Strong, ..})),
 
         Inline(Inline::Text(Text{variant: TextVariant::Plain, ..})),
         Inline(Inline::Text(Text{variant: TextVariant::Code, ..})),

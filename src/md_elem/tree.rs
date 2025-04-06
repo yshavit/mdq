@@ -146,7 +146,7 @@ pub enum Inline {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Span {
-    pub variant: FormattingVariant,
+    pub variant: SpanVariant,
     pub children: Vec<Inline>,
 }
 
@@ -211,7 +211,7 @@ pub struct ListItem {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub enum FormattingVariant {
+pub enum SpanVariant {
     Delete,
     Emphasis,
     Strong,
@@ -379,11 +379,11 @@ impl MdElem {
                 value: node.value,
             })),
             mdast::Node::Delete(node) => MdElem::Inline(Inline::Span(Span {
-                variant: FormattingVariant::Delete,
+                variant: SpanVariant::Delete,
                 children: MdElem::inlines(node.children, lookups, ctx)?,
             })),
             mdast::Node::Emphasis(node) => MdElem::Inline(Inline::Span(Span {
-                variant: FormattingVariant::Emphasis,
+                variant: SpanVariant::Emphasis,
                 children: MdElem::inlines(node.children, lookups, ctx)?,
             })),
             mdast::Node::Image(node) => MdElem::Inline(Inline::Image(Image {
@@ -428,7 +428,7 @@ impl MdElem {
                 };
             }
             mdast::Node::Strong(node) => MdElem::Inline(Inline::Span(Span {
-                variant: FormattingVariant::Strong,
+                variant: SpanVariant::Strong,
                 children: MdElem::inlines(node.children, lookups, ctx)?,
             })),
             mdast::Node::Text(node) => MdElem::Inline(Inline::Text(Text {
@@ -1123,7 +1123,7 @@ mod tests {
             unwrap!(&root.children[0], Node::Paragraph(p));
             check!(&p.children[0], Node::Delete(_), lookups => MdElem::Inline(inline) = {
                 assert_eq!(inline, Inline::Span(Span{
-                    variant: FormattingVariant::Delete,
+                    variant: SpanVariant::Delete,
                     children: vec![
                         Inline::Text (Text{ variant: TextVariant::Plain, value: "86 me".to_string()}),
                     ]
@@ -1138,7 +1138,7 @@ mod tests {
             unwrap!(&root.children[0], Node::Paragraph(p));
             check!(&p.children[0], Node::Emphasis(_), lookups => MdElem::Inline(inline) = {
                 assert_eq!(inline, Inline::Span(Span{
-                    variant: FormattingVariant::Emphasis,
+                    variant: SpanVariant::Emphasis,
                     children: vec![
                         Inline::Text (Text{ variant: TextVariant::Plain, value: "86 me".to_string()}),
                     ]
@@ -1153,7 +1153,7 @@ mod tests {
             unwrap!(&root.children[0], Node::Paragraph(p));
             check!(&p.children[0], Node::Strong(_), lookups => MdElem::Inline(inline) = {
                 assert_eq!(inline, Inline::Span(Span{
-                    variant: FormattingVariant::Strong,
+                    variant: SpanVariant::Strong,
                     children: vec![
                         Inline::Text (Text{ variant: TextVariant::Plain, value: "strongman".to_string()}),
                     ]
@@ -1321,7 +1321,7 @@ mod tests {
                         text: vec![
                             mdq_inline!("hello "),
                             Inline::Span(Span{
-                                variant: FormattingVariant::Emphasis,
+                                variant: SpanVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             })
                         ],
@@ -1343,7 +1343,7 @@ mod tests {
                         text: vec![
                             mdq_inline!("hello "),
                             Inline::Span(Span {
-                                variant: FormattingVariant::Emphasis,
+                                variant: SpanVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             })
                         ],
@@ -1372,7 +1372,7 @@ mod tests {
                         text: vec![
                             mdq_inline!("hello "),
                             Inline::Span(Span{
-                                variant: FormattingVariant::Emphasis,
+                                variant: SpanVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             }),
                         ],
@@ -1402,7 +1402,7 @@ mod tests {
                         text: vec![
                             mdq_inline!("hello "),
                             Inline::Span(Span{
-                                variant: FormattingVariant::Emphasis,
+                                variant: SpanVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             }),
                         ],
@@ -1432,7 +1432,7 @@ mod tests {
                         text: vec![
                             mdq_inline!("hello "),
                             Inline::Span(Span{
-                                variant: FormattingVariant::Emphasis,
+                                variant: SpanVariant::Emphasis,
                                 children: vec![mdq_inline!("world")],
                             }),
                         ],
@@ -1632,7 +1632,7 @@ mod tests {
                     assert_eq!(link, Inline::Link(Link {
                         text: vec![
                             Inline::Span(Span{
-                                variant: FormattingVariant::Emphasis,
+                                variant: SpanVariant::Emphasis,
                                 children: vec![
                                     Inline::Text (Text{variant: TextVariant::Plain,value: "my".to_string()})
                                 ],
@@ -1817,7 +1817,7 @@ mod tests {
                 assert_eq!(title, vec![
                     Inline::Text (Text{ variant: TextVariant::Plain, value: "Header with ".to_string()}),
                     Inline::Span (Span{
-                        variant: FormattingVariant::Emphasis,
+                        variant: SpanVariant::Emphasis,
                         children: vec![
                             Inline::Text (Text{ variant: TextVariant::Plain, value: "emphasis".to_string()}),
                         ]

@@ -401,7 +401,7 @@ mod tests {
             Given {
                 transform: LinkTransform::Reference,
                 label: Inline::Span(Span {
-                    variant: FormattingVariant::Emphasis,
+                    variant: SpanVariant::Emphasis,
                     children: vec![Inline::Text(Text {
                         variant: TextVariant::Plain,
                         value: "123".to_string(),

@@ -36,9 +36,9 @@ mod tests {
     use markdown::ParseOptions;
 
     variants_checker!(VARIANTS_CHECKER = Inline {
-        Span(Span{ variant: FormattingVariant::Delete, .. }),
-        Span(Span{ variant: FormattingVariant::Emphasis, .. }),
-        Span(Span{ variant: FormattingVariant::Strong, .. }),
+        Span(Span{ variant: SpanVariant::Delete, .. }),
+        Span(Span{ variant: SpanVariant::Emphasis, .. }),
+        Span(Span{ variant: SpanVariant::Strong, .. }),
         Text(Text { variant: TextVariant::Plain, .. }),
         Text(Text { variant: TextVariant::Code, .. }),
         Text(Text { variant: TextVariant::Math, .. }),
