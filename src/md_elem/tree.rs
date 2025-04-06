@@ -233,16 +233,16 @@ pub enum InvalidMd {
     NonInlineWhereInlineExpected(MdElem),
     MissingReferenceDefinition(String),
     ConflictingReferenceDefinition(String),
-    InternalError(PartialEqBacktrace),
+    InternalError(InternalErrorState),
     UnknownMarkdown(&'static str),
 }
 
 /// A wrapper for [Backtrace] that implements [PartialEq] to always return `true`. This lets us use it in a struct
 /// while still letting us use `#[derive(PartialEq)]`
 #[derive(Debug)]
-pub struct PartialEqBacktrace(Backtrace);
+struct InternalErrorState(Backtrace);
 
-impl PartialEq for PartialEqBacktrace {
+impl PartialEq for InternalErrorState {
     fn eq(&self, _other: &Self) -> bool {
         true
     }
@@ -473,7 +473,7 @@ impl MdElem {
                     let mut column = Vec::with_capacity(cell_nodes.len());
                     for cell_node in cell_nodes {
                         let mdast::Node::TableCell(table_cell) = cell_node else {
-                            return Err(InvalidMd::InternalError(PartialEqBacktrace(Backtrace::force_capture())));
+                            return Err(InvalidMd::InternalError(InternalErrorState(Backtrace::force_capture())));
                         };
                         let cell_contents = Self::inlines(table_cell.children, lookups, ctx)?;
                         column.push(cell_contents);
@@ -488,7 +488,7 @@ impl MdElem {
             mdast::Node::ThematicBreak(_) => m_node!(MdElem::ThematicBreak),
             mdast::Node::TableRow(_) | mdast::Node::TableCell(_) | mdast::Node::ListItem(_) => {
                 // should have been handled by Node::Table
-                return Err(InvalidMd::InternalError(PartialEqBacktrace(Backtrace::force_capture())));
+                return Err(InvalidMd::InternalError(InternalErrorState(Backtrace::force_capture())));
             }
             mdast::Node::Definition(_) => return Ok(Vec::new()),
             mdast::Node::Paragraph(node) => m_node!(MdElem::Paragraph {
@@ -2508,7 +2508,7 @@ mod tests {
     }
 
     fn internal_error() -> InvalidMd {
-        InvalidMd::InternalError(PartialEqBacktrace(Backtrace::force_capture()))
+        InvalidMd::InternalError(InternalErrorState(Backtrace::force_capture()))
     }
 
     impl Default for ReadOptions {
