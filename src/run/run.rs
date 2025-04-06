@@ -1,14 +1,11 @@
-use crate::md_elem::{InvalidMd, MdDoc, MdElemRef, MdSerde, ParseOptions};
-use crate::output::fmt_md::MdOptions;
-use crate::output::fmt_md_inlines::MdInlinesWriterOptions;
-use crate::output::fmt_plain::PlainOutputOpts;
-use crate::output::{fmt_md, fmt_plain};
+use crate::md_elem::{InvalidMd, MdDoc, MdElemRef, ParseOptions};
+use crate::output::serde::MdSerde;
 use crate::query::ParseError;
 use crate::run::cli::{Cli, OutputFormat};
 use crate::select::{SelectorAdapter, SelectorChain};
 use crate::util::output::Output;
 use crate::util::output::{OutputOpts, Stream};
-use crate::{md_elem, query};
+use crate::{md_elem, output, query};
 use pest::error::ErrorVariant;
 use pest::Span;
 use std::borrow::Cow;
@@ -86,13 +83,13 @@ pub trait OsFacade {
     fn get_stdout(&mut self) -> impl Write;
     fn write_error(&mut self, err: Error);
 
-    fn read_all(&self, cli: &Cli) -> Result<String, Error> {
-        if cli.markdown_file_paths.is_empty() {
+    fn read_all(&self, markdown_file_paths: &Vec<String>) -> Result<String, Error> {
+        if markdown_file_paths.is_empty() {
             return self.read_stdin().map_err(|err| Error::from_io_error(err, Input::Stdin));
         }
         let mut contents = String::new();
         let mut have_read_stdin = false;
-        for path in &cli.markdown_file_paths {
+        for path in markdown_file_paths {
             if path == "-" {
                 if !have_read_stdin {
                     contents.push_str(
@@ -114,6 +111,8 @@ pub trait OsFacade {
     }
 }
 
+// TODO: replace with a method that doesn't take OsFacade (that should be defined in main.rs), but instead takes
+//  an FnOnce(MdElem) -> R
 pub fn run(cli: &Cli, os: &mut impl OsFacade) -> bool {
     if !cli.extra_validation() {
         return false;
@@ -128,7 +127,7 @@ pub fn run(cli: &Cli, os: &mut impl OsFacade) -> bool {
 }
 
 fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
-    let contents_str = os.read_all(&cli)?;
+    let contents_str = os.read_all(&cli.markdown_file_paths)?;
     let mut options = ParseOptions::gfm();
     options.allow_unknown_markdown = cli.allow_unknown_markdown;
     let MdDoc { roots, ctx } = match md_elem::parse(&contents_str, &options).map_err(|e| e.into()) {
@@ -156,10 +155,10 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
         pipeline_nodes = new_pipeline;
     }
 
-    let md_options = MdOptions {
+    let md_options = output::md::MdOptions {
         link_reference_placement: cli.link_pos,
         footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
-        inline_options: MdInlinesWriterOptions {
+        inline_options: output::md::MdInlinesWriterOptions {
             link_format: cli.link_format,
             renumber_footnotes: cli.renumber_footnotes,
         },
@@ -176,7 +175,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
                     text_width: cli.wrap_width,
                 };
                 let mut out = Output::new(Stream(&mut stdout), output_opts);
-                fmt_md::write_md(&md_options, &mut out, &ctx, pipeline_nodes.into_iter());
+                output::md::write_md(&md_options, &mut out, &ctx, pipeline_nodes.into_iter());
             }
             OutputFormat::Json => {
                 serde_json::to_writer(
@@ -186,10 +185,10 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
                 .unwrap();
             }
             OutputFormat::Plain => {
-                let output_opts = PlainOutputOpts {
+                let output_opts = output::plain::PlainOutputOpts {
                     include_breaks: cli.should_add_breaks(),
                 };
-                fmt_plain::write_plain(&mut stdout, output_opts, pipeline_nodes.into_iter());
+                output::plain::write_plain(&mut stdout, output_opts, pipeline_nodes.into_iter());
             }
         }
     }

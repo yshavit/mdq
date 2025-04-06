@@ -304,7 +304,6 @@ where
 mod tests {
     use super::*;
     use crate::md_elem::elem_ref::*;
-    use crate::md_elem::tree_test_utils::*;
     use crate::output::fmt_md_inlines::MdInlinesWriterOptions;
     use crate::output::link_transform::LinkTransform;
     use crate::util::utils_for_test::*;

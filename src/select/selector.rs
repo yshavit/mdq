@@ -36,6 +36,7 @@ pub struct TableSliceMatcher {
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct SelectorChain {
+    // TODO make this be a Selector variant
     pub selectors: Vec<Selector>,
 }
 

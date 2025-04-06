@@ -1,5 +1,4 @@
-use crate::output::fmt_md::ReferencePlacement;
-use crate::output::link_transform::LinkTransform;
+use crate::output::md::{LinkTransform, ReferencePlacement};
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, ValueEnum};
 use std::borrow::Cow;
@@ -7,6 +6,7 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
+#[doc(hidden)]
 pub struct Cli {
     /// Where to put link references.
     ///

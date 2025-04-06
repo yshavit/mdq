@@ -1,12 +1,12 @@
 use clap::Parser;
-use mdq::run::cli::Cli;
-use mdq::run::{Error, OsFacade};
+use mdq::run::{Cli, Error, OsFacade};
 use std::io;
 use std::io::{stdin, stdout, Read};
 use std::process::ExitCode;
 
 struct RealOs;
 
+#[doc(hidden)]
 impl OsFacade for RealOs {
     fn read_stdin(&self) -> io::Result<String> {
         let mut contents = String::new();

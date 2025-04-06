@@ -93,7 +93,7 @@ pub struct LinkTransformation<'md> {
 ///
 /// This lets us use the `transform_variant()`'s Copy-ability to release the borrow.
 impl<'md> LinkTransformation<'md> {
-    pub fn new<L>(transform: LinkTransform, inline_writer: &mut MdInlinesWriter<'md>, item: L) -> Self
+    pub(crate) fn new<L>(transform: LinkTransform, inline_writer: &mut MdInlinesWriter<'md>, item: L) -> Self
     where
         L: LinkLike<'md> + Copy,
     {
@@ -192,7 +192,7 @@ impl ReferenceAssigner {
     }
 }
 
-/// Turns the inlines into a String. Unlike [crate::output::fmt_str::inlines_to_plain_string], this respects formatting spans
+/// Turns the inlines into a String. Unlike [crate::output::fmt_plain_str::inlines_to_plain_string], this respects formatting spans
 /// like emphasis, strong, etc.
 fn inlines_to_string<'md>(inline_writer: &mut MdInlinesWriter<'md>, inlines: &'md Vec<Inline>) -> String {
     let mut string_writer = Output::without_text_wrapping(String::with_capacity(32)); // guess at capacity
