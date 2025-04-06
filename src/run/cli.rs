@@ -208,13 +208,13 @@ impl Display for OutputFormat {
 
 #[cfg(test)]
 mod tests {
-    use crate::cli::Cli;
+    use crate::run::cli::Cli;
     use crate::util::utils_for_test::*;
     use clap::{Error, Parser};
 
     #[test]
     fn verify_cli() {
-        use crate::cli::Cli;
+        use crate::run::cli::Cli;
         use clap::CommandFactory;
         Cli::command().debug_assert();
     }
