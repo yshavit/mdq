@@ -2,7 +2,7 @@ use crate::fmt_md::MdOptions;
 use crate::fmt_md_inlines::MdInlinesWriterOptions;
 use crate::fmt_plain::PlainOutputOpts;
 use crate::output::{OutputOpts, Stream};
-use crate::query::ParseError;
+use crate::query::{ParseError, SelectorChain};
 use crate::select::SelectorAdapter;
 use crate::tree::{InvalidMd, MdDoc, ReadOptions};
 use crate::tree_ref::MdElemRef;
@@ -14,6 +14,7 @@ use pest::Span;
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
+use std::ops::Deref;
 use std::{env, io};
 
 pub mod cli;
@@ -162,7 +163,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
     };
 
     let selectors_str = cli.selector_string();
-    let selectors = match SelectorAdapter::parse(&selectors_str) {
+    let selectors: SelectorChain = match selectors_str.deref().try_into() {
         Ok(selectors) => selectors,
         Err(error) => {
             return Err(Error::QueryParse {
@@ -173,7 +174,8 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
     };
 
     let mut pipeline_nodes = vec![MdElemRef::Doc(&roots)];
-    for selector in selectors {
+    let selector_adapters = SelectorAdapter::from_chain(selectors);
+    for selector in selector_adapters {
         let new_pipeline = selector.find_nodes(&ctx, pipeline_nodes);
         pipeline_nodes = new_pipeline;
     }
