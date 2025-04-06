@@ -6,7 +6,7 @@ use crate::query::traversal_composites::{
 };
 use crate::query::{
     AnyVariant, CodeBlockMatcher, DetachedSpan, LinklikeMatcher, ListItemMatcher, ListItemTask, Matcher, Pair, Pairs,
-    ParseError, Selector, SelectorChain, TableSliceMatcher,
+    ParseError, Query, Selector, SelectorChain, TableSliceMatcher,
 };
 
 impl TryFrom<Pairs<'_>> for SelectorChain {
@@ -30,6 +30,12 @@ impl TryFrom<Pairs<'_>> for SelectorChain {
 }
 
 impl Selector {
+    pub fn try_parse(value: &'_ str) -> Result<SelectorChain, ParseError> {
+        let parsed: Pairs = Query::parse(value).map_err(|err| ParseError::from(err))?;
+        let parsed_selectors = SelectorChain::try_from(parsed).map_err(|e| ParseError::from(e))?;
+        Ok(parsed_selectors)
+    }
+
     fn find_selector(root: Pair) -> Result<Self, ParseError> {
         let span = DetachedSpan::from(&root);
         let to_parse_error = |es: String| -> ParseError { ParseError::Other(span, es) };

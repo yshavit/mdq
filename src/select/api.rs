@@ -1,5 +1,4 @@
-use crate::query::{Pairs, Query, SelectorChain};
-use crate::query::{ParseError, Selector as ParsedSelector};
+use crate::query::{Selector as ParsedSelector, SelectorChain};
 use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_link_like::{ImageSelector, LinkSelector};
 use crate::select::sel_list_item::ListItemSelector;
@@ -13,7 +12,7 @@ use crate::tree_ref::{HtmlRef, ListItemRef, MdElemRef};
 use paste::paste;
 use std::collections::HashSet;
 
-pub trait Selector<'md, I: Into<MdElemRef<'md>>> {
+pub trait TrySelector<'md, I: Into<MdElemRef<'md>>> {
     fn try_select(&self, item: I) -> Option<MdElemRef<'md>>;
 }
 
@@ -62,10 +61,8 @@ adapters! {
 }
 
 impl SelectorAdapter {
-    pub fn parse(text: &str) -> Result<Vec<Self>, ParseError> {
-        let parsed: Pairs = Query::parse(text).map_err(|err| ParseError::from(err))?;
-        let parsed_selectors = SelectorChain::try_from(parsed).map_err(|e| ParseError::from(e))?;
-        Ok(parsed_selectors.selectors.into_iter().map(|s| s.into()).collect())
+    pub fn from_chain(chain: SelectorChain) -> Vec<Self> {
+        chain.selectors.into_iter().map(|s| s.into()).collect()
     }
 
     pub fn find_nodes<'md>(&self, ctx: &'md MdContext, nodes: Vec<MdElemRef<'md>>) -> Vec<MdElemRef<'md>> {

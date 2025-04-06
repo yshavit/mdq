@@ -1,4 +1,4 @@
-use crate::query::matcher::Matcher;
+use crate::query::{Matcher, ParseError};
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
 pub enum ListItemTask {
@@ -49,4 +49,20 @@ pub enum Selector {
     Html(Matcher),
     Paragraph(Matcher),
     TableSlice(TableSliceMatcher),
+}
+
+impl TryFrom<&'_ str> for SelectorChain {
+    type Error = ParseError;
+
+    fn try_from(value: &'_ str) -> Result<Self, Self::Error> {
+        Selector::try_parse(value)
+    }
+}
+
+impl TryFrom<&'_ String> for SelectorChain {
+    type Error = ParseError;
+
+    fn try_from(value: &'_ String) -> Result<Self, Self::Error> {
+        Selector::try_parse(value)
+    }
 }
