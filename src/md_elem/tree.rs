@@ -54,7 +54,30 @@ pub enum MdElem {
     BlockHtml(String),
 }
 
-pub struct ReadOptions {
+pub struct ParseOptions {
+    pub(crate) mdast_options: markdown::ParseOptions,
+    pub allow_unknown_markdown: bool,
+}
+
+impl ParseOptions {
+    pub fn gfm() -> Self {
+        Self {
+            mdast_options: markdown::ParseOptions::gfm(),
+            allow_unknown_markdown: true,
+        }
+    }
+}
+
+pub fn parse(text: &str, options: &ParseOptions) -> Result<MdDoc, InvalidMd> {
+    let ast = markdown::to_mdast(text, &options.mdast_options).map_err(|e| InvalidMd::ParseError(format!("{e}")))?;
+    let read_options = ReadOptions {
+        validate_no_conflicting_links: false,
+        allow_unknown_markdown: options.allow_unknown_markdown,
+    };
+    MdDoc::read(ast, &read_options)
+}
+
+pub(crate) struct ReadOptions {
     /// For links and images, enforce that reference-style links have at most one definition. If this value is
     /// `false` and a link has multiple definitions, the first one will be picked.
     ///
@@ -90,6 +113,7 @@ pub enum InvalidMd {
     ConflictingReferenceDefinition(String),
     InternalError(InternalErrorState),
     UnknownMarkdown(&'static str),
+    ParseError(String),
 }
 
 /// A wrapper for [Backtrace] that implements [PartialEq] to always return `true`. This lets us use it in a struct
@@ -132,6 +156,11 @@ impl Display for InvalidMd {
                 write!(f, "encountered unknown markdown: {}\n\n", description)?;
                 f.write_str("* Please consider reporting this at https://github.com/yshavit/mdq/issues\n")?;
                 f.write_str("* You can suppress this error by using --allow-unknown-markdown.")
+            }
+            InvalidMd::ParseError(s) => {
+                write!(f, "encountered when parsing markdown")?;
+                f.write_str("* Please consider reporting this at https://github.com/yshavit/mdq/issues\n")?;
+                write!(f, "{s}")
             }
         }?;
         f.write_char('\n')
@@ -339,11 +368,11 @@ macro_rules! m_node {
 pub(crate) use m_node;
 
 impl MdDoc {
-    pub fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
+    fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
         let lookups = Lookups::new(&node, opts)?;
         let mut ctx = MdContext::new();
         let roots = MdElem::from_mdast_0(node, &lookups, &mut ctx)?;
-        Ok(Self { roots, ctx: ctx })
+        Ok(Self { roots, ctx })
     }
 }
 

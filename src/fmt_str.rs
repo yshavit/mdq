@@ -34,7 +34,6 @@ mod tests {
     use indoc::indoc;
 
     use crate::utils_for_test::*;
-    use markdown::ParseOptions;
 
     variants_checker!(VARIANTS_CHECKER = Inline {
         Span(Span{ variant: SpanVariant::Delete, .. }),
@@ -66,8 +65,7 @@ mod tests {
 
     #[test]
     fn inline_html() {
-        let node = markdown::to_mdast("Hello <foo> world", &ParseOptions::gfm()).unwrap();
-        let md_elems = MdDoc::read(node, &ReadOptions::default()).unwrap().roots;
+        let md_elems = parse("Hello <foo> world", &ParseOptions::gfm()).unwrap().roots;
         unwrap!(&md_elems[0], MdElem::Paragraph(contents));
         unwrap!(&contents.body[1], inline @ Inline::Text(_));
         VARIANTS_CHECKER.see(inline);
@@ -116,9 +114,8 @@ mod tests {
     /// markdown to plain text.
     fn check(md: &str, expect: &str) {
         let mut options = ParseOptions::gfm();
-        options.constructs.math_text = true;
-        let node = markdown::to_mdast(md, &options).unwrap();
-        let md_elems = MdDoc::read(node, &ReadOptions::default()).unwrap().roots;
+        options.mdast_options.constructs.math_text = true;
+        let md_elems = parse(md, &options).unwrap().roots;
         unwrap!(&md_elems[0], MdElem::Paragraph(p));
         p.body.iter().for_each(|inline| VARIANTS_CHECKER.see(inline));
         let actual = inlines_to_plain_string(&p.body);

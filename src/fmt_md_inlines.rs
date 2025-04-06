@@ -697,8 +697,8 @@ mod tests {
         writer.write_inline_element(&mut output, &orig);
         let md_str = output.take_underlying().unwrap();
 
-        let ast = markdown::to_mdast(&md_str, &markdown::ParseOptions::gfm()).unwrap();
-        let md_tree = MdDoc::read(ast, &ReadOptions::default()).unwrap().roots;
+        let options = ParseOptions::gfm();
+        let md_tree = parse(&md_str, &options).unwrap().roots;
 
         unwrap!(&md_tree[0], MdElem::Paragraph(p));
         let parsed = get_only(&p.body);
