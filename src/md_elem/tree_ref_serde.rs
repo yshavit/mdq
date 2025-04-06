@@ -1,7 +1,7 @@
-use crate::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions, UrlAndTitle};
-use crate::link_transform::LinkLabel;
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
+use crate::output::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions, UrlAndTitle};
+use crate::output::link_transform::LinkLabel;
 use crate::util::output::Output;
 use markdown::mdast::AlignKind;
 use serde::{Serialize, Serializer};
@@ -303,10 +303,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fmt_md_inlines::MdInlinesWriterOptions;
-    use crate::link_transform::LinkTransform;
     use crate::md_elem::elem_ref::*;
     use crate::md_elem::tree_test_utils::*;
+    use crate::output::fmt_md_inlines::MdInlinesWriterOptions;
+    use crate::output::link_transform::LinkTransform;
     use crate::util::utils_for_test::*;
 
     variants_checker!(CHECKER = MdElemRef {

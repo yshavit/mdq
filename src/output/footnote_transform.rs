@@ -67,7 +67,7 @@ impl<'a, 'md> FootnoteTransformerToString<'a, 'md> {
 
 #[cfg(test)]
 mod test {
-    use crate::footnote_transform::FootnoteTransformer;
+    use crate::output::footnote_transform::FootnoteTransformer;
     use crate::util::output::Output;
 
     #[test]
