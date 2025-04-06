@@ -153,7 +153,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::utils_for_test::*;
+    use crate::util::utils_for_test::*;
     use indoc::indoc;
     use markdown::mdast;
 

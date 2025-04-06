@@ -42,7 +42,7 @@ mod tests {
 
     use crate::md_elem::elem::*;
     use crate::select::TrySelector;
-    use crate::utils_for_test::*;
+    use crate::util::utils_for_test::*;
     use markdown::mdast;
 
     #[test]

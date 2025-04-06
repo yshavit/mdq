@@ -3,8 +3,8 @@ use crate::link_transform::LinkLabel;
 use crate::md_elem::elem::*;
 use crate::md_elem::elem_ref::*;
 use crate::md_elem::*;
-use crate::output::{Block, Output, SimpleWrite};
-use crate::str_utils::{pad_to, standard_align, CountingWriter};
+use crate::util::output::{Block, Output, SimpleWrite};
+use crate::util::str_utils::{pad_to, standard_align, CountingWriter};
 use clap::ValueEnum;
 use std::borrow::Cow;
 use std::cmp::max;
@@ -504,8 +504,8 @@ pub mod tests {
     use super::*;
     use crate::fmt_md::MdOptions;
     use crate::link_transform::LinkTransform;
-    use crate::output::Output;
-    use crate::utils_for_test::*;
+    use crate::util::output::Output;
+    use crate::util::utils_for_test::*;
 
     use super::{write_md, ReferencePlacement};
 
