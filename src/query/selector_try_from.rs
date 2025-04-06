@@ -4,9 +4,10 @@ use crate::query::traversal_composites::{
     BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, ParagraphTraverser,
     SectionResults, SectionTraverser, TableTraverser,
 };
-use crate::query::{
-    AnyVariant, CodeBlockMatcher, DetachedSpan, LinklikeMatcher, ListItemMatcher, ListItemTask, Matcher, Pair, Pairs,
-    ParseError, Query, Selector, SelectorChain, TableSliceMatcher,
+use crate::query::{DetachedSpan, Pair, Pairs, ParseError, Query};
+use crate::select::{
+    AnyVariant, CodeBlockMatcher, LinklikeMatcher, ListItemMatcher, ListItemTask, Matcher, Selector, SelectorChain,
+    TableSliceMatcher,
 };
 
 impl TryFrom<Pairs<'_>> for SelectorChain {

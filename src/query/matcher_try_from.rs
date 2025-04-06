@@ -1,6 +1,6 @@
 use crate::query::strings::{ParsedString, ParsedStringMode};
 use crate::query::{DetachedSpan, Pair, ParseError};
-use crate::select::matcher::{AnyVariant, Matcher};
+use crate::select::{AnyVariant, Matcher};
 use regex::Regex;
 
 impl TryFrom<Option<Pair<'_>>> for Matcher {

@@ -1,6 +1,6 @@
 use crate::matcher::StringMatcher;
-use crate::query::LinklikeMatcher;
 use crate::select::match_selector::MatchSelector;
+use crate::select::LinklikeMatcher;
 use crate::tree::{Image, Link};
 
 #[derive(Debug, PartialEq)]

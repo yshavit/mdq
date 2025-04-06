@@ -1,6 +1,6 @@
 use crate::matcher::StringMatcher;
-use crate::query::CodeBlockMatcher;
 use crate::select::match_selector::MatchSelector;
+use crate::select::CodeBlockMatcher;
 use crate::tree::{CodeBlock, CodeVariant};
 
 #[derive(Debug, PartialEq)]

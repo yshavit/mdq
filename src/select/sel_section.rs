@@ -1,6 +1,6 @@
 use crate::matcher::StringMatcher;
-use crate::query::Matcher;
 use crate::select::match_selector::MatchSelector;
+use crate::select::Matcher;
 use crate::tree::Section;
 
 #[derive(Debug, PartialEq)]

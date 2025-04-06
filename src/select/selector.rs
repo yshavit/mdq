@@ -1,4 +1,5 @@
-use crate::query::{Matcher, ParseError};
+use crate::query::ParseError;
+use crate::select::Matcher;
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
 pub enum ListItemTask {

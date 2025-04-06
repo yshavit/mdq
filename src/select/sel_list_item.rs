@@ -1,6 +1,6 @@
 use crate::matcher::StringMatcher;
-use crate::query::{ListItemMatcher, ListItemTask};
 use crate::select::match_selector::MatchSelector;
+use crate::select::{ListItemMatcher, ListItemTask};
 use crate::tree_ref::ListItemRef;
 
 #[derive(Debug, PartialEq)]
