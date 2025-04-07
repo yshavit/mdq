@@ -39,6 +39,8 @@ pub struct MdDoc {
 
 #[derive(Debug, PartialEq)]
 pub enum MdElem {
+    Doc(Vec<MdElem>),
+
     // Container blocks
     BlockQuote(BlockQuote),
     List(List),
@@ -49,10 +51,15 @@ pub enum MdElem {
     Paragraph(Paragraph),
     Table(Table),
     ThematicBreak,
-
     Inline(Inline),
-    BlockHtml(String),
+    BlockHtml(BlockHtml),
+
+    // sub-elements
+    ListItem(DetachedListItem),
 }
+
+#[derive(Debug, PartialEq)]
+pub struct DetachedListItem(pub Option<u32>, pub ListItem);
 
 pub struct ParseOptions {
     pub(crate) mdast_options: markdown::ParseOptions,
@@ -171,8 +178,8 @@ pub mod elem {
     use super::*;
     use std::ops::Deref;
 
-    pub type TableRow = Vec<Line>;
-    pub type Line = Vec<Inline>;
+    pub type TableRow = Vec<TableCell>;
+    pub type TableCell = Vec<Inline>;
 
     #[derive(Debug, PartialEq, Hash)]
     pub enum CodeVariant {
@@ -189,6 +196,17 @@ pub mod elem {
         Image(crate::md_elem::tree::elem::Image),
         Link(crate::md_elem::tree::elem::Link),
         Text(crate::md_elem::tree::elem::Text),
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    pub struct BlockHtml {
+        pub value: String,
+    }
+
+    impl Display for BlockHtml {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.value)
+        }
     }
 
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -320,6 +338,35 @@ pub mod elem {
     pub struct CodeOpts {
         pub language: String,
         pub metadata: Option<String>,
+    }
+
+    macro_rules! from_for_md_elem {
+        ($elem:ident ($inner:ident)) => {
+            impl From<$inner> for MdElem {
+                fn from(value: $inner) -> Self {
+                    MdElem::$elem(value)
+                }
+            }
+        };
+        ($elem:ident) => {
+            from_for_md_elem! {$elem ($elem)}
+        };
+    }
+
+    from_for_md_elem! { BlockQuote }
+    from_for_md_elem! { List }
+    from_for_md_elem! { Section }
+    from_for_md_elem! { CodeBlock }
+    from_for_md_elem! { Paragraph }
+    from_for_md_elem! { Table }
+    from_for_md_elem! { Inline }
+    from_for_md_elem! { ListItem (DetachedListItem) }
+    from_for_md_elem! { BlockHtml }
+
+    impl From<String> for BlockHtml {
+        fn from(value: String) -> Self {
+            Self { value }
+        }
     }
 }
 
@@ -536,8 +583,7 @@ impl MdElem {
                 variant: CodeVariant::Yaml,
                 value: node.value,
             }),
-            mdast::Node::Html(node) => MdElem::BlockHtml(node.value),
-
+            mdast::Node::Html(node) => m_node!(MdElem::BlockHtml { value: node.value }),
             mdx_nodes! {} => {
                 // If you implement this, make sure to remove the mdx_nodes macro. That means you'll also need to
                 // adjust the test `nodes_matcher` macro.
@@ -668,7 +714,7 @@ impl MdElem {
                 MdElem::Inline(inline) => inline,
                 MdElem::BlockHtml(html) => Inline::Text(Text {
                     variant: TextVariant::Html,
-                    value: html,
+                    value: html.value,
                 }),
                 _ => return Err(InvalidMd::NonInlineWhereInlineExpected(child)),
             };
@@ -1205,7 +1251,7 @@ mod tests {
                 "#});
 
                 check!(&root.children[0], Node::Html(_), lookups => MdElem::BlockHtml(html) = {
-                    assert_eq!(html, "<div>");
+                    assert_eq!(html, BlockHtml {value: "<div>".to_string() });
                 });
                 check!(&root.children[1], Node::Paragraph(_), lookups => m_node!(MdElem::Paragraph{body}) = {
                     assert_eq!(body, vec![mdq_inline!("Hello, world")])
@@ -1219,7 +1265,7 @@ mod tests {
                 "#});
 
                 check!(&root.children[0], Node::Html(_), lookups => MdElem::BlockHtml(html) = {
-                    assert_eq!(html, "<div Hello\nworld. />");
+                    assert_eq!(html, BlockHtml{ value: "<div Hello\nworld. />".to_string()});
                 });
                 assert_eq!(root.children.len(), 1);
             }
@@ -1227,7 +1273,7 @@ mod tests {
                 let (root, lookups) = parse("<a href>");
 
                 check!(&root.children[0], Node::Html(_), lookups => MdElem::BlockHtml(inline) = {
-                    assert_eq!(inline, "<a href>");
+                    assert_eq!(inline, BlockHtml{ value: "<a href>".to_string()} );
                 });
                 assert_eq!(root.children.len(), 1);
             }

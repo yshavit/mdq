@@ -50,7 +50,7 @@ pub enum Selector {
     CodeBlock(CodeBlockMatcher),
     Html(Matcher),
     Paragraph(Matcher),
-    TableSlice(TableSliceMatcher),
+    Table(TableSliceMatcher),
 }
 
 impl TryFrom<&'_ str> for SelectorChain {

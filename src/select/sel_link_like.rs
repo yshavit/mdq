@@ -14,7 +14,7 @@ impl From<LinklikeMatcher> for LinkSelector {
     }
 }
 
-impl MatchSelector<&Link> for LinkSelector {
+impl MatchSelector<Link> for LinkSelector {
     fn matches(&self, item: &Link) -> bool {
         self.matchers.display_matcher.matches_inlines(&item.text)
             && self.matchers.url_matcher.matches(&item.link_definition.url)
@@ -32,7 +32,7 @@ impl From<LinklikeMatcher> for ImageSelector {
     }
 }
 
-impl MatchSelector<&Image> for ImageSelector {
+impl MatchSelector<Image> for ImageSelector {
     fn matches(&self, item: &Image) -> bool {
         self.matchers.display_matcher.matches(&item.alt) && self.matchers.url_matcher.matches(&item.link.url)
     }

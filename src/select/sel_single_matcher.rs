@@ -1,5 +1,4 @@
 use crate::md_elem::elem::*;
-use crate::md_elem::elem_ref::*;
 use crate::select::match_selector::MatchSelector;
 use crate::select::string_matcher::StringMatcher;
 use crate::select::Matcher;
@@ -13,7 +12,7 @@ macro_rules! single_matcher_adapter {
                 matcher: StringMatcher,
             }
 
-            impl MatchSelector<&$name> for [<$name Selector>] {
+            impl MatchSelector<$name> for [<$name Selector>] {
                 fn matches(&self, matcher: &$name) -> bool {
                     self.matcher.$match_fn(&matcher.$tree_struct_field)
                 }
@@ -43,8 +42,8 @@ impl From<Matcher> for HtmlSelector {
     }
 }
 
-impl MatchSelector<HtmlRef<'_>> for HtmlSelector {
-    fn matches(&self, html: HtmlRef) -> bool {
-        self.matcher.matches(html.0)
+impl MatchSelector<BlockHtml> for HtmlSelector {
+    fn matches(&self, html: &BlockHtml) -> bool {
+        self.matcher.matches(&html.value)
     }
 }

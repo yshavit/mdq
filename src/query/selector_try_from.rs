@@ -118,7 +118,7 @@ impl Selector {
                     ));
                 }
                 let row_matcher = Matcher::try_from(res.row.take().map_err(to_parse_error)?)?;
-                Ok(Self::TableSlice(TableSliceMatcher {
+                Ok(Self::Table(TableSliceMatcher {
                     column: column_matcher,
                     row: row_matcher,
                 }))
@@ -668,7 +668,7 @@ mod tests {
         fn table_asterisk_column() {
             find_selector(
                 ":-: * :-:",
-                Selector::TableSlice(TableSliceMatcher {
+                Selector::Table(TableSliceMatcher {
                     column: Matcher::Any(AnyVariant::Explicit),
                     row: Matcher::Any(AnyVariant::Implicit),
                 }),
@@ -679,7 +679,7 @@ mod tests {
         fn table_with_column() {
             find_selector(
                 ":-: Header :-:",
-                Selector::TableSlice(TableSliceMatcher {
+                Selector::Table(TableSliceMatcher {
                     column: matcher_text(false, "Header", false),
                     row: Matcher::Any(AnyVariant::Implicit),
                 }),
@@ -690,7 +690,7 @@ mod tests {
         fn table_with_row() {
             find_selector(
                 ":-: * :-: Data",
-                Selector::TableSlice(TableSliceMatcher {
+                Selector::Table(TableSliceMatcher {
                     column: Matcher::Any(AnyVariant::Explicit),
                     row: matcher_text(false, "Data", false),
                 }),
@@ -701,7 +701,7 @@ mod tests {
         fn table_with_both() {
             find_selector(
                 ":-: Header :-: Data",
-                Selector::TableSlice(TableSliceMatcher {
+                Selector::Table(TableSliceMatcher {
                     column: matcher_text(false, "Header", false),
                     row: matcher_text(false, "Data", false),
                 }),

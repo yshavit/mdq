@@ -1,5 +1,4 @@
 use crate::md_elem::elem::*;
-use crate::md_elem::elem_ref::*;
 use crate::md_elem::*;
 use crate::output::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
 use crate::output::link_transform::LinkLabel;
@@ -61,7 +60,7 @@ pub enum ReferencePlacement {
 
 pub fn write_md<'md, I, W>(options: &'md MdOptions, out: &mut Output<W>, ctx: &'md MdContext, nodes: I)
 where
-    I: Iterator<Item = MdElemRef<'md>>,
+    I: Iterator<Item = &'md MdElem>,
     W: SimpleWrite,
 {
     let mut writer_state = MdWriterState {
@@ -70,7 +69,7 @@ where
         prev_was_thematic_break: false,
         inlines_writer: &mut MdInlinesWriter::new(ctx, options.inline_options),
     };
-    let nodes_count = writer_state.write_md(out, nodes, true);
+    let nodes_count = writer_state.write_md(out, nodes.into_iter(), true);
 
     // Always write the pending definitions at the end of the doc. If there were no sections, then BottomOfSection
     // won't have been triggered, but we still want to write them. We'll add a thematic break before the links if there
@@ -91,7 +90,7 @@ struct MdWriterState<'s, 'md> {
 impl<'s, 'md> MdWriterState<'s, 'md> {
     fn write_md<I, W>(&mut self, out: &mut Output<W>, nodes: I, add_break: bool) -> usize
     where
-        I: Iterator<Item = MdElemRef<'md>>,
+        I: Iterator<Item = &'md MdElem>,
         W: SimpleWrite,
     {
         let mut count = 0;
@@ -111,13 +110,13 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
 
     fn print_separator(&mut self, out: &mut Output<impl SimpleWrite>) {
         if self.opts.include_thematic_breaks {
-            self.write_one_md(out, MdElemRef::ThematicBreak);
+            self.write_one_md(out, &MdElem::ThematicBreak);
         } else {
             out.write_char('\n');
         }
     }
 
-    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node_ref: MdElemRef<'md>)
+    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node_ref: &'md MdElem)
     where
         W: SimpleWrite,
     {
@@ -125,10 +124,10 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
         self.prev_was_thematic_break = false;
 
         match node_ref {
-            MdElemRef::Doc(items) => {
-                self.write_md(out, items.iter().map(|elem| elem.into()), false);
+            MdElem::Doc(items) => {
+                self.write_md(out, items.iter(), false);
             }
-            MdElemRef::Section(Section { depth, title, body }) => {
+            MdElem::Section(Section { depth, title, body }) => {
                 out.with_block(Block::Plain, |out| {
                     out.without_wrapping(|out| {
                         for _ in 0..*depth {
@@ -140,13 +139,13 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                         }
                     });
                 });
-                self.write_md(out, Self::doc_iter(body), false);
+                self.write_md(out, Self::doc_iter(&body), false);
                 self.write_link_refs_as_needed(out);
             }
-            MdElemRef::ListItem(ListItemRef(idx, item)) => {
+            MdElem::ListItem(DetachedListItem(idx, item)) => {
                 self.write_list_item(out, &idx, item);
             }
-            MdElemRef::ThematicBreak => {
+            MdElem::ThematicBreak => {
                 if !prev_was_thematic_break {
                     out.with_block(Block::Plain, |out| {
                         out.without_wrapping(|out| out.write_str("   -----"));
@@ -154,25 +153,22 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                 }
                 self.prev_was_thematic_break = true;
             }
-            MdElemRef::CodeBlock(block) => {
+            MdElem::CodeBlock(block) => {
                 self.write_code_block(out, block);
             }
-            MdElemRef::Paragraph(para) => self.write_paragraph(out, para),
-            MdElemRef::BlockQuote(block) => self.write_block_quote(out, block),
-            MdElemRef::List(list) => self.write_list(out, list),
-            MdElemRef::Table(table) => {
+            MdElem::Paragraph(para) => self.write_paragraph(out, para),
+            MdElem::BlockQuote(block) => self.write_block_quote(out, block),
+            MdElem::List(list) => self.write_list(out, list),
+            MdElem::Table(table) => {
                 // GH #168 maybe have a trait for tables, so we can parameterize write_table instead of calling into()?
                 // That would let us avoid copying various vecs.
                 self.write_table(out, table.into())
             }
-            MdElemRef::TableSlice(table) => self.write_table(out, table),
-            MdElemRef::Inline(inline) => {
+            MdElem::Inline(inline) => {
                 self.inlines_writer.write_inline_element(out, inline);
             }
-            MdElemRef::Link(link) => self.inlines_writer.write_linklike(out, link),
-            MdElemRef::Image(image) => self.inlines_writer.write_linklike(out, image),
-            MdElemRef::Html(html) => out.with_block(Block::Plain, |out| {
-                out.write_str(html.0);
+            MdElem::BlockHtml(html) => out.with_block(Block::Plain, |out| {
+                out.write_str(&html.value);
             }),
         }
     }
@@ -215,7 +211,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
         });
     }
 
-    fn write_table<W: SimpleWrite>(&mut self, out: &mut Output<W>, table: TableSlice<'md>) {
+    fn write_table<W: SimpleWrite>(&mut self, out: &mut Output<W>, table: &'md Table) {
         let alignments = table.alignments();
         let rows = table.rows();
 
@@ -236,8 +232,8 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
         // Pre-calculate all the cells, and also how wide each column needs to be
         for row in rows {
             let mut col_strs = Vec::with_capacity(row.len());
-            for (idx, &col) in row.iter().enumerate() {
-                let col_str = col.map(|ln| self.line_to_string(ln)).unwrap_or("".to_string());
+            for (idx, cell) in row.iter().enumerate() {
+                let col_str = self.line_to_string(&cell);
                 // Extend the row_sizes if needed. This happens if we had fewer alignments than columns in any
                 // row. I'm not sure if that's possible, but it's easy to guard against.
                 while column_widths.len() <= idx {
@@ -328,7 +324,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
         }
     }
 
-    fn write_code_block<W: SimpleWrite>(&mut self, out: &mut Output<W>, block: &CodeBlock) {
+    fn write_code_block<W: SimpleWrite>(&mut self, out: &mut Output<W>, block: &'md CodeBlock) {
         let CodeBlock { variant, value } = block;
         let (surround, meta) = match variant {
             CodeVariant::Code(opts) => {
@@ -342,7 +338,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                 } else {
                     None
                 };
-                let leading_backticks_count = Self::count_longest_opening_backticks(value);
+                let leading_backticks_count = Self::count_longest_opening_backticks(&value);
                 let surround_backticks = if leading_backticks_count < 3 {
                     Cow::Borrowed("```")
                 } else {
@@ -354,7 +350,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                 let meta = if let Some(meta) = metadata {
                     let mut meta_with_space = String::with_capacity(meta.len() + 1);
                     meta_with_space.push(' ');
-                    meta_with_space.push_str(meta);
+                    meta_with_space.push_str(&meta);
                     Some(meta_with_space)
                 } else {
                     None
@@ -478,14 +474,15 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
         });
     }
 
-    fn line_to_string(&mut self, line: &'md Line) -> String {
+    fn line_to_string(&mut self, line: &'md TableCell) -> String {
         let mut out = Output::without_text_wrapping(String::with_capacity(line.len() * 10)); // rough guess
         self.inlines_writer.write_line(&mut out, line);
         out.take_underlying().unwrap()
     }
 
-    fn doc_iter(body: &'md Vec<MdElem>) -> impl Iterator<Item = MdElemRef<'md>> {
-        [MdElemRef::Doc(body)].into_iter()
+    fn doc_iter(body: &'md Vec<MdElem>) -> impl Iterator<Item = &'md MdElem> {
+        // TODO remove this
+        body.into_iter()
     }
 }
 
@@ -509,13 +506,11 @@ pub mod tests {
 
     use super::{write_md, ReferencePlacement};
 
-    variants_checker!(VARIANTS_CHECKER = MdElemRef {
+    variants_checker!(VARIANTS_CHECKER = MdElem {
         Doc(..),
         Section(_),
         ListItem(..),
-        Link(..),
-        Image(..),
-        Html(..),
+        BlockHtml(..),
 
         Inline(Inline::Span(Span{variant: SpanVariant::Delete, ..})),
         Inline(Inline::Span(Span{variant: SpanVariant::Emphasis, ..})),
@@ -558,7 +553,6 @@ pub mod tests {
         BlockQuote(_),
         List(_),
         Table(_),
-        TableSlice(_),
     });
 
     #[test]
@@ -594,7 +588,7 @@ pub mod tests {
         #[test]
         fn two_paragraphs_in_one_doc() {
             check_render_refs(
-                vec![MdElemRef::Doc(&md_elems!["First", "Second"])],
+                vec![MdElem::Doc(md_elems!["First", "Second"])],
                 indoc! {r#"
                 First
 
@@ -904,8 +898,8 @@ pub mod tests {
             };
             check_render_refs(
                 vec![
-                    MdElemRef::ListItem(ListItemRef(None, &li1)),
-                    MdElemRef::ListItem(ListItemRef(None, &li2)),
+                    MdElem::ListItem(DetachedListItem(None, li1)),
+                    MdElem::ListItem(DetachedListItem(None, li2)),
                 ],
                 indoc! {r#"
                 - [ ] first item
@@ -931,8 +925,8 @@ pub mod tests {
             check_render_refs_with(
                 &options,
                 vec![
-                    MdElemRef::ListItem(ListItemRef(None, &li1)),
-                    MdElemRef::ListItem(ListItemRef(None, &li2)),
+                    MdElem::ListItem(DetachedListItem(None, li1)),
+                    MdElem::ListItem(DetachedListItem(None, li2)),
                 ],
                 indoc! {r#"
                 - [ ] first item
@@ -942,7 +936,7 @@ pub mod tests {
 
         fn create_li_singleton(idx: Option<u32>, checked: Option<bool>, item: Vec<MdElem>, expected: &str) {
             let li = ListItem { checked, item };
-            check_render_refs(vec![MdElemRef::ListItem(ListItemRef(idx, &li))], expected)
+            check_render_refs(vec![MdElem::ListItem(DetachedListItem(idx, li))], expected)
         }
     }
 
@@ -1120,7 +1114,7 @@ pub mod tests {
                 ],
             };
             check_render_refs(
-                vec![MdElemRef::TableSlice((&table).into())],
+                vec![MdElem::Table(table)],
                 indoc! {r#"
                     | Left | Right |
                     |:-----|------:|
@@ -1769,7 +1763,7 @@ pub mod tests {
         #[test]
         fn single_link() {
             check_render_refs(
-                vec![MdElemRef::Link(&Link {
+                vec![link_elem(Link {
                     text: vec![mdq_inline!("link text")],
                     link_definition: LinkDefinition {
                         url: "https://example.com".to_string(),
@@ -1788,7 +1782,7 @@ pub mod tests {
         fn two_links() {
             check_render_refs(
                 vec![
-                    MdElemRef::Link(&Link {
+                    link_elem(Link {
                         text: vec![mdq_inline!("link text one")],
                         link_definition: LinkDefinition {
                             url: "https://example.com/1".to_string(),
@@ -1796,7 +1790,7 @@ pub mod tests {
                             reference: LinkReference::Full("1".to_string()),
                         },
                     }),
-                    MdElemRef::Link(&Link {
+                    link_elem(Link {
                         text: vec![mdq_inline!("link text two")],
                         link_definition: LinkDefinition {
                             url: "https://example.com/2".to_string(),
@@ -1822,7 +1816,7 @@ pub mod tests {
         fn two_links_inline() {
             check_render_refs(
                 vec![
-                    MdElemRef::Link(&Link {
+                    link_elem(Link {
                         text: vec![mdq_inline!("link text one")],
                         link_definition: LinkDefinition {
                             url: "https://example.com/1".to_string(),
@@ -1830,7 +1824,7 @@ pub mod tests {
                             reference: LinkReference::Inline,
                         },
                     }),
-                    MdElemRef::Link(&Link {
+                    link_elem(Link {
                         text: vec![mdq_inline!("link text two")],
                         link_definition: LinkDefinition {
                             url: "https://example.com/2".to_string(),
@@ -1855,7 +1849,7 @@ pub mod tests {
             check_render_refs_with(
                 &options,
                 vec![
-                    MdElemRef::Link(&Link {
+                    link_elem(Link {
                         text: vec![mdq_inline!("link text one")],
                         link_definition: LinkDefinition {
                             url: "https://example.com/1".to_string(),
@@ -1863,7 +1857,7 @@ pub mod tests {
                             reference: LinkReference::Inline,
                         },
                     }),
-                    MdElemRef::Link(&Link {
+                    link_elem(Link {
                         text: vec![mdq_inline!("link text two")],
                         link_definition: LinkDefinition {
                             url: "https://example.com/2".to_string(),
@@ -1887,7 +1881,7 @@ pub mod tests {
             check_render_refs_with(
                 &options,
                 vec![
-                    MdElemRef::Link(&Link {
+                    link_elem(Link {
                         text: vec![mdq_inline!("link text one")],
                         link_definition: LinkDefinition {
                             url: "https://example.com/1".to_string(),
@@ -1895,7 +1889,7 @@ pub mod tests {
                             reference: LinkReference::Inline,
                         },
                     }),
-                    MdElemRef::Link(&Link {
+                    link_elem(Link {
                         text: vec![mdq_inline!("link text two")],
                         link_definition: LinkDefinition {
                             url: "https://example.com/2".to_string(),
@@ -1918,7 +1912,7 @@ pub mod tests {
         fn reference_transform_smoke_test() {
             check_render_refs_with(
                 &MdOptions::new_with(|mdo| mdo.inline_options.link_format = LinkTransform::Reference),
-                vec![MdElemRef::Link(&Link {
+                vec![link_elem(Link {
                     text: vec![mdq_inline!("link text")],
                     link_definition: LinkDefinition {
                         url: "https://example.com".to_string(),
@@ -1932,6 +1926,10 @@ pub mod tests {
                     [1]: https://example.com"#},
             );
         }
+
+        fn link_elem(link: Link) -> MdElem {
+            MdElem::Inline(Inline::Link(link))
+        }
     }
 
     mod image {
@@ -1940,7 +1938,7 @@ pub mod tests {
         #[test]
         fn single_image() {
             check_render_refs(
-                vec![MdElemRef::Image(&Image {
+                vec![image_elem(Image {
                     alt: "alt text".to_string(),
                     link: LinkDefinition {
                         url: "https://example.com".to_string(),
@@ -1959,7 +1957,7 @@ pub mod tests {
         fn two_images() {
             check_render_refs(
                 vec![
-                    MdElemRef::Image(&Image {
+                    image_elem(Image {
                         alt: "alt text one".to_string(),
                         link: LinkDefinition {
                             url: "https://example.com/1.png".to_string(),
@@ -1967,7 +1965,7 @@ pub mod tests {
                             reference: LinkReference::Full("1".to_string()),
                         },
                     }),
-                    MdElemRef::Image(&Image {
+                    image_elem(Image {
                         alt: "alt text two".to_string(),
                         link: LinkDefinition {
                             url: "https://example.com/2.png".to_string(),
@@ -1994,7 +1992,7 @@ pub mod tests {
         fn reference_transform_smoke_test() {
             check_render_refs_with(
                 &MdOptions::new_with(|mdo| mdo.inline_options.link_format = LinkTransform::Reference),
-                vec![MdElemRef::Image(&Image {
+                vec![image_elem(Image {
                     alt: "alt text".to_string(),
                     link: LinkDefinition {
                         url: "https://example.com".to_string(),
@@ -2007,6 +2005,10 @@ pub mod tests {
 
                     [1]: https://example.com"#},
             );
+        }
+
+        fn image_elem(link: Image) -> MdElem {
+            MdElem::Inline(Inline::Image(link))
         }
     }
 
@@ -2060,7 +2062,7 @@ pub mod tests {
             let (ctx, graf) = footnote_a_in_paragraph();
             check_render_refs_with_ctx(
                 &MdOptions::new_with(|mdo| mdo.inline_options.renumber_footnotes = true),
-                (ctx, vec![MdElemRef::Paragraph(&graf)]),
+                (ctx, vec![MdElem::Paragraph(graf)]),
                 indoc! {r#"
                     [^1]
 
@@ -2073,7 +2075,7 @@ pub mod tests {
             let (ctx, graf) = footnote_a_in_paragraph();
             check_render_refs_with_ctx(
                 &MdOptions::new_with(|mdo| mdo.inline_options.renumber_footnotes = false),
-                (ctx, vec![MdElemRef::Paragraph(&graf)]),
+                (ctx, vec![MdElem::Paragraph(graf)]),
                 indoc! {r#"
                     [^a]
 
@@ -2364,13 +2366,13 @@ pub mod tests {
 
         #[test]
         fn block_single_line() {
-            check_render(vec![MdElem::BlockHtml("<div>".to_string())], indoc! {r#"<div>"#})
+            check_render(vec![MdElem::BlockHtml("<div>".into())], indoc! {r#"<div>"#})
         }
 
         #[test]
         fn block_multi_line() {
             check_render(
-                vec![MdElem::BlockHtml("<div\nselected>".to_string())],
+                vec![MdElem::BlockHtml("<div\nselected>".into())],
                 indoc! {r#"
                 <div
                 selected>"#},
@@ -2389,26 +2391,26 @@ pub mod tests {
     fn check_render_with_ctx(options: &MdOptions, inputs: (MdContext, Vec<MdElem>), expect: &str) {
         let (ctx, nodes) = inputs;
         let mut wrapped = Vec::with_capacity(nodes.len());
-        for node in &nodes {
-            wrapped.push(node.into());
+        for node in nodes {
+            wrapped.push(node);
         }
         check_render_refs_with_ctx(options, (ctx, wrapped), expect)
     }
 
-    fn check_render_refs(nodes: Vec<MdElemRef>, expect: &str) {
+    fn check_render_refs(nodes: Vec<MdElem>, expect: &str) {
         check_render_refs_with(&MdOptions::default_for_tests(), nodes, expect)
     }
 
-    fn check_render_refs_with(options: &MdOptions, nodes: Vec<MdElemRef>, expect: &str) {
+    fn check_render_refs_with(options: &MdOptions, nodes: Vec<MdElem>, expect: &str) {
         check_render_refs_with_ctx(options, (MdContext::empty(), nodes), expect)
     }
 
-    fn check_render_refs_with_ctx(options: &MdOptions, inputs: (MdContext, Vec<MdElemRef>), expect: &str) {
+    fn check_render_refs_with_ctx(options: &MdOptions, inputs: (MdContext, Vec<MdElem>), expect: &str) {
         let (ctx, nodes) = inputs;
         nodes.iter().for_each(|n| VARIANTS_CHECKER.see(n));
 
         let mut out = Output::without_text_wrapping(String::default());
-        write_md(options, &mut out, &ctx, nodes.into_iter());
+        write_md(options, &mut out, &ctx, nodes.iter());
         let actual = out.take_underlying().unwrap();
         assert_eq!(&actual, expect);
     }

@@ -87,17 +87,19 @@ mod test_utils {
 
     /// Converts an `MdElem` into an `MdElemRef`, checking that it got converted to the right one
     macro_rules! checked_elem_ref {
+        // TODO rename this, and update the docs
+        // TODO remove this?
         ($input:expr => $variant:pat) => {{
-            let as_ref: crate::md_elem::MdElemRef = (&($input)).into();
-            if !matches!(as_ref, $variant) {
+            let md_elem: MdElem = $input;
+            if !matches!(md_elem, $variant) {
                 panic!(
                     "{} should have been {}, was {:?}",
                     stringify!($input),
                     stringify!($variant),
-                    as_ref
+                    md_elem
                 );
             }
-            as_ref
+            md_elem
         }};
     }
     pub(crate) use checked_elem_ref;
