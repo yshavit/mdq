@@ -8,7 +8,6 @@ pub struct LinkSelector {
     matchers: LinkMatchers,
 }
 
-// TODO needed?
 impl From<LinklikeMatcher> for LinkSelector {
     fn from(value: LinklikeMatcher) -> Self {
         Self { matchers: value.into() }
@@ -27,7 +26,6 @@ pub struct ImageSelector {
     matchers: LinkMatchers,
 }
 
-// TODO needed?
 impl From<LinklikeMatcher> for ImageSelector {
     fn from(value: LinklikeMatcher) -> Self {
         Self { matchers: value.into() }

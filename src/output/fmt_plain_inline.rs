@@ -104,13 +104,22 @@ where
     W: Write,
     I: Iterator<Item = &'md TableCell>,
 {
-    let mut cols = line.peekable();
-    while let Some(cell) = cols.next() {
+    let mut last_was_nonempty = false;
+    for cell in line {
+        TODO need to add unit tests:
+        // a b c
+        // a <empty> c
+        // a <empty> <empty> d
+        // <empty> b
+        if cell.is_empty() {
+            continue;
+        }
+        if last_was_nonempty {
+            write!(out, " ")?;
+        }
+        last_was_nonempty = true; // checked cell.is_empty() above
         for span in cell {
             write_inline(out, span)?;
-        }
-        if cols.peek().is_some() {
-            write!(out, " ")?;
         }
     }
     writeln!(out)?;
