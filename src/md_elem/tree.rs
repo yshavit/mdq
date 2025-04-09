@@ -37,7 +37,7 @@ pub struct MdDoc {
     pub ctx: MdContext,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum MdElem {
     Doc(Vec<MdElem>),
 
@@ -58,7 +58,7 @@ pub enum MdElem {
     ListItem(DetachedListItem),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DetachedListItem(pub Option<u32>, pub ListItem);
 
 pub struct ParseOptions {
@@ -181,7 +181,7 @@ pub mod elem {
     pub type TableRow = Vec<TableCell>;
     pub type TableCell = Vec<Inline>;
 
-    #[derive(Debug, PartialEq, Hash)]
+    #[derive(Debug, PartialEq, Hash, Clone)]
     pub enum CodeVariant {
         Code(Option<CodeOpts>),
         Math { metadata: Option<String> },
@@ -189,7 +189,7 @@ pub mod elem {
         Yaml,
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum Inline {
         Footnote(crate::md_elem::tree::elem::FootnoteId),
         Span(crate::md_elem::tree::elem::Span),
@@ -198,7 +198,7 @@ pub mod elem {
         Text(crate::md_elem::tree::elem::Text),
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct BlockHtml {
         pub value: String,
     }
@@ -209,31 +209,31 @@ pub mod elem {
         }
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct Span {
         pub variant: crate::md_elem::tree::elem::SpanVariant,
         pub children: Vec<crate::md_elem::tree::elem::Inline>,
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct Text {
         pub variant: crate::md_elem::tree::elem::TextVariant,
         pub value: String,
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct Link {
         pub text: Vec<crate::md_elem::tree::elem::Inline>,
         pub link_definition: crate::md_elem::tree::elem::LinkDefinition,
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct Image {
         pub alt: String,
         pub link: crate::md_elem::tree::elem::LinkDefinition,
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct FootnoteId {
         pub id: String,
     }
@@ -259,7 +259,7 @@ pub mod elem {
         }
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct LinkDefinition {
         pub url: String,
         /// If you have `[1]: https://example.com "my title"`, this is the "my title".
@@ -269,20 +269,20 @@ pub mod elem {
         pub reference: LinkReference,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct ListItem {
         pub checked: Option<bool>,
         pub item: Vec<MdElem>,
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum SpanVariant {
         Delete,
         Emphasis,
         Strong,
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum TextVariant {
         Plain,
         Code,
@@ -290,36 +290,36 @@ pub mod elem {
         Html,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct Section {
         pub depth: u8,
         pub title: Vec<Inline>,
         pub body: Vec<MdElem>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct Paragraph {
         pub body: Vec<Inline>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct BlockQuote {
         pub body: Vec<MdElem>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct List {
         pub starting_index: Option<u32>,
         pub items: Vec<ListItem>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct Table {
         pub alignments: Vec<mdast::AlignKind>,
         pub rows: Vec<TableRow>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct CodeBlock {
         pub variant: CodeVariant,
         pub value: String,
@@ -334,7 +334,7 @@ pub mod elem {
         Shortcut,
     }
 
-    #[derive(Debug, PartialEq, Hash)]
+    #[derive(Debug, PartialEq, Hash, Clone)]
     pub struct CodeOpts {
         pub language: String,
         pub metadata: Option<String>,
@@ -366,6 +366,18 @@ pub mod elem {
     impl From<String> for BlockHtml {
         fn from(value: String) -> Self {
             Self { value }
+        }
+    }
+
+    impl From<Image> for MdElem {
+        fn from(value: Image) -> Self {
+            MdElem::Inline(Inline::Image(value))
+        }
+    }
+
+    impl From<Link> for MdElem {
+        fn from(value: Link) -> Self {
+            MdElem::Inline(Inline::Link(value))
         }
     }
 }

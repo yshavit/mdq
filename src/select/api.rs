@@ -1,6 +1,8 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
 use crate::select::sel_code_block::CodeBlockSelector;
+use crate::select::sel_link_like::ImageSelector;
+use crate::select::sel_link_like::LinkSelector;
 use crate::select::sel_list_item::ListItemSelector;
 use crate::select::sel_section::SectionSelector;
 use crate::select::sel_single_matcher::BlockQuoteSelector;
@@ -16,10 +18,13 @@ pub trait TrySelector<I: Into<MdElem>> {
 }
 
 macro_rules! adapters {
-    { $($name:ident => $md_elem:ident),+ $(,)?} => {
+    { $($name:ident => $md_elem:ident),+ , <inlines> { $($inline:ident),+ , } } => {
         pub enum SelectorAdapter {
             $(
             $name( paste!{[<$name Selector>]} ),
+            )+
+            $(
+            $inline( paste!{[<$inline Selector>]} ),
             )+
         }
 
@@ -28,6 +33,9 @@ macro_rules! adapters {
                 match parsed {
                     $(
                     Selector::$name(matcher) => Self::$name(matcher.into()),
+                    )+
+                    $(
+                    Selector::$inline(matcher) => Self::$inline(matcher.into()),
                     )+
                 }
             }
@@ -38,6 +46,9 @@ macro_rules! adapters {
                 match (&self, node) {
                     $(
                     (Self::$name(adapter), MdElem::$md_elem(elem)) => adapter.try_select(elem),
+                    )+
+                    $(
+                    (Self::$inline(adapter), MdElem::Inline(Inline::$inline(elem))) => adapter.try_select(elem),
                     )+
                     (_, unmatched) => Err(unmatched),
                 }
@@ -54,9 +65,13 @@ adapters! {
     Html => BlockHtml,
     Paragraph => Paragraph,
     Table => Table,
-    Link => Link,
-    Image => Image,
+    <inlines> {
+        Link,
+        Image,
+    }
 }
+
+// MdElem::Inline(Inline:: Link( ))
 
 impl SelectorAdapter {
     // TODO remove this struct, and just have Selector do everything
@@ -121,9 +136,9 @@ impl SelectorAdapter {
                 let first_row_cols = rows.first().map(Vec::len).unwrap_or(0);
                 let count_estimate = rows.len() * first_row_cols;
                 let mut result = Vec::with_capacity(count_estimate);
-                for row in table.rows() {
+                for row in table.rows {
                     for col in row {
-                        for cell in *col {
+                        for cell in col {
                             result.push(MdElem::Inline(cell));
                         }
                     }
@@ -137,7 +152,7 @@ impl SelectorAdapter {
                 }
                 Inline::Footnote(footnote) => {
                     // guard against cycles
-                    if ctx.seen_footnotes.insert(&footnote) {
+                    if ctx.seen_footnotes.insert(footnote.clone()) {
                         vec![MdElem::Doc(Vec::clone(ctx.md_context.get_footnote(&footnote)))]
                     } else {
                         Vec::new()
@@ -156,7 +171,7 @@ impl SelectorAdapter {
 
 struct SearchContext<'md> {
     md_context: &'md MdContext,
-    seen_footnotes: HashSet<&'md FootnoteId>,
+    seen_footnotes: HashSet<FootnoteId>,
 }
 
 impl<'md> SearchContext<'md> {
