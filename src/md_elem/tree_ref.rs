@@ -2,8 +2,6 @@ use crate::md_elem::elem::*;
 use crate::util::vec_utils::ItemRetainer;
 use markdown::mdast;
 
-pub use elem_ref::*;
-
 mod elem_ref {
     use super::*;
     use crate::util::vec_utils::IndexKeeper;

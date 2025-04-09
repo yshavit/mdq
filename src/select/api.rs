@@ -217,28 +217,5 @@ mod test {
                 }))]
             );
         }
-
-        #[test]
-        fn link_via_inlines() {
-            fn mk_link() -> Link {
-                Link {
-                    text: vec![mdq_inline!("link text")],
-                    link_definition: LinkDefinition {
-                        url: "https://example.com".to_string(),
-                        title: None,
-                        reference: LinkReference::Inline,
-                    },
-                }
-            }
-            let inline = Inline::Link(mk_link());
-            let node_ref = MdElem::Inline(inline);
-            let md_context = MdContext::empty();
-            let mut ctx = SearchContext {
-                md_context: &md_context,
-                seen_footnotes: Default::default(),
-            };
-            let children = SelectorAdapter::find_children(&mut ctx, node_ref);
-            assert_eq!(children, vec![MdElem::Inline(Inline::Link(mk_link()))]);
-        }
     }
 }

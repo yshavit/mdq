@@ -139,7 +139,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                         }
                     });
                 });
-                self.write_md(out, Self::doc_iter(&body), false);
+                self.write_md(out, body.into_iter(), false);
                 self.write_link_refs_as_needed(out);
             }
             MdElem::ListItem(DetachedListItem(idx, item)) => {
@@ -194,7 +194,8 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
 
     fn write_block_quote<W: SimpleWrite>(&mut self, out: &mut Output<W>, block: &'md BlockQuote) {
         out.with_block(Block::Quote, |out| {
-            self.write_md(out, Self::doc_iter(&block.body), false);
+            let body = &block.body;
+            self.write_md(out, body.into_iter(), false);
         });
     }
 
@@ -403,7 +404,8 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
         }
         let count = counting_writer.count();
         out.with_block(Block::Indent(count), |out| {
-            self.write_md(out, Self::doc_iter(&item.item), false);
+            let body = &item.item;
+            self.write_md(out, body.into_iter(), false);
         });
     }
 
@@ -467,7 +469,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                     out.write_str(&link_ref);
                     out.write_str("]: ");
                     out.with_block(Block::Indent(2), |out| {
-                        self.write_md(out, Self::doc_iter(text), false);
+                        self.write_md(out, text.into_iter(), false);
                     });
                 }
             }
@@ -478,11 +480,6 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
         let mut out = Output::without_text_wrapping(String::with_capacity(line.len() * 10)); // rough guess
         self.inlines_writer.write_line(&mut out, line);
         out.take_underlying().unwrap()
-    }
-
-    fn doc_iter(body: &'md Vec<MdElem>) -> impl Iterator<Item = &'md MdElem> {
-        // TODO remove this
-        body.into_iter()
     }
 }
 

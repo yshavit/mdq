@@ -117,7 +117,7 @@ where
     Ok(())
 }
 
-fn write_inlines<W>(out: &mut W, inlines: &Vec<Inline>) -> Result<(), Error>
+fn write_inlines<W>(out: &mut W, inlines: &[Inline]) -> Result<(), Error>
 where
     W: Write,
 {

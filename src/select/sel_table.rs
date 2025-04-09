@@ -10,21 +10,19 @@ pub struct TableSelector {
 }
 
 impl TrySelector<Table> for TableSelector {
-    fn try_select(&self, mut table: Table) -> Result<MdElem, MdElem> {
-        // TODO fix me!
+    fn try_select(&self, orig: Table) -> Result<MdElem, MdElem> {
+        let mut table = orig.clone();
 
         table.normalize();
 
         table.retain_columns_by_header(|line| self.headers_matcher.matches_inlines(line));
         if table.is_empty() {
-            // TODO need to return original
-            return Err(table.into());
+            return Err(orig.into());
         }
 
         table.retain_rows(|line| self.rows_matcher.matches_inlines(line));
         if table.is_empty() {
-            // TODO need to return original
-            return Err(table.into());
+            return Err(orig.into());
         }
         Ok(table.into())
     }

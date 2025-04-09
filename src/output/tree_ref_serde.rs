@@ -213,6 +213,14 @@ impl<'md> SerdeElem<'md> {
                     language,
                 }
             }
+            MdElem::Inline(Inline::Link(link)) => Self::Link {
+                display: inlines_to_string(&link.text, inlines_writer),
+                link: (&link.link_definition).into(),
+            },
+            MdElem::Inline(Inline::Image(img)) => Self::Image {
+                alt: &img.alt,
+                link: (&img.link).into(),
+            },
             MdElem::Inline(inline) => {
                 let as_string = inlines_to_string([inline], inlines_writer);
                 Self::Paragraph(as_string)
@@ -433,25 +441,6 @@ mod tests {
 
     #[test]
     fn image() {
-        check(
-            md_elem!(Inline::Image {
-                alt: "the alt text".to_string(),
-                link: LinkDefinition {
-                    url: "https://example.com/image.png".to_string(),
-                    title: None,
-                    reference: LinkReference::Inline,
-                }
-            }),
-            json_str!(
-                {"items": [
-                    {"paragraph": "![the alt text](https://example.com/image.png)"
-                }]}
-            ),
-        );
-    }
-
-    #[test]
-    fn image_ref() {
         check_md_ref(
             MdElem::Inline(Inline::Image(Image {
                 alt: "the alt text".to_string(),
@@ -474,32 +463,6 @@ mod tests {
 
     #[test]
     fn link_with_reference() {
-        check(
-            md_elem!(Inline::Link {
-                text: vec![mdq_inline!("alpha")],
-                link_definition: LinkDefinition {
-                    url: "https://example.com/a".to_string(),
-                    title: None,
-                    reference: LinkReference::Full("a".to_string()),
-                }
-            }),
-            json_str!(
-                {
-                    "items": [
-                        {"paragraph": "[alpha][a]"}
-                    ],
-                    "links": {
-                        "a": {
-                            "url":"https://example.com/a"
-                        }
-                    }
-                }
-            ),
-        );
-    }
-
-    #[test]
-    fn link_ref_with_reference() {
         check_md_ref(
             MdElem::Inline(Inline::Link(Link {
                 text: vec![mdq_inline!("hello")],
