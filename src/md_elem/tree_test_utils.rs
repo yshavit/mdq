@@ -37,5 +37,14 @@ mod test_utils {
             })
         };
     }
+    use crate::md_elem::elem::BlockHtml;
     pub(crate) use mdq_inline;
+
+    impl From<&str> for BlockHtml {
+        fn from(value: &str) -> Self {
+            Self {
+                value: value.to_string(),
+            }
+        }
+    }
 }

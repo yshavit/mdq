@@ -37,8 +37,10 @@ pub struct MdDoc {
     pub ctx: MdContext,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum MdElem {
+    Doc(Vec<MdElem>),
+
     // Container blocks
     BlockQuote(BlockQuote),
     List(List),
@@ -49,10 +51,16 @@ pub enum MdElem {
     Paragraph(Paragraph),
     Table(Table),
     ThematicBreak,
-
     Inline(Inline),
-    BlockHtml(String),
+    BlockHtml(BlockHtml),
+
+    // sub-elements
+    // #328 do I really want this? Or should I just make it a one-element list?
+    ListItem(DetachedListItem),
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct DetachedListItem(pub Option<u32>, pub ListItem);
 
 pub struct ParseOptions {
     pub(crate) mdast_options: markdown::ParseOptions,
@@ -171,10 +179,10 @@ pub mod elem {
     use super::*;
     use std::ops::Deref;
 
-    pub type TableRow = Vec<Line>;
-    pub type Line = Vec<Inline>;
+    pub type TableRow = Vec<TableCell>;
+    pub type TableCell = Vec<Inline>;
 
-    #[derive(Debug, PartialEq, Hash)]
+    #[derive(Debug, PartialEq, Hash, Clone)]
     pub enum CodeVariant {
         Code(Option<CodeOpts>),
         Math { metadata: Option<String> },
@@ -182,7 +190,7 @@ pub mod elem {
         Yaml,
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum Inline {
         Footnote(crate::md_elem::tree::elem::FootnoteId),
         Span(crate::md_elem::tree::elem::Span),
@@ -191,31 +199,42 @@ pub mod elem {
         Text(crate::md_elem::tree::elem::Text),
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    pub struct BlockHtml {
+        pub value: String,
+    }
+
+    impl Display for BlockHtml {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.value)
+        }
+    }
+
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct Span {
         pub variant: crate::md_elem::tree::elem::SpanVariant,
         pub children: Vec<crate::md_elem::tree::elem::Inline>,
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct Text {
         pub variant: crate::md_elem::tree::elem::TextVariant,
         pub value: String,
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct Link {
         pub text: Vec<crate::md_elem::tree::elem::Inline>,
         pub link_definition: crate::md_elem::tree::elem::LinkDefinition,
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct Image {
         pub alt: String,
         pub link: crate::md_elem::tree::elem::LinkDefinition,
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct FootnoteId {
         pub id: String,
     }
@@ -241,7 +260,7 @@ pub mod elem {
         }
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct LinkDefinition {
         pub url: String,
         /// If you have `[1]: https://example.com "my title"`, this is the "my title".
@@ -251,20 +270,20 @@ pub mod elem {
         pub reference: LinkReference,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct ListItem {
         pub checked: Option<bool>,
         pub item: Vec<MdElem>,
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum SpanVariant {
         Delete,
         Emphasis,
         Strong,
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum TextVariant {
         Plain,
         Code,
@@ -272,36 +291,36 @@ pub mod elem {
         Html,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct Section {
         pub depth: u8,
         pub title: Vec<Inline>,
         pub body: Vec<MdElem>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct Paragraph {
         pub body: Vec<Inline>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct BlockQuote {
         pub body: Vec<MdElem>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct List {
         pub starting_index: Option<u32>,
         pub items: Vec<ListItem>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct Table {
         pub alignments: Vec<mdast::AlignKind>,
         pub rows: Vec<TableRow>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct CodeBlock {
         pub variant: CodeVariant,
         pub value: String,
@@ -316,10 +335,51 @@ pub mod elem {
         Shortcut,
     }
 
-    #[derive(Debug, PartialEq, Hash)]
+    #[derive(Debug, PartialEq, Hash, Clone)]
     pub struct CodeOpts {
         pub language: String,
         pub metadata: Option<String>,
+    }
+
+    macro_rules! from_for_md_elem {
+        ($elem:ident ($inner:ident)) => {
+            impl From<$inner> for MdElem {
+                fn from(value: $inner) -> Self {
+                    MdElem::$elem(value)
+                }
+            }
+        };
+        ($elem:ident) => {
+            from_for_md_elem! {$elem ($elem)}
+        };
+    }
+
+    from_for_md_elem! { BlockQuote }
+    from_for_md_elem! { List }
+    from_for_md_elem! { Section }
+    from_for_md_elem! { CodeBlock }
+    from_for_md_elem! { Paragraph }
+    from_for_md_elem! { Table }
+    from_for_md_elem! { Inline }
+    from_for_md_elem! { ListItem (DetachedListItem) }
+    from_for_md_elem! { BlockHtml }
+
+    impl From<String> for BlockHtml {
+        fn from(value: String) -> Self {
+            Self { value }
+        }
+    }
+
+    impl From<Image> for MdElem {
+        fn from(value: Image) -> Self {
+            MdElem::Inline(Inline::Image(value))
+        }
+    }
+
+    impl From<Link> for MdElem {
+        fn from(value: Link) -> Self {
+            MdElem::Inline(Inline::Link(value))
+        }
     }
 }
 
@@ -536,8 +596,7 @@ impl MdElem {
                 variant: CodeVariant::Yaml,
                 value: node.value,
             }),
-            mdast::Node::Html(node) => MdElem::BlockHtml(node.value),
-
+            mdast::Node::Html(node) => m_node!(MdElem::BlockHtml { value: node.value }),
             mdx_nodes! {} => {
                 // If you implement this, make sure to remove the mdx_nodes macro. That means you'll also need to
                 // adjust the test `nodes_matcher` macro.
@@ -668,7 +727,7 @@ impl MdElem {
                 MdElem::Inline(inline) => inline,
                 MdElem::BlockHtml(html) => Inline::Text(Text {
                     variant: TextVariant::Html,
-                    value: html,
+                    value: html.value,
                 }),
                 _ => return Err(InvalidMd::NonInlineWhereInlineExpected(child)),
             };
@@ -1205,7 +1264,7 @@ mod tests {
                 "#});
 
                 check!(&root.children[0], Node::Html(_), lookups => MdElem::BlockHtml(html) = {
-                    assert_eq!(html, "<div>");
+                    assert_eq!(html, BlockHtml {value: "<div>".to_string() });
                 });
                 check!(&root.children[1], Node::Paragraph(_), lookups => m_node!(MdElem::Paragraph{body}) = {
                     assert_eq!(body, vec![mdq_inline!("Hello, world")])
@@ -1219,7 +1278,7 @@ mod tests {
                 "#});
 
                 check!(&root.children[0], Node::Html(_), lookups => MdElem::BlockHtml(html) = {
-                    assert_eq!(html, "<div Hello\nworld. />");
+                    assert_eq!(html, BlockHtml{ value: "<div Hello\nworld. />".to_string()});
                 });
                 assert_eq!(root.children.len(), 1);
             }
@@ -1227,7 +1286,7 @@ mod tests {
                 let (root, lookups) = parse("<a href>");
 
                 check!(&root.children[0], Node::Html(_), lookups => MdElem::BlockHtml(inline) = {
-                    assert_eq!(inline, "<a href>");
+                    assert_eq!(inline, BlockHtml{ value: "<a href>".to_string()} );
                 });
                 assert_eq!(root.children.len(), 1);
             }

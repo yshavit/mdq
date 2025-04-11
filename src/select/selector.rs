@@ -29,14 +29,14 @@ pub struct CodeBlockMatcher {
 }
 
 #[derive(Eq, PartialEq, Debug)]
-pub struct TableSliceMatcher {
+pub struct TableMatcher {
     pub column: Matcher,
     pub row: Matcher,
 }
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct SelectorChain {
-    // TODO make this be a Selector variant
+    // #315 make this be a Selector variant
     pub selectors: Vec<Selector>,
 }
 
@@ -50,7 +50,7 @@ pub enum Selector {
     CodeBlock(CodeBlockMatcher),
     Html(Matcher),
     Paragraph(Matcher),
-    TableSlice(TableSliceMatcher),
+    Table(TableMatcher),
 }
 
 impl TryFrom<&'_ str> for SelectorChain {

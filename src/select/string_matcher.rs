@@ -31,6 +31,7 @@ impl StringMatcher {
 
     fn matches_node(&self, node: &MdElem) -> bool {
         match node {
+            MdElem::Doc(elems) => self.matches_any(&elems),
             MdElem::Paragraph(p) => self.matches_inlines(&p.body),
             MdElem::ThematicBreak | MdElem::CodeBlock(_) => false,
             MdElem::Table(table) => {
@@ -51,8 +52,9 @@ impl StringMatcher {
                 }
                 self.matches_any(&section.body)
             }
-            MdElem::BlockHtml(html) => self.matches(html),
+            MdElem::BlockHtml(html) => self.matches(&html.value),
             MdElem::Inline(inline) => self.matches_inlines(&[inline]),
+            MdElem::ListItem(li) => li.1.item.iter().any(|body| self.matches_node(body)),
         }
     }
 

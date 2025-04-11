@@ -1,27 +1,30 @@
 use crate::md_elem::elem::*;
-use crate::md_elem::elem_ref::*;
 use crate::md_elem::*;
 use crate::select::sel_code_block::CodeBlockSelector;
-use crate::select::sel_link_like::{ImageSelector, LinkSelector};
+use crate::select::sel_link_like::ImageSelector;
+use crate::select::sel_link_like::LinkSelector;
 use crate::select::sel_list_item::ListItemSelector;
 use crate::select::sel_section::SectionSelector;
 use crate::select::sel_single_matcher::BlockQuoteSelector;
 use crate::select::sel_single_matcher::HtmlSelector;
 use crate::select::sel_single_matcher::ParagraphSelector;
-use crate::select::sel_table::TableSliceSelector;
+use crate::select::sel_table::TableSelector;
 use crate::select::{Selector, SelectorChain};
 use paste::paste;
 use std::collections::HashSet;
 
-pub trait TrySelector<'md, I: Into<MdElemRef<'md>>> {
-    fn try_select(&self, item: I) -> Option<MdElemRef<'md>>;
+pub trait TrySelector<I: Into<MdElem>> {
+    fn try_select(&self, item: I) -> Result<MdElem, MdElem>;
 }
 
 macro_rules! adapters {
-    { $($name:ident $(| $alias:ident)?),+ $(,)?} => {
+    { $($name:ident => $md_elem:ident),+ , <inlines> { $($inline:ident),+ , } } => {
         pub enum SelectorAdapter {
             $(
             $name( paste!{[<$name Selector>]} ),
+            )+
+            $(
+            $inline( paste!{[<$inline Selector>]} ),
             )+
         }
 
@@ -31,18 +34,23 @@ macro_rules! adapters {
                     $(
                     Selector::$name(matcher) => Self::$name(matcher.into()),
                     )+
+                    $(
+                    Selector::$inline(matcher) => Self::$inline(matcher.into()),
+                    )+
                 }
             }
         }
 
         impl SelectorAdapter {
-            fn try_select_node<'md>(&self, node: MdElemRef<'md>) -> Option<MdElemRef<'md>> {
+            fn try_select_node<'md>(&self, node: MdElem) -> Result<MdElem, MdElem> {
                 match (&self, node) {
                     $(
-                    (Self::$name(adapter), MdElemRef::$name(elem)) => adapter.try_select(elem),
-                    $((Self::$name(adapter), MdElemRef::$alias(elem)) => adapter.try_select(elem.into()),)?
+                    (Self::$name(adapter), MdElem::$md_elem(elem)) => adapter.try_select(elem),
                     )+
-                    _ => None,
+                    $(
+                    (Self::$inline(adapter), MdElem::Inline(Inline::$inline(elem))) => adapter.try_select(elem),
+                    )+
+                    (_, unmatched) => Err(unmatched),
                 }
             }
         }
@@ -50,15 +58,17 @@ macro_rules! adapters {
 }
 
 adapters! {
-    Section,
-    ListItem,
-    Link,
-    Image,
-    BlockQuote,
-    CodeBlock,
-    Html,
-    Paragraph,
-    TableSlice | Table,
+    Section => Section,
+    ListItem => ListItem,
+    BlockQuote => BlockQuote,
+    CodeBlock => CodeBlock,
+    Html => BlockHtml,
+    Paragraph => Paragraph,
+    Table => Table,
+    <inlines> {
+        Link,
+        Image,
+    }
 }
 
 impl SelectorAdapter {
@@ -67,8 +77,7 @@ impl SelectorAdapter {
         chain.selectors.into_iter().map(|s| s.into()).collect()
     }
 
-    // TODO this should take and return a Vec<MdElem>, not Vec<MdElemRef>
-    pub fn find_nodes<'md>(&self, ctx: &'md MdContext, nodes: Vec<MdElemRef<'md>>) -> Vec<MdElemRef<'md>> {
+    pub fn find_nodes(&self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
         let mut search_context = SearchContext::new(ctx);
         for node in nodes {
@@ -77,12 +86,11 @@ impl SelectorAdapter {
         result
     }
 
-    fn build_output<'md>(&self, out: &mut Vec<MdElemRef<'md>>, ctx: &mut SearchContext<'md>, node: MdElemRef<'md>) {
-        // GH #168 can we remove the clone()? Maybe by having try_select_node take a reference.
-        match self.try_select_node(node.clone()) {
-            Some(found) => out.push(found),
-            None => {
-                for child in Self::find_children(ctx, node) {
+    fn build_output<'md>(&self, out: &mut Vec<MdElem>, ctx: &mut SearchContext<'md>, node: MdElem) {
+        match self.try_select_node(node) {
+            Ok(found) => out.push(found),
+            Err(not_found) => {
+                for child in Self::find_children(ctx, not_found) {
                     self.build_output(out, ctx, child);
                 }
             }
@@ -95,76 +103,71 @@ impl SelectorAdapter {
     /// selector-specific. For example, an [MdqNode::Section] has child nodes both in its title and in its body, but
     /// only the body nodes are relevant for select recursion. `MdqNode` shouldn't need to know about that oddity; it
     /// belongs here.
-    fn find_children<'md>(ctx: &mut SearchContext<'md>, node: MdElemRef<'md>) -> Vec<MdElemRef<'md>> {
+    fn find_children(ctx: &mut SearchContext, node: MdElem) -> Vec<MdElem> {
         match node {
-            MdElemRef::Doc(body) => {
+            MdElem::Doc(body) => {
                 let mut wrapped = Vec::with_capacity(body.len());
                 for elem in body {
                     wrapped.push(elem.into());
                 }
                 wrapped
             }
-            MdElemRef::Section(s) => vec![MdElemRef::Doc(&s.body)],
-            MdElemRef::ListItem(ListItemRef(_, item)) => vec![MdElemRef::Doc(&item.item)],
-            MdElemRef::Paragraph(p) => p.body.iter().map(|child| MdElemRef::Inline(child)).collect(),
-            MdElemRef::BlockQuote(b) => vec![MdElemRef::Doc(&b.body)],
-            MdElemRef::List(list) => {
+            MdElem::Section(s) => vec![MdElem::Doc(s.body)], // TODO Should this just be s.body? Should I just get rid of Doc altogether?
+            MdElem::ListItem(DetachedListItem(_, item)) => vec![MdElem::Doc(item.item)],
+            MdElem::Paragraph(p) => p.body.into_iter().map(|child| MdElem::Inline(child)).collect(),
+            MdElem::BlockQuote(b) => vec![MdElem::Doc(b.body)],
+            MdElem::List(list) => {
                 let mut idx = list.starting_index;
                 let mut result = Vec::with_capacity(list.items.len());
-                for item in &list.items {
-                    result.push(MdElemRef::ListItem(ListItemRef(idx.clone(), item)));
+                for item in list.items {
+                    result.push(MdElem::ListItem(DetachedListItem(idx.clone(), item)));
                     if let Some(idx) = idx.as_mut() {
                         *idx += 1;
                     }
                 }
                 result
             }
-            MdElemRef::Table(table) => Self::find_children(ctx, MdElemRef::TableSlice(table.into())),
-            MdElemRef::TableSlice(table) => {
+            MdElem::Table(table) => {
                 let rows = table.rows();
                 let first_row_cols = rows.first().map(Vec::len).unwrap_or(0);
                 let count_estimate = rows.len() * first_row_cols;
                 let mut result = Vec::with_capacity(count_estimate);
-                for row in table.rows() {
-                    for maybe_col in row {
-                        if let Some(col) = maybe_col {
-                            for cell in *col {
-                                result.push(MdElemRef::Inline(cell));
-                            }
+                for row in table.rows {
+                    for col in row {
+                        for cell in col {
+                            result.push(MdElem::Inline(cell));
                         }
                     }
                 }
                 result
             }
-            MdElemRef::ThematicBreak | MdElemRef::CodeBlock(_) => Vec::new(),
-            MdElemRef::Inline(inline) => match inline {
-                Inline::Span(Span { children, .. }) => children.iter().map(|child| MdElemRef::Inline(child)).collect(),
+            MdElem::ThematicBreak | MdElem::CodeBlock(_) => Vec::new(),
+            MdElem::Inline(inline) => match inline {
+                Inline::Span(Span { children, .. }) => {
+                    children.into_iter().map(|child| MdElem::Inline(child)).collect()
+                }
                 Inline::Footnote(footnote) => {
                     // guard against cycles
-                    if ctx.seen_footnotes.insert(footnote) {
-                        vec![MdElemRef::Doc(ctx.md_context.get_footnote(&footnote))]
+                    if ctx.seen_footnotes.insert(footnote.clone()) {
+                        vec![MdElem::Doc(Vec::clone(ctx.md_context.get_footnote(&footnote)))]
                     } else {
                         Vec::new()
                     }
                 }
-                Inline::Link(link) => vec![MdElemRef::Link(link)],
-                Inline::Image(image) => vec![MdElemRef::Image(image)],
-                Inline::Text(Text { variant, value }) if variant == &TextVariant::Html => {
-                    vec![MdElemRef::Html(HtmlRef(value))]
+                Inline::Text(Text { variant, value }) if variant == TextVariant::Html => {
+                    vec![MdElem::BlockHtml(value.into())]
                 }
-                Inline::Text(Text { .. }) => Vec::new(),
+                Inline::Link(Link { text, .. }) => text.into_iter().map(|child| MdElem::Inline(child)).collect(),
+                Inline::Text(_) | Inline::Image(_) => Vec::new(),
             },
-
-            MdElemRef::Link(Link { text, .. }) => text.iter().map(|child| MdElemRef::Inline(child)).collect(),
-            MdElemRef::Image(_) => Vec::new(),
-            MdElemRef::Html(_) => Vec::new(),
+            MdElem::BlockHtml(_) => Vec::new(),
         }
     }
 }
 
 struct SearchContext<'md> {
     md_context: &'md MdContext,
-    seen_footnotes: HashSet<&'md FootnoteId>,
+    seen_footnotes: HashSet<FootnoteId>,
 }
 
 impl<'md> SearchContext<'md> {
@@ -195,7 +198,7 @@ mod test {
                     reference: LinkReference::Inline,
                 },
             };
-            let node_ref = MdElemRef::Link(&link);
+            let node_ref = MdElem::Inline(Inline::Link(link));
             let md_context = MdContext::empty();
             let mut ctx = SearchContext {
                 md_context: &md_context,
@@ -204,34 +207,11 @@ mod test {
             let children = SelectorAdapter::find_children(&mut ctx, node_ref);
             assert_eq!(
                 children,
-                vec![MdElemRef::Inline(&Inline::Text(Text {
+                vec![MdElem::Inline(Inline::Text(Text {
                     variant: TextVariant::Plain,
                     value: "link text".to_string(),
                 }))]
             );
-        }
-
-        #[test]
-        fn link_via_inlines() {
-            fn mk_link() -> Link {
-                Link {
-                    text: vec![mdq_inline!("link text")],
-                    link_definition: LinkDefinition {
-                        url: "https://example.com".to_string(),
-                        title: None,
-                        reference: LinkReference::Inline,
-                    },
-                }
-            }
-            let inline = Inline::Link(mk_link());
-            let node_ref = MdElemRef::Inline(&inline);
-            let md_context = MdContext::empty();
-            let mut ctx = SearchContext {
-                md_context: &md_context,
-                seen_footnotes: Default::default(),
-            };
-            let children = SelectorAdapter::find_children(&mut ctx, node_ref);
-            assert_eq!(children, vec![MdElemRef::Link(&mk_link())]);
         }
     }
 }

@@ -14,7 +14,7 @@ impl From<Matcher> for SectionSelector {
     }
 }
 
-impl MatchSelector<&Section> for SectionSelector {
+impl MatchSelector<Section> for SectionSelector {
     fn matches(&self, section: &Section) -> bool {
         self.matcher.matches_inlines(&section.title)
     }

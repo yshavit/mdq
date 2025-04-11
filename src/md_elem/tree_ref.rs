@@ -1,80 +1,17 @@
 use crate::md_elem::elem::*;
-use crate::md_elem::*;
 use crate::util::vec_utils::ItemRetainer;
-use elem_ref::*;
 use markdown::mdast;
 
-/// An MdqNodeRef is a slice into an MdqNode tree, where each element can be outputted, and certain elements can be
-/// selected.
-///
-/// To be useful, this needs to be paired with a [crate::md_elem::tree::MdContext]; otherwise, there's no
-/// way to resolve footnotes. Because we almost always want that pairing together, the helper struct
-/// [MdRef] does just that.
-///
-/// (We can't have `MdFootnotes` only on the `Inline` variant in this enum, because we sometimes
-/// need to recursively traverse this enum. For example, a `Paragraph` has a `Vec<MdElem>`, but we
-/// wouldn't be able to then create `Inline(&inline, &footnotes)`, because the `Paragraph` doesn't
-/// have access to that. We could just add it to every variant, but at that point that's equivalent
-/// to adding it to `MdRef`.)
-#[derive(Debug, Clone, PartialEq)]
-pub enum MdElemRef<'md> {
-    // Multiple elements that form a single area
-    Doc(&'md Vec<MdElem>),
-
-    // main elements
-    BlockQuote(&'md BlockQuote),
-    CodeBlock(&'md CodeBlock),
-    Inline(&'md Inline),
-    List(&'md List),
-    Paragraph(&'md Paragraph),
-    Section(&'md Section),
-    Table(&'md Table),
-    Html(HtmlRef<'md>),
-    ThematicBreak,
-
-    // sub-elements
-    ListItem(ListItemRef<'md>),
-    Link(&'md Link),
-    Image(&'md Image),
-    TableSlice(TableSlice<'md>),
-}
-
-pub mod elem_ref {
+mod elem_ref {
     use super::*;
     use crate::util::vec_utils::IndexKeeper;
 
-    #[derive(Debug, Clone, Copy, PartialEq)]
-    pub struct ListItemRef<'md>(pub Option<u32>, pub &'md ListItem);
-
-    #[derive(Debug, Clone, Copy, PartialEq)]
-    pub struct HtmlRef<'md>(pub &'md String);
-
-    #[derive(Debug, Clone, PartialEq)]
-    pub struct TableSlice<'md> {
-        pub(crate) alignments: Vec<mdast::AlignKind>,
-        pub(crate) rows: Vec<TableRowSlice<'md>>,
-    }
-
-    pub type TableRowSlice<'md> = Vec<Option<&'md Line>>;
-
-    impl<'md> From<&'md Table> for TableSlice<'md> {
-        fn from(table: &'md Table) -> Self {
-            let alignments = table.alignments.clone();
-            let mut rows = Vec::with_capacity(table.rows.len());
-            for table_row in &table.rows {
-                let cols: Vec<_> = table_row.iter().map(Some).collect();
-                rows.push(cols);
-            }
-            Self { alignments, rows }
-        }
-    }
-
-    impl<'md> TableSlice<'md> {
+    impl Table {
         pub fn alignments(&self) -> &Vec<mdast::AlignKind> {
             &self.alignments
         }
 
-        pub fn rows(&self) -> &Vec<TableRowSlice<'md>> {
+        pub fn rows(&self) -> &Vec<TableRow> {
             &self.rows
         }
 
@@ -90,7 +27,7 @@ pub mod elem_ref {
             for row in &mut self.rows {
                 let n_missing = max_cols - row.len();
                 for _ in 0..n_missing {
-                    row.push(None);
+                    row.push(Vec::new());
                 }
             }
             if self.alignments.len() > max_cols {
@@ -106,17 +43,13 @@ pub mod elem_ref {
 
         pub fn retain_columns_by_header<F>(&mut self, mut f: F)
         where
-            F: FnMut(&Line) -> bool,
+            F: FnMut(&TableCell) -> bool,
         {
             let Some(first_row) = self.rows.first() else {
                 return;
             };
             let mut keeper_indices = IndexKeeper::new();
-            keeper_indices.retain_when(first_row, |_, opt_cell| {
-                let empty_cell = Line::new();
-                let resolved_cell = opt_cell.unwrap_or(&empty_cell);
-                f(resolved_cell)
-            });
+            keeper_indices.retain_when(first_row, |_, cell| f(cell));
 
             match keeper_indices.count_keeps() {
                 0 => {
@@ -141,17 +74,13 @@ pub mod elem_ref {
 
         pub fn retain_rows<F>(&mut self, mut f: F)
         where
-            F: FnMut(&Line) -> bool,
+            F: FnMut(&TableCell) -> bool,
         {
             self.rows.retain_with_index(|idx, row| {
                 if idx == 0 {
                     return true;
                 }
-                row.iter().any(|opt_cell| {
-                    let empty_cell = Line::new();
-                    let resolved_cell = opt_cell.unwrap_or(&empty_cell);
-                    f(resolved_cell)
-                })
+                row.iter().any(|cell| f(cell))
             });
         }
 
@@ -165,88 +94,6 @@ pub mod elem_ref {
     }
 }
 
-impl<'md> From<&'md MdElem> for MdElemRef<'md> {
-    fn from(value: &'md MdElem) -> Self {
-        match value {
-            MdElem::ThematicBreak => Self::ThematicBreak,
-            MdElem::Paragraph(p) => Self::Paragraph(p),
-            MdElem::CodeBlock(c) => Self::CodeBlock(c),
-            MdElem::Table(t) => Self::Table(t),
-            MdElem::List(list) => Self::List(list),
-            MdElem::BlockQuote(block) => Self::BlockQuote(block),
-            MdElem::Section(section) => Self::Section(section),
-            MdElem::Inline(child) => MdElemRef::Inline(child),
-            MdElem::BlockHtml(html) => MdElemRef::Html(HtmlRef(html)),
-        }
-    }
-}
-
-impl<'md> From<&'md BlockQuote> for MdElemRef<'md> {
-    fn from(value: &'md BlockQuote) -> Self {
-        MdElemRef::BlockQuote(value)
-    }
-}
-
-impl<'md> From<&'md CodeBlock> for MdElemRef<'md> {
-    fn from(value: &'md CodeBlock) -> Self {
-        MdElemRef::CodeBlock(value)
-    }
-}
-
-impl<'md> From<ListItemRef<'md>> for MdElemRef<'md> {
-    fn from(value: ListItemRef<'md>) -> Self {
-        MdElemRef::ListItem(value)
-    }
-}
-
-impl<'md> From<&'md Inline> for MdElemRef<'md> {
-    fn from(value: &'md Inline) -> Self {
-        Self::Inline(value)
-    }
-}
-
-impl<'md> From<HtmlRef<'md>> for MdElemRef<'md> {
-    fn from(value: HtmlRef<'md>) -> Self {
-        Self::Html(HtmlRef(value.0))
-    }
-}
-
-impl<'md> From<&'md Image> for MdElemRef<'md> {
-    fn from(value: &'md Image) -> Self {
-        MdElemRef::Image(value)
-    }
-}
-
-impl<'md> From<&'md Link> for MdElemRef<'md> {
-    fn from(value: &'md Link) -> Self {
-        MdElemRef::Link(value)
-    }
-}
-
-impl<'md> From<&'md Paragraph> for MdElemRef<'md> {
-    fn from(value: &'md Paragraph) -> Self {
-        MdElemRef::Paragraph(value)
-    }
-}
-
-impl<'md> From<&'md Section> for MdElemRef<'md> {
-    fn from(value: &'md Section) -> Self {
-        MdElemRef::Section(value)
-    }
-}
-
-impl<'md> From<&'md Table> for MdElemRef<'md> {
-    fn from(value: &'md Table) -> Self {
-        MdElemRef::Table(value)
-    }
-}
-
-impl<'md> From<TableSlice<'md>> for MdElemRef<'md> {
-    fn from(value: TableSlice<'md>) -> Self {
-        MdElemRef::TableSlice(value)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,126 +103,49 @@ mod tests {
         use markdown::mdast;
 
         #[test]
-        fn table_slice_from_table() {
-            let table = new_table(vec![
-                vec!["header a", "header b"],
-                vec!["data 1 a", "data 1 b"],
-                vec!["data 2 a", "data 2 b"],
-            ]);
-            let slice = TableSlice::from(&table);
-            assert_eq!(slice.alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right]);
-            assert_eq!(
-                slice.rows,
-                vec![
-                    vec![Some(&cell("header a")), Some(&cell("header b"))],
-                    vec![Some(&cell("data 1 a")), Some(&cell("data 1 b"))],
-                    vec![Some(&cell("data 2 a")), Some(&cell("data 2 b"))],
-                ]
-            );
-        }
-
-        #[test]
-        fn table_slice_from_table_jagged() {
-            let table = new_table(vec![
-                vec!["header a", "header b"],
-                vec!["data 1 a"],
-                vec!["data 2 a", "data 2 b", "data 2 c"],
-            ]);
-            {
-                let plain_slice = TableSlice::from(&table);
-                assert_eq!(
-                    plain_slice.alignments,
-                    vec![mdast::AlignKind::Left, mdast::AlignKind::Right]
-                );
-                assert_eq!(
-                    plain_slice.rows,
-                    vec![
-                        vec![Some(&cell("header a")), Some(&cell("header b"))],
-                        vec![Some(&cell("data 1 a"))],
-                        vec![
-                            Some(&cell("data 2 a")),
-                            Some(&cell("data 2 b")),
-                            Some(&cell("data 2 c"))
-                        ],
-                    ]
-                );
-            }
-            {
-                let mut normalized_slice = TableSlice::from(&table);
-                normalized_slice.normalize();
-                assert_eq!(
-                    normalized_slice.alignments,
-                    vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]
-                );
-                assert_eq!(
-                    normalized_slice.rows,
-                    vec![
-                        vec![Some(&cell("header a")), Some(&cell("header b")), None],
-                        vec![Some(&cell("data 1 a")), None, None],
-                        vec![
-                            Some(&cell("data 2 a")),
-                            Some(&cell("data 2 b")),
-                            Some(&cell("data 2 c"))
-                        ],
-                    ]
-                );
-            }
-        }
-
-        #[test]
         fn retain_col() {
-            let table = new_table(vec![
+            let mut table = new_table(vec![
                 vec!["KEEPER a", "header b", "header c"],
                 vec!["data 1 a", "data 1 b", "data 1 c"],
                 vec!["data 2 a", "data 2 b", "KEEPER c"],
             ]);
-            let mut slice = TableSlice::from(&table);
-            slice.retain_columns_by_header(cell_matches("KEEPER"));
+            table.retain_columns_by_header(cell_matches("KEEPER"));
 
             // note: "KEEPER" is in the last column, but not in the header; only the header gets
             // matched.
-            assert_eq!(slice.alignments, vec![mdast::AlignKind::Left]);
+            assert_eq!(table.alignments, vec![mdast::AlignKind::Left]);
             assert_eq!(
-                slice.rows,
-                vec![
-                    vec![Some(&cell("KEEPER a"))],
-                    vec![Some(&cell("data 1 a"))],
-                    vec![Some(&cell("data 2 a"))],
-                ]
+                table.rows,
+                vec![vec![cell("KEEPER a")], vec![cell("data 1 a")], vec![cell("data 2 a")],]
             );
         }
 
         #[test]
         fn retain_all_columns_on_jagged_normalized_table() {
-            let table = new_table(vec![
+            let mut table = new_table(vec![
                 vec!["header a", "header b"],
                 vec!["data 1 a", "data 1 b", "data 1 c"],
                 vec!["data 2 a"],
             ]);
-            let mut slice = TableSlice::from(&table);
-            slice.normalize();
+            table.normalize();
 
             let mut seen_lines = Vec::with_capacity(3);
-            slice.retain_columns_by_header(|line| {
+            table.retain_columns_by_header(|line| {
                 seen_lines.push(simple_to_string(line));
                 true
             });
 
             // normalization
             assert_eq!(
-                slice.alignments,
+                table.alignments,
                 vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]
             );
             assert_eq!(
-                slice.rows,
+                table.rows,
                 vec![
-                    vec![Some(&cell("header a")), Some(&cell("header b")), None],
-                    vec![
-                        Some(&cell("data 1 a")),
-                        Some(&cell("data 1 b")),
-                        Some(&cell("data 1 c"))
-                    ],
-                    vec![Some(&cell("data 2 a")), None, None],
+                    vec![cell("header a"), cell("header b"), Vec::new()],
+                    vec![cell("data 1 a"), cell("data 1 b"), cell("data 1 c")],
+                    vec![cell("data 2 a"), Vec::new(), Vec::new()],
                 ]
             );
             assert_eq!(
@@ -386,16 +156,15 @@ mod tests {
 
         #[test]
         fn retain_row() {
-            let table = new_table(vec![
+            let mut table = new_table(vec![
                 vec!["header a", "header b", "header c"],
                 vec!["data 1 a", "data 1 b", "data 1 c"],
                 vec!["data 2 a", "KEEPER b", "data 2 c"],
             ]);
-            let mut slice = TableSlice::from(&table);
-            slice.retain_rows(cell_matches("KEEPER"));
+            table.retain_rows(cell_matches("KEEPER"));
 
             assert_eq!(
-                slice.alignments,
+                table.alignments,
                 vec![
                     mdast::AlignKind::Left,
                     mdast::AlignKind::Right,
@@ -404,51 +173,42 @@ mod tests {
             );
             // note: header row always gets kept
             assert_eq!(
-                slice.rows,
+                table.rows,
                 vec![
-                    vec![
-                        Some(&cell("header a")),
-                        Some(&cell("header b")),
-                        Some(&cell("header c"))
-                    ],
-                    vec![
-                        Some(&cell("data 2 a")),
-                        Some(&cell("KEEPER b")),
-                        Some(&cell("data 2 c"))
-                    ],
+                    vec![cell("header a"), cell("header b"), cell("header c")],
+                    vec![cell("data 2 a"), cell("KEEPER b"), cell("data 2 c")],
                 ]
             );
         }
 
         #[test]
         fn retain_rows_on_jagged_normalized_table() {
-            let table = new_table(vec![
+            let mut table = new_table(vec![
                 vec!["header a", "header b"],
                 vec!["data 1 a", "data 1 b", "data 1 c"],
                 vec!["data 2 a"],
             ]);
-            let mut slice = TableSlice::from(&table);
-            slice.normalize();
+            table.normalize();
 
             let mut seen_lines = Vec::with_capacity(3);
             // retain only the rows with empty cells. This lets us get around the short-circuiting
             // of retain_rows (it short-circuits within each row as soon as it finds a matching
             // cell), to validate that the normalization works as expected.
-            slice.retain_rows(|line| {
+            table.retain_rows(|line| {
                 seen_lines.push(simple_to_string(line));
                 line.is_empty()
             });
 
             // normalization
             assert_eq!(
-                slice.alignments,
+                table.alignments,
                 vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]
             );
             assert_eq!(
-                slice.rows,
+                table.rows,
                 vec![
-                    vec![Some(&cell("header a")), Some(&cell("header b")), None],
-                    vec![Some(&cell("data 2 a")), None, None],
+                    vec![cell("header a"), cell("header b"), Vec::new()],
+                    vec![cell("data 2 a"), Vec::new(), Vec::new()],
                 ]
             );
             assert_eq!(
@@ -466,7 +226,7 @@ mod tests {
             );
         }
 
-        fn cell_matches(substring: &str) -> impl Fn(&Line) -> bool + '_ {
+        fn cell_matches(substring: &str) -> impl Fn(&TableCell) -> bool + '_ {
             move |line| {
                 let line_str = format!("{:?}", line);
                 line_str.contains(substring)
@@ -506,14 +266,14 @@ mod tests {
             Table { alignments, rows }
         }
 
-        fn cell(value: &str) -> Line {
+        fn cell(value: &str) -> TableCell {
             vec![Inline::Text(Text {
                 variant: TextVariant::Plain,
                 value: value.to_string(),
             })]
         }
 
-        fn simple_to_string(line: &Line) -> String {
+        fn simple_to_string(line: &TableCell) -> String {
             let mut result = String::with_capacity(32);
             for segment in line {
                 match segment {

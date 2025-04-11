@@ -1,34 +1,35 @@
-use crate::md_elem::elem_ref::*;
+use crate::md_elem::elem::Table;
 use crate::md_elem::*;
 use crate::select::string_matcher::StringMatcher;
-use crate::select::{TableSliceMatcher, TrySelector};
+use crate::select::{TableMatcher, TrySelector};
 
 #[derive(Debug, PartialEq)]
-pub struct TableSliceSelector {
+pub struct TableSelector {
     headers_matcher: StringMatcher,
     rows_matcher: StringMatcher,
 }
 
-impl<'md> TrySelector<'md, TableSlice<'md>> for TableSliceSelector {
-    fn try_select(&self, slice: TableSlice<'md>) -> Option<MdElemRef<'md>> {
-        let mut slice = slice.clone(); // GH #168 is there any way to avoid this? There may not be.
-        slice.normalize();
+impl TrySelector<Table> for TableSelector {
+    fn try_select(&self, orig: Table) -> Result<MdElem, MdElem> {
+        let mut table = orig.clone();
 
-        slice.retain_columns_by_header(|line| self.headers_matcher.matches_inlines(line));
-        if slice.is_empty() {
-            return None;
+        table.normalize();
+
+        table.retain_columns_by_header(|line| self.headers_matcher.matches_inlines(line));
+        if table.is_empty() {
+            return Err(orig.into());
         }
 
-        slice.retain_rows(|line| self.rows_matcher.matches_inlines(line));
-        if slice.is_empty() {
-            return None;
+        table.retain_rows(|line| self.rows_matcher.matches_inlines(line));
+        if table.is_empty() {
+            return Err(orig.into());
         }
-        Some(slice.into())
+        Ok(table.into())
     }
 }
 
-impl From<TableSliceMatcher> for TableSliceSelector {
-    fn from(value: TableSliceMatcher) -> Self {
+impl From<TableMatcher> for TableSelector {
+    fn from(value: TableMatcher) -> Self {
         Self {
             headers_matcher: value.column.into(),
             rows_matcher: value.row.into(),
@@ -53,15 +54,14 @@ mod tests {
                 vec![cell("header a"), cell("header b")],
                 vec![cell("data 1 a"), cell("data 1 b")],
             ],
-        }
-        .into();
-        let maybe_selected = TableSliceSelector {
+        };
+        let maybe_selected = TableSelector {
             headers_matcher: ".*".into(),
             rows_matcher: ".*".into(),
         }
-        .try_select((&table).into());
+        .try_select(table);
 
-        unwrap!(maybe_selected, Some(MdElemRef::TableSlice(table)));
+        unwrap!(maybe_selected, Ok(MdElem::Table(table)));
         assert_eq!(
             table.alignments(),
             &vec![mdast::AlignKind::Left, mdast::AlignKind::Right]
@@ -69,8 +69,8 @@ mod tests {
         assert_eq!(
             table.rows(),
             &vec![
-                vec![Some(&cell("header a")), Some(&cell("header b"))],
-                vec![Some(&cell("data 1 a")), Some(&cell("data 1 b"))],
+                vec![cell("header a"), cell("header b")],
+                vec![cell("data 1 a"), cell("data 1 b")],
             ]
         );
     }
@@ -84,18 +84,15 @@ mod tests {
                 vec![cell("data 1 a"), cell("data 1 b")],
             ],
         };
-        let maybe_selected = TableSliceSelector {
+        let maybe_selected = TableSelector {
             headers_matcher: "KEEP".into(),
             rows_matcher: ".*".into(),
         }
-        .try_select((&table).into());
+        .try_select(table);
 
-        unwrap!(maybe_selected, Some(MdElemRef::TableSlice(table)));
+        unwrap!(maybe_selected, Ok(MdElem::Table(table)));
         assert_eq!(table.alignments(), &vec![mdast::AlignKind::Right]);
-        assert_eq!(
-            table.rows(),
-            &vec![vec![Some(&cell("KEEP b"))], vec![Some(&cell("data 1 b"))],]
-        );
+        assert_eq!(table.rows(), &vec![vec![cell("KEEP b")], vec![cell("data 1 b")],]);
     }
 
     #[test]
@@ -108,13 +105,13 @@ mod tests {
                 vec![cell("data 2 a"), cell("data 2 b")],
             ],
         };
-        let maybe_selected = TableSliceSelector {
+        let maybe_selected = TableSelector {
             headers_matcher: ".*".into(),
             rows_matcher: "data 2".into(),
         }
-        .try_select((&table).into());
+        .try_select(table);
 
-        unwrap!(maybe_selected, Some(MdElemRef::TableSlice(table)));
+        unwrap!(maybe_selected, Ok(MdElem::Table(table)));
         assert_eq!(
             table.alignments(),
             &vec![mdast::AlignKind::Left, mdast::AlignKind::Right]
@@ -123,8 +120,8 @@ mod tests {
             table.rows(),
             &vec![
                 // note: header always gets retained
-                vec![Some(&cell("header a")), Some(&cell("header b"))],
-                vec![Some(&cell("data 2 a")), Some(&cell("data 2 b"))],
+                vec![cell("header a"), cell("header b")],
+                vec![cell("data 2 a"), cell("data 2 b")],
             ]
         );
     }
@@ -142,13 +139,13 @@ mod tests {
                 vec![cell("data 2 a"), cell("data 2 b"), cell("data 2 c")],
             ],
         };
-        let maybe_selected = TableSliceSelector {
+        let maybe_selected = TableSelector {
             headers_matcher: ".*".into(),
             rows_matcher: "data 1".into(),
         }
-        .try_select((&table).into());
+        .try_select(table);
 
-        unwrap!(maybe_selected, Some(MdElemRef::TableSlice(table)));
+        unwrap!(maybe_selected, Ok(MdElem::Table(table)));
         assert_eq!(
             table.alignments(),
             &vec![mdast::AlignKind::Left, mdast::AlignKind::None, mdast::AlignKind::None]
@@ -156,13 +153,13 @@ mod tests {
         assert_eq!(
             table.rows(),
             &vec![
-                vec![Some(&cell("header a")), None, None],
-                vec![Some(&cell("data 1 a")), Some(&cell("data 1 b")), None],
+                vec![cell("header a"), Vec::new(), Vec::new()],
+                vec![cell("data 1 a"), cell("data 1 b"), Vec::new()],
             ]
         );
     }
 
-    fn cell(cell_str: &str) -> Line {
+    fn cell(cell_str: &str) -> TableCell {
         vec![Inline::Text(Text {
             variant: TextVariant::Plain,
             value: cell_str.to_string(),

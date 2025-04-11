@@ -1,4 +1,4 @@
-use crate::md_elem::elem_ref::*;
+use crate::md_elem::DetachedListItem;
 use crate::select::match_selector::MatchSelector;
 use crate::select::string_matcher::StringMatcher;
 use crate::select::{ListItemMatcher, ListItemTask};
@@ -39,9 +39,9 @@ fn task_matches(matcher: ListItemTask, md_is_checked: Option<bool>) -> bool {
     }
 }
 
-impl MatchSelector<ListItemRef<'_>> for ListItemSelector {
-    fn matches(&self, item: ListItemRef) -> bool {
-        let ListItemRef(idx, li) = item;
+impl MatchSelector<DetachedListItem> for ListItemSelector {
+    fn matches(&self, item: &DetachedListItem) -> bool {
+        let DetachedListItem(idx, li) = item;
         self.li_type.matches(&idx)
             && task_matches(self.checkbox, li.checked)
             && self.string_matcher.matches_any(&li.item)

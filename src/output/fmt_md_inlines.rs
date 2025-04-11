@@ -192,6 +192,9 @@ impl<'md> MdInlinesWriter<'md> {
     fn find_references_in_footnote_elems(&mut self, text: &'md Vec<MdElem>) {
         for elem in text {
             match elem {
+                MdElem::Doc(doc) => {
+                    self.find_references_in_footnote_elems(&doc);
+                }
                 MdElem::BlockQuote(block) => {
                     self.find_references_in_footnote_elems(&block.body);
                 }
@@ -219,6 +222,9 @@ impl<'md> MdInlinesWriter<'md> {
                 }
                 MdElem::CodeBlock(_) | MdElem::BlockHtml(_) | MdElem::ThematicBreak => {
                     // nothing
+                }
+                MdElem::ListItem(li) => {
+                    self.find_references_in_footnote_elems(&li.1.item);
                 }
             }
         }

@@ -148,7 +148,7 @@ pub enum CodeBlockType {
 }
 
 impl<'md> MdSerde<'md> {
-    pub fn new(elems: &[MdElemRef<'md>], ctx: &'md MdContext, opts: MdInlinesWriterOptions) -> Self {
+    pub fn new(elems: &'md [MdElem], ctx: &'md MdContext, opts: MdInlinesWriterOptions) -> Self {
         let mut inlines_writer = MdInlinesWriter::new(ctx, opts);
         const DEFAULT_CAPACITY: usize = 16; // we could compute these, but it's not really worth it
         let mut result = MdSerde {
@@ -157,7 +157,7 @@ impl<'md> MdSerde<'md> {
             footnotes: HashMap::with_capacity(DEFAULT_CAPACITY),
         };
         for elem in elems {
-            let top = SerdeElem::build(elem.to_owned(), &mut inlines_writer);
+            let top = SerdeElem::build(elem, &mut inlines_writer);
             result.items.push(top);
         }
         for (link_label, url) in inlines_writer.drain_pending_links() {
@@ -189,11 +189,11 @@ impl<'md> SerdeElem<'md> {
         result
     }
 
-    fn build(elem: MdElemRef<'md>, inlines_writer: &mut MdInlinesWriter<'md>) -> Self {
+    fn build(elem: &'md MdElem, inlines_writer: &mut MdInlinesWriter<'md>) -> Self {
         match elem {
-            MdElemRef::Doc(doc) => Self::Document(Self::build_multi(doc, inlines_writer)),
-            MdElemRef::BlockQuote(bq) => Self::BlockQuote(Self::build_multi(&bq.body, inlines_writer)),
-            MdElemRef::CodeBlock(cb) => {
+            MdElem::Doc(doc) => Self::Document(Self::build_multi(doc, inlines_writer)),
+            MdElem::BlockQuote(bq) => Self::BlockQuote(Self::build_multi(&bq.body, inlines_writer)),
+            MdElem::CodeBlock(cb) => {
                 let CodeBlock { variant, value } = cb;
                 let (code_type, metadata, language) = match variant {
                     CodeVariant::Code(None) => (CodeBlockType::Code, None, None),
@@ -213,11 +213,19 @@ impl<'md> SerdeElem<'md> {
                     language,
                 }
             }
-            MdElemRef::Inline(inline) => {
+            MdElem::Inline(Inline::Link(link)) => Self::Link {
+                display: inlines_to_string(&link.text, inlines_writer),
+                link: (&link.link_definition).into(),
+            },
+            MdElem::Inline(Inline::Image(img)) => Self::Image {
+                alt: &img.alt,
+                link: (&img.link).into(),
+            },
+            MdElem::Inline(inline) => {
                 let as_string = inlines_to_string([inline], inlines_writer);
                 Self::Paragraph(as_string)
             }
-            MdElemRef::List(list) => {
+            MdElem::List(list) => {
                 let mut starting = list.starting_index;
                 let mut li_refs = Vec::with_capacity(list.items.len());
                 for li in &list.items {
@@ -237,27 +245,23 @@ impl<'md> SerdeElem<'md> {
                 }
                 Self::List(li_refs)
             }
-            MdElemRef::Paragraph(p) => {
+            MdElem::Paragraph(p) => {
                 let as_string = inlines_to_string(&p.body, inlines_writer);
                 Self::Paragraph(as_string)
             }
-            MdElemRef::Section(section) => {
+            MdElem::Section(section) => {
                 let Section { depth, title, body } = section;
                 let depth = *depth;
                 let title = inlines_to_string(title, inlines_writer);
                 let body = Self::build_multi(body, inlines_writer);
                 Self::Section { depth, title, body }
             }
-            MdElemRef::Table(table) => Self::build(MdElemRef::TableSlice(table.into()), inlines_writer),
-            MdElemRef::TableSlice(table) => {
+            MdElem::Table(table) => {
                 let mut rendered_rows = Vec::with_capacity(table.rows().len());
                 for row in table.rows() {
                     let mut rendered_cells = Vec::with_capacity(row.len());
-                    for maybe_cell in row {
-                        let rendered_cell = match maybe_cell {
-                            Some(cell) => inlines_to_string(*cell, inlines_writer),
-                            None => "".to_string(),
-                        };
+                    for cell in row {
+                        let rendered_cell = inlines_to_string(cell, inlines_writer);
                         rendered_cells.push(rendered_cell)
                     }
                     rendered_rows.push(rendered_cells);
@@ -267,8 +271,8 @@ impl<'md> SerdeElem<'md> {
                     rows: rendered_rows,
                 }
             }
-            MdElemRef::ThematicBreak => Self::ThematicBreak,
-            MdElemRef::ListItem(li) => {
+            MdElem::ThematicBreak => Self::ThematicBreak,
+            MdElem::ListItem(li) => {
                 let index = match li.0 {
                     idx => idx,
                 };
@@ -278,15 +282,7 @@ impl<'md> SerdeElem<'md> {
                     index,
                 })
             }
-            MdElemRef::Link(link) => Self::Link {
-                display: inlines_to_string(&link.text, inlines_writer),
-                link: (&link.link_definition).into(),
-            },
-            MdElemRef::Image(img) => Self::Image {
-                alt: &img.alt,
-                link: (&img.link).into(),
-            },
-            MdElemRef::Html(value) => Self::Html { value: value.0 },
+            MdElem::BlockHtml(value) => Self::Html { value: &value.value },
         }
     }
 }
@@ -303,12 +299,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::md_elem::elem_ref::*;
     use crate::output::fmt_md_inlines::MdInlinesWriterOptions;
     use crate::output::link_transform::LinkTransform;
     use crate::util::utils_for_test::*;
 
-    variants_checker!(CHECKER = MdElemRef {
+    variants_checker!(CHECKER = MdElem {
         Doc(_),
 
         BlockQuote(_),
@@ -318,13 +313,10 @@ mod tests {
         Paragraph(_),
         Section(_),
         Table(_),
-        TableSlice(_),
         ThematicBreak,
-        Html(_),
+        BlockHtml(_),
 
         ListItem(_),
-        Link(_),
-        Image(_),
     });
 
     macro_rules! json_kvs {
@@ -375,7 +367,7 @@ mod tests {
         #[test]
         fn doc() {
             let paragraphs = md_elems!("alpha", "bravo");
-            let elems_ref = MdElemRef::Doc(&paragraphs);
+            let elems_ref = MdElem::Doc(paragraphs);
             check_md_ref(
                 elems_ref,
                 json_str!(
@@ -449,34 +441,15 @@ mod tests {
 
     #[test]
     fn image() {
-        check(
-            md_elem!(Inline::Image {
-                alt: "the alt text".to_string(),
-                link: LinkDefinition {
-                    url: "https://example.com/image.png".to_string(),
-                    title: None,
-                    reference: LinkReference::Inline,
-                }
-            }),
-            json_str!(
-                {"items": [
-                    {"paragraph": "![the alt text](https://example.com/image.png)"
-                }]}
-            ),
-        );
-    }
-
-    #[test]
-    fn image_ref() {
         check_md_ref(
-            MdElemRef::Image(&Image {
+            MdElem::Inline(Inline::Image(Image {
                 alt: "the alt text".to_string(),
                 link: LinkDefinition {
                     url: "https://example.com/image.png".to_string(),
                     title: None,
                     reference: LinkReference::Inline,
                 },
-            }),
+            })),
             json_str!(
                 {"items": [
                     {"image": {
@@ -490,41 +463,15 @@ mod tests {
 
     #[test]
     fn link_with_reference() {
-        check(
-            md_elem!(Inline::Link {
-                text: vec![mdq_inline!("alpha")],
-                link_definition: LinkDefinition {
-                    url: "https://example.com/a".to_string(),
-                    title: None,
-                    reference: LinkReference::Full("a".to_string()),
-                }
-            }),
-            json_str!(
-                {
-                    "items": [
-                        {"paragraph": "[alpha][a]"}
-                    ],
-                    "links": {
-                        "a": {
-                            "url":"https://example.com/a"
-                        }
-                    }
-                }
-            ),
-        );
-    }
-
-    #[test]
-    fn link_ref_with_reference() {
         check_md_ref(
-            MdElemRef::Link(&Link {
+            MdElem::Inline(Inline::Link(Link {
                 text: vec![mdq_inline!("hello")],
                 link_definition: LinkDefinition {
                     url: "https://example.com/hi.html".to_string(),
                     title: None,
                     reference: LinkReference::Collapsed,
                 },
-            }),
+            })),
             json_str!(
                 {"items": [
                     {"link": {
@@ -579,9 +526,9 @@ mod tests {
     #[test]
     fn list_item() {
         check_md_ref(
-            MdElemRef::ListItem(ListItemRef(
+            MdElem::ListItem(DetachedListItem(
                 None,
-                &ListItem {
+                ListItem {
                     checked: None,
                     item: md_elems!("hello, world"),
                 },
@@ -666,7 +613,7 @@ mod tests {
         };
 
         check_md_ref(
-            MdElemRef::TableSlice((&table).into()),
+            MdElem::Table(table),
             json_str!(
                 {"items":[
                     {"table":{
@@ -684,7 +631,7 @@ mod tests {
     #[test]
     fn block_html() {
         check(
-            MdElem::BlockHtml("<div />".to_string()),
+            MdElem::BlockHtml("<div />".into()),
             json_str!(
                 {"items":[
                     {"html":{
@@ -700,10 +647,10 @@ mod tests {
             link_format: LinkTransform::Keep,
             renumber_footnotes: false,
         };
-        check_with(opts, MdElemRef::from(&given), expect);
+        check_with(opts, given, expect);
     }
 
-    fn check_md_ref(given: MdElemRef, expect: &str) {
+    fn check_md_ref(given: MdElem, expect: &str) {
         let opts = MdInlinesWriterOptions {
             link_format: LinkTransform::Keep,
             renumber_footnotes: false,
@@ -711,7 +658,7 @@ mod tests {
         check_with(opts, given, expect);
     }
 
-    fn check_with(opts: MdInlinesWriterOptions, elem_ref: MdElemRef, expect: &str) {
+    fn check_with(opts: MdInlinesWriterOptions, elem_ref: MdElem, expect: &str) {
         CHECKER.see(&elem_ref);
         let mut actual_bytes = Vec::with_capacity(32);
         serde_json::to_writer(&mut actual_bytes, &MdSerde::new(&[elem_ref], &MdContext::empty(), opts)).unwrap();
