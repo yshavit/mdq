@@ -1,7 +1,7 @@
 use crate::md_elem::elem::Table;
 use crate::md_elem::*;
 use crate::select::string_matcher::StringMatcher;
-use crate::select::{TableSliceMatcher, TrySelector};
+use crate::select::{TableMatcher, TrySelector};
 
 #[derive(Debug, PartialEq)]
 pub struct TableSelector {
@@ -28,8 +28,8 @@ impl TrySelector<Table> for TableSelector {
     }
 }
 
-impl From<TableSliceMatcher> for TableSelector {
-    fn from(value: TableSliceMatcher) -> Self {
+impl From<TableMatcher> for TableSelector {
+    fn from(value: TableMatcher) -> Self {
         Self {
             headers_matcher: value.column.into(),
             rows_matcher: value.row.into(),
