@@ -55,7 +55,7 @@ pub enum MdElem {
     BlockHtml(BlockHtml),
 
     // sub-elements
-    // TODO do I really want this? Or should I just make it a one-element list?
+    // #328 do I really want this? Or should I just make it a one-element list?
     ListItem(DetachedListItem),
 }
 
