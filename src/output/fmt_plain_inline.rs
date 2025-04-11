@@ -364,12 +364,23 @@ mod test {
     }
 
     #[test]
-    fn todo() {
-        todo!("TODO need to add unit tests");
-        // a b c
-        // a <empty> c
-        // a <empty> <empty> d
-        // <empty> b
+    fn table_with_empty_cells() {
+        let md_elem = md_elem!(Table {
+            alignments: vec![mdast::AlignKind::None, mdast::AlignKind::Center],
+            rows: vec![
+                vec![cell(["a"]), cell(["b"]), cell(["c"])],
+                vec![cell(["a"]), cell([]), cell(["c"])],
+                vec![cell(["a"]), cell([]), cell([]), cell(["d"])],
+                vec![cell([]), cell(["b"]), cell([])],
+            ]
+        });
+        check_plain(
+            checked_elem_ref!(md_elem => MdElem::Table(_)),
+            Expect {
+                with_breaks: "a b c\na c\na d\nb\n",
+                no_breaks: "a b c\na c\na d\nb\n",
+            },
+        );
     }
 
     #[test]
@@ -598,5 +609,17 @@ mod test {
         write_plain(&mut bytes, PlainOutputOpts { include_breaks: false }, [input].iter());
         let actual = String::from_utf8(bytes).expect("got invalid utf8");
         assert_eq!(actual, expect.no_breaks);
+    }
+
+    fn cell<const N: usize>(texts: [&str; N]) -> TableCell {
+        texts
+            .map(|t| {
+                Inline::Text(Text {
+                    variant: TextVariant::Plain,
+                    value: t.to_string(),
+                })
+            })
+            .into_iter()
+            .collect()
     }
 }
