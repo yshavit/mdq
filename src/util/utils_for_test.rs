@@ -85,24 +85,22 @@ mod test_utils {
     }
     pub(crate) use test_delay_ms;
 
-    /// Converts an `MdElem` into an `MdElemRef`, checking that it got converted to the right one
-    macro_rules! checked_elem_ref {
-        // TODO rename this, and update the docs
-        // TODO remove this?
+    /// Match the expression against a pattern, and then either return the expression or panic.
+    macro_rules! match_or_panic {
         ($input:expr => $variant:pat) => {{
-            let md_elem: MdElem = $input;
-            if !matches!(md_elem, $variant) {
+            let elem = $input;
+            if !matches!(elem, $variant) {
                 panic!(
                     "{} should have been {}, was {:?}",
                     stringify!($input),
                     stringify!($variant),
-                    md_elem
+                    elem
                 );
             }
-            md_elem
+            elem
         }};
     }
-    pub(crate) use checked_elem_ref;
+    pub(crate) use match_or_panic;
 
     /// Creates a static object named `$name` that looks for all the variants of enum `E`.
     ///

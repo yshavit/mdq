@@ -195,7 +195,7 @@ mod test {
     fn block_quote_empty() {
         let md_elem = md_elem!(BlockQuote { body: vec![] });
         check_plain(
-            checked_elem_ref!(md_elem => MdElem::BlockQuote(_)),
+            match_or_panic!(md_elem => MdElem::BlockQuote(_)),
             Expect {
                 with_breaks: "",
                 no_breaks: "",
@@ -209,7 +209,7 @@ mod test {
             body: md_elems!("hello, world")
         });
         check_plain(
-            checked_elem_ref!(md_elem => MdElem::BlockQuote(_)),
+            match_or_panic!(md_elem => MdElem::BlockQuote(_)),
             Expect {
                 with_breaks: "hello, world\n",
                 no_breaks: "hello, world\n",
@@ -224,7 +224,7 @@ mod test {
             value: "".to_string()
         });
         check_plain(
-            checked_elem_ref!(md_elem => MdElem::CodeBlock(_)),
+            match_or_panic!(md_elem => MdElem::CodeBlock(_)),
             Expect {
                 with_breaks: "",
                 no_breaks: "",
@@ -239,7 +239,7 @@ mod test {
             value: "hello, world".to_string()
         });
         check_plain(
-            checked_elem_ref!(md_elem => MdElem::CodeBlock(_)),
+            match_or_panic!(md_elem => MdElem::CodeBlock(_)),
             Expect {
                 with_breaks: "hello, world\n",
                 no_breaks: "hello, world\n",
@@ -267,7 +267,7 @@ mod test {
             items: vec![]
         });
         check_plain(
-            checked_elem_ref!(md_elem => MdElem::List(_)),
+            match_or_panic!(md_elem => MdElem::List(_)),
             Expect {
                 with_breaks: "",
                 no_breaks: "",
@@ -285,7 +285,7 @@ mod test {
             }]
         });
         check_plain(
-            checked_elem_ref!(md_elem => MdElem::List(_)),
+            match_or_panic!(md_elem => MdElem::List(_)),
             Expect {
                 with_breaks: "only item\n",
                 no_breaks: "only item\n",
@@ -309,7 +309,7 @@ mod test {
             ]
         });
         check_plain(
-            checked_elem_ref!(md_elem => MdElem::List(_)),
+            match_or_panic!(md_elem => MdElem::List(_)),
             Expect {
                 with_breaks: "first item\n\nsecond item\n",
                 no_breaks: "first item\nsecond item\n",
@@ -321,7 +321,7 @@ mod test {
     fn paragraph() {
         let md_elem = md_elem!("hello, world");
         check_plain(
-            checked_elem_ref!(md_elem => MdElem::Paragraph(_)),
+            match_or_panic!(md_elem => MdElem::Paragraph(_)),
             Expect {
                 with_breaks: "hello, world\n",
                 no_breaks: "hello, world\n",
@@ -337,7 +337,7 @@ mod test {
             body: md_elems!("section body"),
         });
         check_plain(
-            checked_elem_ref!(md_elem => MdElem::Section(_)),
+            match_or_panic!(md_elem => MdElem::Section(_)),
             Expect {
                 with_breaks: "section heading\n\nsection body\n",
                 no_breaks: "section heading\nsection body\n",
@@ -355,7 +355,7 @@ mod test {
             ]
         });
         check_plain(
-            checked_elem_ref!(md_elem => MdElem::Table(_)),
+            match_or_panic!(md_elem => MdElem::Table(_)),
             Expect {
                 with_breaks: "1A 1B\n2A 2B\n",
                 no_breaks: "1A 1B\n2A 2B\n",
@@ -375,7 +375,7 @@ mod test {
             ]
         });
         check_plain(
-            checked_elem_ref!(md_elem => MdElem::Table(_)),
+            match_or_panic!(md_elem => MdElem::Table(_)),
             Expect {
                 with_breaks: "a b c\na c\na d\nb\n",
                 no_breaks: "a b c\na c\na d\nb\n",
@@ -387,7 +387,7 @@ mod test {
     fn html() {
         let md_elem = MdElem::BlockHtml("<div>".into());
         check_plain(
-            checked_elem_ref!(md_elem => MdElem::BlockHtml(_)),
+            match_or_panic!(md_elem => MdElem::BlockHtml(_)),
             Expect {
                 with_breaks: "<div>\n",
                 no_breaks: "<div>\n",
@@ -399,7 +399,7 @@ mod test {
     fn thematic_break() {
         let md_elem = MdElem::ThematicBreak;
         check_plain(
-            checked_elem_ref!(md_elem => MdElem::ThematicBreak),
+            match_or_panic!(md_elem => MdElem::ThematicBreak),
             Expect {
                 with_breaks: "",
                 no_breaks: "",

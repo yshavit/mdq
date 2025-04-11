@@ -159,11 +159,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
             MdElem::Paragraph(para) => self.write_paragraph(out, para),
             MdElem::BlockQuote(block) => self.write_block_quote(out, block),
             MdElem::List(list) => self.write_list(out, list),
-            MdElem::Table(table) => {
-                // GH #168 maybe have a trait for tables, so we can parameterize write_table instead of calling into()?
-                // That would let us avoid copying various vecs.
-                self.write_table(out, table.into())
-            }
+            MdElem::Table(table) => self.write_table(out, table),
             MdElem::Inline(inline) => {
                 self.inlines_writer.write_inline_element(out, inline);
             }

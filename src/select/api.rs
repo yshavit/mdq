@@ -87,7 +87,6 @@ impl SelectorAdapter {
     }
 
     fn build_output<'md>(&self, out: &mut Vec<MdElem>, ctx: &mut SearchContext<'md>, node: MdElem) {
-        // GH #168 can we remove the clone()? Maybe by having try_select_node take a reference.
         match self.try_select_node(node) {
             Ok(found) => out.push(found),
             Err(not_found) => {
