@@ -106,11 +106,6 @@ where
 {
     let mut last_was_nonempty = false;
     for cell in line {
-        TODO need to add unit tests:
-        // a b c
-        // a <empty> c
-        // a <empty> <empty> d
-        // <empty> b
         if cell.is_empty() {
             continue;
         }
@@ -366,6 +361,15 @@ mod test {
                 no_breaks: "1A 1B\n2A 2B\n",
             },
         );
+    }
+
+    #[test]
+    fn todo() {
+        todo!("TODO need to add unit tests");
+        // a b c
+        // a <empty> c
+        // a <empty> <empty> d
+        // <empty> b
     }
 
     #[test]
