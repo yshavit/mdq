@@ -43,7 +43,7 @@ impl TrySelector<List> for ListItemSelector {
     fn try_select(&self, item: List) -> Result<MdElem, MdElem> {
         // This one works a bit differently than most:
         // - If the item has a single list, check it; this is essentially a recursive base case.
-        // - Otherwise, never match, but return an MdElem:::Doc of the list items, each as its own list.
+        // - Otherwise, never match, but return an MdElem::Doc of the list items, each as its own list.
         //   That way, the find_children code in api.rs will recurse back into this method for each of those items, but
         //   as a single-item list for the base case.
         let List { starting_index, items } = item;
