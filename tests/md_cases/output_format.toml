@@ -2,9 +2,14 @@
 md = '''
 Test _one_ [two][1] three.
 
+- alpha 1
+- alpha 2
+
 ```rust
 some_markdown("rust");
 ```
+
+- bravo
 
 ```bash
 echo 'some bash'
@@ -22,9 +27,14 @@ cli_args = []
 output = '''
 Test _one_ [two][1] three.
 
+- alpha 1
+- alpha 2
+
 ```rust
 some_markdown("rust");
 ```
+
+- bravo
 
 ```bash
 echo 'some bash'
@@ -67,9 +77,14 @@ cli_args = ['-o', 'md']
 output = '''
 Test _one_ [two][1] three.
 
+- alpha 1
+- alpha 2
+
 ```rust
 some_markdown("rust");
 ```
+
+- bravo
 
 ```bash
 echo 'some bash'
@@ -112,9 +127,14 @@ cli_args = ['--output', 'markdown']
 output = '''
 Test _one_ [two][1] three.
 
+- alpha 1
+- alpha 2
+
 ```rust
 some_markdown("rust");
 ```
+
+- bravo
 
 ```bash
 echo 'some bash'
@@ -163,11 +183,40 @@ output = '''
                     "paragraph": "Test _one_ [two][1] three."
                 },
                 {
+                    "list": [
+                        {
+                          "item": [
+                            {
+                              "paragraph": "alpha 1"
+                            }
+                          ]
+                        },
+                        {
+                          "item": [
+                            {
+                              "paragraph": "alpha 2"
+                            }
+                          ]
+                        }
+                    ]
+                },
+                {
                   "code_block": {
                     "code": "some_markdown(\"rust\");",
                     "language": "rust",
                     "type": "code"
                   }
+                },
+                {
+                  "list": [
+                    {
+                      "item": [
+                        {
+                          "paragraph": "bravo"
+                        }
+                      ]
+                    }
+                  ]
                 },
                 {
                   "code_block": {
@@ -187,11 +236,46 @@ output = '''
 }
 '''
 
+[expect."json items"]
+cli_args = ['- *', '--output', 'json']
+output_json = true
+output = '''
+{
+    "items": [
+        {
+            "list": [
+                {
+                    "item": [ { "paragraph": "alpha 1" } ]
+                }
+            ]
+        },
+        {
+            "list": [
+                {
+                    "item": [ { "paragraph": "alpha 2" } ]
+                }
+            ]
+        },
+        {
+            "list": [
+                {
+                    "item": [ { "paragraph": "bravo" } ]
+                }
+            ]
+        }
+    ]
+}
+'''
+
+
 [expect."plain"]
 cli_args = ['-o', 'plain']
 output = '''
 Test one two three.
+alpha 1
+alpha 2
 some_markdown("rust");
+bravo
 echo 'some bash'
 '''
 
@@ -200,7 +284,13 @@ cli_args = ['-o', 'plain', '--br']
 output = '''
 Test one two three.
 
+alpha 1
+
+alpha 2
+
 some_markdown("rust");
+
+bravo
 
 echo 'some bash'
 '''

@@ -59,7 +59,7 @@ macro_rules! adapters {
 
 adapters! {
     Section => Section,
-    ListItem => ListItem,
+    ListItem => List,
     BlockQuote => BlockQuote,
     CodeBlock => CodeBlock,
     Html => BlockHtml,
@@ -113,17 +113,12 @@ impl SelectorAdapter {
                 wrapped
             }
             MdElem::Section(s) => vec![MdElem::Doc(s.body)], // TODO Should this just be s.body? Should I just get rid of Doc altogether?
-            MdElem::ListItem(DetachedListItem(_, item)) => vec![MdElem::Doc(item.item)],
             MdElem::Paragraph(p) => p.body.into_iter().map(|child| MdElem::Inline(child)).collect(),
             MdElem::BlockQuote(b) => vec![MdElem::Doc(b.body)],
             MdElem::List(list) => {
-                let mut idx = list.starting_index;
                 let mut result = Vec::with_capacity(list.items.len());
-                for item in list.items {
-                    result.push(MdElem::ListItem(DetachedListItem(idx.clone(), item)));
-                    if let Some(idx) = idx.as_mut() {
-                        *idx += 1;
-                    }
+                for mut item in list.items {
+                    result.append(&mut item.item);
                 }
                 result
             }

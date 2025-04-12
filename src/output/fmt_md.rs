@@ -142,9 +142,6 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                 self.write_md(out, body.into_iter(), false);
                 self.write_link_refs_as_needed(out);
             }
-            MdElem::ListItem(DetachedListItem(idx, item)) => {
-                self.write_list_item(out, &idx, item);
-            }
             MdElem::ThematicBreak => {
                 if !prev_was_thematic_break {
                     out.with_block(Block::Plain, |out| {
@@ -502,7 +499,6 @@ pub mod tests {
     variants_checker!(VARIANTS_CHECKER = MdElem {
         Doc(..),
         Section(_),
-        ListItem(..),
         BlockHtml(..),
 
         Inline(Inline::Span(Span{variant: SpanVariant::Delete, ..})),
@@ -891,8 +887,14 @@ pub mod tests {
             };
             check_render_refs(
                 vec![
-                    MdElem::ListItem(DetachedListItem(None, li1)),
-                    MdElem::ListItem(DetachedListItem(None, li2)),
+                    MdElem::List(List {
+                        starting_index: None,
+                        items: vec![li1],
+                    }),
+                    MdElem::List(List {
+                        starting_index: None,
+                        items: vec![li2],
+                    }),
                 ],
                 indoc! {r#"
                 - [ ] first item
@@ -918,18 +920,31 @@ pub mod tests {
             check_render_refs_with(
                 &options,
                 vec![
-                    MdElem::ListItem(DetachedListItem(None, li1)),
-                    MdElem::ListItem(DetachedListItem(None, li2)),
+                    MdElem::List(List {
+                        starting_index: None,
+                        items: vec![li1],
+                    }),
+                    MdElem::List(List {
+                        starting_index: None,
+                        items: vec![li2],
+                    }),
                 ],
                 indoc! {r#"
                 - [ ] first item
+
                 - [x] second item"#},
             );
         }
 
         fn create_li_singleton(idx: Option<u32>, checked: Option<bool>, item: Vec<MdElem>, expected: &str) {
             let li = ListItem { checked, item };
-            check_render_refs(vec![MdElem::ListItem(DetachedListItem(idx, li))], expected)
+            check_render_refs(
+                vec![MdElem::List(List {
+                    starting_index: idx,
+                    items: vec![li],
+                })],
+                expected,
+            )
         }
     }
 

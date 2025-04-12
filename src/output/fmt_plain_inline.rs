@@ -95,7 +95,6 @@ where
             writeln!(out)
         }
         MdElem::ThematicBreak => Ok(()),
-        MdElem::ListItem(DetachedListItem(_, item)) => write_plain_result(out, item.item.iter().map(|e| e.into())),
     }
 }
 
@@ -162,7 +161,6 @@ mod test {
         Table(_),
         BlockHtml(_),
         ThematicBreak,
-        ListItem(_),
     });
 
     #[test]
@@ -414,7 +412,10 @@ mod test {
             item: md_elems!("hello, world"),
         };
         check_plain(
-            MdElem::ListItem(DetachedListItem(None, list_item)),
+            MdElem::List(List {
+                starting_index: None,
+                items: vec![list_item],
+            }),
             Expect {
                 with_breaks: "hello, world\n",
                 no_breaks: "hello, world\n",
@@ -429,7 +430,10 @@ mod test {
             item: md_elems!("first", "second"),
         };
         check_plain(
-            MdElem::ListItem(DetachedListItem(None, list_item)),
+            MdElem::List(List {
+                starting_index: None,
+                items: vec![list_item],
+            }),
             Expect {
                 with_breaks: "first\n\nsecond\n",
                 no_breaks: "first\nsecond\n",
