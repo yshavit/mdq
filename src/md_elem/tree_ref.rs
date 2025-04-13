@@ -1,13 +1,12 @@
 use crate::md_elem::elem::*;
 use crate::util::vec_utils::ItemRetainer;
-use markdown::mdast;
 
 mod elem_ref {
     use super::*;
     use crate::util::vec_utils::IndexKeeper;
 
     impl Table {
-        pub fn alignments(&self) -> &Vec<mdast::AlignKind> {
+        pub fn alignments(&self) -> &Vec<TableColumnAlignment> {
             &self.alignments
         }
 
@@ -33,7 +32,7 @@ mod elem_ref {
             if self.alignments.len() > max_cols {
                 self.alignments.truncate(max_cols);
             } else {
-                let nones = [mdast::AlignKind::None]
+                let nones = [TableColumnAlignment::None]
                     .iter()
                     .cycle()
                     .take(max_cols - self.alignments.len());
@@ -100,7 +99,6 @@ mod tests {
 
     mod tables {
         use super::*;
-        use markdown::mdast;
 
         #[test]
         fn retain_col() {
@@ -113,7 +111,7 @@ mod tests {
 
             // note: "KEEPER" is in the last column, but not in the header; only the header gets
             // matched.
-            assert_eq!(table.alignments, vec![mdast::AlignKind::Left]);
+            assert_eq!(table.alignments, vec![TableColumnAlignment::Left]);
             assert_eq!(
                 table.rows,
                 vec![vec![cell("KEEPER a")], vec![cell("data 1 a")], vec![cell("data 2 a")],]
@@ -138,7 +136,11 @@ mod tests {
             // normalization
             assert_eq!(
                 table.alignments,
-                vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]
+                vec![
+                    TableColumnAlignment::Left,
+                    TableColumnAlignment::Right,
+                    TableColumnAlignment::None
+                ]
             );
             assert_eq!(
                 table.rows,
@@ -166,9 +168,9 @@ mod tests {
             assert_eq!(
                 table.alignments,
                 vec![
-                    mdast::AlignKind::Left,
-                    mdast::AlignKind::Right,
-                    mdast::AlignKind::Center,
+                    TableColumnAlignment::Left,
+                    TableColumnAlignment::Right,
+                    TableColumnAlignment::Center,
                 ]
             );
             // note: header row always gets kept
@@ -202,7 +204,11 @@ mod tests {
             // normalization
             assert_eq!(
                 table.alignments,
-                vec![mdast::AlignKind::Left, mdast::AlignKind::Right, mdast::AlignKind::None]
+                vec![
+                    TableColumnAlignment::Left,
+                    TableColumnAlignment::Right,
+                    TableColumnAlignment::None
+                ]
             );
             assert_eq!(
                 table.rows,
@@ -244,9 +250,9 @@ mod tests {
 
             // for alignments, just cycle [L, R, C].
             let alignments = [
-                mdast::AlignKind::Left,
-                mdast::AlignKind::Right,
-                mdast::AlignKind::Center,
+                TableColumnAlignment::Left,
+                TableColumnAlignment::Right,
+                TableColumnAlignment::Center,
             ]
             .iter()
             .cycle()

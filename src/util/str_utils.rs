@@ -1,9 +1,7 @@
+use crate::md_elem::elem::TableColumnAlignment;
+use crate::util::output::{Output, SimpleWrite};
 use std::borrow::Borrow;
 use std::fmt::Alignment;
-
-use markdown::mdast::AlignKind;
-
-use crate::util::output::{Output, SimpleWrite};
 
 pub fn pad_to<A, W>(output: &mut Output<W>, input: &str, min_width: usize, alignment: A)
 where
@@ -52,18 +50,18 @@ impl ToAlignment for Alignment {
     }
 }
 
-impl ToAlignment for AlignKind {
+impl ToAlignment for TableColumnAlignment {
     fn to_alignment(self) -> Option<Alignment> {
         match self {
-            AlignKind::Left => Some(Alignment::Left),
-            AlignKind::Right => Some(Alignment::Right),
-            AlignKind::Center => Some(Alignment::Center),
-            AlignKind::None => None,
+            TableColumnAlignment::Left => Some(Alignment::Left),
+            TableColumnAlignment::Right => Some(Alignment::Right),
+            TableColumnAlignment::Center => Some(Alignment::Center),
+            TableColumnAlignment::None => None,
         }
     }
 }
 
-impl<A: Borrow<AlignKind>> ToAlignment for Option<A> {
+impl<A: Borrow<TableColumnAlignment>> ToAlignment for Option<A> {
     fn to_alignment(self) -> Option<Alignment> {
         match self {
             Some(a) => a.borrow().to_alignment(),

@@ -949,8 +949,6 @@ pub mod tests {
     }
 
     mod table {
-        use markdown::mdast;
-
         use super::*;
 
         #[test]
@@ -958,10 +956,10 @@ pub mod tests {
             check_render(
                 md_elems![Table {
                     alignments: vec![
-                        mdast::AlignKind::Left,
-                        mdast::AlignKind::Right,
-                        mdast::AlignKind::Center,
-                        mdast::AlignKind::None,
+                        TableColumnAlignment::Left,
+                        TableColumnAlignment::Right,
+                        TableColumnAlignment::Center,
+                        TableColumnAlignment::None,
                     ],
                     rows: vec![
                         // Header row
@@ -995,10 +993,10 @@ pub mod tests {
             check_render(
                 md_elems![Table {
                     alignments: vec![
-                        mdast::AlignKind::Left,
-                        mdast::AlignKind::Right,
-                        mdast::AlignKind::Center,
-                        mdast::AlignKind::None,
+                        TableColumnAlignment::Left,
+                        TableColumnAlignment::Right,
+                        TableColumnAlignment::Center,
+                        TableColumnAlignment::None,
                     ],
                     rows: vec![
                         // Header row
@@ -1032,10 +1030,10 @@ pub mod tests {
             check_render(
                 md_elems![Table {
                     alignments: vec![
-                        mdast::AlignKind::Left,
-                        mdast::AlignKind::Right,
-                        mdast::AlignKind::Center,
-                        mdast::AlignKind::None,
+                        TableColumnAlignment::Left,
+                        TableColumnAlignment::Right,
+                        TableColumnAlignment::Center,
+                        TableColumnAlignment::None,
                     ],
                     rows: vec![
                         // Header row
@@ -1068,7 +1066,7 @@ pub mod tests {
             // This is an invalid table, but we should still support it
             check_render(
                 md_elems![Table {
-                    alignments: vec![mdast::AlignKind::None, mdast::AlignKind::None,],
+                    alignments: vec![TableColumnAlignment::None, TableColumnAlignment::None,],
                     rows: vec![
                         // Header row: two values
                         vec![
@@ -1105,7 +1103,7 @@ pub mod tests {
         #[test]
         fn slice() {
             let table = Table {
-                alignments: vec![mdast::AlignKind::Left, mdast::AlignKind::Right],
+                alignments: vec![TableColumnAlignment::Left, TableColumnAlignment::Right],
                 rows: vec![
                     // Header row
                     vec![
