@@ -1,7 +1,8 @@
+use crate::md_elem::elem::ColumnAlignment;
 use crate::util::output::{Output, SimpleWrite};
 use std::fmt::Alignment;
 
-pub fn pad_to<W>(output: &mut Output<W>, input: &str, min_width: usize, alignment: Option<Alignment>)
+pub fn pad_to<W>(output: &mut Output<W>, input: &str, min_width: usize, alignment: Option<ColumnAlignment>)
 where
     W: SimpleWrite,
 {
@@ -12,26 +13,30 @@ where
     let padding = min_width - input.len();
 
     match alignment {
-        Some(Alignment::Left) | None => {
+        Some(ColumnAlignment::Left) | None => {
             output.write_str(input);
             (0..padding).for_each(|_| output.write_char(' '));
         }
-        Some(Alignment::Center) => {
+        Some(ColumnAlignment::Center) => {
             let left_pad = padding / 2; // round down
             let right_pad = padding - left_pad;
             (0..left_pad).for_each(|_| output.write_char(' '));
             output.write_str(input);
             (0..right_pad).for_each(|_| output.write_char(' '));
         }
-        Some(Alignment::Right) => {
+        Some(ColumnAlignment::Right) => {
             (0..padding).for_each(|_| output.write_char(' '));
             output.write_str(input);
         }
     }
 }
 
-pub fn standard_align(a: Option<Alignment>) -> Option<Alignment> {
-    a
+pub fn standard_align(a: Option<ColumnAlignment>) -> Option<Alignment> {
+    a.map(|a| match a {
+        ColumnAlignment::Left => Alignment::Left,
+        ColumnAlignment::Right => Alignment::Right,
+        ColumnAlignment::Center => Alignment::Center,
+    })
 }
 
 pub struct CountingWriter<'a, W> {
@@ -82,7 +87,7 @@ mod test {
     fn left_pad() {
         assert_eq!(
             "a    ",
-            output_and_get(|out| pad_to(out, "a", 5, Some(Alignment::Left)))
+            output_and_get(|out| pad_to(out, "a", 5, Some(ColumnAlignment::Left)))
         );
     }
 
@@ -90,7 +95,7 @@ mod test {
     fn right_pad() {
         assert_eq!(
             "    a",
-            output_and_get(|out| pad_to(out, "a", 5, Some(Alignment::Right)))
+            output_and_get(|out| pad_to(out, "a", 5, Some(ColumnAlignment::Right)))
         );
     }
 
@@ -99,7 +104,7 @@ mod test {
     fn center_pad_even() {
         assert_eq!(
             "  a  ",
-            output_and_get(|out| pad_to(out, "a", 5, Some(Alignment::Center)))
+            output_and_get(|out| pad_to(out, "a", 5, Some(ColumnAlignment::Center)))
         );
     }
 
@@ -108,20 +113,20 @@ mod test {
     fn center_pad_uneven() {
         assert_eq!(
             " ab  ",
-            output_and_get(|out| pad_to(out, "ab", 5, Some(Alignment::Center)))
+            output_and_get(|out| pad_to(out, "ab", 5, Some(ColumnAlignment::Center)))
         );
     }
 
     #[test]
     fn string_already_right_size() {
-        for align in [Alignment::Left, Alignment::Center, Alignment::Right] {
+        for align in [ColumnAlignment::Left, ColumnAlignment::Center, ColumnAlignment::Right] {
             assert_eq!("abcde", output_and_get(|out| pad_to(out, "abcde", 5, Some(align))));
         }
     }
 
     #[test]
     fn string_already_too_big() {
-        for align in [Alignment::Left, Alignment::Center, Alignment::Right] {
+        for align in [ColumnAlignment::Left, ColumnAlignment::Center, ColumnAlignment::Right] {
             assert_eq!("abcdef", output_and_get(|out| pad_to(out, "abcdef", 3, Some(align))));
         }
     }

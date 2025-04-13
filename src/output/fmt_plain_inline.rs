@@ -55,7 +55,7 @@ where
         MdElem::Doc(doc) => write_plain_result(out, doc.iter()),
         MdElem::BlockQuote(block) => write_plain_result(out, block.body.iter()),
         MdElem::CodeBlock(block) => {
-            if !(block.value.is_empty()) {
+            if !block.value.is_empty() {
                 writeln!(out, "{}", block.value)?;
                 writeln!(out)?;
             }
@@ -148,7 +148,6 @@ mod test {
     use super::*;
     use crate::util::utils_for_test::*;
     use indoc::indoc;
-    use std::fmt::Alignment;
 
     variants_checker!(VARIANTS_CHECKER = MdElem {
         Doc(_),
@@ -346,7 +345,7 @@ mod test {
     #[test]
     fn table() {
         let md_elem = md_elem!(Table {
-            alignments: vec![None, Some(Alignment::Center)],
+            alignments: vec![None, Some(ColumnAlignment::Center)],
             rows: vec![
                 vec![vec![mdq_inline!("1A")], vec![mdq_inline!("1B")]],
                 vec![vec![mdq_inline!("2A")], vec![mdq_inline!("2B")]],
@@ -364,7 +363,7 @@ mod test {
     #[test]
     fn table_with_empty_cells() {
         let md_elem = md_elem!(Table {
-            alignments: vec![None, Some(Alignment::Center)],
+            alignments: vec![None, Some(ColumnAlignment::Center)],
             rows: vec![
                 vec![cell(["a"]), cell(["b"]), cell(["c"])],
                 vec![cell(["a"]), cell([]), cell(["c"])],
@@ -482,7 +481,7 @@ mod test {
     #[test]
     fn table_slice() {
         let table = Table {
-            alignments: vec![None, Some(Alignment::Center)],
+            alignments: vec![None, Some(ColumnAlignment::Center)],
             rows: vec![
                 vec![vec![mdq_inline!("1A")], vec![mdq_inline!("1B")]],
                 vec![vec![mdq_inline!("2A")], vec![mdq_inline!("2B")]],
