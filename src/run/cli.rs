@@ -1,7 +1,6 @@
 use crate::output::{LinkTransform, ReferencePlacement};
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, ValueEnum};
-use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 
 macro_rules! create_options_structs {
@@ -12,7 +11,7 @@ macro_rules! create_options_structs {
             pub $name:ident : $ty:ty
         ),* $(,)?
     ) => {
-        #[derive(Parser, Debug, PartialEq, Eq)]
+        #[derive(Parser, Debug)]
         #[command(version, about, long_about = None)]
         #[doc(hidden)]
         pub struct CliOptions {
@@ -69,8 +68,66 @@ macro_rules! create_options_structs {
             /// processed in the order you provide them. If you provide the same file twice, mdq will process it twice, unless
             /// that file is "-"; all but the first "-" paths are ignored.
             #[arg()]
-            pub markdown_file_paths: Vec<String>,
+            pub(crate) markdown_file_paths: Vec<String>,
         }
+
+        #[derive(Parser, Debug, PartialEq, Eq)]
+        pub struct RunOptions {
+            $(
+            $(#[$meta])*
+            #[arg$clap]
+            pub $name: $ty,
+            )*
+
+            /// Whether to include breaks between elements. This is analogous to the `--[no-]br` option in the CLI
+            /// arguments.
+            pub add_breaks: Option<bool>,
+
+            pub selectors: String,
+
+            pub markdown_file_paths: Vec<String>
+        }
+
+        impl From<CliOptions> for RunOptions {
+            fn from(mut value: CliOptions) -> Self {
+                let add_breaks = match (value.br, value.no_br) {
+                    (false, false) => None,
+                    (true, false) => Some(true),
+                    (false, true) => Some(false),
+                    (true, true) => {
+                        eprintln!("internal error when determining whether to add breaks between elements. will use default settings");
+                        None
+                    }
+                };
+                let selectors = value.take_selector_string();
+                Self {
+                    $($name: value.$name,)*
+                    markdown_file_paths: value.markdown_file_paths,
+                    add_breaks,
+                    selectors,
+                }
+            }
+        }
+
+        impl From<RunOptions> for CliOptions {
+            fn from(value: RunOptions) -> Self {
+                let (br, no_br) = match value.add_breaks {
+                    None => (false, false),
+                    Some(true) => (true, false),
+                    Some(false) => (false, true),
+                };
+                Self {
+                    $($name: value.$name,)*
+                    br_umbrella: false,
+                    list_selector: None,
+                    selectors: Some(value.selectors),
+                    markdown_file_paths: value.markdown_file_paths,
+                    br,
+                    no_br,
+                }
+            }
+        }
+
     };
 }
 
@@ -114,7 +171,7 @@ create_options_structs! {
     pub allow_unknown_markdown: bool,
 }
 
-impl Default for CliOptions {
+impl Default for RunOptions {
     fn default() -> Self {
         Self {
             link_pos: ReferencePlacement::Section,
@@ -122,12 +179,9 @@ impl Default for CliOptions {
             link_format: LinkTransform::Reference,
             renumber_footnotes: true,
             output: OutputFormat::Markdown,
-            br_umbrella: false,
-            br: false,
-            no_br: false,
+            add_breaks: None,
             wrap_width: None,
-            list_selector: None,
-            selectors: None,
+            selectors: "".to_string(),
             quiet: false,
             allow_unknown_markdown: false,
             markdown_file_paths: vec![],
@@ -135,37 +189,31 @@ impl Default for CliOptions {
     }
 }
 
-impl CliOptions {
-    pub fn set_br(&mut self, value: Option<bool>) {
-        let (br, no_br) = match value {
-            None => (false, false),
-            Some(true) => (true, false),
-            Some(false) => (false, true),
-        };
-        self.br = br;
-        self.no_br = no_br;
+impl RunOptions {
+    pub fn should_add_breaks(&self) -> bool {
+        self.add_breaks.unwrap_or_else(|| match self.output {
+            OutputFormat::Json => false,
+            OutputFormat::Markdown | OutputFormat::Md => true,
+            OutputFormat::Plain => false,
+        })
     }
+}
 
-    pub fn selector_string(&self) -> Cow<String> {
-        match &self.selectors {
-            Some(s) => Cow::Borrowed(s),
+impl CliOptions {
+    /// Takes the selector string, returning it and mutating this instance to now have a blank selector string.
+    /// You should only invoke this once!
+    pub fn take_selector_string(&mut self) -> String {
+        match self.selectors.take() {
+            Some(s) => s,
             None => match &self.list_selector {
                 Some(list_selectors) => {
                     let mut reconstructed = String::with_capacity(list_selectors.len() + 2);
                     reconstructed.push_str("- ");
                     reconstructed.push_str(list_selectors);
-                    Cow::Owned(reconstructed)
+                    reconstructed
                 }
-                None => Cow::Owned(String::new()),
+                None => String::new(),
             },
-        }
-    }
-
-    pub fn should_add_breaks(&self) -> bool {
-        match self.output {
-            OutputFormat::Json => false,
-            OutputFormat::Markdown | OutputFormat::Md => !self.no_br,
-            OutputFormat::Plain => self.br,
         }
     }
 
@@ -260,6 +308,7 @@ impl Display for OutputFormat {
 #[cfg(test)]
 mod tests {
     use crate::run::cli::CliOptions;
+    use crate::run::RunOptions;
     use crate::util::utils_for_test::*;
     use clap::{Error, Parser};
 
@@ -272,8 +321,8 @@ mod tests {
     #[test]
     fn no_args() {
         let result = CliOptions::try_parse_from(["mdq"]);
-        unwrap!(result, Ok(cli));
-        assert_eq!(cli.selector_string().as_str(), "");
+        unwrap!(result, Ok(mut cli));
+        assert_eq!(cli.take_selector_string().as_str(), "");
         assert!(cli.markdown_file_paths.is_empty());
     }
 
@@ -281,31 +330,32 @@ mod tests {
     fn no_args_equals_default() {
         let result = CliOptions::try_parse_from(["mdq"]);
         unwrap!(result, Ok(cli));
-        let from_default = CliOptions::default();
-        assert_eq!(cli, from_default);
+        let default_run_options = RunOptions::default();
+        let from_cli: RunOptions = cli.into();
+        assert_eq!(from_cli, default_run_options);
     }
 
     #[test]
     fn standard_selectors() {
         let result = CliOptions::try_parse_from(["mdq", "# hello"]);
-        unwrap!(result, Ok(cli));
-        assert_eq!(cli.selector_string().as_str(), "# hello");
+        unwrap!(result, Ok(mut cli));
+        assert_eq!(cli.take_selector_string().as_str(), "# hello");
         assert!(cli.markdown_file_paths.is_empty());
     }
 
     #[test]
     fn selector_and_file() {
         let result = CliOptions::try_parse_from(["mdq", "# hello", "file.txt"]);
-        unwrap!(result, Ok(cli));
-        assert_eq!(cli.selector_string().as_str(), "# hello");
+        unwrap!(result, Ok(mut cli));
+        assert_eq!(cli.take_selector_string().as_str(), "# hello");
         assert_eq!(cli.markdown_file_paths, ["file.txt"]);
     }
 
     #[test]
     fn start_with_list_selectors() {
         let result = CliOptions::try_parse_from(["mdq", "- world"]);
-        unwrap!(result, Ok(cli));
-        assert_eq!(cli.selector_string().as_str(), "- world");
+        unwrap!(result, Ok(mut cli));
+        assert_eq!(cli.take_selector_string().as_str(), "- world");
     }
 
     #[test]
