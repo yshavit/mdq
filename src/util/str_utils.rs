@@ -1,13 +1,8 @@
-use std::borrow::Borrow;
-use std::fmt::Alignment;
-
-use markdown::mdast::AlignKind;
-
+use crate::md_elem::elem::ColumnAlignment;
 use crate::util::output::{Output, SimpleWrite};
 
-pub fn pad_to<A, W>(output: &mut Output<W>, input: &str, min_width: usize, alignment: A)
+pub fn pad_to<W>(output: &mut Output<W>, input: &str, min_width: usize, alignment: Option<ColumnAlignment>)
 where
-    A: ToAlignment,
     W: SimpleWrite,
 {
     if input.len() >= min_width {
@@ -16,58 +11,21 @@ where
 
     let padding = min_width - input.len();
 
-    match standard_align(alignment) {
-        Some(Alignment::Left) | None => {
+    match alignment {
+        Some(ColumnAlignment::Left) | None => {
             output.write_str(input);
             (0..padding).for_each(|_| output.write_char(' '));
         }
-        Some(Alignment::Center) => {
+        Some(ColumnAlignment::Center) => {
             let left_pad = padding / 2; // round down
             let right_pad = padding - left_pad;
             (0..left_pad).for_each(|_| output.write_char(' '));
             output.write_str(input);
             (0..right_pad).for_each(|_| output.write_char(' '));
         }
-        Some(Alignment::Right) => {
+        Some(ColumnAlignment::Right) => {
             (0..padding).for_each(|_| output.write_char(' '));
             output.write_str(input);
-        }
-    }
-}
-
-pub fn standard_align<A>(mdast_align: A) -> Option<Alignment>
-where
-    A: ToAlignment,
-{
-    mdast_align.to_alignment()
-}
-
-pub trait ToAlignment {
-    fn to_alignment(self) -> Option<Alignment>;
-}
-
-impl ToAlignment for Alignment {
-    fn to_alignment(self) -> Option<Alignment> {
-        Some(self)
-    }
-}
-
-impl ToAlignment for AlignKind {
-    fn to_alignment(self) -> Option<Alignment> {
-        match self {
-            AlignKind::Left => Some(Alignment::Left),
-            AlignKind::Right => Some(Alignment::Right),
-            AlignKind::Center => Some(Alignment::Center),
-            AlignKind::None => None,
-        }
-    }
-}
-
-impl<A: Borrow<AlignKind>> ToAlignment for Option<A> {
-    fn to_alignment(self) -> Option<Alignment> {
-        match self {
-            Some(a) => a.borrow().to_alignment(),
-            None => None,
         }
     }
 }
@@ -118,37 +76,49 @@ mod test {
 
     #[test]
     fn left_pad() {
-        assert_eq!("a    ", output_and_get(|out| pad_to(out, "a", 5, Alignment::Left)));
+        assert_eq!(
+            "a    ",
+            output_and_get(|out| pad_to(out, "a", 5, Some(ColumnAlignment::Left)))
+        );
     }
 
     #[test]
     fn right_pad() {
-        assert_eq!("    a", output_and_get(|out| pad_to(out, "a", 5, Alignment::Right)));
+        assert_eq!(
+            "    a",
+            output_and_get(|out| pad_to(out, "a", 5, Some(ColumnAlignment::Right)))
+        );
     }
 
     /// center pad, with the same amount of padding on each side
     #[test]
     fn center_pad_even() {
-        assert_eq!("  a  ", output_and_get(|out| pad_to(out, "a", 5, Alignment::Center)));
+        assert_eq!(
+            "  a  ",
+            output_and_get(|out| pad_to(out, "a", 5, Some(ColumnAlignment::Center)))
+        );
     }
 
     /// center pad, with different amount of padding on each side
     #[test]
     fn center_pad_uneven() {
-        assert_eq!(" ab  ", output_and_get(|out| pad_to(out, "ab", 5, Alignment::Center)));
+        assert_eq!(
+            " ab  ",
+            output_and_get(|out| pad_to(out, "ab", 5, Some(ColumnAlignment::Center)))
+        );
     }
 
     #[test]
     fn string_already_right_size() {
-        for align in [Alignment::Left, Alignment::Center, Alignment::Right] {
-            assert_eq!("abcde", output_and_get(|out| pad_to(out, "abcde", 5, align)));
+        for align in [ColumnAlignment::Left, ColumnAlignment::Center, ColumnAlignment::Right] {
+            assert_eq!("abcde", output_and_get(|out| pad_to(out, "abcde", 5, Some(align))));
         }
     }
 
     #[test]
     fn string_already_too_big() {
-        for align in [Alignment::Left, Alignment::Center, Alignment::Right] {
-            assert_eq!("abcdef", output_and_get(|out| pad_to(out, "abcdef", 3, align)));
+        for align in [ColumnAlignment::Left, ColumnAlignment::Center, ColumnAlignment::Right] {
+            assert_eq!("abcdef", output_and_get(|out| pad_to(out, "abcdef", 3, Some(align))));
         }
     }
 

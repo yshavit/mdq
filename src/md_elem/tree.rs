@@ -309,8 +309,15 @@ pub mod elem {
 
     #[derive(Debug, PartialEq, Clone)]
     pub struct Table {
-        pub alignments: Vec<mdast::AlignKind>,
+        pub alignments: Vec<Option<ColumnAlignment>>,
         pub rows: Vec<TableRow>,
+    }
+
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    pub enum ColumnAlignment {
+        Left,
+        Right,
+        Center,
     }
 
     #[derive(Debug, PartialEq, Clone)]
@@ -573,7 +580,7 @@ impl MdElem {
                     rows.push(column);
                 }
                 m_node!(MdElem::Table {
-                    alignments: align,
+                    alignments: align.into_iter().map(Self::convert_alignment).collect(),
                     rows,
                 })
             }
@@ -602,6 +609,15 @@ impl MdElem {
             }
         };
         Ok(vec![result])
+    }
+
+    fn convert_alignment(a: mdast::AlignKind) -> Option<ColumnAlignment> {
+        match a {
+            mdast::AlignKind::Left => Some(ColumnAlignment::Left),
+            mdast::AlignKind::Right => Some(ColumnAlignment::Right),
+            mdast::AlignKind::Center => Some(ColumnAlignment::Center),
+            mdast::AlignKind::None => None,
+        }
     }
 
     fn all(
@@ -1969,7 +1985,7 @@ mod tests {
             );
             assert_eq!(root.children.len(), 1);
             check!(&root.children[0], Node::Table(table_node), lookups => m_node!(MdElem::Table{alignments, rows}) = {
-                assert_eq!(alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Center, mdast::AlignKind::Right, mdast::AlignKind::None]);
+                assert_eq!(alignments, vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Center), Some(ColumnAlignment::Right), None]);
                 assert_eq!(rows,
                     vec![ // rows
                         vec![// Header row
@@ -2009,7 +2025,7 @@ mod tests {
             );
             assert_eq!(root.children.len(), 1);
             check!(&root.children[0], Node::Table(_), lookups => m_node!(MdElem::Table{alignments, rows}) = {
-                assert_eq!(alignments, vec![mdast::AlignKind::Left, mdast::AlignKind::Right]);
+                assert_eq!(alignments, vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)]);
                 assert_eq!(rows,
                     vec![ // rows
                         vec![// Header row

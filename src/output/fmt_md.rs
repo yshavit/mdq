@@ -3,11 +3,10 @@ use crate::md_elem::*;
 use crate::output::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
 use crate::output::link_transform::LinkLabel;
 use crate::util::output::{Block, Output, SimpleWrite};
-use crate::util::str_utils::{pad_to, standard_align, CountingWriter};
+use crate::util::str_utils::{pad_to, CountingWriter};
 use clap::ValueEnum;
 use std::borrow::Cow;
 use std::cmp::max;
-use std::fmt::Alignment;
 use std::ops::Deref;
 
 pub struct MdOptions {
@@ -214,9 +213,9 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
         let mut column_widths = [0].repeat(alignments.len());
         if !alignments.is_empty() {
             for (idx, alignment) in alignments.iter().enumerate() {
-                let width = match standard_align(*alignment) {
-                    Some(Alignment::Left | Alignment::Right) => 2,
-                    Some(Alignment::Center) => 3,
+                let width = match *alignment {
+                    Some(ColumnAlignment::Left | ColumnAlignment::Right) => 2,
+                    Some(ColumnAlignment::Center) => 3,
                     None => 1,
                 };
                 column_widths[idx] = width;
@@ -259,7 +258,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                     out,
                     &col,
                     *column_widths.get(idx).unwrap_or(&0) - left_padding_count - 1, // -1 for right padding
-                    alignments.get(idx),
+                    alignments.get(idx).copied().flatten(),
                 );
                 out.write_str(" |");
             }
@@ -282,22 +281,22 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
             for (idx, &align) in alignments.iter().enumerate() {
                 let width = column_widths
                     .get(idx)
-                    .unwrap_or_else(|| match standard_align(align) {
-                        Some(Alignment::Left | Alignment::Right) => &2,
-                        Some(Alignment::Center) => &3,
+                    .unwrap_or_else(|| match align {
+                        Some(ColumnAlignment::Left | ColumnAlignment::Right) => &2,
+                        Some(ColumnAlignment::Center) => &3,
                         None => &1,
                     })
                     .to_owned();
-                match standard_align(align) {
-                    Some(Alignment::Left) => {
+                match align {
+                    Some(ColumnAlignment::Left) => {
                         out.write_char(':');
                         out.write_str(&"-".repeat(width - 1));
                     }
-                    Some(Alignment::Right) => {
+                    Some(ColumnAlignment::Right) => {
                         out.write_str(&"-".repeat(width - 1));
                         out.write_char(':');
                     }
-                    Some(Alignment::Center) => {
+                    Some(ColumnAlignment::Center) => {
                         out.write_char(':');
                         out.write_str(&"-".repeat(width - 2));
                         out.write_char(':');
@@ -949,8 +948,6 @@ pub mod tests {
     }
 
     mod table {
-        use markdown::mdast;
-
         use super::*;
 
         #[test]
@@ -958,10 +955,10 @@ pub mod tests {
             check_render(
                 md_elems![Table {
                     alignments: vec![
-                        mdast::AlignKind::Left,
-                        mdast::AlignKind::Right,
-                        mdast::AlignKind::Center,
-                        mdast::AlignKind::None,
+                        Some(ColumnAlignment::Left),
+                        Some(ColumnAlignment::Right),
+                        Some(ColumnAlignment::Center),
+                        None,
                     ],
                     rows: vec![
                         // Header row
@@ -995,10 +992,10 @@ pub mod tests {
             check_render(
                 md_elems![Table {
                     alignments: vec![
-                        mdast::AlignKind::Left,
-                        mdast::AlignKind::Right,
-                        mdast::AlignKind::Center,
-                        mdast::AlignKind::None,
+                        Some(ColumnAlignment::Left),
+                        Some(ColumnAlignment::Right),
+                        Some(ColumnAlignment::Center),
+                        None,
                     ],
                     rows: vec![
                         // Header row
@@ -1032,10 +1029,10 @@ pub mod tests {
             check_render(
                 md_elems![Table {
                     alignments: vec![
-                        mdast::AlignKind::Left,
-                        mdast::AlignKind::Right,
-                        mdast::AlignKind::Center,
-                        mdast::AlignKind::None,
+                        Some(ColumnAlignment::Left),
+                        Some(ColumnAlignment::Right),
+                        Some(ColumnAlignment::Center),
+                        None,
                     ],
                     rows: vec![
                         // Header row
@@ -1068,7 +1065,7 @@ pub mod tests {
             // This is an invalid table, but we should still support it
             check_render(
                 md_elems![Table {
-                    alignments: vec![mdast::AlignKind::None, mdast::AlignKind::None,],
+                    alignments: vec![None, None],
                     rows: vec![
                         // Header row: two values
                         vec![
@@ -1105,7 +1102,7 @@ pub mod tests {
         #[test]
         fn slice() {
             let table = Table {
-                alignments: vec![mdast::AlignKind::Left, mdast::AlignKind::Right],
+                alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
                 rows: vec![
                     // Header row
                     vec![

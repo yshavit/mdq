@@ -44,12 +44,11 @@ mod tests {
     use crate::md_elem::elem::*;
     use crate::select::TrySelector;
     use crate::util::utils_for_test::*;
-    use markdown::mdast;
 
     #[test]
     fn select_all_on_normalized_table() {
         let table: Table = Table {
-            alignments: vec![mdast::AlignKind::Left, mdast::AlignKind::Right],
+            alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
             rows: vec![
                 vec![cell("header a"), cell("header b")],
                 vec![cell("data 1 a"), cell("data 1 b")],
@@ -65,7 +64,7 @@ mod tests {
         unwrap!(maybe_selected, Ok(MdElem::Table(table)));
         assert_eq!(
             table.alignments(),
-            &vec![mdast::AlignKind::Left, mdast::AlignKind::Right]
+            &vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)]
         );
         assert_eq!(
             table.rows(),
@@ -79,7 +78,7 @@ mod tests {
     #[test]
     fn select_columns_on_normalized_table() {
         let table: Table = Table {
-            alignments: vec![mdast::AlignKind::Left, mdast::AlignKind::Right],
+            alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
             rows: vec![
                 vec![cell("header a"), cell("KEEP b")],
                 vec![cell("data 1 a"), cell("data 1 b")],
@@ -93,14 +92,14 @@ mod tests {
         .map(get_only);
 
         unwrap!(maybe_selected, Ok(MdElem::Table(table)));
-        assert_eq!(table.alignments(), &vec![mdast::AlignKind::Right]);
+        assert_eq!(table.alignments(), &vec![Some(ColumnAlignment::Right)]);
         assert_eq!(table.rows(), &vec![vec![cell("KEEP b")], vec![cell("data 1 b")],]);
     }
 
     #[test]
     fn select_rows_on_normalized_table() {
         let table: Table = Table {
-            alignments: vec![mdast::AlignKind::Left, mdast::AlignKind::Right],
+            alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
             rows: vec![
                 vec![cell("header a"), cell("header b")],
                 vec![cell("data 1 a"), cell("data 1 b")],
@@ -117,7 +116,7 @@ mod tests {
         unwrap!(maybe_selected, Ok(MdElem::Table(table)));
         assert_eq!(
             table.alignments(),
-            &vec![mdast::AlignKind::Left, mdast::AlignKind::Right]
+            &vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)]
         );
         assert_eq!(
             table.rows(),
@@ -135,7 +134,7 @@ mod tests {
     fn jagged_table() {
         let table: Table = Table {
             // only 1 align; rest will be filled with None
-            alignments: vec![mdast::AlignKind::Left],
+            alignments: vec![Some(ColumnAlignment::Left)],
             rows: vec![
                 vec![cell("header a")],
                 vec![cell("data 1 a"), cell("data 1 b")],
@@ -150,10 +149,7 @@ mod tests {
         .map(get_only);
 
         unwrap!(maybe_selected, Ok(MdElem::Table(table)));
-        assert_eq!(
-            table.alignments(),
-            &vec![mdast::AlignKind::Left, mdast::AlignKind::None, mdast::AlignKind::None]
-        );
+        assert_eq!(table.alignments(), &vec![Some(ColumnAlignment::Left), None, None]);
         assert_eq!(
             table.rows(),
             &vec![

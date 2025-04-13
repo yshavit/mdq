@@ -3,7 +3,6 @@ use crate::md_elem::*;
 use crate::output::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions, UrlAndTitle};
 use crate::output::link_transform::LinkLabel;
 use crate::util::output::Output;
-use markdown::mdast::AlignKind;
 use serde::{Serialize, Serializer};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
@@ -109,13 +108,13 @@ pub enum AlignSerde {
     None,
 }
 
-impl From<&AlignKind> for AlignSerde {
-    fn from(value: &AlignKind) -> Self {
+impl From<Option<ColumnAlignment>> for AlignSerde {
+    fn from(value: Option<ColumnAlignment>) -> Self {
         match value {
-            AlignKind::Left => Self::Left,
-            AlignKind::Right => Self::Right,
-            AlignKind::Center => Self::Center,
-            AlignKind::None => Self::None,
+            Some(ColumnAlignment::Left) => Self::Left,
+            Some(ColumnAlignment::Right) => Self::Right,
+            Some(ColumnAlignment::Center) => Self::Center,
+            None => Self::None,
         }
     }
 }
@@ -267,7 +266,7 @@ impl<'md> SerdeElem<'md> {
                     rendered_rows.push(rendered_cells);
                 }
                 Self::Table {
-                    alignments: table.alignments().iter().map(|a| a.into()).collect(),
+                    alignments: table.alignments.iter().copied().map(Into::into).collect(),
                     rows: rendered_rows,
                 }
             }
@@ -570,7 +569,7 @@ mod tests {
     fn table() {
         check(
             md_elem!(Table {
-                alignments: vec![AlignKind::Left, AlignKind::None],
+                alignments: vec![Some(ColumnAlignment::Left), None],
                 rows: vec![
                     vec![vec![mdq_inline!("R1C1")], vec![mdq_inline!("R1C2")]],
                     vec![vec![mdq_inline!("R2C1")], vec![mdq_inline!("R2C2")]],
@@ -593,7 +592,7 @@ mod tests {
     #[test]
     fn table_slice() {
         let table = Table {
-            alignments: vec![AlignKind::Left, AlignKind::None],
+            alignments: vec![Some(ColumnAlignment::Left), None],
             rows: vec![
                 vec![vec![mdq_inline!("R1C1")], vec![mdq_inline!("R1C2")]],
                 vec![vec![mdq_inline!("R2C1")], vec![mdq_inline!("R2C2")]],
