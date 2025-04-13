@@ -54,7 +54,6 @@ impl StringMatcher {
             }
             MdElem::BlockHtml(html) => self.matches(&html.value),
             MdElem::Inline(inline) => self.matches_inlines(&[inline]),
-            MdElem::ListItem(li) => li.1.item.iter().any(|body| self.matches_node(body)),
         }
     }
 

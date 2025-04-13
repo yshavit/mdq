@@ -53,14 +53,7 @@ pub enum MdElem {
     ThematicBreak,
     Inline(Inline),
     BlockHtml(BlockHtml),
-
-    // sub-elements
-    // #328 do I really want this? Or should I just make it a one-element list?
-    ListItem(DetachedListItem),
 }
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct DetachedListItem(pub Option<u32>, pub ListItem);
 
 pub struct ParseOptions {
     pub(crate) mdast_options: markdown::ParseOptions,
@@ -192,11 +185,11 @@ pub mod elem {
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum Inline {
-        Footnote(crate::md_elem::tree::elem::FootnoteId),
-        Span(crate::md_elem::tree::elem::Span),
-        Image(crate::md_elem::tree::elem::Image),
-        Link(crate::md_elem::tree::elem::Link),
-        Text(crate::md_elem::tree::elem::Text),
+        Footnote(FootnoteId),
+        Span(Span),
+        Image(Image),
+        Link(Link),
+        Text(Text),
     }
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -361,7 +354,6 @@ pub mod elem {
     from_for_md_elem! { Paragraph }
     from_for_md_elem! { Table }
     from_for_md_elem! { Inline }
-    from_for_md_elem! { ListItem (DetachedListItem) }
     from_for_md_elem! { BlockHtml }
 
     impl From<String> for BlockHtml {

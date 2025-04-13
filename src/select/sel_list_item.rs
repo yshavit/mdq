@@ -1,7 +1,7 @@
-use crate::md_elem::DetachedListItem;
-use crate::select::match_selector::MatchSelector;
+use crate::md_elem::elem::List;
+use crate::md_elem::MdElem;
 use crate::select::string_matcher::StringMatcher;
-use crate::select::{ListItemMatcher, ListItemTask};
+use crate::select::{ListItemMatcher, ListItemTask, TrySelector};
 
 #[derive(Debug, PartialEq)]
 pub struct ListItemSelector {
@@ -39,12 +39,39 @@ fn task_matches(matcher: ListItemTask, md_is_checked: Option<bool>) -> bool {
     }
 }
 
-impl MatchSelector<DetachedListItem> for ListItemSelector {
-    fn matches(&self, item: &DetachedListItem) -> bool {
-        let DetachedListItem(idx, li) = item;
-        self.li_type.matches(&idx)
-            && task_matches(self.checkbox, li.checked)
-            && self.string_matcher.matches_any(&li.item)
+impl TrySelector<List> for ListItemSelector {
+    fn try_select(&self, item: List) -> Result<MdElem, MdElem> {
+        // This one works a bit differently than most:
+        // - If the item has a single list, check it; this is essentially a recursive base case.
+        // - Otherwise, never match, but return an MdElem::Doc of the list items, each as its own list.
+        //   That way, the find_children code in api.rs will recurse back into this method for each of those items, but
+        //   as a single-item list for the base case.
+        let List { starting_index, items } = item;
+        match items.as_slice() {
+            [li] => {
+                let matched = self.li_type.matches(&starting_index)
+                    && task_matches(self.checkbox, li.checked)
+                    && self.string_matcher.matches_any(&li.item);
+                let list = MdElem::List(List { starting_index, items });
+                if matched {
+                    Ok(list)
+                } else {
+                    Err(list)
+                }
+            }
+            _ => {
+                let mut idx = starting_index;
+                let mut items_doc = Vec::with_capacity(items.len());
+                for item in items {
+                    items_doc.push(MdElem::List(List {
+                        starting_index: idx,
+                        items: vec![item],
+                    }));
+                    idx.as_mut().map(|idx| *idx += 1);
+                }
+                Err(MdElem::Doc(items_doc))
+            }
+        }
     }
 }
 

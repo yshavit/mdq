@@ -272,16 +272,6 @@ impl<'md> SerdeElem<'md> {
                 }
             }
             MdElem::ThematicBreak => Self::ThematicBreak,
-            MdElem::ListItem(li) => {
-                let index = match li.0 {
-                    idx => idx,
-                };
-                Self::ListItem(LiSerde {
-                    item: Self::build_multi(&li.1.item, inlines_writer),
-                    checked: &li.1.checked,
-                    index,
-                })
-            }
             MdElem::BlockHtml(value) => Self::Html { value: &value.value },
         }
     }
@@ -315,8 +305,6 @@ mod tests {
         Table(_),
         ThematicBreak,
         BlockHtml(_),
-
-        ListItem(_),
     });
 
     macro_rules! json_kvs {
@@ -524,20 +512,20 @@ mod tests {
     }
 
     #[test]
-    fn list_item() {
+    fn single_list_item() {
         check_md_ref(
-            MdElem::ListItem(DetachedListItem(
-                None,
-                ListItem {
+            MdElem::List(List {
+                starting_index: None,
+                items: vec![ListItem {
                     checked: None,
                     item: md_elems!("hello, world"),
-                },
-            )),
+                }],
+            }),
             json_str!(
                 {"items":[
-                    {"list_item": {
+                    {"list": [{
                         "item": [{"paragraph":"hello, world"}]}
-                    }
+                    ]}
                 ]}
             ),
         );

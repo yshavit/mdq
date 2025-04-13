@@ -223,9 +223,6 @@ impl<'md> MdInlinesWriter<'md> {
                 MdElem::CodeBlock(_) | MdElem::BlockHtml(_) | MdElem::ThematicBreak => {
                     // nothing
                 }
-                MdElem::ListItem(li) => {
-                    self.find_references_in_footnote_elems(&li.1.item);
-                }
             }
         }
     }
