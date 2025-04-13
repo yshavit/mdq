@@ -117,8 +117,8 @@ pub enum InvalidMd {
     ParseError(String),
 }
 
-/// A wrapper for [Backtrace] that implements [PartialEq] to always return `true`. This lets us use it in a struct
-/// while still letting us use `#[derive(PartialEq)]`
+// A wrapper for [Backtrace] that implements [PartialEq] to always return `true`. This lets us use it in a struct
+// while still letting us use `#[derive(PartialEq)]`
 #[derive(Debug)]
 pub struct UnknownMdParseError(Backtrace);
 
