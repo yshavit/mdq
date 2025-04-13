@@ -1,5 +1,6 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
+use crate::select::sel_chain::ChainSelector;
 use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_link_like::ImageSelector;
 use crate::select::sel_link_like::LinkSelector;
@@ -9,7 +10,7 @@ use crate::select::sel_single_matcher::BlockQuoteSelector;
 use crate::select::sel_single_matcher::HtmlSelector;
 use crate::select::sel_single_matcher::ParagraphSelector;
 use crate::select::sel_table::TableSelector;
-use crate::select::{Selector, SelectorChain};
+use crate::select::Selector;
 use paste::paste;
 use std::collections::HashSet;
 
@@ -19,6 +20,8 @@ pub trait TrySelector<I: Into<MdElem>> {
 
 macro_rules! adapters {
     { $($name:ident => $md_elem:ident),+ , <inlines> { $($inline:ident),+ , } } => {
+
+        #[derive(Debug)]
         pub enum SelectorAdapter {
             $(
             $name( paste!{[<$name Selector>]} ),
@@ -58,6 +61,7 @@ macro_rules! adapters {
 }
 
 adapters! {
+    Chain => Doc,
     Section => Section,
     ListItem => List,
     BlockQuote => BlockQuote,
@@ -72,18 +76,25 @@ adapters! {
 }
 
 impl SelectorAdapter {
-    // TODO remove this struct, and just have Selector do everything
-    pub fn from_chain(chain: SelectorChain) -> Vec<Self> {
-        chain.selectors.into_iter().map(|s| s.into()).collect()
-    }
-
     pub fn find_nodes(&self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
-        let mut result = Vec::with_capacity(8); // arbitrary guess
-        let mut search_context = SearchContext::new(ctx);
-        for node in nodes {
-            self.build_output(&mut result, &mut search_context, node);
+        match self {
+            Self::Chain(Selector::Chain(chain)) => {
+                let mut nodes = nodes;
+                for selector in chain {
+                    let adapter: Self = selector.into();
+                    nodes = adapter.find_nodes(ctx, nodes);
+                }
+                nodes
+            }
+            _ => {
+                let mut result = Vec::with_capacity(8); // arbitrary guess
+                let mut search_context = SearchContext::new(ctx);
+                for node in nodes {
+                    self.build_output(&mut result, &mut search_context, node);
+                }
+                result
+            }
         }
-        result
     }
 
     fn build_output<'md>(&self, out: &mut Vec<MdElem>, ctx: &mut SearchContext<'md>, node: MdElem) {

@@ -35,13 +35,8 @@ pub struct TableMatcher {
 }
 
 #[derive(Eq, PartialEq, Debug)]
-pub struct SelectorChain {
-    // #315 make this be a Selector variant
-    pub selectors: Vec<Selector>,
-}
-
-#[derive(Eq, PartialEq, Debug)]
 pub enum Selector {
+    Chain(Vec<Self>),
     Section(Matcher),
     ListItem(ListItemMatcher),
     Link(LinklikeMatcher),
@@ -53,7 +48,7 @@ pub enum Selector {
     Table(TableMatcher),
 }
 
-impl TryFrom<&'_ str> for SelectorChain {
+impl TryFrom<&'_ str> for Selector {
     type Error = ParseError;
 
     fn try_from(value: &'_ str) -> Result<Self, Self::Error> {
@@ -61,7 +56,7 @@ impl TryFrom<&'_ str> for SelectorChain {
     }
 }
 
-impl TryFrom<&'_ String> for SelectorChain {
+impl TryFrom<&'_ String> for Selector {
     type Error = ParseError;
 
     fn try_from(value: &'_ String) -> Result<Self, Self::Error> {

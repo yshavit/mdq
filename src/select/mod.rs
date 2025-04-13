@@ -1,6 +1,7 @@
 mod api;
 mod match_selector;
 mod matcher;
+mod sel_chain;
 mod sel_code_block;
 mod sel_link_like;
 mod sel_list_item;
