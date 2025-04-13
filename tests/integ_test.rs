@@ -65,7 +65,7 @@ impl<const N: usize> Case<N> {
 
     fn run(&self) -> (bool, String, String) {
         let all_cli_args = ["cmd"].iter().chain(&self.cli_args);
-        let cli = mdq::run::RunOptions::try_parse_from(all_cli_args).unwrap();
+        let cli = mdq::run::CliOptions::try_parse_from(all_cli_args).unwrap();
         let restore = EnvVarRestore::set_var("MDQ_PORTABLE_ERRORS", "1");
         let mut runner = CaseRunner {
             case: self,

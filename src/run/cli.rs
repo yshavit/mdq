@@ -4,51 +4,97 @@ use clap::{CommandFactory, Parser, ValueEnum};
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 
-#[derive(Parser, Debug, PartialEq, Eq)]
-#[command(version, about, long_about = None)]
-pub struct RunOptions {
+macro_rules! create_options_structs {
+    (
+        $(
+            $(#[$meta:meta])*
+            clap $clap:tt
+            pub $name:ident : $ty:ty
+        ),* $(,)?
+    ) => {
+        #[derive(Parser, Debug, PartialEq, Eq)]
+        #[command(version, about, long_about = None)]
+        #[doc(hidden)]
+        pub struct CliOptions {
+            $(
+            $(#[$meta])*
+            #[arg$clap]
+            pub(crate) $name: $ty,
+            )*
+
+            // clap-only stuff:
+
+            /// Include breaks between elements in plain and markdown output mode.
+            ///
+            /// For plain, this will add a blank line between elements. For markdown, this will add a thematic break
+            /// ("-----") between elements.
+            ///
+            /// This has no effect in JSON output mode.
+            ///
+            /// This defaults to true for Markdown output, and false for plain text output.
+            // Note: this is a fake arg so we have explicit validation below to ensure it isn't invoked. Clap doesn't let us
+            // add boolean flags with 'no-' to disable, so I'm using this trick to fake that out. Basically, this fake arg is
+            // only for the help text, and then --br and --no-br are fake but hidden args.
+            #[arg(long = "[no]-br", action)]
+            pub(crate) br_umbrella: bool,
+
+            /// Negates the --br option.
+            #[arg(long, hide = true)]
+            pub(crate) br: bool,
+
+            /// Negates the --br option.
+            #[arg(long, conflicts_with = "br", hide = true)]
+            pub(crate) no_br: bool,
+
+            #[arg(
+                short = ' ',
+                hide = true,
+                group = "selectors_group",
+                value_name = "selectors starting with list"
+            )]
+            pub(crate) list_selector: Option<String>,
+
+            /// The selectors string
+            #[arg(group = "selectors_group", value_name = "selectors")]
+            pub(crate) selectors: Option<String>,
+
+            /// An optional list of Markdown files to parse, by path. If not provided, standard input will be used.
+            ///
+            /// If these are provided, mdq will act as if they were all concatenated into a single file. For example, if you
+            /// use --link-pos=doc, the link definitions for all input files will be at the very end of the output.
+            ///
+            /// A path of "-" represents standard input.
+            ///
+            /// If these are provided, standard input will not be used unless one of the arguments is "-". Files will be
+            /// processed in the order you provide them. If you provide the same file twice, mdq will process it twice, unless
+            /// that file is "-"; all but the first "-" paths are ignored.
+            #[arg()]
+            pub markdown_file_paths: Vec<String>,
+        }
+    };
+}
+
+create_options_structs! {
     /// Where to put link references.
     ///
     /// For links and images of style `[description][1]`, this flag controls where to put the `[1]: https://example.com`
     /// definition.
-    #[arg(long, value_enum, default_value_t=ReferencePlacement::Section)]
+    clap(long, value_enum, default_value_t=ReferencePlacement::Section)
     pub link_pos: ReferencePlacement,
 
     /// Where to put footnote references. Defaults to be same as --link-pos
-    #[arg(long, value_enum)]
+    clap(long, value_enum)
     pub footnote_pos: Option<ReferencePlacement>,
 
-    #[arg(long, short, value_enum, default_value_t=LinkTransform::Reference)]
+    clap(long, short, value_enum, default_value_t=LinkTransform::Reference)
     pub link_format: LinkTransform,
 
-    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+    clap(long, default_value_t = true, action = clap::ArgAction::Set)
     pub renumber_footnotes: bool,
 
     /// Output the results as a JSON object, instead of as markdown.
-    #[arg(long, short, default_value_t = OutputFormat::Markdown)]
+    clap(long, short, default_value_t = OutputFormat::Markdown)
     pub output: OutputFormat,
-
-    /// Include breaks between elements in plain and markdown output mode.
-    ///
-    /// For plain, this will add a blank line between elements. For markdown, this will add a thematic break
-    /// ("-----") between elements.
-    ///
-    /// This has no effect in JSON output mode.
-    ///
-    /// This defaults to true for Markdown output, and false for plain text output.
-    // Note: this is a fake arg so we have explicit validation below to ensure it isn't invoked. Clap doesn't let us
-    // add boolean flags with 'no-' to disable, so I'm using this trick to fake that out. Basically, this fake arg is
-    // only for the help text, and then --br and --no-br are fake but hidden args.
-    #[arg(long = "[no]-br", action)]
-    pub(crate) br_umbrella: bool,
-
-    /// Negates the --br option.
-    #[arg(long, hide = true)]
-    pub(crate) br: bool,
-
-    /// Negates the --br option.
-    #[arg(long, conflicts_with = "br", hide = true)]
-    pub(crate) no_br: bool,
 
     /// The number of characters to wrap text at. This is only valid when the output format is
     /// markdown.
@@ -56,44 +102,19 @@ pub struct RunOptions {
     /// Certain elements (like section headings and link definitions) will never be wrapped, and the
     /// wrapping will never break a word; it will only ever be along existing whitespace. In
     /// particular, this means the wrapping will never add hyphens, and it will never break URLs.
-    #[arg(long)]
+    clap(long)
     pub wrap_width: Option<usize>,
 
-    #[arg(
-        short = ' ',
-        hide = true,
-        group = "selectors_group",
-        value_name = "selectors starting with list"
-    )]
-    pub(crate) list_selector: Option<String>,
-
-    /// The selectors string
-    #[arg(group = "selectors_group", value_name = "selectors")]
-    pub(crate) selectors: Option<String>,
-
     /// Quiet: do not print anything to stdout. The exit code will still be 0 if any elements match, and non-0 if none do.
-    #[arg(long, short)]
+    clap(long, short)
     pub quiet: bool,
 
     // See: tree.rs > Lookups::unknown_markdown.
-    #[arg(long, hide = true)]
+    clap(long, hide = true)
     pub allow_unknown_markdown: bool,
-
-    /// An optional list of Markdown files to parse, by path. If not provided, standard input will be used.
-    ///
-    /// If these are provided, mdq will act as if they were all concatenated into a single file. For example, if you
-    /// use --link-pos=doc, the link definitions for all input files will be at the very end of the output.
-    ///
-    /// A path of "-" represents standard input.
-    ///
-    /// If these are provided, standard input will not be used unless one of the arguments is "-". Files will be
-    /// processed in the order you provide them. If you provide the same file twice, mdq will process it twice, unless
-    /// that file is "-"; all but the first "-" paths are ignored.
-    #[arg()]
-    pub markdown_file_paths: Vec<String>,
 }
 
-impl Default for RunOptions {
+impl Default for CliOptions {
     fn default() -> Self {
         Self {
             link_pos: ReferencePlacement::Section,
@@ -114,7 +135,7 @@ impl Default for RunOptions {
     }
 }
 
-impl RunOptions {
+impl CliOptions {
     pub fn set_br(&mut self, value: Option<bool>) {
         let (br, no_br) = match value {
             None => (false, false),
@@ -152,7 +173,7 @@ impl RunOptions {
         match self.output {
             OutputFormat::Json => {
                 if matches!(self.wrap_width, Some(_)) {
-                    let _ = RunOptions::command()
+                    let _ = CliOptions::command()
                         .error(
                             ErrorKind::ArgumentConflict,
                             "Can't set text width with JSON output format",
@@ -165,7 +186,7 @@ impl RunOptions {
             OutputFormat::Plain => {}
         }
         if self.br_umbrella {
-            let _ = RunOptions::command()
+            let _ = CliOptions::command()
                 .error(
                     ErrorKind::UnknownArgument,
                     r"invalid argument '--[no]-br'; use '--br' or '--no-br'.",
@@ -238,19 +259,19 @@ impl Display for OutputFormat {
 
 #[cfg(test)]
 mod tests {
-    use crate::run::cli::RunOptions;
+    use crate::run::cli::CliOptions;
     use crate::util::utils_for_test::*;
     use clap::{Error, Parser};
 
     #[test]
     fn verify_cli() {
         use clap::CommandFactory;
-        RunOptions::command().debug_assert();
+        CliOptions::command().debug_assert();
     }
 
     #[test]
     fn no_args() {
-        let result = RunOptions::try_parse_from(["mdq"]);
+        let result = CliOptions::try_parse_from(["mdq"]);
         unwrap!(result, Ok(cli));
         assert_eq!(cli.selector_string().as_str(), "");
         assert!(cli.markdown_file_paths.is_empty());
@@ -258,15 +279,15 @@ mod tests {
 
     #[test]
     fn no_args_equals_default() {
-        let result = RunOptions::try_parse_from(["mdq"]);
+        let result = CliOptions::try_parse_from(["mdq"]);
         unwrap!(result, Ok(cli));
-        let from_default = RunOptions::default();
+        let from_default = CliOptions::default();
         assert_eq!(cli, from_default);
     }
 
     #[test]
     fn standard_selectors() {
-        let result = RunOptions::try_parse_from(["mdq", "# hello"]);
+        let result = CliOptions::try_parse_from(["mdq", "# hello"]);
         unwrap!(result, Ok(cli));
         assert_eq!(cli.selector_string().as_str(), "# hello");
         assert!(cli.markdown_file_paths.is_empty());
@@ -274,7 +295,7 @@ mod tests {
 
     #[test]
     fn selector_and_file() {
-        let result = RunOptions::try_parse_from(["mdq", "# hello", "file.txt"]);
+        let result = CliOptions::try_parse_from(["mdq", "# hello", "file.txt"]);
         unwrap!(result, Ok(cli));
         assert_eq!(cli.selector_string().as_str(), "# hello");
         assert_eq!(cli.markdown_file_paths, ["file.txt"]);
@@ -282,14 +303,14 @@ mod tests {
 
     #[test]
     fn start_with_list_selectors() {
-        let result = RunOptions::try_parse_from(["mdq", "- world"]);
+        let result = CliOptions::try_parse_from(["mdq", "- world"]);
         unwrap!(result, Ok(cli));
         assert_eq!(cli.selector_string().as_str(), "- world");
     }
 
     #[test]
     fn start_with_list_selectors_twice() {
-        let result = RunOptions::try_parse_from(["mdq", "- hello", "- world"]);
+        let result = CliOptions::try_parse_from(["mdq", "- hello", "- world"]);
         check_err(
             &result,
             "the argument '-  <selectors starting with list>' cannot be used multiple times",
@@ -298,14 +319,14 @@ mod tests {
 
     #[test]
     fn both_list_and_std_selectors() {
-        let result = RunOptions::try_parse_from(["mdq", "# hello", "- world"]);
+        let result = CliOptions::try_parse_from(["mdq", "# hello", "- world"]);
         check_err(
             &result,
             "the argument '[selectors]' cannot be used with '-  <selectors starting with list>'",
         )
     }
 
-    fn check_err(result: &Result<RunOptions, Error>, expect: &str) {
+    fn check_err(result: &Result<CliOptions, Error>, expect: &str) {
         unwrap!(result, Err(e));
         let e_str = e.to_string();
         let first_line = e_str.split('\n').next().expect("no error string found");

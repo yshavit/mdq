@@ -1,5 +1,5 @@
 use clap::Parser;
-use mdq::run::{Error, OsFacade, RunOptions};
+use mdq::run::{CliOptions, Error, OsFacade};
 use std::io;
 use std::io::{stdin, stdout, Read};
 use std::process::ExitCode;
@@ -28,7 +28,7 @@ impl OsFacade for RealOs {
 }
 
 fn main() -> ExitCode {
-    let cli = RunOptions::parse();
+    let cli = CliOptions::parse();
 
     if mdq::run::run(&cli, &mut RealOs) {
         ExitCode::SUCCESS
