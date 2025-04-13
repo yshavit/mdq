@@ -1,5 +1,4 @@
 use crate::md_elem::{InvalidMd, MdDoc, MdElem, ParseOptions};
-use crate::output::serde::MdSerde;
 use crate::query::ParseError;
 use crate::run::cli::{Cli, OutputFormat};
 use crate::select::{Selector, SelectorAdapter};
@@ -170,10 +169,10 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
     let selector_adapter = SelectorAdapter::from(selectors);
     let pipeline_nodes = selector_adapter.find_nodes(&ctx, vec![MdElem::Doc(roots)]);
 
-    let md_options = output::md::MdOptions {
+    let md_options = output::MdOptions {
         link_reference_placement: cli.link_pos,
         footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
-        inline_options: output::md::MdInlinesWriterOptions {
+        inline_options: output::MdInlinesWriterOptions {
             link_format: cli.link_format,
             renumber_footnotes: cli.renumber_footnotes,
         },
@@ -190,12 +189,12 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
                     text_width: cli.wrap_width,
                 };
                 let mut out = Output::new(Stream(&mut stdout), output_opts);
-                output::md::write_md(&md_options, &mut out, &ctx, pipeline_nodes.iter());
+                output::write_md(&md_options, &mut out, &ctx, pipeline_nodes.iter());
             }
             OutputFormat::Json => {
                 serde_json::to_writer(
                     &mut stdout,
-                    &MdSerde::new(&pipeline_nodes, &ctx, md_options.inline_options),
+                    &output::serializable(&pipeline_nodes, &ctx, md_options.inline_options),
                 )
                 .unwrap();
             }

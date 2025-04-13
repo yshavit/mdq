@@ -1,4 +1,4 @@
-use crate::output::md::{LinkTransform, ReferencePlacement};
+use crate::output::{LinkTransform, ReferencePlacement};
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, ValueEnum};
 use std::borrow::Cow;

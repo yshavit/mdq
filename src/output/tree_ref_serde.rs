@@ -45,7 +45,6 @@ pub enum SerdeElem<'md> {
         link: LinkSerde<'md>,
     },
     List(Vec<LiSerde<'md>>),
-    ListItem(LiSerde<'md>),
     Section {
         depth: u8,
         title: String,
