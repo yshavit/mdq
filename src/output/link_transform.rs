@@ -1,6 +1,6 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
-use crate::output::fmt_md_inlines::{LinkLike, MdInlinesWriter, MdInlinesWriterOptions};
+use crate::output::fmt_md_inlines::{InlineElemOptions, LinkLike, MdInlinesWriter};
 use crate::util::output::Output;
 use clap::ValueEnum;
 use std::borrow::Cow;
@@ -23,12 +23,12 @@ pub enum LinkTransform {
     Reference,
 }
 
-pub struct LinkTransformer {
+pub(crate) struct LinkTransformer {
     delegate: LinkTransformState,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum LinkLabel<'md> {
+pub(crate) enum LinkLabel<'md> {
     Text(Cow<'md, str>),
     Inline(&'md Vec<Inline>),
 }
@@ -41,7 +41,7 @@ impl<'md> LinkLabel<'md> {
             LinkLabel::Inline(inlines) => {
                 let mut inline_writer = MdInlinesWriter::new(
                     ctx,
-                    MdInlinesWriterOptions {
+                    InlineElemOptions {
                         link_format: LinkTransform::Keep,
                         renumber_footnotes: false,
                     },
@@ -119,7 +119,7 @@ impl<'md> LinkTransformation<'md> {
     // We could in principle return a Cow<'md, LinkReference>, and save some clones in the assigner.
     // To do that, fmt_md_inlines.rs would need to adjust to hold Cows instead of LinkLabels directly. For now, not
     // a high priority.
-    pub fn apply(self, transformer: &mut LinkTransformer, link: &'md LinkReference) -> LinkReference {
+    pub(crate) fn apply(self, transformer: &mut LinkTransformer, link: &'md LinkReference) -> LinkReference {
         match &mut transformer.delegate {
             LinkTransformState::Keep => Cow::Borrowed(link),
             LinkTransformState::Inline => Cow::Owned(LinkReference::Inline),
@@ -422,7 +422,7 @@ mod tests {
         let ctx = MdContext::empty();
         let mut iw = MdInlinesWriter::new(
             &ctx,
-            MdInlinesWriterOptions {
+            InlineElemOptions {
                 link_format: LinkTransform::Keep,
                 renumber_footnotes: false,
             },
@@ -513,7 +513,7 @@ mod tests {
             let ctx = MdContext::empty();
             let mut iw = MdInlinesWriter::new(
                 &ctx,
-                MdInlinesWriterOptions {
+                InlineElemOptions {
                     link_format: LinkTransform::Keep,
                     renumber_footnotes: false,
                 },

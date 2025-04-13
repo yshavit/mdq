@@ -1,6 +1,6 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
-use crate::output::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions, UrlAndTitle};
+use crate::output::fmt_md_inlines::{InlineElemOptions, MdInlinesWriter, UrlAndTitle};
 use crate::output::link_transform::LinkLabel;
 use crate::util::output::Output;
 use serde::{Serialize, Serializer};
@@ -45,7 +45,6 @@ pub enum SerdeElem<'md> {
         link: LinkSerde<'md>,
     },
     List(Vec<LiSerde<'md>>),
-    ListItem(LiSerde<'md>),
     Section {
         depth: u8,
         title: String,
@@ -147,7 +146,7 @@ pub enum CodeBlockType {
 }
 
 impl<'md> MdSerde<'md> {
-    pub fn new(elems: &'md [MdElem], ctx: &'md MdContext, opts: MdInlinesWriterOptions) -> Self {
+    pub fn new(elems: &'md [MdElem], ctx: &'md MdContext, opts: InlineElemOptions) -> Self {
         let mut inlines_writer = MdInlinesWriter::new(ctx, opts);
         const DEFAULT_CAPACITY: usize = 16; // we could compute these, but it's not really worth it
         let mut result = MdSerde {
@@ -288,7 +287,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::output::fmt_md_inlines::MdInlinesWriterOptions;
+    use crate::output::fmt_md_inlines::InlineElemOptions;
     use crate::output::link_transform::LinkTransform;
     use crate::util::utils_for_test::*;
 
@@ -630,7 +629,7 @@ mod tests {
     }
 
     fn check(given: MdElem, expect: &str) {
-        let opts = MdInlinesWriterOptions {
+        let opts = InlineElemOptions {
             link_format: LinkTransform::Keep,
             renumber_footnotes: false,
         };
@@ -638,14 +637,14 @@ mod tests {
     }
 
     fn check_md_ref(given: MdElem, expect: &str) {
-        let opts = MdInlinesWriterOptions {
+        let opts = InlineElemOptions {
             link_format: LinkTransform::Keep,
             renumber_footnotes: false,
         };
         check_with(opts, given, expect);
     }
 
-    fn check_with(opts: MdInlinesWriterOptions, elem_ref: MdElem, expect: &str) {
+    fn check_with(opts: InlineElemOptions, elem_ref: MdElem, expect: &str) {
         CHECKER.see(&elem_ref);
         let mut actual_bytes = Vec::with_capacity(32);
         serde_json::to_writer(&mut actual_bytes, &MdSerde::new(&[elem_ref], &MdContext::empty(), opts)).unwrap();

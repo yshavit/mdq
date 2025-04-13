@@ -1,10 +1,8 @@
 use crate::md_elem::{InvalidMd, MdDoc, MdElem, ParseOptions};
-use crate::output::serde::MdSerde;
+use crate::output::MdWriter;
 use crate::query::ParseError;
 use crate::run::cli::{Cli, OutputFormat};
 use crate::select::{Selector, SelectorAdapter};
-use crate::util::output::Output;
-use crate::util::output::{OutputOpts, Stream};
 use crate::{md_elem, output, query};
 use pest::error::ErrorVariant;
 use pest::Span;
@@ -15,18 +13,18 @@ use std::{env, io};
 
 #[derive(Debug)]
 pub enum Error {
-    QueryParse(QueryParse),
+    QueryParse(QueryParseError),
     MarkdownParse(InvalidMd),
     FileReadError(Input, io::Error),
 }
 
 #[derive(Debug)]
-pub struct QueryParse {
+pub struct QueryParseError {
     query_string: String,
     error: ParseError,
 }
 
-impl Display for QueryParse {
+impl Display for QueryParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match &self.error {
             ParseError::Pest(err) => {
@@ -160,7 +158,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
     let selectors: Selector = match selectors_str.deref().try_into() {
         Ok(selectors) => selectors,
         Err(error) => {
-            return Err(Error::QueryParse(QueryParse {
+            return Err(Error::QueryParse(QueryParseError {
                 query_string: selectors_str.into_owned(),
                 error,
             }));
@@ -170,14 +168,16 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
     let selector_adapter = SelectorAdapter::from(selectors);
     let pipeline_nodes = selector_adapter.find_nodes(&ctx, vec![MdElem::Doc(roots)]);
 
-    let md_options = output::md::MdOptions {
+    // TODO: turn this into an impl From
+    let md_options = output::MdWriterOptions {
         link_reference_placement: cli.link_pos,
         footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
-        inline_options: output::md::MdInlinesWriterOptions {
+        inline_options: output::InlineElemOptions {
             link_format: cli.link_format,
             renumber_footnotes: cli.renumber_footnotes,
         },
         include_thematic_breaks: cli.should_add_breaks(),
+        text_width: cli.wrap_width,
     };
 
     let found_any = !pipeline_nodes.is_empty();
@@ -186,24 +186,20 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
         let mut stdout = os.get_stdout();
         match cli.output {
             OutputFormat::Markdown | OutputFormat::Md => {
-                let output_opts = OutputOpts {
-                    text_width: cli.wrap_width,
-                };
-                let mut out = Output::new(Stream(&mut stdout), output_opts);
-                output::md::write_md(&md_options, &mut out, &ctx, pipeline_nodes.iter());
+                MdWriter::with_options(md_options).write(&ctx, &pipeline_nodes, &mut output::io_to_fmt(&mut stdout));
             }
             OutputFormat::Json => {
                 serde_json::to_writer(
                     &mut stdout,
-                    &MdSerde::new(&pipeline_nodes, &ctx, md_options.inline_options),
+                    &output::serializable(&pipeline_nodes, &ctx, md_options.inline_options),
                 )
                 .unwrap();
             }
             OutputFormat::Plain => {
-                let output_opts = output::plain::PlainOutputOpts {
+                output::PlainWriter::with_options(output::PlainWriterOptions {
                     include_breaks: cli.should_add_breaks(),
-                };
-                output::plain::write_plain(&mut stdout, output_opts, pipeline_nodes.iter());
+                })
+                .write(&pipeline_nodes, &mut stdout);
             }
         }
     }

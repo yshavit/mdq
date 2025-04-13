@@ -9,7 +9,7 @@ use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Copy, Clone)]
-pub struct MdInlinesWriterOptions {
+pub struct InlineElemOptions {
     pub link_format: LinkTransform,
     pub renumber_footnotes: bool,
 }
@@ -38,19 +38,19 @@ impl<'md> PendingReferences<'md> {
 }
 
 #[derive(Serialize, Debug, PartialEq, Eq, Copy, Clone, Hash)]
-pub struct UrlAndTitle<'md> {
+pub(crate) struct UrlAndTitle<'md> {
     pub url: &'md String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: &'md Option<String>,
 }
 
 #[derive(Debug, Copy, Clone)]
-pub enum LinkLikeType {
+pub(crate) enum LinkLikeType {
     Link,
     Image,
 }
 
-pub trait LinkLike<'md> {
+pub(crate) trait LinkLike<'md> {
     fn link_info(&self) -> (LinkLikeType, LinkLabel<'md>, &'md LinkDefinition);
 }
 
@@ -71,7 +71,7 @@ impl<'md> LinkLike<'md> for &'md Image {
 }
 
 impl<'md> MdInlinesWriter<'md> {
-    pub fn new(ctx: &'md MdContext, options: MdInlinesWriterOptions) -> Self {
+    pub fn new(ctx: &'md MdContext, options: InlineElemOptions) -> Self {
         let pending_refs_capacity = 8; // arbitrary guess
         Self {
             ctx,
@@ -456,7 +456,7 @@ impl TitleQuote {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::util::output::{Output, OutputOpts};
+    use crate::util::output::Output;
     use crate::util::utils_for_test::*;
 
     mod title_quoting {
@@ -663,7 +663,7 @@ mod tests {
             let ctx = MdContext::empty();
             let mut writer = MdInlinesWriter::new(
                 &ctx,
-                MdInlinesWriterOptions {
+                InlineElemOptions {
                     link_format: LinkTransform::Keep,
                     renumber_footnotes: false,
                 },
@@ -692,7 +692,7 @@ mod tests {
         let ctx = MdContext::empty();
         let mut writer = MdInlinesWriter::new(
             &ctx,
-            MdInlinesWriterOptions {
+            InlineElemOptions {
                 link_format: LinkTransform::Keep,
                 renumber_footnotes: false,
             },
@@ -715,11 +715,11 @@ mod tests {
         text_width: Option<usize>,
         expected: impl ToString,
     ) {
-        let mut output = Output::new(String::new(), OutputOpts { text_width });
+        let mut output = Output::new(String::new(), text_width);
         let ctx = MdContext::empty();
         let mut writer = MdInlinesWriter::new(
             &ctx,
-            MdInlinesWriterOptions {
+            InlineElemOptions {
                 link_format: LinkTransform::Keep,
                 renumber_footnotes: false,
             },

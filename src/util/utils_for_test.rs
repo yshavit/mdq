@@ -5,9 +5,9 @@ pub(crate) use test_utils::*;
 // export its contents.
 #[cfg(test)]
 mod test_utils {
-    use crate::output::md::LinkTransform;
-    use crate::output::md::MdInlinesWriterOptions;
-    use crate::output::md::{MdOptions, ReferencePlacement};
+    use crate::output::InlineElemOptions;
+    use crate::output::LinkTransform;
+    use crate::output::{MdWriterOptions, ReferencePlacement};
     use std::fmt::Debug;
 
     impl LinkTransform {
@@ -22,22 +22,23 @@ mod test_utils {
         }
     }
 
-    impl MdOptions {
+    impl MdWriterOptions {
         pub fn default_for_tests() -> Self {
             Self {
                 link_reference_placement: ReferencePlacement::default_for_tests(),
                 footnote_reference_placement: ReferencePlacement::default_for_tests(),
-                inline_options: MdInlinesWriterOptions {
+                inline_options: InlineElemOptions {
                     link_format: LinkTransform::default_for_tests(),
                     renumber_footnotes: false,
                 },
                 include_thematic_breaks: true,
+                text_width: None,
             }
         }
 
         pub fn new_with<F>(init: F) -> Self
         where
-            F: FnOnce(&mut MdOptions),
+            F: FnOnce(&mut MdWriterOptions),
         {
             let mut mdo = Self::default_for_tests();
             init(&mut mdo);

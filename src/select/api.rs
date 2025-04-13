@@ -22,7 +22,7 @@ macro_rules! adapters {
     { $($name:ident => $md_elem:ident),+ , <inlines> { $($inline:ident),+ , } } => {
 
         #[derive(Debug)]
-        pub enum SelectorAdapter {
+        pub(crate) enum SelectorAdapter {
             $(
             $name( paste!{[<$name Selector>]} ),
             )+

@@ -1,6 +1,6 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
-use crate::output::plain::inlines_to_plain_string;
+use crate::output::inlines_to_plain_string;
 use crate::select::Matcher;
 use regex::Regex;
 use std::borrow::Borrow;
