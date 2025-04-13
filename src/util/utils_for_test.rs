@@ -5,8 +5,8 @@ pub(crate) use test_utils::*;
 // export its contents.
 #[cfg(test)]
 mod test_utils {
+    use crate::output::InlineElemOptions;
     use crate::output::LinkTransform;
-    use crate::output::MdInlinesWriterOptions;
     use crate::output::{MdOptions, ReferencePlacement};
     use std::fmt::Debug;
 
@@ -27,7 +27,7 @@ mod test_utils {
             Self {
                 link_reference_placement: ReferencePlacement::default_for_tests(),
                 footnote_reference_placement: ReferencePlacement::default_for_tests(),
-                inline_options: MdInlinesWriterOptions {
+                inline_options: InlineElemOptions {
                     link_format: LinkTransform::default_for_tests(),
                     renumber_footnotes: false,
                 },

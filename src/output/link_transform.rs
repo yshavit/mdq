@@ -1,6 +1,6 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
-use crate::output::fmt_md_inlines::{LinkLike, MdInlinesWriter, MdInlinesWriterOptions};
+use crate::output::fmt_md_inlines::{InlineElemOptions, LinkLike, MdInlinesWriter};
 use crate::util::output::Output;
 use clap::ValueEnum;
 use std::borrow::Cow;
@@ -41,7 +41,7 @@ impl<'md> LinkLabel<'md> {
             LinkLabel::Inline(inlines) => {
                 let mut inline_writer = MdInlinesWriter::new(
                     ctx,
-                    MdInlinesWriterOptions {
+                    InlineElemOptions {
                         link_format: LinkTransform::Keep,
                         renumber_footnotes: false,
                     },
@@ -422,7 +422,7 @@ mod tests {
         let ctx = MdContext::empty();
         let mut iw = MdInlinesWriter::new(
             &ctx,
-            MdInlinesWriterOptions {
+            InlineElemOptions {
                 link_format: LinkTransform::Keep,
                 renumber_footnotes: false,
             },
@@ -513,7 +513,7 @@ mod tests {
             let ctx = MdContext::empty();
             let mut iw = MdInlinesWriter::new(
                 &ctx,
-                MdInlinesWriterOptions {
+                InlineElemOptions {
                     link_format: LinkTransform::Keep,
                     renumber_footnotes: false,
                 },

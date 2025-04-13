@@ -1,6 +1,6 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
-use crate::output::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
+use crate::output::fmt_md_inlines::{InlineElemOptions, MdInlinesWriter};
 use crate::output::link_transform::LinkLabel;
 use crate::util::output::{Block, Output, SimpleWrite};
 use crate::util::str_utils::{pad_to, CountingWriter};
@@ -12,7 +12,7 @@ use std::ops::Deref;
 pub struct MdOptions {
     pub link_reference_placement: ReferencePlacement,
     pub footnote_reference_placement: ReferencePlacement,
-    pub inline_options: MdInlinesWriterOptions,
+    pub inline_options: InlineElemOptions,
     pub include_thematic_breaks: bool,
 }
 

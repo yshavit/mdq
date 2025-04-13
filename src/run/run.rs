@@ -172,7 +172,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
     let md_options = output::MdOptions {
         link_reference_placement: cli.link_pos,
         footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
-        inline_options: output::MdInlinesWriterOptions {
+        inline_options: output::InlineElemOptions {
             link_format: cli.link_format,
             renumber_footnotes: cli.renumber_footnotes,
         },

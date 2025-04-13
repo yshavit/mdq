@@ -9,7 +9,7 @@ use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Copy, Clone)]
-pub struct MdInlinesWriterOptions {
+pub struct InlineElemOptions {
     pub link_format: LinkTransform,
     pub renumber_footnotes: bool,
 }
@@ -71,7 +71,7 @@ impl<'md> LinkLike<'md> for &'md Image {
 }
 
 impl<'md> MdInlinesWriter<'md> {
-    pub fn new(ctx: &'md MdContext, options: MdInlinesWriterOptions) -> Self {
+    pub fn new(ctx: &'md MdContext, options: InlineElemOptions) -> Self {
         let pending_refs_capacity = 8; // arbitrary guess
         Self {
             ctx,
@@ -663,7 +663,7 @@ mod tests {
             let ctx = MdContext::empty();
             let mut writer = MdInlinesWriter::new(
                 &ctx,
-                MdInlinesWriterOptions {
+                InlineElemOptions {
                     link_format: LinkTransform::Keep,
                     renumber_footnotes: false,
                 },
@@ -692,7 +692,7 @@ mod tests {
         let ctx = MdContext::empty();
         let mut writer = MdInlinesWriter::new(
             &ctx,
-            MdInlinesWriterOptions {
+            InlineElemOptions {
                 link_format: LinkTransform::Keep,
                 renumber_footnotes: false,
             },
@@ -719,7 +719,7 @@ mod tests {
         let ctx = MdContext::empty();
         let mut writer = MdInlinesWriter::new(
             &ctx,
-            MdInlinesWriterOptions {
+            InlineElemOptions {
                 link_format: LinkTransform::Keep,
                 renumber_footnotes: false,
             },
