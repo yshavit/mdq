@@ -1,6 +1,6 @@
 mod fmt_md;
 mod fmt_md_inlines;
-pub mod fmt_plain_inline;
+mod fmt_plain_inline;
 mod fmt_plain_str;
 mod fmt_plain_writer;
 mod footnote_transform;
