@@ -12,7 +12,7 @@ where
     I: Into<MdElem>,
     M: MatchSelector<I>,
 {
-    fn try_select(&self, item: I) -> Result<MdElem, MdElem> {
+    fn try_select(&self, _: &MdContext, item: I) -> Result<MdElem, MdElem> {
         if self.matches(&item) {
             Ok(item.into())
         } else {

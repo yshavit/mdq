@@ -26,7 +26,7 @@ impl TryFrom<Pairs<'_>> for Selector {
             }
         }
         Ok(match selectors.len() {
-            0 => selectors.into_iter().next().unwrap(),
+            1 => selectors.into_iter().next().unwrap(),
             _ => Self::Chain(selectors),
         })
     }

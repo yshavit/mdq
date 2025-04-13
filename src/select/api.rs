@@ -15,7 +15,7 @@ use paste::paste;
 use std::collections::HashSet;
 
 pub trait TrySelector<I: Into<MdElem>> {
-    fn try_select(&self, item: I) -> Result<MdElem, MdElem>;
+    fn try_select(&self, ctx: &MdContext, item: I) -> Result<MdElem, MdElem>;
 }
 
 macro_rules! adapters {
@@ -45,13 +45,13 @@ macro_rules! adapters {
         }
 
         impl SelectorAdapter {
-            fn try_select_node<'md>(&self, node: MdElem) -> Result<MdElem, MdElem> {
+            fn try_select_node<'md>(&self, ctx: &MdContext, node: MdElem) -> Result<MdElem, MdElem> {
                 match (&self, node) {
                     $(
-                    (Self::$name(adapter), MdElem::$md_elem(elem)) => adapter.try_select(elem),
+                    (Self::$name(adapter), MdElem::$md_elem(elem)) => adapter.try_select(ctx, elem),
                     )+
                     $(
-                    (Self::$inline(adapter), MdElem::Inline(Inline::$inline(elem))) => adapter.try_select(elem),
+                    (Self::$inline(adapter), MdElem::Inline(Inline::$inline(elem))) => adapter.try_select(ctx, elem),
                     )+
                     (_, unmatched) => Err(unmatched),
                 }
@@ -77,28 +77,17 @@ adapters! {
 
 impl SelectorAdapter {
     pub fn find_nodes(&self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
-        match self {
-            Self::Chain(Selector::Chain(chain)) => {
-                let mut nodes = nodes;
-                for selector in chain {
-                    let adapter: Self = selector.into();
-                    nodes = adapter.find_nodes(ctx, nodes);
-                }
-                nodes
-            }
-            _ => {
-                let mut result = Vec::with_capacity(8); // arbitrary guess
-                let mut search_context = SearchContext::new(ctx);
-                for node in nodes {
-                    self.build_output(&mut result, &mut search_context, node);
-                }
-                result
-            }
+        let mut result = Vec::with_capacity(8); // arbitrary guess
+        let mut search_context = SearchContext::new(ctx);
+        for node in nodes {
+            self.build_output(&mut result, &mut search_context, node);
         }
+        result
     }
 
     fn build_output<'md>(&self, out: &mut Vec<MdElem>, ctx: &mut SearchContext<'md>, node: MdElem) {
-        match self.try_select_node(node) {
+        match self.try_select_node(&ctx.md_context, node) {
+            Ok(MdElem::Doc(mut multi)) => out.append(&mut multi),
             Ok(found) => out.push(found),
             Err(not_found) => {
                 for child in Self::find_children(ctx, not_found) {

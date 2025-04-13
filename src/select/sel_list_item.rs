@@ -1,5 +1,5 @@
 use crate::md_elem::elem::List;
-use crate::md_elem::MdElem;
+use crate::md_elem::{MdContext, MdElem};
 use crate::select::string_matcher::StringMatcher;
 use crate::select::{ListItemMatcher, ListItemTask, TrySelector};
 
@@ -40,7 +40,7 @@ fn task_matches(matcher: ListItemTask, md_is_checked: Option<bool>) -> bool {
 }
 
 impl TrySelector<List> for ListItemSelector {
-    fn try_select(&self, item: List) -> Result<MdElem, MdElem> {
+    fn try_select(&self, _: &MdContext, item: List) -> Result<MdElem, MdElem> {
         // This one works a bit differently than most:
         // - If the item has a single list, check it; this is essentially a recursive base case.
         // - Otherwise, never match, but return an MdElem::Doc of the list items, each as its own list.

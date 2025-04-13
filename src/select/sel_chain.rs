@@ -1,4 +1,4 @@
-use crate::md_elem::MdElem;
+use crate::md_elem::{MdContext, MdElem};
 use crate::select::{Selector, SelectorAdapter, TrySelector};
 
 #[derive(Debug)]
@@ -15,7 +15,10 @@ impl From<Vec<Selector>> for ChainSelector {
 }
 
 impl TrySelector<Vec<MdElem>> for ChainSelector {
-    fn try_select(&self, item: Vec<MdElem>) -> Result<MdElem, MdElem> {
-        todo!("there isn't really any good implementation here")
+    fn try_select(&self, ctx: &MdContext, mut items: Vec<MdElem>) -> Result<MdElem, MdElem> {
+        for adapter in &self.chain {
+            items = adapter.find_nodes(ctx, items);
+        }
+        Ok(MdElem::Doc(items))
     }
 }
