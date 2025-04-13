@@ -12,9 +12,9 @@ where
     I: Into<MdElem>,
     M: MatchSelector<I>,
 {
-    fn try_select(&self, _: &MdContext, item: I) -> Result<MdElem, MdElem> {
+    fn try_select(&self, _: &MdContext, item: I) -> Result<Vec<MdElem>, MdElem> {
         if self.matches(&item) {
-            Ok(item.into())
+            Ok(vec![item.into()])
         } else {
             Err(item.into())
         }

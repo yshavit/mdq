@@ -40,7 +40,7 @@ fn task_matches(matcher: ListItemTask, md_is_checked: Option<bool>) -> bool {
 }
 
 impl TrySelector<List> for ListItemSelector {
-    fn try_select(&self, _: &MdContext, item: List) -> Result<MdElem, MdElem> {
+    fn try_select(&self, _: &MdContext, item: List) -> Result<Vec<MdElem>, MdElem> {
         // This one works a bit differently than most:
         // - If the item has a single list, check it; this is essentially a recursive base case.
         // - Otherwise, never match, but return an MdElem::Doc of the list items, each as its own list.
@@ -54,7 +54,7 @@ impl TrySelector<List> for ListItemSelector {
                     && self.string_matcher.matches_any(&li.item);
                 let list = MdElem::List(List { starting_index, items });
                 if matched {
-                    Ok(list)
+                    Ok(vec![list])
                 } else {
                     Err(list)
                 }

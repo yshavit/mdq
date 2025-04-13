@@ -15,10 +15,16 @@ impl From<Vec<Selector>> for ChainSelector {
 }
 
 impl TrySelector<Vec<MdElem>> for ChainSelector {
-    fn try_select(&self, ctx: &MdContext, mut items: Vec<MdElem>) -> Result<MdElem, MdElem> {
+    fn try_select(&self, ctx: &MdContext, mut items: Vec<MdElem>) -> Result<Vec<MdElem>, MdElem> {
+        if self.chain.is_empty() {
+            // This is a bit of a hack: an empty chain is really a noop, and in this case we assume that the items
+            // aren't actually a stream, but are actually an MdDoc that has been deconstructed into the Vec<MdElem>.
+            // So, just reconstruct it back.
+            return Ok(vec![MdElem::Doc(items)]);
+        }
         for adapter in &self.chain {
             items = adapter.find_nodes(ctx, items);
         }
-        Ok(MdElem::Doc(items))
+        Ok(items)
     }
 }

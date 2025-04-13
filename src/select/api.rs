@@ -15,7 +15,7 @@ use paste::paste;
 use std::collections::HashSet;
 
 pub trait TrySelector<I: Into<MdElem>> {
-    fn try_select(&self, ctx: &MdContext, item: I) -> Result<MdElem, MdElem>;
+    fn try_select(&self, ctx: &MdContext, item: I) -> Result<Vec<MdElem>, MdElem>;
 }
 
 macro_rules! adapters {
@@ -45,7 +45,7 @@ macro_rules! adapters {
         }
 
         impl SelectorAdapter {
-            fn try_select_node<'md>(&self, ctx: &MdContext, node: MdElem) -> Result<MdElem, MdElem> {
+            fn try_select_node<'md>(&self, ctx: &MdContext, node: MdElem) -> Result<Vec<MdElem>, MdElem> {
                 match (&self, node) {
                     $(
                     (Self::$name(adapter), MdElem::$md_elem(elem)) => adapter.try_select(ctx, elem),
@@ -87,8 +87,7 @@ impl SelectorAdapter {
 
     fn build_output<'md>(&self, out: &mut Vec<MdElem>, ctx: &mut SearchContext<'md>, node: MdElem) {
         match self.try_select_node(&ctx.md_context, node) {
-            Ok(MdElem::Doc(mut multi)) => out.append(&mut multi),
-            Ok(found) => out.push(found),
+            Ok(mut found) => out.append(&mut found),
             Err(not_found) => {
                 for child in Self::find_children(ctx, not_found) {
                     self.build_output(out, ctx, child);
