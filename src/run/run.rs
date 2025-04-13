@@ -8,7 +8,6 @@ use crate::util::output::{OutputOpts, Stream};
 use crate::{md_elem, output, query};
 use pest::error::ErrorVariant;
 use pest::Span;
-use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::ops::Deref;
@@ -16,9 +15,35 @@ use std::{env, io};
 
 #[derive(Debug)]
 pub enum Error {
-    QueryParse { query_string: String, error: ParseError },
+    QueryParse(QueryParse),
     MarkdownParse(InvalidMd),
     FileReadError(Input, io::Error),
+}
+
+#[derive(Debug)]
+pub struct QueryParse {
+    query_string: String,
+    error: ParseError,
+}
+
+impl Display for QueryParse {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &self.error {
+            ParseError::Pest(err) => {
+                write!(f, "{err}")
+            }
+            ParseError::Other(span, message) => {
+                let full_span = Span::new(&self.query_string, span.start, span.end);
+                let pest_err = query::Error::new_from_span(
+                    ErrorVariant::CustomError {
+                        message: message.to_string(),
+                    },
+                    full_span.unwrap(),
+                );
+                write!(f, "{pest_err}")
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -45,22 +70,9 @@ impl Display for Input {
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::QueryParse { query_string, error } => {
-                let pest_err = match error {
-                    ParseError::Pest(err) => Cow::Borrowed(err),
-                    ParseError::Other(span, message) => {
-                        let full_span = Span::new(query_string, span.start, span.end);
-                        Cow::Owned(query::Error::new_from_span(
-                            ErrorVariant::CustomError {
-                                message: message.to_string(),
-                            },
-                            full_span.unwrap(),
-                        ))
-                    }
-                };
-
+            Error::QueryParse(err) => {
                 writeln!(f, "Syntax error in select specifier:")?;
-                writeln!(f, "{pest_err}")
+                writeln!(f, "{err}")
             }
             Error::MarkdownParse(err) => {
                 writeln!(f, "Markdown parse error:")?;
@@ -141,10 +153,10 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
     let selectors: Selector = match selectors_str.deref().try_into() {
         Ok(selectors) => selectors,
         Err(error) => {
-            return Err(Error::QueryParse {
+            return Err(Error::QueryParse(QueryParse {
                 query_string: selectors_str.into_owned(),
                 error,
-            });
+            }));
         }
     };
 
