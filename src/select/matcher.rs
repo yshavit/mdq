@@ -1,6 +1,4 @@
-use regex::Regex;
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Matcher {
     Text {
         case_sensitive: bool,
@@ -12,34 +10,21 @@ pub enum Matcher {
     Any(AnyVariant),
 }
 
+#[derive(Debug, Clone)]
+pub struct Regex {
+    pub(crate) re: regex::Regex,
+}
+
+impl PartialEq for Regex {
+    fn eq(&self, other: &Self) -> bool {
+        self.re.as_str() == other.re.as_str()
+    }
+}
+
+impl Eq for Regex {}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AnyVariant {
     Implicit,
     Explicit,
 }
-
-impl PartialEq for Matcher {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (
-                Self::Text {
-                    case_sensitive: s1,
-                    anchor_start: a1,
-                    text: t1,
-                    anchor_end: e1,
-                },
-                Self::Text {
-                    case_sensitive: s2,
-                    anchor_start: a2,
-                    text: t2,
-                    anchor_end: e2,
-                },
-            ) => s1 == s2 && a1 == a2 && e1 == e2 && t1 == t2,
-            (Self::Regex(r1), Self::Regex(r2)) => r1.as_str() == r2.as_str(),
-            (Self::Any(_), Self::Any(_)) => true,
-            _ => false,
-        }
-    }
-}
-
-impl Eq for Matcher {}

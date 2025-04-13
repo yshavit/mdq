@@ -83,7 +83,7 @@ impl From<Matcher> for StringMatcher {
                 anchor_end,
             }
             .to_string_matcher(),
-            Matcher::Regex(re) => Self::regex(re),
+            Matcher::Regex(re) => Self::regex(re.re),
             Matcher::Any(_) => Self::any(),
         }
     }

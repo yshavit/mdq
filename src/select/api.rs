@@ -75,6 +75,7 @@ adapters! {
     }
 }
 
+// TODO this should not be exposed
 impl SelectorAdapter {
     pub fn find_nodes(&self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
         let mut result = Vec::with_capacity(8); // arbitrary guess

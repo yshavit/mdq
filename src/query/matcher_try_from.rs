@@ -1,7 +1,6 @@
 use crate::query::strings::{ParsedString, ParsedStringMode};
 use crate::query::{DetachedSpan, Pair, ParseError};
-use crate::select::{AnyVariant, Matcher};
-use regex::Regex;
+use crate::select::{AnyVariant, Matcher, Regex};
 
 impl TryFrom<Option<Pair<'_>>> for Matcher {
     type Error = ParseError;
@@ -34,8 +33,9 @@ impl TryFrom<Option<Pair<'_>>> for Matcher {
                 anchor_end: parsed_string.anchor_end,
             },
             ParsedStringMode::Regex => {
-                let re = Regex::new(&parsed_string.text).map_err(|e| ParseError::Other(span.into(), e.to_string()))?;
-                Self::Regex(re)
+                let re = regex::Regex::new(&parsed_string.text)
+                    .map_err(|e| ParseError::Other(span.into(), e.to_string()))?;
+                Self::Regex(Regex { re })
             }
         };
         Ok(matcher)

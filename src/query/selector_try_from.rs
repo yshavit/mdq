@@ -570,8 +570,8 @@ mod tests {
 
     mod html {
         use super::*;
+        use crate::select::Regex;
         use indoc::indoc;
-        use regex::Regex;
 
         #[test]
         fn html_no_matcher() {
@@ -607,7 +607,9 @@ mod tests {
         fn html_with_regex() {
             find_selector(
                 "</> /<div.*>/",
-                Selector::Html(Matcher::Regex(Regex::new("<div.*>").unwrap())),
+                Selector::Html(Matcher::Regex(Regex {
+                    re: regex::Regex::new("<div.*>").unwrap(),
+                })),
             )
         }
     }
