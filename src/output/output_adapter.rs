@@ -1,6 +1,8 @@
 use crate::md_elem::{MdContext, MdElem};
-use crate::output::{write_md, MdWriterOptions};
+use crate::output::tree_ref_serde::MdSerde;
+use crate::output::{write_md, InlineElemOptions, MdWriterOptions};
 use crate::util::output::{Output, SimpleWrite};
+use serde::Serialize;
 use std::{fmt, io};
 
 pub struct MdWriter {
@@ -28,6 +30,14 @@ impl MdWriter {
 
 pub fn io_to_fmt(writer: impl io::Write) -> impl fmt::Write {
     Adapter(writer)
+}
+
+pub fn serializable<'a>(
+    elems: &'a [MdElem],
+    ctx: &'a MdContext,
+    inline_options: InlineElemOptions,
+) -> impl Serialize + 'a {
+    MdSerde::new(&elems, &ctx, inline_options)
 }
 
 struct Adapter<W>(W);
