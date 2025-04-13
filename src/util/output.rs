@@ -31,8 +31,8 @@ impl<W: std::io::Write> SimpleWrite for Stream<W> {
     }
 }
 
-#[derive(Debug)]
-pub struct OutputOpts {
+#[derive(Debug, Copy, Clone)]
+pub struct OutputOptions {
     pub text_width: Option<usize>,
 }
 
@@ -105,7 +105,7 @@ enum WriteAction {
 }
 
 impl<W: SimpleWrite> Output<W> {
-    pub fn new(to: W, opts: OutputOpts) -> Self {
+    pub fn new(to: W, opts: OutputOptions) -> Self {
         Self {
             stream: to,
             indenter: IndentHandler::new(),
@@ -117,7 +117,7 @@ impl<W: SimpleWrite> Output<W> {
     }
 
     pub fn without_text_wrapping(to: W) -> Self {
-        Self::new(to, OutputOpts { text_width: None })
+        Self::new(to, OutputOptions { text_width: None })
     }
 
     pub fn replace_underlying(&mut self, new: W) -> std::io::Result<W> {
@@ -1051,7 +1051,7 @@ mod tests {
         }
 
         fn out_to_str_wrapped(wrap: usize, action: impl FnOnce(&mut Output<String>)) -> String {
-            let opts = OutputOpts { text_width: Some(wrap) };
+            let opts = OutputOptions { text_width: Some(wrap) };
             let mut out = Output::new(String::new(), opts);
             action(&mut out);
             out.take_underlying().unwrap()

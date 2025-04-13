@@ -9,6 +9,7 @@ use std::borrow::Cow;
 use std::cmp::max;
 use std::ops::Deref;
 
+#[derive(Copy, Clone, Debug)]
 pub struct MdOptions {
     pub link_reference_placement: ReferencePlacement,
     pub footnote_reference_placement: ReferencePlacement,
@@ -57,7 +58,7 @@ pub enum ReferencePlacement {
     Doc,
 }
 
-pub fn write_md<'md, I, W>(options: &'md MdOptions, out: &mut Output<W>, ctx: &'md MdContext, nodes: I)
+pub(crate) fn write_md<'md, I, W>(options: MdOptions, out: &mut Output<W>, ctx: &'md MdContext, nodes: I)
 where
     I: Iterator<Item = &'md MdElem>,
     W: SimpleWrite,
@@ -81,7 +82,7 @@ where
 
 struct MdWriterState<'s, 'md> {
     ctx: &'md MdContext,
-    opts: &'md MdOptions,
+    opts: MdOptions,
     prev_was_thematic_break: bool,
     inlines_writer: &'s mut MdInlinesWriter<'md>,
 }
@@ -677,7 +678,7 @@ pub mod tests {
             let mut options = MdOptions::default_for_tests();
             options.include_thematic_breaks = false;
             check_render_with(
-                &options,
+                options,
                 md_elems!["Alpha", "Bravo"],
                 indoc! {r#"
                     Alpha
@@ -917,7 +918,7 @@ pub mod tests {
             let mut options = MdOptions::default_for_tests();
             options.include_thematic_breaks = false;
             check_render_refs_with(
-                &options,
+                options,
                 vec![
                     MdElem::List(List {
                         starting_index: None,
@@ -1319,7 +1320,7 @@ pub mod tests {
             let mut options = MdOptions::default_for_tests();
             options.include_thematic_breaks = false;
             check_render_with(
-                &options,
+                options,
                 md_elems![
                     CodeBlock {
                         variant: CodeVariant::Code(None),
@@ -1406,7 +1407,7 @@ pub mod tests {
                 let mut options = MdOptions::default_for_tests();
                 options.include_thematic_breaks = false;
                 check_render_with(
-                    &options,
+                    options,
                     vec![MdElem::Inline(mdq_inline!("one")), MdElem::Inline(mdq_inline!("two"))],
                     indoc! {r"
                     one
@@ -1852,7 +1853,7 @@ pub mod tests {
             let mut options = MdOptions::default_for_tests();
             options.include_thematic_breaks = false;
             check_render_refs_with(
-                &options,
+                options,
                 vec![
                     link_elem(Link {
                         text: vec![mdq_inline!("link text one")],
@@ -1884,7 +1885,7 @@ pub mod tests {
             options.inline_options.link_format = LinkTransform::Reference;
             options.link_reference_placement = ReferencePlacement::Doc;
             check_render_refs_with(
-                &options,
+                options,
                 vec![
                     link_elem(Link {
                         text: vec![mdq_inline!("link text one")],
@@ -1916,7 +1917,7 @@ pub mod tests {
         #[test]
         fn reference_transform_smoke_test() {
             check_render_refs_with(
-                &MdOptions::new_with(|mdo| mdo.inline_options.link_format = LinkTransform::Reference),
+                MdOptions::new_with(|mdo| mdo.inline_options.link_format = LinkTransform::Reference),
                 vec![link_elem(Link {
                     text: vec![mdq_inline!("link text")],
                     link_definition: LinkDefinition {
@@ -1996,7 +1997,7 @@ pub mod tests {
         #[test]
         fn reference_transform_smoke_test() {
             check_render_refs_with(
-                &MdOptions::new_with(|mdo| mdo.inline_options.link_format = LinkTransform::Reference),
+                MdOptions::new_with(|mdo| mdo.inline_options.link_format = LinkTransform::Reference),
                 vec![image_elem(Image {
                     alt: "alt text".to_string(),
                     link: LinkDefinition {
@@ -2023,7 +2024,7 @@ pub mod tests {
         #[test]
         fn single_line() {
             check_render_with_ctx(
-                &MdOptions::default_for_tests(),
+                MdOptions::default_for_tests(),
                 (
                     MdContext::empty().with("a", md_elems!["Hello, world."]),
                     vec![
@@ -2043,7 +2044,7 @@ pub mod tests {
         #[test]
         fn two_lines() {
             check_render_with_ctx(
-                &MdOptions::default_for_tests(),
+                MdOptions::default_for_tests(),
                 (
                     MdContext::empty().with("a", md_elems!["Hello,\nworld."]),
                     vec![
@@ -2066,7 +2067,7 @@ pub mod tests {
         fn footnote_transform_smoke_test() {
             let (ctx, graf) = footnote_a_in_paragraph();
             check_render_refs_with_ctx(
-                &MdOptions::new_with(|mdo| mdo.inline_options.renumber_footnotes = true),
+                MdOptions::new_with(|mdo| mdo.inline_options.renumber_footnotes = true),
                 (ctx, vec![MdElem::Paragraph(graf)]),
                 indoc! {r#"
                     [^1]
@@ -2079,7 +2080,7 @@ pub mod tests {
         fn footnote_no_transform_smoke_test() {
             let (ctx, graf) = footnote_a_in_paragraph();
             check_render_refs_with_ctx(
-                &MdOptions::new_with(|mdo| mdo.inline_options.renumber_footnotes = false),
+                MdOptions::new_with(|mdo| mdo.inline_options.renumber_footnotes = false),
                 (ctx, vec![MdElem::Paragraph(graf)]),
                 indoc! {r#"
                     [^a]
@@ -2105,7 +2106,7 @@ pub mod tests {
         #[test]
         fn link_and_footnote() {
             check_render_with_ctx(
-                &MdOptions::default_for_tests(),
+                MdOptions::default_for_tests(),
                 (
                     MdContext::empty().with("a", md_elems!["this is my note"]),
                     md_elems![Paragraph {
@@ -2136,7 +2137,7 @@ pub mod tests {
         #[test]
         fn both_in_sections() {
             check_render_with_ctx(
-                &MdOptions::new_with(|mdo| {
+                MdOptions::new_with(|mdo| {
                     mdo.link_reference_placement = ReferencePlacement::Section;
                     mdo.footnote_reference_placement = ReferencePlacement::Section;
                 }),
@@ -2160,7 +2161,7 @@ pub mod tests {
         #[test]
         fn only_link_in_section() {
             check_render_with_ctx(
-                &MdOptions::new_with(|mdo| {
+                MdOptions::new_with(|mdo| {
                     mdo.link_reference_placement = ReferencePlacement::Section;
                     mdo.footnote_reference_placement = ReferencePlacement::Doc;
                 }),
@@ -2187,7 +2188,7 @@ pub mod tests {
         #[test]
         fn no_sections_but_writing_to_sections() {
             check_render_with(
-                &MdOptions::new_with(|mdo| {
+                MdOptions::new_with(|mdo| {
                     mdo.link_reference_placement = ReferencePlacement::Section;
                     mdo.footnote_reference_placement = ReferencePlacement::Section;
                 }),
@@ -2211,7 +2212,7 @@ pub mod tests {
         #[test]
         fn only_footnote_in_section() {
             check_render_with_ctx(
-                &MdOptions::new_with(|mdo| {
+                MdOptions::new_with(|mdo| {
                     mdo.link_reference_placement = ReferencePlacement::Doc;
                     mdo.footnote_reference_placement = ReferencePlacement::Section;
                 }),
@@ -2238,7 +2239,7 @@ pub mod tests {
         #[test]
         fn both_bottom_of_doc() {
             check_render_with_ctx(
-                &MdOptions::new_with(|mdo| {
+                MdOptions::new_with(|mdo| {
                     mdo.link_reference_placement = ReferencePlacement::Doc;
                     mdo.footnote_reference_placement = ReferencePlacement::Doc;
                 }),
@@ -2264,7 +2265,7 @@ pub mod tests {
         #[test]
         fn ordering() {
             check_render_with_ctx(
-                &MdOptions::new_with(|mdo| {
+                MdOptions::new_with(|mdo| {
                     mdo.link_reference_placement = ReferencePlacement::Doc;
                     mdo.footnote_reference_placement = ReferencePlacement::Doc;
                 }),
@@ -2386,14 +2387,14 @@ pub mod tests {
     }
 
     fn check_render(nodes: Vec<MdElem>, expect: &str) {
-        check_render_with(&MdOptions::default_for_tests(), nodes, expect);
+        check_render_with(MdOptions::default_for_tests(), nodes, expect);
     }
 
-    fn check_render_with(options: &MdOptions, nodes: Vec<MdElem>, expect: &str) {
+    fn check_render_with(options: MdOptions, nodes: Vec<MdElem>, expect: &str) {
         check_render_with_ctx(options, (MdContext::empty(), nodes), expect)
     }
 
-    fn check_render_with_ctx(options: &MdOptions, inputs: (MdContext, Vec<MdElem>), expect: &str) {
+    fn check_render_with_ctx(options: MdOptions, inputs: (MdContext, Vec<MdElem>), expect: &str) {
         let (ctx, nodes) = inputs;
         let mut wrapped = Vec::with_capacity(nodes.len());
         for node in nodes {
@@ -2403,14 +2404,14 @@ pub mod tests {
     }
 
     fn check_render_refs(nodes: Vec<MdElem>, expect: &str) {
-        check_render_refs_with(&MdOptions::default_for_tests(), nodes, expect)
+        check_render_refs_with(MdOptions::default_for_tests(), nodes, expect)
     }
 
-    fn check_render_refs_with(options: &MdOptions, nodes: Vec<MdElem>, expect: &str) {
+    fn check_render_refs_with(options: MdOptions, nodes: Vec<MdElem>, expect: &str) {
         check_render_refs_with_ctx(options, (MdContext::empty(), nodes), expect)
     }
 
-    fn check_render_refs_with_ctx(options: &MdOptions, inputs: (MdContext, Vec<MdElem>), expect: &str) {
+    fn check_render_refs_with_ctx(options: MdOptions, inputs: (MdContext, Vec<MdElem>), expect: &str) {
         let (ctx, nodes) = inputs;
         nodes.iter().for_each(|n| VARIANTS_CHECKER.see(n));
 

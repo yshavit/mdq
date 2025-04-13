@@ -1,9 +1,9 @@
 use crate::md_elem::{InvalidMd, MdDoc, MdElem, ParseOptions};
+use crate::output::MdWriter;
 use crate::query::ParseError;
 use crate::run::cli::{Cli, OutputFormat};
 use crate::select::{Selector, SelectorAdapter};
-use crate::util::output::Output;
-use crate::util::output::{OutputOpts, Stream};
+use crate::util::output::OutputOptions;
 use crate::{md_elem, output, query};
 use pest::error::ErrorVariant;
 use pest::Span;
@@ -169,6 +169,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
     let selector_adapter = SelectorAdapter::from(selectors);
     let pipeline_nodes = selector_adapter.find_nodes(&ctx, vec![MdElem::Doc(roots)]);
 
+    // TODO: turn this into an impl From
     let md_options = output::MdOptions {
         link_reference_placement: cli.link_pos,
         footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
@@ -185,11 +186,13 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
         let mut stdout = os.get_stdout();
         match cli.output {
             OutputFormat::Markdown | OutputFormat::Md => {
-                let output_opts = OutputOpts {
-                    text_width: cli.wrap_width,
-                };
-                let mut out = Output::new(Stream(&mut stdout), output_opts);
-                output::write_md(&md_options, &mut out, &ctx, pipeline_nodes.iter());
+                let writer = MdWriter::with_options(
+                    md_options,
+                    OutputOptions {
+                        text_width: cli.wrap_width,
+                    },
+                );
+                writer.write_md_to_io(&ctx, pipeline_nodes, stdout);
             }
             OutputFormat::Json => {
                 serde_json::to_writer(
