@@ -258,7 +258,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                     out,
                     &col,
                     *column_widths.get(idx).unwrap_or(&0) - left_padding_count - 1, // -1 for right padding
-                    alignments.get(idx).map(|i| *i).unwrap_or(None),
+                    alignments.get(idx).copied().flatten(),
                 );
                 out.write_str(" |");
             }

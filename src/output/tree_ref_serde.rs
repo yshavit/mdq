@@ -266,7 +266,7 @@ impl<'md> SerdeElem<'md> {
                     rendered_rows.push(rendered_cells);
                 }
                 Self::Table {
-                    alignments: table.alignments().iter().map(|a| (*a).into()).collect(),
+                    alignments: table.alignments.iter().copied().map(Into::into).collect(),
                     rows: rendered_rows,
                 }
             }
