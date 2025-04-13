@@ -23,7 +23,7 @@ pub enum LinkTransform {
     Reference,
 }
 
-pub struct LinkTransformer {
+pub(crate) struct LinkTransformer {
     delegate: LinkTransformState,
 }
 
