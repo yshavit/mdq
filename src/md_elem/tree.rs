@@ -320,35 +320,6 @@ pub mod elem {
         Center,
     }
 
-    impl From<std::fmt::Alignment> for ColumnAlignment {
-        fn from(value: std::fmt::Alignment) -> Self {
-            match value {
-                std::fmt::Alignment::Left => Self::Left,
-                std::fmt::Alignment::Right => Self::Right,
-                std::fmt::Alignment::Center => Self::Center,
-            }
-        }
-    }
-
-    impl From<ColumnAlignment> for std::fmt::Alignment {
-        fn from(value: ColumnAlignment) -> Self {
-            match value {
-                ColumnAlignment::Left => Self::Left,
-                ColumnAlignment::Right => Self::Right,
-                ColumnAlignment::Center => Self::Center,
-            }
-        }
-    }
-
-    pub fn convert_alignment(a: mdast::AlignKind) -> Option<ColumnAlignment> {
-        match a {
-            mdast::AlignKind::Left => Some(ColumnAlignment::Left),
-            mdast::AlignKind::Right => Some(ColumnAlignment::Right),
-            mdast::AlignKind::Center => Some(ColumnAlignment::Center),
-            mdast::AlignKind::None => None,
-        }
-    }
-
     #[derive(Debug, PartialEq, Clone)]
     pub struct CodeBlock {
         pub variant: CodeVariant,
@@ -609,7 +580,7 @@ impl MdElem {
                     rows.push(column);
                 }
                 m_node!(MdElem::Table {
-                    alignments: align.into_iter().map(convert_alignment).collect(),
+                    alignments: align.into_iter().map(Self::convert_alignment).collect(),
                     rows,
                 })
             }
@@ -638,6 +609,15 @@ impl MdElem {
             }
         };
         Ok(vec![result])
+    }
+
+    fn convert_alignment(a: mdast::AlignKind) -> Option<ColumnAlignment> {
+        match a {
+            mdast::AlignKind::Left => Some(ColumnAlignment::Left),
+            mdast::AlignKind::Right => Some(ColumnAlignment::Right),
+            mdast::AlignKind::Center => Some(ColumnAlignment::Center),
+            mdast::AlignKind::None => None,
+        }
     }
 
     fn all(
