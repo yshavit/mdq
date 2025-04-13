@@ -8,8 +8,6 @@ mod link_transform;
 mod output_adapter;
 mod tree_ref_serde;
 
-use serde::Serialize;
-
 pub use crate::output::fmt_md::*;
 pub use crate::output::fmt_md_inlines::*;
 pub use crate::output::link_transform::*;

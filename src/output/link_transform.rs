@@ -119,7 +119,7 @@ impl<'md> LinkTransformation<'md> {
     // We could in principle return a Cow<'md, LinkReference>, and save some clones in the assigner.
     // To do that, fmt_md_inlines.rs would need to adjust to hold Cows instead of LinkLabels directly. For now, not
     // a high priority.
-    pub fn apply(self, transformer: &mut LinkTransformer, link: &'md LinkReference) -> LinkReference {
+    pub(crate) fn apply(self, transformer: &mut LinkTransformer, link: &'md LinkReference) -> LinkReference {
         match &mut transformer.delegate {
             LinkTransformState::Keep => Cow::Borrowed(link),
             LinkTransformState::Inline => Cow::Owned(LinkReference::Inline),
