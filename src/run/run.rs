@@ -192,7 +192,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
                         text_width: cli.wrap_width,
                     },
                 );
-                writer.write_md_to_io(&ctx, &pipeline_nodes, &mut stdout);
+                writer.write(&ctx, &pipeline_nodes, &mut output::io_to_fmt(&mut stdout));
             }
             OutputFormat::Json => {
                 serde_json::to_writer(

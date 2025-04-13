@@ -1,6 +1,6 @@
 use crate::md_elem::{MdContext, MdElem};
 use crate::output::{write_md, MdOptions};
-use crate::util::output::{Output, OutputOptions, SimpleWrite, Stream};
+use crate::util::output::{Output, OutputOptions, SimpleWrite};
 use std::{fmt, io};
 
 pub struct MdWriter {
@@ -16,7 +16,7 @@ impl MdWriter {
         }
     }
 
-    pub fn write_md_to_fmt<'md, I, W>(&self, ctx: &'md MdContext, nodes: I, out: &mut W)
+    pub fn write<'md, I, W>(&self, ctx: &'md MdContext, nodes: I, out: &mut W)
     where
         I: IntoIterator<Item = &'md MdElem>,
         W: fmt::Write,
@@ -28,19 +28,10 @@ impl MdWriter {
             nodes.into_iter(),
         )
     }
+}
 
-    pub fn write_md_to_io<'md, I, W>(&self, ctx: &'md MdContext, nodes: I, out: &mut W)
-    where
-        I: IntoIterator<Item = &'md MdElem>,
-        W: io::Write,
-    {
-        write_md(
-            self.md_options,
-            &mut Output::new(Stream(out), self.output_options),
-            ctx,
-            nodes.into_iter(),
-        )
-    }
+pub fn io_to_fmt(writer: impl io::Write) -> impl fmt::Write {
+    Adapter(writer)
 }
 
 struct Adapter<W>(W);
@@ -54,5 +45,11 @@ impl<W: fmt::Write> SimpleWrite for Adapter<W> {
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+impl<W: io::Write> fmt::Write for Adapter<W> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.0.write_all(s.as_bytes()).map_err(|_| fmt::Error)
     }
 }
