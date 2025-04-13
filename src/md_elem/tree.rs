@@ -320,6 +320,26 @@ pub mod elem {
         Center,
     }
 
+    impl From<std::fmt::Alignment> for ColumnAlignment {
+        fn from(value: std::fmt::Alignment) -> Self {
+            match value {
+                std::fmt::Alignment::Left => Self::Left,
+                std::fmt::Alignment::Right => Self::Right,
+                std::fmt::Alignment::Center => Self::Center,
+            }
+        }
+    }
+
+    impl From<ColumnAlignment> for std::fmt::Alignment {
+        fn from(value: ColumnAlignment) -> Self {
+            match value {
+                ColumnAlignment::Left => Self::Left,
+                ColumnAlignment::Right => Self::Right,
+                ColumnAlignment::Center => Self::Center,
+            }
+        }
+    }
+
     pub fn convert_alignment(a: mdast::AlignKind) -> Option<ColumnAlignment> {
         match a {
             mdast::AlignKind::Left => Some(ColumnAlignment::Left),

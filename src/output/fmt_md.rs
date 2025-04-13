@@ -3,11 +3,10 @@ use crate::md_elem::*;
 use crate::output::fmt_md_inlines::{MdInlinesWriter, MdInlinesWriterOptions};
 use crate::output::link_transform::LinkLabel;
 use crate::util::output::{Block, Output, SimpleWrite};
-use crate::util::str_utils::{pad_to, standard_align, CountingWriter};
+use crate::util::str_utils::{pad_to, CountingWriter};
 use clap::ValueEnum;
 use std::borrow::Cow;
 use std::cmp::max;
-use std::fmt::Alignment;
 use std::ops::Deref;
 
 pub struct MdOptions {
@@ -288,16 +287,16 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                         None => &1,
                     })
                     .to_owned();
-                match standard_align(align) {
-                    Some(Alignment::Left) => {
+                match align {
+                    Some(ColumnAlignment::Left) => {
                         out.write_char(':');
                         out.write_str(&"-".repeat(width - 1));
                     }
-                    Some(Alignment::Right) => {
+                    Some(ColumnAlignment::Right) => {
                         out.write_str(&"-".repeat(width - 1));
                         out.write_char(':');
                     }
-                    Some(Alignment::Center) => {
+                    Some(ColumnAlignment::Center) => {
                         out.write_char(':');
                         out.write_str(&"-".repeat(width - 2));
                         out.write_char(':');

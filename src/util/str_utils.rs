@@ -1,6 +1,5 @@
 use crate::md_elem::elem::ColumnAlignment;
 use crate::util::output::{Output, SimpleWrite};
-use std::fmt::Alignment;
 
 pub fn pad_to<W>(output: &mut Output<W>, input: &str, min_width: usize, alignment: Option<ColumnAlignment>)
 where
@@ -29,14 +28,6 @@ where
             output.write_str(input);
         }
     }
-}
-
-pub fn standard_align(a: Option<ColumnAlignment>) -> Option<Alignment> {
-    a.map(|a| match a {
-        ColumnAlignment::Left => Alignment::Left,
-        ColumnAlignment::Right => Alignment::Right,
-        ColumnAlignment::Center => Alignment::Center,
-    })
 }
 
 pub struct CountingWriter<'a, W> {
