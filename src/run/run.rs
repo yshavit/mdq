@@ -199,10 +199,10 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
                 .unwrap();
             }
             OutputFormat::Plain => {
-                let output_opts = output::plain::PlainOutputOpts {
+                let output_opts = output::PlainOutputOpts {
                     include_breaks: cli.should_add_breaks(),
                 };
-                output::plain::write_plain(&mut stdout, output_opts, pipeline_nodes.iter());
+                output::write_plain(&mut stdout, output_opts, pipeline_nodes.iter());
             }
         }
     }

@@ -15,10 +15,8 @@ pub use crate::output::fmt_md::*;
 pub use crate::output::fmt_md_inlines::*;
 pub use crate::output::link_transform::*;
 
-pub mod plain {
-    pub use crate::output::fmt_plain_inline::*;
-    pub use crate::output::fmt_plain_str::*;
-}
+pub use crate::output::fmt_plain_inline::*;
+pub use crate::output::fmt_plain_str::*;
 
 pub fn serializable<'a>(
     elems: &'a [MdElem],
