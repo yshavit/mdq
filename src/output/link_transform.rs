@@ -28,7 +28,7 @@ pub struct LinkTransformer {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum LinkLabel<'md> {
+pub(crate) enum LinkLabel<'md> {
     Text(Cow<'md, str>),
     Inline(&'md Vec<Inline>),
 }

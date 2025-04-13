@@ -38,19 +38,19 @@ impl<'md> PendingReferences<'md> {
 }
 
 #[derive(Serialize, Debug, PartialEq, Eq, Copy, Clone, Hash)]
-pub struct UrlAndTitle<'md> {
+pub(crate) struct UrlAndTitle<'md> {
     pub url: &'md String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: &'md Option<String>,
 }
 
 #[derive(Debug, Copy, Clone)]
-pub enum LinkLikeType {
+pub(crate) enum LinkLikeType {
     Link,
     Image,
 }
 
-pub trait LinkLike<'md> {
+pub(crate) trait LinkLike<'md> {
     fn link_info(&self) -> (LinkLikeType, LinkLabel<'md>, &'md LinkDefinition);
 }
 
