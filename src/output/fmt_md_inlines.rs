@@ -456,7 +456,7 @@ impl TitleQuote {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::util::output::{Output, OutputOptions};
+    use crate::util::output::Output;
     use crate::util::utils_for_test::*;
 
     mod title_quoting {
@@ -715,7 +715,7 @@ mod tests {
         text_width: Option<usize>,
         expected: impl ToString,
     ) {
-        let mut output = Output::new(String::new(), OutputOptions { text_width });
+        let mut output = Output::new(String::new(), text_width);
         let ctx = MdContext::empty();
         let mut writer = MdInlinesWriter::new(
             &ctx,

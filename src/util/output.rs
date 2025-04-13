@@ -31,11 +31,6 @@ impl<W: std::io::Write> SimpleWrite for Stream<W> {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct OutputOptions {
-    pub text_width: Option<usize>,
-}
-
 struct IndentHandler {
     /// whether the current block is in `<pre>` mode. See [Block] for an explanation as to why this
     /// exists, and isn't instead a `Block::Pre`.
@@ -105,19 +100,17 @@ enum WriteAction {
 }
 
 impl<W: SimpleWrite> Output<W> {
-    pub fn new(to: W, opts: OutputOptions) -> Self {
+    pub fn new(to: W, text_width: Option<usize>) -> Self {
         Self {
             stream: to,
             indenter: IndentHandler::new(),
-            words_buffer: opts
-                .text_width
-                .map_or_else(WordsBuffer::disabled, |width| WordsBuffer::new(width)),
+            words_buffer: text_width.map_or_else(WordsBuffer::disabled, |width| WordsBuffer::new(width)),
             writing_state: WritingState::HaveNotWrittenAnything,
         }
     }
 
     pub fn without_text_wrapping(to: W) -> Self {
-        Self::new(to, OutputOptions { text_width: None })
+        Self::new(to, None)
     }
 
     pub fn replace_underlying(&mut self, new: W) -> std::io::Result<W> {
@@ -1051,8 +1044,7 @@ mod tests {
         }
 
         fn out_to_str_wrapped(wrap: usize, action: impl FnOnce(&mut Output<String>)) -> String {
-            let opts = OutputOptions { text_width: Some(wrap) };
-            let mut out = Output::new(String::new(), opts);
+            let mut out = Output::new(String::new(), Some(wrap));
             action(&mut out);
             out.take_underlying().unwrap()
         }

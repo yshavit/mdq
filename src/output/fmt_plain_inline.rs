@@ -13,7 +13,7 @@ pub struct PlainWriter {
 }
 
 impl PlainWriter {
-    pub fn new(options: PlainWriterOptions) -> Self {
+    pub fn with_options(options: PlainWriterOptions) -> Self {
         Self { options }
     }
 

@@ -3,7 +3,6 @@ use crate::output::MdWriter;
 use crate::query::ParseError;
 use crate::run::cli::{Cli, OutputFormat};
 use crate::select::{Selector, SelectorAdapter};
-use crate::util::output::OutputOptions;
 use crate::{md_elem, output, query};
 use pest::error::ErrorVariant;
 use pest::Span;
@@ -170,7 +169,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
     let pipeline_nodes = selector_adapter.find_nodes(&ctx, vec![MdElem::Doc(roots)]);
 
     // TODO: turn this into an impl From
-    let md_options = output::MdOptions {
+    let md_options = output::MdWriterOptions {
         link_reference_placement: cli.link_pos,
         footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
         inline_options: output::InlineElemOptions {
@@ -178,6 +177,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
             renumber_footnotes: cli.renumber_footnotes,
         },
         include_thematic_breaks: cli.should_add_breaks(),
+        text_width: cli.wrap_width,
     };
 
     let found_any = !pipeline_nodes.is_empty();
@@ -186,13 +186,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
         let mut stdout = os.get_stdout();
         match cli.output {
             OutputFormat::Markdown | OutputFormat::Md => {
-                let writer = MdWriter::with_options(
-                    md_options,
-                    OutputOptions {
-                        text_width: cli.wrap_width,
-                    },
-                );
-                writer.write(&ctx, &pipeline_nodes, &mut output::io_to_fmt(&mut stdout));
+                MdWriter::with_options(md_options).write(&ctx, &pipeline_nodes, &mut output::io_to_fmt(&mut stdout));
             }
             OutputFormat::Json => {
                 serde_json::to_writer(
@@ -202,10 +196,10 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
                 .unwrap();
             }
             OutputFormat::Plain => {
-                let writer = output::PlainWriter::new(output::PlainWriterOptions {
+                output::PlainWriter::with_options(output::PlainWriterOptions {
                     include_breaks: cli.should_add_breaks(),
-                });
-                writer.write(&pipeline_nodes, &mut stdout);
+                })
+                .write(&pipeline_nodes, &mut stdout);
             }
         }
     }

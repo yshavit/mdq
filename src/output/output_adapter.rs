@@ -1,19 +1,15 @@
 use crate::md_elem::{MdContext, MdElem};
-use crate::output::{write_md, MdOptions};
-use crate::util::output::{Output, OutputOptions, SimpleWrite};
+use crate::output::{write_md, MdWriterOptions};
+use crate::util::output::{Output, SimpleWrite};
 use std::{fmt, io};
 
 pub struct MdWriter {
-    md_options: MdOptions,
-    output_options: OutputOptions,
+    options: MdWriterOptions,
 }
 
 impl MdWriter {
-    pub fn with_options(md: MdOptions, output: OutputOptions) -> Self {
-        Self {
-            md_options: md,
-            output_options: output,
-        }
+    pub fn with_options(options: MdWriterOptions) -> Self {
+        Self { options }
     }
 
     pub fn write<'md, I, W>(&self, ctx: &'md MdContext, nodes: I, out: &mut W)
@@ -22,8 +18,8 @@ impl MdWriter {
         W: fmt::Write,
     {
         write_md(
-            self.md_options,
-            &mut Output::new(Adapter(out), self.output_options),
+            self.options,
+            &mut Output::new(Adapter(out), self.options.text_width),
             ctx,
             nodes.into_iter(),
         )
