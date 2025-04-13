@@ -108,26 +108,6 @@ macro_rules! create_options_structs {
                 }
             }
         }
-
-        impl From<RunOptions> for CliOptions {
-            fn from(value: RunOptions) -> Self {
-                let (br, no_br) = match value.add_breaks {
-                    None => (false, false),
-                    Some(true) => (true, false),
-                    Some(false) => (false, true),
-                };
-                Self {
-                    $($name: value.$name,)*
-                    br_umbrella: false,
-                    list_selector: None,
-                    selectors: Some(value.selectors),
-                    markdown_file_paths: value.markdown_file_paths,
-                    br,
-                    no_br,
-                }
-            }
-        }
-
     };
 }
 
