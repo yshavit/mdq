@@ -3,12 +3,34 @@ use crate::md_elem::*;
 use crate::output::fmt_plain_writer::NewlineCollapser;
 use std::io::{Error, LineWriter, Write};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct PlainOutputOpts {
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub struct PlainWriterOptions {
     pub include_breaks: bool,
 }
 
-pub fn write_plain<'md, I, W>(out: &mut W, opts: PlainOutputOpts, nodes: I)
+pub struct PlainWriter {
+    options: PlainWriterOptions,
+}
+
+impl PlainWriter {
+    pub fn new(options: PlainWriterOptions) -> Self {
+        Self { options }
+    }
+
+    pub fn options(&mut self) -> &mut PlainWriterOptions {
+        &mut self.options
+    }
+
+    pub fn write<'md, I, W>(&self, nodes: I, out: &mut W)
+    where
+        I: IntoIterator<Item = &'md MdElem>,
+        W: Write,
+    {
+        write_plain(out, self.options, nodes.into_iter())
+    }
+}
+
+fn write_plain<'md, I, W>(out: &mut W, opts: PlainWriterOptions, nodes: I)
 where
     I: Iterator<Item = &'md MdElem>,
     W: Write,
@@ -16,7 +38,7 @@ where
     write_top_level(out, opts, nodes).expect("while writing output");
 }
 
-fn write_top_level<'md, I, W>(out: &mut W, opts: PlainOutputOpts, nodes: I) -> std::io::Result<()>
+fn write_top_level<'md, I, W>(out: &mut W, opts: PlainWriterOptions, nodes: I) -> std::io::Result<()>
 where
     I: Iterator<Item = &'md MdElem>,
     W: Write,
@@ -602,14 +624,14 @@ mod test {
         let mut bytes = Vec::with_capacity(expect.with_breaks.len());
         write_plain(
             &mut bytes,
-            PlainOutputOpts { include_breaks: true },
+            PlainWriterOptions { include_breaks: true },
             [&input].into_iter(),
         );
         let actual = String::from_utf8(bytes).expect("got invalid utf8");
         assert_eq!(actual, expect.with_breaks);
 
         let mut bytes = Vec::with_capacity(expect.no_breaks.len());
-        write_plain(&mut bytes, PlainOutputOpts { include_breaks: false }, [input].iter());
+        write_plain(&mut bytes, PlainWriterOptions { include_breaks: false }, [input].iter());
         let actual = String::from_utf8(bytes).expect("got invalid utf8");
         assert_eq!(actual, expect.no_breaks);
     }

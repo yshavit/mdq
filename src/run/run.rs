@@ -192,7 +192,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
                         text_width: cli.wrap_width,
                     },
                 );
-                writer.write_md_to_io(&ctx, pipeline_nodes, stdout);
+                writer.write_md_to_io(&ctx, &pipeline_nodes, &mut stdout);
             }
             OutputFormat::Json => {
                 serde_json::to_writer(
@@ -202,10 +202,10 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
                 .unwrap();
             }
             OutputFormat::Plain => {
-                let output_opts = output::PlainOutputOpts {
+                let writer = output::PlainWriter::new(output::PlainWriterOptions {
                     include_breaks: cli.should_add_breaks(),
-                };
-                output::write_plain(&mut stdout, output_opts, pipeline_nodes.iter());
+                });
+                writer.write(&pipeline_nodes, &mut stdout);
             }
         }
     }

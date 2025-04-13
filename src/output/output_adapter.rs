@@ -16,7 +16,7 @@ impl MdWriter {
         }
     }
 
-    pub fn write_md_to_fmt<'md, I, W>(&self, ctx: &'md MdContext, nodes: I, out: W)
+    pub fn write_md_to_fmt<'md, I, W>(&self, ctx: &'md MdContext, nodes: I, out: &mut W)
     where
         I: IntoIterator<Item = &'md MdElem>,
         W: fmt::Write,
@@ -29,7 +29,7 @@ impl MdWriter {
         )
     }
 
-    pub fn write_md_to_io<'md, I, W>(&self, ctx: &'md MdContext, nodes: I, out: W)
+    pub fn write_md_to_io<'md, I, W>(&self, ctx: &'md MdContext, nodes: I, out: &mut W)
     where
         I: IntoIterator<Item = &'md MdElem>,
         W: io::Write,
