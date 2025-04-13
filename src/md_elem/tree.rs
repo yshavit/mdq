@@ -106,9 +106,9 @@ pub(crate) struct ReadOptions {
 
 #[derive(Debug, PartialEq)]
 pub enum InvalidMd {
-    Unsupported(mdast::Node),
-    NonListItemDirectlyUnderList(mdast::Node),
-    NonRowDirectlyUnderTable(mdast::Node),
+    Unsupported(MarkdownPart),
+    NonListItemDirectlyUnderList(MarkdownPart),
+    NonRowDirectlyUnderTable(MarkdownPart),
     NonInlineWhereInlineExpected(MdElem),
     MissingReferenceDefinition(String),
     ConflictingReferenceDefinition(String),
@@ -116,6 +116,9 @@ pub enum InvalidMd {
     UnknownMarkdown(&'static str),
     ParseError(String),
 }
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct MarkdownPart(mdast::Node);
 
 // A wrapper for [Backtrace] that implements [PartialEq] to always return `true`. This lets us use it in a struct
 // while still letting us use `#[derive(PartialEq)]`
@@ -127,6 +130,8 @@ impl PartialEq for UnknownMdParseError {
         true
     }
 }
+
+impl Eq for UnknownMdParseError {}
 
 impl Display for InvalidMd {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -452,7 +457,7 @@ impl MdElem {
                 let mut li_nodes = Vec::with_capacity(node.children.len());
                 for node in node.children {
                     let mdast::Node::ListItem(li_node) = node else {
-                        return Err(InvalidMd::NonListItemDirectlyUnderList(node));
+                        return Err(InvalidMd::NonListItemDirectlyUnderList(MarkdownPart(node)));
                     };
                     let li_mdq = ListItem {
                         checked: li_node.checked,
@@ -567,7 +572,7 @@ impl MdElem {
                         children: cell_nodes, ..
                     }) = row_node
                     else {
-                        return Err(InvalidMd::NonRowDirectlyUnderTable(row_node));
+                        return Err(InvalidMd::NonRowDirectlyUnderTable(MarkdownPart(row_node)));
                     };
                     let mut column = Vec::with_capacity(cell_nodes.len());
                     for cell_node in cell_nodes {
@@ -609,7 +614,7 @@ impl MdElem {
             mdx_nodes! {} => {
                 // If you implement this, make sure to remove the mdx_nodes macro. That means you'll also need to
                 // adjust the test `nodes_matcher` macro.
-                return Err(InvalidMd::Unsupported(node));
+                return Err(InvalidMd::Unsupported(MarkdownPart(node)));
             }
         };
         Ok(vec![result])
