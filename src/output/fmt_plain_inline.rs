@@ -148,6 +148,7 @@ mod test {
     use super::*;
     use crate::util::utils_for_test::*;
     use indoc::indoc;
+    use std::fmt::Alignment;
 
     variants_checker!(VARIANTS_CHECKER = MdElem {
         Doc(_),
@@ -345,7 +346,7 @@ mod test {
     #[test]
     fn table() {
         let md_elem = md_elem!(Table {
-            alignments: vec![TableColumnAlignment::None, TableColumnAlignment::Center],
+            alignments: vec![None, Some(Alignment::Center)],
             rows: vec![
                 vec![vec![mdq_inline!("1A")], vec![mdq_inline!("1B")]],
                 vec![vec![mdq_inline!("2A")], vec![mdq_inline!("2B")]],
@@ -363,7 +364,7 @@ mod test {
     #[test]
     fn table_with_empty_cells() {
         let md_elem = md_elem!(Table {
-            alignments: vec![TableColumnAlignment::None, TableColumnAlignment::Center],
+            alignments: vec![None, Some(Alignment::Center)],
             rows: vec![
                 vec![cell(["a"]), cell(["b"]), cell(["c"])],
                 vec![cell(["a"]), cell([]), cell(["c"])],
@@ -481,7 +482,7 @@ mod test {
     #[test]
     fn table_slice() {
         let table = Table {
-            alignments: vec![TableColumnAlignment::None, TableColumnAlignment::Center],
+            alignments: vec![None, Some(Alignment::Center)],
             rows: vec![
                 vec![vec![mdq_inline!("1A")], vec![mdq_inline!("1B")]],
                 vec![vec![mdq_inline!("2A")], vec![mdq_inline!("2B")]],

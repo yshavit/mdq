@@ -6,6 +6,7 @@ use crate::util::output::Output;
 use serde::{Serialize, Serializer};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
+use std::fmt::Alignment;
 
 #[derive(Serialize)]
 pub struct MdSerde<'md> {
@@ -111,10 +112,10 @@ pub enum AlignSerde {
 impl From<TableColumnAlignment> for AlignSerde {
     fn from(value: TableColumnAlignment) -> Self {
         match value {
-            TableColumnAlignment::Left => Self::Left,
-            TableColumnAlignment::Right => Self::Right,
-            TableColumnAlignment::Center => Self::Center,
-            TableColumnAlignment::None => Self::None,
+            Some(Alignment::Left) => Self::Left,
+            Some(Alignment::Right) => Self::Right,
+            Some(Alignment::Center) => Self::Center,
+            None => Self::None,
         }
     }
 }
@@ -569,7 +570,7 @@ mod tests {
     fn table() {
         check(
             md_elem!(Table {
-                alignments: vec![TableColumnAlignment::Left, TableColumnAlignment::None],
+                alignments: vec![Some(Alignment::Left), None],
                 rows: vec![
                     vec![vec![mdq_inline!("R1C1")], vec![mdq_inline!("R1C2")]],
                     vec![vec![mdq_inline!("R2C1")], vec![mdq_inline!("R2C2")]],
@@ -592,7 +593,7 @@ mod tests {
     #[test]
     fn table_slice() {
         let table = Table {
-            alignments: vec![TableColumnAlignment::Left, TableColumnAlignment::None],
+            alignments: vec![Some(Alignment::Left), None],
             rows: vec![
                 vec![vec![mdq_inline!("R1C1")], vec![mdq_inline!("R1C2")]],
                 vec![vec![mdq_inline!("R2C1")], vec![mdq_inline!("R2C2")]],

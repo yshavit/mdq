@@ -214,7 +214,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
         let mut column_widths = [0].repeat(alignments.len());
         if !alignments.is_empty() {
             for (idx, alignment) in alignments.iter().enumerate() {
-                let width = match standard_align(*alignment) {
+                let width = match *alignment {
                     Some(Alignment::Left | Alignment::Right) => 2,
                     Some(Alignment::Center) => 3,
                     None => 1,
@@ -259,7 +259,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                     out,
                     &col,
                     *column_widths.get(idx).unwrap_or(&0) - left_padding_count - 1, // -1 for right padding
-                    alignments.get(idx),
+                    alignments.get(idx).map(|i| *i).unwrap_or(None),
                 );
                 out.write_str(" |");
             }
@@ -282,7 +282,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
             for (idx, &align) in alignments.iter().enumerate() {
                 let width = column_widths
                     .get(idx)
-                    .unwrap_or_else(|| match standard_align(align) {
+                    .unwrap_or_else(|| match align {
                         Some(Alignment::Left | Alignment::Right) => &2,
                         Some(Alignment::Center) => &3,
                         None => &1,
@@ -956,10 +956,10 @@ pub mod tests {
             check_render(
                 md_elems![Table {
                     alignments: vec![
-                        TableColumnAlignment::Left,
-                        TableColumnAlignment::Right,
-                        TableColumnAlignment::Center,
-                        TableColumnAlignment::None,
+                        Some(Alignment::Left),
+                        Some(Alignment::Right),
+                        Some(Alignment::Center),
+                        None,
                     ],
                     rows: vec![
                         // Header row
@@ -993,10 +993,10 @@ pub mod tests {
             check_render(
                 md_elems![Table {
                     alignments: vec![
-                        TableColumnAlignment::Left,
-                        TableColumnAlignment::Right,
-                        TableColumnAlignment::Center,
-                        TableColumnAlignment::None,
+                        Some(Alignment::Left),
+                        Some(Alignment::Right),
+                        Some(Alignment::Center),
+                        None,
                     ],
                     rows: vec![
                         // Header row
@@ -1030,10 +1030,10 @@ pub mod tests {
             check_render(
                 md_elems![Table {
                     alignments: vec![
-                        TableColumnAlignment::Left,
-                        TableColumnAlignment::Right,
-                        TableColumnAlignment::Center,
-                        TableColumnAlignment::None,
+                        Some(Alignment::Left),
+                        Some(Alignment::Right),
+                        Some(Alignment::Center),
+                        None,
                     ],
                     rows: vec![
                         // Header row
@@ -1103,7 +1103,7 @@ pub mod tests {
         #[test]
         fn slice() {
             let table = Table {
-                alignments: vec![TableColumnAlignment::Left, TableColumnAlignment::Right],
+                alignments: vec![Some(Alignment::Left), Some(Alignment::Right)],
                 rows: vec![
                     // Header row
                     vec![

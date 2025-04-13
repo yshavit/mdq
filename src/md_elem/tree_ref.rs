@@ -99,6 +99,7 @@ mod tests {
 
     mod tables {
         use super::*;
+        use std::fmt::Alignment;
 
         #[test]
         fn retain_col() {
@@ -111,7 +112,7 @@ mod tests {
 
             // note: "KEEPER" is in the last column, but not in the header; only the header gets
             // matched.
-            assert_eq!(table.alignments, vec![TableColumnAlignment::Left]);
+            assert_eq!(table.alignments, vec![Some(Alignment::Left)]);
             assert_eq!(
                 table.rows,
                 vec![vec![cell("KEEPER a")], vec![cell("data 1 a")], vec![cell("data 2 a")],]
@@ -136,11 +137,7 @@ mod tests {
             // normalization
             assert_eq!(
                 table.alignments,
-                vec![
-                    TableColumnAlignment::Left,
-                    TableColumnAlignment::Right,
-                    TableColumnAlignment::None
-                ]
+                vec![Some(Alignment::Left), Some(Alignment::Right), None]
             );
             assert_eq!(
                 table.rows,
@@ -167,11 +164,7 @@ mod tests {
 
             assert_eq!(
                 table.alignments,
-                vec![
-                    TableColumnAlignment::Left,
-                    TableColumnAlignment::Right,
-                    TableColumnAlignment::Center,
-                ]
+                vec![Some(Alignment::Left), Some(Alignment::Right), Some(Alignment::Center),]
             );
             // note: header row always gets kept
             assert_eq!(
@@ -204,11 +197,7 @@ mod tests {
             // normalization
             assert_eq!(
                 table.alignments,
-                vec![
-                    TableColumnAlignment::Left,
-                    TableColumnAlignment::Right,
-                    TableColumnAlignment::None
-                ]
+                vec![Some(Alignment::Left), Some(Alignment::Right), None]
             );
             assert_eq!(
                 table.rows,
@@ -249,16 +238,12 @@ mod tests {
             };
 
             // for alignments, just cycle [L, R, C].
-            let alignments = [
-                TableColumnAlignment::Left,
-                TableColumnAlignment::Right,
-                TableColumnAlignment::Center,
-            ]
-            .iter()
-            .cycle()
-            .take(first_row.len())
-            .map(ToOwned::to_owned)
-            .collect();
+            let alignments = [Some(Alignment::Left), Some(Alignment::Right), Some(Alignment::Center)]
+                .iter()
+                .cycle()
+                .take(first_row.len())
+                .map(ToOwned::to_owned)
+                .collect();
             let mut rows = Vec::with_capacity(cells.len());
 
             while let Some(row_strings) = rows_iter.next() {

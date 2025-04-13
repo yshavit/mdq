@@ -170,6 +170,7 @@ impl Display for InvalidMd {
 
 pub mod elem {
     use super::*;
+    use markdown::mdast::AlignKind;
     use std::ops::Deref;
 
     pub type TableRow = Vec<TableCell>;
@@ -313,22 +314,14 @@ pub mod elem {
         pub rows: Vec<TableRow>,
     }
 
-    #[derive(Debug, PartialEq, Clone, Copy)]
-    pub enum TableColumnAlignment {
-        Left,
-        Right,
-        Center,
-        None,
-    }
+    pub type TableColumnAlignment = Option<core::fmt::Alignment>;
 
-    impl From<mdast::AlignKind> for TableColumnAlignment {
-        fn from(value: mdast::AlignKind) -> Self {
-            match value {
-                mdast::AlignKind::Left => Self::Left,
-                mdast::AlignKind::Right => Self::Right,
-                mdast::AlignKind::Center => Self::Center,
-                mdast::AlignKind::None => Self::None,
-            }
+    pub fn convert_alignment(a: mdast::AlignKind) -> TableColumnAlignment {
+        match a {
+            AlignKind::Left => Some(core::fmt::Alignment::Left),
+            AlignKind::Right => Some(core::fmt::Alignment::Right),
+            AlignKind::Center => Some(core::fmt::Alignment::Center),
+            AlignKind::None => None,
         }
     }
 
@@ -592,7 +585,7 @@ impl MdElem {
                     rows.push(column);
                 }
                 m_node!(MdElem::Table {
-                    alignments: align.into_iter().map(|a| a.into()).collect(),
+                    alignments: align.into_iter().map(convert_alignment).collect(),
                     rows,
                 })
             }
@@ -944,6 +937,7 @@ mod tests {
         use indoc::indoc;
         use markdown::mdast::Node;
         use markdown::{mdast, ParseOptions};
+        use std::fmt::Alignment;
 
         macro_rules! check {
             (error: $enum_value:expr, $enum_variant:pat, $lookups:expr => $err:expr $(, $body:block)? ) => {{
@@ -1988,7 +1982,7 @@ mod tests {
             );
             assert_eq!(root.children.len(), 1);
             check!(&root.children[0], Node::Table(table_node), lookups => m_node!(MdElem::Table{alignments, rows}) = {
-                assert_eq!(alignments, vec![TableColumnAlignment::Left, TableColumnAlignment::Center, TableColumnAlignment::Right, TableColumnAlignment::None]);
+                assert_eq!(alignments, vec![Some(Alignment::Left), Some(Alignment::Center), Some(Alignment::Right), None]);
                 assert_eq!(rows,
                     vec![ // rows
                         vec![// Header row
@@ -2028,7 +2022,7 @@ mod tests {
             );
             assert_eq!(root.children.len(), 1);
             check!(&root.children[0], Node::Table(_), lookups => m_node!(MdElem::Table{alignments, rows}) = {
-                assert_eq!(alignments, vec![TableColumnAlignment::Left, TableColumnAlignment::Right]);
+                assert_eq!(alignments, vec![Some(Alignment::Left), Some(Alignment::Right)]);
                 assert_eq!(rows,
                     vec![ // rows
                         vec![// Header row
