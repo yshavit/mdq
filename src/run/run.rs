@@ -13,18 +13,18 @@ use std::{env, io};
 
 #[derive(Debug)]
 pub enum Error {
-    QueryParse(QueryParse),
+    QueryParse(QueryParseError),
     MarkdownParse(InvalidMd),
     FileReadError(Input, io::Error),
 }
 
 #[derive(Debug)]
-pub struct QueryParse {
+pub struct QueryParseError {
     query_string: String,
     error: ParseError,
 }
 
-impl Display for QueryParse {
+impl Display for QueryParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match &self.error {
             ParseError::Pest(err) => {
@@ -158,7 +158,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
     let selectors: Selector = match selectors_str.deref().try_into() {
         Ok(selectors) => selectors,
         Err(error) => {
-            return Err(Error::QueryParse(QueryParse {
+            return Err(Error::QueryParse(QueryParseError {
                 query_string: selectors_str.into_owned(),
                 error,
             }));
