@@ -373,6 +373,12 @@ pub mod elem {
             MdElem::Inline(Inline::Link(value))
         }
     }
+
+    impl From<Vec<MdElem>> for MdElem {
+        fn from(elems: Vec<MdElem>) -> Self {
+            Self::Doc(elems)
+        }
+    }
 }
 
 /// Defines all the mdx nodes as match arms. This let us easily mark them as ignored, and in particular makes it so that

@@ -2,7 +2,7 @@ use crate::md_elem::{InvalidMd, MdDoc, MdElem, ParseOptions};
 use crate::output::serde::MdSerde;
 use crate::query::ParseError;
 use crate::run::cli::{Cli, OutputFormat};
-use crate::select::{SelectorAdapter, SelectorChain};
+use crate::select::{Selector, SelectorAdapter};
 use crate::util::output::Output;
 use crate::util::output::{OutputOpts, Stream};
 use crate::{md_elem, output, query};
@@ -138,7 +138,7 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
     };
 
     let selectors_str = cli.selector_string();
-    let selectors: SelectorChain = match selectors_str.deref().try_into() {
+    let selectors: Selector = match selectors_str.deref().try_into() {
         Ok(selectors) => selectors,
         Err(error) => {
             return Err(Error::QueryParse {
@@ -148,12 +148,8 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
         }
     };
 
-    let mut pipeline_nodes = vec![MdElem::Doc(roots)];
-    let selector_adapters = SelectorAdapter::from_chain(selectors);
-    for selector in selector_adapters {
-        let new_pipeline = selector.find_nodes(&ctx, pipeline_nodes);
-        pipeline_nodes = new_pipeline;
-    }
+    let selector_adapter = SelectorAdapter::from(selectors);
+    let pipeline_nodes = selector_adapter.find_nodes(&ctx, vec![MdElem::Doc(roots)]);
 
     let md_options = output::md::MdOptions {
         link_reference_placement: cli.link_pos,

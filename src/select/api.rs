@@ -1,5 +1,6 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
+use crate::select::sel_chain::ChainSelector;
 use crate::select::sel_code_block::CodeBlockSelector;
 use crate::select::sel_link_like::ImageSelector;
 use crate::select::sel_link_like::LinkSelector;
@@ -9,16 +10,18 @@ use crate::select::sel_single_matcher::BlockQuoteSelector;
 use crate::select::sel_single_matcher::HtmlSelector;
 use crate::select::sel_single_matcher::ParagraphSelector;
 use crate::select::sel_table::TableSelector;
-use crate::select::{Selector, SelectorChain};
+use crate::select::Selector;
 use paste::paste;
 use std::collections::HashSet;
 
 pub trait TrySelector<I: Into<MdElem>> {
-    fn try_select(&self, item: I) -> Result<MdElem, MdElem>;
+    fn try_select(&self, ctx: &MdContext, item: I) -> Result<Vec<MdElem>, MdElem>;
 }
 
 macro_rules! adapters {
     { $($name:ident => $md_elem:ident),+ , <inlines> { $($inline:ident),+ , } } => {
+
+        #[derive(Debug)]
         pub enum SelectorAdapter {
             $(
             $name( paste!{[<$name Selector>]} ),
@@ -42,13 +45,13 @@ macro_rules! adapters {
         }
 
         impl SelectorAdapter {
-            fn try_select_node<'md>(&self, node: MdElem) -> Result<MdElem, MdElem> {
+            fn try_select_node<'md>(&self, ctx: &MdContext, node: MdElem) -> Result<Vec<MdElem>, MdElem> {
                 match (&self, node) {
                     $(
-                    (Self::$name(adapter), MdElem::$md_elem(elem)) => adapter.try_select(elem),
+                    (Self::$name(adapter), MdElem::$md_elem(elem)) => adapter.try_select(ctx, elem),
                     )+
                     $(
-                    (Self::$inline(adapter), MdElem::Inline(Inline::$inline(elem))) => adapter.try_select(elem),
+                    (Self::$inline(adapter), MdElem::Inline(Inline::$inline(elem))) => adapter.try_select(ctx, elem),
                     )+
                     (_, unmatched) => Err(unmatched),
                 }
@@ -58,6 +61,7 @@ macro_rules! adapters {
 }
 
 adapters! {
+    Chain => Doc,
     Section => Section,
     ListItem => List,
     BlockQuote => BlockQuote,
@@ -72,11 +76,6 @@ adapters! {
 }
 
 impl SelectorAdapter {
-    // TODO remove this struct, and just have Selector do everything
-    pub fn from_chain(chain: SelectorChain) -> Vec<Self> {
-        chain.selectors.into_iter().map(|s| s.into()).collect()
-    }
-
     pub fn find_nodes(&self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
         let mut search_context = SearchContext::new(ctx);
@@ -87,8 +86,8 @@ impl SelectorAdapter {
     }
 
     fn build_output<'md>(&self, out: &mut Vec<MdElem>, ctx: &mut SearchContext<'md>, node: MdElem) {
-        match self.try_select_node(node) {
-            Ok(found) => out.push(found),
+        match self.try_select_node(&ctx.md_context, node) {
+            Ok(mut found) => out.append(&mut found),
             Err(not_found) => {
                 for child in Self::find_children(ctx, not_found) {
                     self.build_output(out, ctx, child);

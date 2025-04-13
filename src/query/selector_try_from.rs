@@ -6,34 +6,36 @@ use crate::query::traversal_composites::{
 };
 use crate::query::{DetachedSpan, Pair, Pairs, ParseError, Query};
 use crate::select::{
-    AnyVariant, CodeBlockMatcher, LinklikeMatcher, ListItemMatcher, ListItemTask, Matcher, Selector, SelectorChain,
-    TableMatcher,
+    AnyVariant, CodeBlockMatcher, LinklikeMatcher, ListItemMatcher, ListItemTask, Matcher, Selector, TableMatcher,
 };
 
-impl TryFrom<Pairs<'_>> for SelectorChain {
+impl TryFrom<Pairs<'_>> for Selector {
     type Error = ParseError;
 
     fn try_from(root: Pairs) -> Result<Self, Self::Error> {
         // Get "all" the selector chains; there should be at most 1.
         let selector_chains = ByRule::new(Rule::selector_chain).find_all_in(root);
-        let mut selectors: Vec<Selector> = Vec::new();
+        let mut selectors: Vec<Self> = Vec::new();
         for chain in selector_chains {
             // within the chain, get the selectors; for each one, get its inners (there should be exactly one) and get
             // its selector.
             let selector_inners = ByRule::new(Rule::selector).find_all_in(chain.into_inner());
             for selector_pair in selector_inners {
-                let selector = Selector::find_selector(selector_pair)?;
+                let selector = Self::find_selector(selector_pair)?;
                 selectors.push(selector);
             }
         }
-        Ok(Self { selectors })
+        Ok(match selectors.len() {
+            1 => selectors.into_iter().next().unwrap(),
+            _ => Self::Chain(selectors),
+        })
     }
 }
 
 impl Selector {
-    pub fn try_parse(value: &'_ str) -> Result<SelectorChain, ParseError> {
+    pub(crate) fn try_parse(value: &'_ str) -> Result<Self, ParseError> {
         let parsed: Pairs = Query::parse(value).map_err(|err| ParseError::from(err))?;
-        let parsed_selectors = SelectorChain::try_from(parsed).map_err(|e| ParseError::from(e))?;
+        let parsed_selectors = Selector::try_from(parsed).map_err(|e| ParseError::from(e))?;
         Ok(parsed_selectors)
     }
 
@@ -220,13 +222,13 @@ mod tests {
         fn useful_chaining() {
             find_selectors(
                 "# | []()",
-                vec![
+                Selector::Chain(vec![
                     Selector::Section(Matcher::Any(AnyVariant::Implicit)),
                     Selector::Link(LinklikeMatcher {
                         display_matcher: Matcher::Any(AnyVariant::Implicit),
                         url_matcher: Matcher::Any(AnyVariant::Implicit),
                     }),
-                ],
+                ]),
             );
         }
 
@@ -234,13 +236,13 @@ mod tests {
         fn empty_intermediate_chains() {
             find_selectors(
                 "# || | []()",
-                vec![
+                Selector::Chain(vec![
                     Selector::Section(Matcher::Any(AnyVariant::Implicit)),
                     Selector::Link(LinklikeMatcher {
                         display_matcher: Matcher::Any(AnyVariant::Implicit),
                         url_matcher: Matcher::Any(AnyVariant::Implicit),
                     }),
-                ],
+                ]),
             );
         }
     }
@@ -729,14 +731,14 @@ mod tests {
     }
 
     fn find_empty_chain(query_text: &str) {
-        find_selectors(query_text, vec![]);
+        find_selectors(query_text, Selector::Chain(Vec::new()));
     }
 
     fn find_selector(query_text: &str, expect: Selector) {
-        find_selectors(query_text, vec![expect])
+        find_selectors(query_text, expect)
     }
 
-    fn find_selectors(query_text: &str, expect: Vec<Selector>) {
+    fn find_selectors(query_text: &str, expect: Selector) {
         let pairs = Query::parse(query_text);
         let pairs = match pairs {
             Ok(pairs) => pairs,
@@ -745,15 +747,15 @@ mod tests {
             }
         };
 
-        let result = SelectorChain::try_from(pairs);
-        assert_eq!(result, Ok(SelectorChain { selectors: expect }));
+        let result = Selector::try_from(pairs);
+        assert_eq!(result, Ok(expect));
     }
 
     fn expect_parse_error(query_text: &str, expect: &str) {
         let pairs = Query::parse(query_text);
         let err_msg = match pairs {
-            Ok(pairs) => match SelectorChain::try_from(pairs) {
-                Ok(SelectorChain { selectors }) => panic!("{selectors:?}"),
+            Ok(pairs) => match Selector::try_from(pairs) {
+                Ok(selector) => panic!("{selector:?}"),
                 Err(ParseError::Pest(err)) => format!("{err}"),
                 Err(ParseError::Other(span, message)) => {
                     let error = Error::new_from_span(

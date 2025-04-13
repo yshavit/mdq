@@ -10,7 +10,7 @@ pub struct TableSelector {
 }
 
 impl TrySelector<Table> for TableSelector {
-    fn try_select(&self, orig: Table) -> Result<MdElem, MdElem> {
+    fn try_select(&self, _: &MdContext, orig: Table) -> Result<Vec<MdElem>, MdElem> {
         let mut table = orig.clone();
 
         table.normalize();
@@ -24,7 +24,7 @@ impl TrySelector<Table> for TableSelector {
         if table.is_empty() {
             return Err(orig.into());
         }
-        Ok(table.into())
+        Ok(vec![table.into()])
     }
 }
 
@@ -59,7 +59,8 @@ mod tests {
             headers_matcher: ".*".into(),
             rows_matcher: ".*".into(),
         }
-        .try_select(table);
+        .try_select(&MdContext::empty(), table)
+        .map(get_only);
 
         unwrap!(maybe_selected, Ok(MdElem::Table(table)));
         assert_eq!(
@@ -88,7 +89,8 @@ mod tests {
             headers_matcher: "KEEP".into(),
             rows_matcher: ".*".into(),
         }
-        .try_select(table);
+        .try_select(&MdContext::empty(), table)
+        .map(get_only);
 
         unwrap!(maybe_selected, Ok(MdElem::Table(table)));
         assert_eq!(table.alignments(), &vec![mdast::AlignKind::Right]);
@@ -109,7 +111,8 @@ mod tests {
             headers_matcher: ".*".into(),
             rows_matcher: "data 2".into(),
         }
-        .try_select(table);
+        .try_select(&MdContext::empty(), table)
+        .map(get_only);
 
         unwrap!(maybe_selected, Ok(MdElem::Table(table)));
         assert_eq!(
@@ -143,7 +146,8 @@ mod tests {
             headers_matcher: ".*".into(),
             rows_matcher: "data 1".into(),
         }
-        .try_select(table);
+        .try_select(&MdContext::empty(), table)
+        .map(get_only);
 
         unwrap!(maybe_selected, Ok(MdElem::Table(table)));
         assert_eq!(
