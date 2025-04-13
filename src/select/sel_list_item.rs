@@ -47,8 +47,8 @@ impl TrySelector<List> for ListItemSelector {
         //   That way, the find_children code in api.rs will recurse back into this method for each of those items, but
         //   as a single-item list for the base case.
         let List { starting_index, items } = item;
-        match (starting_index, items.as_slice()) {
-            (starting_index, [li]) => {
+        match items.as_slice() {
+            [li] => {
                 let matched = self.li_type.matches(&starting_index)
                     && task_matches(self.checkbox, li.checked)
                     && self.string_matcher.matches_any(&li.item);
@@ -59,14 +59,15 @@ impl TrySelector<List> for ListItemSelector {
                     Err(list)
                 }
             }
-            (mut starting_index, _) => {
+            _ => {
+                let mut idx = starting_index;
                 let mut items_doc = Vec::with_capacity(items.len());
                 for item in items {
                     items_doc.push(MdElem::List(List {
-                        starting_index,
+                        starting_index: idx,
                         items: vec![item],
                     }));
-                    starting_index.as_mut().map(|idx| *idx += 1);
+                    idx.as_mut().map(|idx| *idx += 1);
                 }
                 Err(MdElem::Doc(items_doc))
             }
