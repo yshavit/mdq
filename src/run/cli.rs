@@ -4,30 +4,29 @@ use clap::{CommandFactory, Parser, ValueEnum};
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, PartialEq, Eq)]
 #[command(version, about, long_about = None)]
-#[doc(hidden)]
-pub struct Cli {
+pub struct RunOptions {
     /// Where to put link references.
     ///
     /// For links and images of style `[description][1]`, this flag controls where to put the `[1]: https://example.com`
     /// definition.
     #[arg(long, value_enum, default_value_t=ReferencePlacement::Section)]
-    pub(crate) link_pos: ReferencePlacement,
+    pub link_pos: ReferencePlacement,
 
     /// Where to put footnote references. Defaults to be same as --link-pos
     #[arg(long, value_enum)]
-    pub(crate) footnote_pos: Option<ReferencePlacement>,
+    pub footnote_pos: Option<ReferencePlacement>,
 
     #[arg(long, short, value_enum, default_value_t=LinkTransform::Reference)]
-    pub(crate) link_format: LinkTransform,
+    pub link_format: LinkTransform,
 
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
-    pub(crate) renumber_footnotes: bool,
+    pub renumber_footnotes: bool,
 
     /// Output the results as a JSON object, instead of as markdown.
     #[arg(long, short, default_value_t = OutputFormat::Markdown)]
-    pub(crate) output: OutputFormat,
+    pub output: OutputFormat,
 
     /// Include breaks between elements in plain and markdown output mode.
     ///
@@ -58,7 +57,7 @@ pub struct Cli {
     /// wrapping will never break a word; it will only ever be along existing whitespace. In
     /// particular, this means the wrapping will never add hyphens, and it will never break URLs.
     #[arg(long)]
-    pub(crate) wrap_width: Option<usize>,
+    pub wrap_width: Option<usize>,
 
     #[arg(
         short = ' ',
@@ -74,11 +73,11 @@ pub struct Cli {
 
     /// Quiet: do not print anything to stdout. The exit code will still be 0 if any elements match, and non-0 if none do.
     #[arg(long, short)]
-    pub(crate) quiet: bool,
+    pub quiet: bool,
 
     // See: tree.rs > Lookups::unknown_markdown.
     #[arg(long, hide = true)]
-    pub(crate) allow_unknown_markdown: bool,
+    pub allow_unknown_markdown: bool,
 
     /// An optional list of Markdown files to parse, by path. If not provided, standard input will be used.
     ///
@@ -91,10 +90,41 @@ pub struct Cli {
     /// processed in the order you provide them. If you provide the same file twice, mdq will process it twice, unless
     /// that file is "-"; all but the first "-" paths are ignored.
     #[arg()]
-    pub(crate) markdown_file_paths: Vec<String>,
+    pub markdown_file_paths: Vec<String>,
 }
 
-impl Cli {
+impl Default for RunOptions {
+    fn default() -> Self {
+        Self {
+            link_pos: ReferencePlacement::Section,
+            footnote_pos: None,
+            link_format: LinkTransform::Reference,
+            renumber_footnotes: true,
+            output: OutputFormat::Markdown,
+            br_umbrella: false,
+            br: false,
+            no_br: false,
+            wrap_width: None,
+            list_selector: None,
+            selectors: None,
+            quiet: false,
+            allow_unknown_markdown: false,
+            markdown_file_paths: vec![],
+        }
+    }
+}
+
+impl RunOptions {
+    pub fn set_br(&mut self, value: Option<bool>) {
+        let (br, no_br) = match value {
+            None => (false, false),
+            Some(true) => (true, false),
+            Some(false) => (false, true),
+        };
+        self.br = br;
+        self.no_br = no_br;
+    }
+
     pub fn selector_string(&self) -> Cow<String> {
         match &self.selectors {
             Some(s) => Cow::Borrowed(s),
@@ -122,7 +152,7 @@ impl Cli {
         match self.output {
             OutputFormat::Json => {
                 if matches!(self.wrap_width, Some(_)) {
-                    let _ = Cli::command()
+                    let _ = RunOptions::command()
                         .error(
                             ErrorKind::ArgumentConflict,
                             "Can't set text width with JSON output format",
@@ -135,7 +165,7 @@ impl Cli {
             OutputFormat::Plain => {}
         }
         if self.br_umbrella {
-            let _ = Cli::command()
+            let _ = RunOptions::command()
                 .error(
                     ErrorKind::UnknownArgument,
                     r"invalid argument '--[no]-br'; use '--br' or '--no-br'.",
@@ -208,27 +238,35 @@ impl Display for OutputFormat {
 
 #[cfg(test)]
 mod tests {
-    use crate::run::cli::Cli;
+    use crate::run::cli::RunOptions;
     use crate::util::utils_for_test::*;
     use clap::{Error, Parser};
 
     #[test]
     fn verify_cli() {
         use clap::CommandFactory;
-        Cli::command().debug_assert();
+        RunOptions::command().debug_assert();
     }
 
     #[test]
     fn no_args() {
-        let result = Cli::try_parse_from(["mdq"]);
+        let result = RunOptions::try_parse_from(["mdq"]);
         unwrap!(result, Ok(cli));
         assert_eq!(cli.selector_string().as_str(), "");
         assert!(cli.markdown_file_paths.is_empty());
     }
 
     #[test]
+    fn no_args_equals_default() {
+        let result = RunOptions::try_parse_from(["mdq"]);
+        unwrap!(result, Ok(cli));
+        let from_default = RunOptions::default();
+        assert_eq!(cli, from_default);
+    }
+
+    #[test]
     fn standard_selectors() {
-        let result = Cli::try_parse_from(["mdq", "# hello"]);
+        let result = RunOptions::try_parse_from(["mdq", "# hello"]);
         unwrap!(result, Ok(cli));
         assert_eq!(cli.selector_string().as_str(), "# hello");
         assert!(cli.markdown_file_paths.is_empty());
@@ -236,7 +274,7 @@ mod tests {
 
     #[test]
     fn selector_and_file() {
-        let result = Cli::try_parse_from(["mdq", "# hello", "file.txt"]);
+        let result = RunOptions::try_parse_from(["mdq", "# hello", "file.txt"]);
         unwrap!(result, Ok(cli));
         assert_eq!(cli.selector_string().as_str(), "# hello");
         assert_eq!(cli.markdown_file_paths, ["file.txt"]);
@@ -244,14 +282,14 @@ mod tests {
 
     #[test]
     fn start_with_list_selectors() {
-        let result = Cli::try_parse_from(["mdq", "- world"]);
+        let result = RunOptions::try_parse_from(["mdq", "- world"]);
         unwrap!(result, Ok(cli));
         assert_eq!(cli.selector_string().as_str(), "- world");
     }
 
     #[test]
     fn start_with_list_selectors_twice() {
-        let result = Cli::try_parse_from(["mdq", "- hello", "- world"]);
+        let result = RunOptions::try_parse_from(["mdq", "- hello", "- world"]);
         check_err(
             &result,
             "the argument '-  <selectors starting with list>' cannot be used multiple times",
@@ -260,14 +298,14 @@ mod tests {
 
     #[test]
     fn both_list_and_std_selectors() {
-        let result = Cli::try_parse_from(["mdq", "# hello", "- world"]);
+        let result = RunOptions::try_parse_from(["mdq", "# hello", "- world"]);
         check_err(
             &result,
             "the argument '[selectors]' cannot be used with '-  <selectors starting with list>'",
         )
     }
 
-    fn check_err(result: &Result<Cli, Error>, expect: &str) {
+    fn check_err(result: &Result<RunOptions, Error>, expect: &str) {
         unwrap!(result, Err(e));
         let e_str = e.to_string();
         let first_line = e_str.split('\n').next().expect("no error string found");

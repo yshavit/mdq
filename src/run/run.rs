@@ -1,7 +1,7 @@
 use crate::md_elem::{InvalidMd, MdDoc, MdElem, ParseOptions};
 use crate::output::MdWriter;
 use crate::query::ParseError;
-use crate::run::cli::{Cli, OutputFormat};
+use crate::run::cli::{OutputFormat, RunOptions};
 use crate::select::{Selector, SelectorAdapter};
 use crate::{md_elem, output, query};
 use pest::error::ErrorVariant;
@@ -130,7 +130,7 @@ pub trait OsFacade {
 
 // TODO: replace with a method that doesn't take OsFacade (that should be defined in main.rs), but instead takes
 //  an FnOnce(MdElem) -> R
-pub fn run(cli: &Cli, os: &mut impl OsFacade) -> bool {
+pub fn run(cli: &RunOptions, os: &mut impl OsFacade) -> bool {
     if !cli.extra_validation() {
         return false;
     }
@@ -143,7 +143,7 @@ pub fn run(cli: &Cli, os: &mut impl OsFacade) -> bool {
     }
 }
 
-fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
+fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error> {
     let contents_str = os.read_all(&cli.markdown_file_paths)?;
     let mut options = ParseOptions::gfm();
     options.allow_unknown_markdown = cli.allow_unknown_markdown;
