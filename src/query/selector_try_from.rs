@@ -222,13 +222,13 @@ mod tests {
         fn useful_chaining() {
             find_selectors(
                 "# | []()",
-                vec![
+                Selector::Chain(vec![
                     Selector::Section(Matcher::Any(AnyVariant::Implicit)),
                     Selector::Link(LinklikeMatcher {
                         display_matcher: Matcher::Any(AnyVariant::Implicit),
                         url_matcher: Matcher::Any(AnyVariant::Implicit),
                     }),
-                ],
+                ]),
             );
         }
 
@@ -236,13 +236,13 @@ mod tests {
         fn empty_intermediate_chains() {
             find_selectors(
                 "# || | []()",
-                vec![
+                Selector::Chain(vec![
                     Selector::Section(Matcher::Any(AnyVariant::Implicit)),
                     Selector::Link(LinklikeMatcher {
                         display_matcher: Matcher::Any(AnyVariant::Implicit),
                         url_matcher: Matcher::Any(AnyVariant::Implicit),
                     }),
-                ],
+                ]),
             );
         }
     }
@@ -731,14 +731,14 @@ mod tests {
     }
 
     fn find_empty_chain(query_text: &str) {
-        find_selectors(query_text, vec![]);
+        find_selectors(query_text, Selector::Chain(Vec::new()));
     }
 
     fn find_selector(query_text: &str, expect: Selector) {
-        find_selectors(query_text, vec![expect])
+        find_selectors(query_text, expect)
     }
 
-    fn find_selectors(query_text: &str, expect: Vec<Selector>) {
+    fn find_selectors(query_text: &str, expect: Selector) {
         let pairs = Query::parse(query_text);
         let pairs = match pairs {
             Ok(pairs) => pairs,
@@ -748,7 +748,7 @@ mod tests {
         };
 
         let result = Selector::try_from(pairs);
-        assert_eq!(result, Ok(Selector::Chain(expect)));
+        assert_eq!(result, Ok(expect));
     }
 
     fn expect_parse_error(query_text: &str, expect: &str) {
