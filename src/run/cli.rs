@@ -95,11 +95,23 @@ macro_rules! create_options_structs {
                     (true, false) => Some(true),
                     (false, true) => Some(false),
                     (true, true) => {
+                        // Clap will prevent this from happening. See test [tests::both_br_and_no_br] below.
                         eprintln!("internal error when determining whether to add breaks between elements. will use default settings");
                         None
                     }
                 };
-                let selectors = value.take_selector_string();
+                let selectors = match value.selectors.take() {
+                    Some(s) => s,
+                    None => match &value.list_selector {
+                        Some(list_selectors) => {
+                            let mut reconstructed = String::with_capacity(list_selectors.len() + 2);
+                            reconstructed.push_str("- ");
+                            reconstructed.push_str(list_selectors);
+                            reconstructed
+                        }
+                        None => String::new(),
+                    },
+                };
                 Self {
                     $($name: value.$name,)*
                     markdown_file_paths: value.markdown_file_paths,
@@ -180,23 +192,6 @@ impl RunOptions {
 }
 
 impl CliOptions {
-    /// Takes the selector string, returning it and mutating this instance to now have a blank selector string.
-    /// You should only invoke this once!
-    pub fn take_selector_string(&mut self) -> String {
-        match self.selectors.take() {
-            Some(s) => s,
-            None => match &self.list_selector {
-                Some(list_selectors) => {
-                    let mut reconstructed = String::with_capacity(list_selectors.len() + 2);
-                    reconstructed.push_str("- ");
-                    reconstructed.push_str(list_selectors);
-                    reconstructed
-                }
-                None => String::new(),
-            },
-        }
-    }
-
     pub fn extra_validation(&self) -> bool {
         match self.output {
             OutputFormat::Json => {
@@ -301,9 +296,10 @@ mod tests {
     #[test]
     fn no_args() {
         let result = CliOptions::try_parse_from(["mdq"]);
-        unwrap!(result, Ok(mut cli));
-        assert_eq!(cli.take_selector_string().as_str(), "");
+        unwrap!(result, Ok(cli));
         assert!(cli.markdown_file_paths.is_empty());
+        let run_opts: RunOptions = cli.into();
+        assert_eq!(run_opts.selectors, "");
     }
 
     #[test]
@@ -318,24 +314,27 @@ mod tests {
     #[test]
     fn standard_selectors() {
         let result = CliOptions::try_parse_from(["mdq", "# hello"]);
-        unwrap!(result, Ok(mut cli));
-        assert_eq!(cli.take_selector_string().as_str(), "# hello");
+        unwrap!(result, Ok(cli));
         assert!(cli.markdown_file_paths.is_empty());
+        let run_opts: RunOptions = cli.into();
+        assert_eq!(run_opts.selectors, "# hello");
     }
 
     #[test]
     fn selector_and_file() {
         let result = CliOptions::try_parse_from(["mdq", "# hello", "file.txt"]);
-        unwrap!(result, Ok(mut cli));
-        assert_eq!(cli.take_selector_string().as_str(), "# hello");
+        unwrap!(result, Ok(cli));
         assert_eq!(cli.markdown_file_paths, ["file.txt"]);
+        let run_opts: RunOptions = cli.into();
+        assert_eq!(run_opts.selectors, "# hello");
     }
 
     #[test]
     fn start_with_list_selectors() {
         let result = CliOptions::try_parse_from(["mdq", "- world"]);
-        unwrap!(result, Ok(mut cli));
-        assert_eq!(cli.take_selector_string().as_str(), "- world");
+        unwrap!(result, Ok(cli));
+        let run_opts: RunOptions = cli.into();
+        assert_eq!(run_opts.selectors, "- world");
     }
 
     #[test]
@@ -354,6 +353,12 @@ mod tests {
             &result,
             "the argument '[selectors]' cannot be used with '-  <selectors starting with list>'",
         )
+    }
+
+    #[test]
+    fn both_br_and_no_br() {
+        let result = CliOptions::try_parse_from(["mdq", "--br", "--no-br"]);
+        check_err(&result, "the argument '--br' cannot be used with '--no-br'")
     }
 
     fn check_err(result: &Result<CliOptions, Error>, expect: &str) {
