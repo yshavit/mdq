@@ -35,7 +35,11 @@ impl Display for QueryParse {
             ParseError::Other(span, message) => {
                 let Some(full_span) = Span::new(&self.query_string, span.start, span.end) else {
                     // not expected to happen, but just in case!
-                    return write!(f, "parse error in {:?}: {}", self.query_string, message);
+                    return write!(
+                        f,
+                        "parse error at byte {} of {:?}: {}",
+                        span.start, self.query_string, message
+                    );
                 };
                 let pest_err = query::Error::new_from_span(
                     ErrorVariant::CustomError {
