@@ -1,14 +1,14 @@
 use crate::md_elem::{InvalidMd, MdDoc, MdElem, ParseOptions};
 use crate::output::MdWriter;
 use crate::query::ParseError;
-use crate::run::cli::{Cli, OutputFormat};
+use crate::run::cli::OutputFormat;
+use crate::run::RunOptions;
 use crate::select::{Selector, SelectorAdapter};
 use crate::{md_elem, output, query};
 use pest::error::ErrorVariant;
 use pest::Span;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
-use std::ops::Deref;
 use std::{env, io};
 
 #[derive(Debug)]
@@ -130,10 +130,7 @@ pub trait OsFacade {
 
 // TODO: replace with a method that doesn't take OsFacade (that should be defined in main.rs), but instead takes
 //  an FnOnce(MdElem) -> R
-pub fn run(cli: &Cli, os: &mut impl OsFacade) -> bool {
-    if !cli.extra_validation() {
-        return false;
-    }
+pub fn run(cli: &RunOptions, os: &mut impl OsFacade) -> bool {
     match run_or_error(cli, os) {
         Ok(ok) => ok,
         Err(err) => {
@@ -143,7 +140,7 @@ pub fn run(cli: &Cli, os: &mut impl OsFacade) -> bool {
     }
 }
 
-fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
+fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error> {
     let contents_str = os.read_all(&cli.markdown_file_paths)?;
     let mut options = ParseOptions::gfm();
     options.allow_unknown_markdown = cli.allow_unknown_markdown;
@@ -154,12 +151,12 @@ fn run_or_error(cli: &Cli, os: &mut impl OsFacade) -> Result<bool, Error> {
         }
     };
 
-    let selectors_str = cli.selector_string();
-    let selectors: Selector = match selectors_str.deref().try_into() {
+    let selectors_str = &cli.selectors;
+    let selectors: Selector = match selectors_str.try_into() {
         Ok(selectors) => selectors,
         Err(error) => {
             return Err(Error::QueryParse(QueryParseError {
-                query_string: selectors_str.into_owned(),
+                query_string: selectors_str.to_string(),
                 error,
             }));
         }
