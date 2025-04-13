@@ -33,12 +33,15 @@ impl Display for QueryParse {
                 write!(f, "{err}")
             }
             ParseError::Other(span, message) => {
-                let full_span = Span::new(&self.query_string, span.start, span.end);
+                let Some(full_span) = Span::new(&self.query_string, span.start, span.end) else {
+                    // not expected to happen, but just in case!
+                    return write!(f, "parse error in {:?}: {}", self.query_string, message);
+                };
                 let pest_err = query::Error::new_from_span(
                     ErrorVariant::CustomError {
                         message: message.to_string(),
                     },
-                    full_span.unwrap(),
+                    full_span,
                 );
                 write!(f, "{pest_err}")
             }
