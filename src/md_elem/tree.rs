@@ -125,7 +125,9 @@ pub struct MarkdownPart {
 // A wrapper for [Backtrace] that implements [PartialEq] to always return `true`. This lets us use it in a struct
 // while still letting us use `#[derive(PartialEq)]`
 #[derive(Debug)]
-pub struct UnknownMdParseError(Backtrace);
+pub struct UnknownMdParseError {
+    details: Backtrace,
+}
 
 impl PartialEq for UnknownMdParseError {
     fn eq(&self, _other: &Self) -> bool {
