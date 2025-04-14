@@ -7,7 +7,9 @@ pub enum Matcher {
         anchor_end: bool,
     },
     Regex(Regex),
-    Any(Any),
+    Any {
+        explicit: bool,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -22,9 +24,3 @@ impl PartialEq for Regex {
 }
 
 impl Eq for Regex {}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Any {
-    Implicit,
-    Explicit,
-}
