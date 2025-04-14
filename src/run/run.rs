@@ -54,7 +54,7 @@ impl Display for QueryParseError {
 #[derive(Debug)]
 pub enum Input {
     Stdin,
-    File(String),
+    FilePath(String),
 }
 
 impl Error {
@@ -67,7 +67,7 @@ impl Display for Input {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Input::Stdin => f.write_str("stdin"),
-            Input::File(file) => write!(f, "file {file:?}"),
+            Input::FilePath(file) => write!(f, "file {file:?}"),
         }
     }
 }
@@ -119,7 +119,7 @@ pub trait OsFacade {
             } else {
                 let path_contents = self
                     .read_file(path)
-                    .map_err(|err| Error::from_io_error(err, Input::File(path.to_string())))?;
+                    .map_err(|err| Error::from_io_error(err, Input::FilePath(path.to_string())))?;
                 contents.push_str(&path_contents);
             }
             contents.push('\n');
