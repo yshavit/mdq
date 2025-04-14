@@ -126,7 +126,7 @@ pub struct MarkdownPart {
 // while still letting us use `#[derive(PartialEq)]`
 #[derive(Debug)]
 pub struct UnknownMdParseError {
-    details: Backtrace,
+    backtrace: Backtrace,
 }
 
 impl PartialEq for UnknownMdParseError {
@@ -158,9 +158,9 @@ impl Display for InvalidMd {
             InvalidMd::ConflictingReferenceDefinition(id) => {
                 write!(f, "found multiple definitions for link/image/footnote: {}", id)
             }
-            InvalidMd::InternalError(backtrace) => {
+            InvalidMd::InternalError(err) => {
                 f.write_str("internal error\n")?;
-                std::fmt::Display::fmt(&backtrace.0, f)
+                std::fmt::Display::fmt(&err.backtrace, f)
             }
             InvalidMd::UnknownMarkdown(description) => {
                 write!(f, "encountered unknown markdown: {}\n\n", description)?;
@@ -581,9 +581,9 @@ impl MdElem {
                     let mut column = Vec::with_capacity(cell_nodes.len());
                     for cell_node in cell_nodes {
                         let mdast::Node::TableCell(table_cell) = cell_node else {
-                            return Err(InvalidMd::InternalError(
-                                UnknownMdParseError(Backtrace::force_capture()),
-                            ));
+                            return Err(InvalidMd::InternalError(UnknownMdParseError {
+                                backtrace: Backtrace::force_capture(),
+                            }));
                         };
                         let cell_contents = Self::inlines(table_cell.children, lookups, ctx)?;
                         column.push(cell_contents);
@@ -598,9 +598,9 @@ impl MdElem {
             mdast::Node::ThematicBreak(_) => m_node!(MdElem::ThematicBreak),
             mdast::Node::TableRow(_) | mdast::Node::TableCell(_) | mdast::Node::ListItem(_) => {
                 // should have been handled by Node::Table
-                return Err(InvalidMd::InternalError(
-                    UnknownMdParseError(Backtrace::force_capture()),
-                ));
+                return Err(InvalidMd::InternalError(UnknownMdParseError {
+                    backtrace: Backtrace::force_capture(),
+                }));
             }
             mdast::Node::Definition(_) => return Ok(Vec::new()),
             mdast::Node::Paragraph(node) => m_node!(MdElem::Paragraph {
@@ -2628,7 +2628,9 @@ mod tests {
     }
 
     fn internal_error() -> InvalidMd {
-        InvalidMd::InternalError(UnknownMdParseError(Backtrace::force_capture()))
+        InvalidMd::InternalError(UnknownMdParseError {
+            backtrace: Backtrace::force_capture(),
+        })
     }
 
     impl Default for ReadOptions {
