@@ -6,7 +6,8 @@ use crate::query::traversal_composites::{
 };
 use crate::query::{DetachedSpan, Pair, Pairs, ParseError, Query};
 use crate::select::{
-    AnyVariant, CodeBlockMatcher, LinklikeMatcher, ListItemMatcher, ListItemTask, Matcher, Selector, TableMatcher,
+    Any, BlockQuoteMatcher, CodeBlockMatcher, HtmlMatcher, LinklikeMatcher, ListItemMatcher, ListItemTask, Matcher,
+    ParagraphMatcher, SectionMatcher, Selector, TableMatcher,
 };
 
 impl TryFrom<Pairs<'_>> for Selector {
@@ -48,8 +49,8 @@ impl Selector {
         match as_rule {
             Rule::select_section => {
                 let SectionResults { title } = SectionTraverser::traverse(children);
-                let matcher = Matcher::try_from(title.take().map_err(to_parse_error)?)?;
-                Ok(Self::Section(matcher))
+                let title = Matcher::try_from(title.take().map_err(to_parse_error)?)?;
+                Ok(Self::Section(SectionMatcher { title }))
             }
             Rule::select_list_item => {
                 let res = ListItemTraverser::traverse(children);
@@ -83,8 +84,8 @@ impl Selector {
             }
             Rule::select_block_quote => {
                 let res = BlockQuoteTraverser::traverse(children);
-                let matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
-                Ok(Self::BlockQuote(matcher))
+                let text = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
+                Ok(Self::BlockQuote(BlockQuoteMatcher { text }))
             }
             Rule::select_code_block => {
                 let res = CodeBlockTraverser::traverse(children);
@@ -97,13 +98,13 @@ impl Selector {
             }
             Rule::select_html => {
                 let res = HtmlTraverser::traverse(children);
-                let matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
-                Ok(Self::Html(matcher))
+                let html = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
+                Ok(Self::Html(HtmlMatcher { html }))
             }
             Rule::select_paragraph => {
                 let res = ParagraphTraverser::traverse(children);
-                let matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
-                Ok(Self::Paragraph(matcher))
+                let text = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
+                Ok(Self::Paragraph(ParagraphMatcher { text }))
             }
             Rule::select_table => {
                 let res = TableTraverser::traverse(children);
@@ -113,7 +114,7 @@ impl Selector {
                     Some(column_matcher_span) => DetachedSpan::from(column_matcher_span),
                 };
                 let column_matcher = Matcher::try_from(column_matcher_span)?;
-                if matches!(column_matcher, Matcher::Any(AnyVariant::Implicit)) {
+                if matches!(column_matcher, Matcher::Any(Any::Implicit)) {
                     return Err(ParseError::Other(
                         detached_span,
                         "table column matcher cannot empty; use an explicit \"*\"".to_string(),
@@ -210,12 +211,22 @@ mod tests {
 
         #[test]
         fn prefix_chaining() {
-            find_selector("| #", Selector::Section(Matcher::Any(AnyVariant::Implicit)))
+            find_selector(
+                "| #",
+                Selector::Section(SectionMatcher {
+                    title: Matcher::Any(Any::Implicit),
+                }),
+            )
         }
 
         #[test]
         fn suffix_chaining() {
-            find_selector("# |", Selector::Section(Matcher::Any(AnyVariant::Implicit)))
+            find_selector(
+                "# |",
+                Selector::Section(SectionMatcher {
+                    title: Matcher::Any(Any::Implicit),
+                }),
+            )
         }
 
         #[test]
@@ -223,10 +234,12 @@ mod tests {
             find_selectors(
                 "# | []()",
                 Selector::Chain(vec![
-                    Selector::Section(Matcher::Any(AnyVariant::Implicit)),
+                    Selector::Section(SectionMatcher {
+                        title: Matcher::Any(Any::Implicit),
+                    }),
                     Selector::Link(LinklikeMatcher {
-                        display_matcher: Matcher::Any(AnyVariant::Implicit),
-                        url_matcher: Matcher::Any(AnyVariant::Implicit),
+                        display_matcher: Matcher::Any(Any::Implicit),
+                        url_matcher: Matcher::Any(Any::Implicit),
                     }),
                 ]),
             );
@@ -237,10 +250,12 @@ mod tests {
             find_selectors(
                 "# || | []()",
                 Selector::Chain(vec![
-                    Selector::Section(Matcher::Any(AnyVariant::Implicit)),
+                    Selector::Section(SectionMatcher {
+                        title: Matcher::Any(Any::Implicit),
+                    }),
                     Selector::Link(LinklikeMatcher {
-                        display_matcher: Matcher::Any(AnyVariant::Implicit),
-                        url_matcher: Matcher::Any(AnyVariant::Implicit),
+                        display_matcher: Matcher::Any(Any::Implicit),
+                        url_matcher: Matcher::Any(Any::Implicit),
                     }),
                 ]),
             );
@@ -252,12 +267,22 @@ mod tests {
 
         #[test]
         fn section_no_matcher() {
-            find_selector("#", Selector::Section(Matcher::Any(AnyVariant::Implicit)));
+            find_selector(
+                "#",
+                Selector::Section(SectionMatcher {
+                    title: Matcher::Any(Any::Implicit),
+                }),
+            );
         }
 
         #[test]
         fn section_with_matcher() {
-            find_selector("# foo", Selector::Section(matcher_text(false, "foo", false)));
+            find_selector(
+                "# foo",
+                Selector::Section(SectionMatcher {
+                    title: matcher_text(false, "foo", false),
+                }),
+            );
         }
     }
 
@@ -272,7 +297,7 @@ mod tests {
                 Selector::ListItem(ListItemMatcher {
                     ordered: false,
                     task: ListItemTask::None,
-                    matcher: Matcher::Any(AnyVariant::Implicit),
+                    matcher: Matcher::Any(Any::Implicit),
                 }),
             )
         }
@@ -310,7 +335,7 @@ mod tests {
                 Selector::ListItem(ListItemMatcher {
                     ordered: true,
                     task: ListItemTask::None,
-                    matcher: Matcher::Any(AnyVariant::Implicit),
+                    matcher: Matcher::Any(Any::Implicit),
                 }),
             )
         }
@@ -346,7 +371,7 @@ mod tests {
                 Selector::ListItem(ListItemMatcher {
                     ordered: false,
                     task: ListItemTask::Unselected,
-                    matcher: Matcher::Any(AnyVariant::Implicit),
+                    matcher: Matcher::Any(Any::Implicit),
                 }),
             )
         }
@@ -358,7 +383,7 @@ mod tests {
                 Selector::ListItem(ListItemMatcher {
                     ordered: false,
                     task: ListItemTask::Selected,
-                    matcher: Matcher::Any(AnyVariant::Implicit),
+                    matcher: Matcher::Any(Any::Implicit),
                 }),
             )
         }
@@ -370,7 +395,7 @@ mod tests {
                 Selector::ListItem(ListItemMatcher {
                     ordered: false,
                     task: ListItemTask::Either,
-                    matcher: Matcher::Any(AnyVariant::Implicit),
+                    matcher: Matcher::Any(Any::Implicit),
                 }),
             )
         }
@@ -422,8 +447,8 @@ mod tests {
             find_selector(
                 "[]()",
                 Selector::Link(LinklikeMatcher {
-                    display_matcher: Matcher::Any(AnyVariant::Implicit),
-                    url_matcher: Matcher::Any(AnyVariant::Implicit),
+                    display_matcher: Matcher::Any(Any::Implicit),
+                    url_matcher: Matcher::Any(Any::Implicit),
                 }),
             )
         }
@@ -434,7 +459,7 @@ mod tests {
                 "[hello]()",
                 Selector::Link(LinklikeMatcher {
                     display_matcher: matcher_text(false, "hello", false),
-                    url_matcher: Matcher::Any(AnyVariant::Implicit),
+                    url_matcher: Matcher::Any(Any::Implicit),
                 }),
             )
         }
@@ -444,7 +469,7 @@ mod tests {
             find_selector(
                 "[](example.com)",
                 Selector::Link(LinklikeMatcher {
-                    display_matcher: Matcher::Any(AnyVariant::Implicit),
+                    display_matcher: Matcher::Any(Any::Implicit),
                     url_matcher: matcher_text(false, "example.com", false),
                 }),
             )
@@ -466,8 +491,8 @@ mod tests {
             find_selector(
                 "![]()",
                 Selector::Image(LinklikeMatcher {
-                    display_matcher: Matcher::Any(AnyVariant::Implicit),
-                    url_matcher: Matcher::Any(AnyVariant::Implicit),
+                    display_matcher: Matcher::Any(Any::Implicit),
+                    url_matcher: Matcher::Any(Any::Implicit),
                 }),
             )
         }
@@ -478,7 +503,7 @@ mod tests {
                 "![alt text]()",
                 Selector::Image(LinklikeMatcher {
                     display_matcher: matcher_text(false, "alt text", false),
-                    url_matcher: Matcher::Any(AnyVariant::Implicit),
+                    url_matcher: Matcher::Any(Any::Implicit),
                 }),
             )
         }
@@ -489,14 +514,21 @@ mod tests {
 
         #[test]
         fn block_quote_no_matcher() {
-            find_selector(">", Selector::BlockQuote(Matcher::Any(AnyVariant::Implicit)))
+            find_selector(
+                ">",
+                Selector::BlockQuote(BlockQuoteMatcher {
+                    text: Matcher::Any(Any::Implicit),
+                }),
+            )
         }
 
         #[test]
         fn block_quote_with_text() {
             find_selector(
                 "> quoted text",
-                Selector::BlockQuote(matcher_text(false, "quoted text", false)),
+                Selector::BlockQuote(BlockQuoteMatcher {
+                    text: matcher_text(false, "quoted text", false),
+                }),
             )
         }
 
@@ -504,7 +536,9 @@ mod tests {
         fn block_quote_with_anchored_text() {
             find_selector(
                 "> ^start end$",
-                Selector::BlockQuote(matcher_text(true, "start end", true)),
+                Selector::BlockQuote(BlockQuoteMatcher {
+                    text: matcher_text(true, "start end", true),
+                }),
             )
         }
     }
@@ -517,8 +551,8 @@ mod tests {
             find_selector(
                 "```",
                 Selector::CodeBlock(CodeBlockMatcher {
-                    language: Matcher::Any(AnyVariant::Implicit),
-                    contents: Matcher::Any(AnyVariant::Implicit),
+                    language: Matcher::Any(Any::Implicit),
+                    contents: Matcher::Any(Any::Implicit),
                 }),
             )
         }
@@ -529,7 +563,7 @@ mod tests {
                 "```rust",
                 Selector::CodeBlock(CodeBlockMatcher {
                     language: matcher_text(false, "rust", false),
-                    contents: Matcher::Any(AnyVariant::Implicit),
+                    contents: Matcher::Any(Any::Implicit),
                 }),
             )
         }
@@ -540,7 +574,7 @@ mod tests {
                 "```rust",
                 Selector::CodeBlock(CodeBlockMatcher {
                     language: matcher_text(false, "rust", false),
-                    contents: Matcher::Any(AnyVariant::Implicit),
+                    contents: Matcher::Any(Any::Implicit),
                 }),
             )
         }
@@ -550,7 +584,7 @@ mod tests {
             find_selector(
                 "``` fn main()",
                 Selector::CodeBlock(CodeBlockMatcher {
-                    language: Matcher::Any(AnyVariant::Implicit),
+                    language: Matcher::Any(Any::Implicit),
                     contents: matcher_text(false, "fn main()", false),
                 }),
             )
@@ -575,18 +609,23 @@ mod tests {
 
         #[test]
         fn html_no_matcher() {
-            find_selector("</>", Selector::Html(Matcher::Any(AnyVariant::Implicit)))
+            find_selector(
+                "</>",
+                Selector::Html(HtmlMatcher {
+                    html: Matcher::Any(Any::Implicit),
+                }),
+            )
         }
 
         #[test]
         fn html_with_text() {
-            let matcher = Matcher::Text {
+            let html = Matcher::Text {
                 case_sensitive: true,
                 anchor_start: false,
                 text: "<div>".to_string(),
                 anchor_end: false,
             };
-            find_selector("</> '<div>'", Selector::Html(matcher))
+            find_selector("</> '<div>'", Selector::Html(HtmlMatcher { html }))
         }
 
         #[test]
@@ -607,9 +646,11 @@ mod tests {
         fn html_with_regex() {
             find_selector(
                 "</> /<div.*>/",
-                Selector::Html(Matcher::Regex(Regex {
-                    re: regex::Regex::new("<div.*>").unwrap(),
-                })),
+                Selector::Html(HtmlMatcher {
+                    html: Matcher::Regex(Regex {
+                        re: regex::Regex::new("<div.*>").unwrap(),
+                    }),
+                }),
             )
         }
     }
@@ -619,20 +660,32 @@ mod tests {
 
         #[test]
         fn paragraph_no_matcher() {
-            find_selector("P:", Selector::Paragraph(Matcher::Any(AnyVariant::Implicit)))
+            find_selector(
+                "P:",
+                Selector::Paragraph(ParagraphMatcher {
+                    text: Matcher::Any(Any::Implicit),
+                }),
+            )
         }
 
         #[test]
         fn paragraph_with_text() {
             find_selector(
                 "P: some text",
-                Selector::Paragraph(matcher_text(false, "some text", false)),
+                Selector::Paragraph(ParagraphMatcher {
+                    text: matcher_text(false, "some text", false),
+                }),
             )
         }
 
         #[test]
         fn paragraph_with_anchored_text() {
-            find_selector("P: ^start$", Selector::Paragraph(matcher_text(true, "start", true)))
+            find_selector(
+                "P: ^start$",
+                Selector::Paragraph(ParagraphMatcher {
+                    text: matcher_text(true, "start", true),
+                }),
+            )
         }
     }
 
@@ -673,8 +726,8 @@ mod tests {
             find_selector(
                 ":-: * :-:",
                 Selector::Table(TableMatcher {
-                    column: Matcher::Any(AnyVariant::Explicit),
-                    row: Matcher::Any(AnyVariant::Implicit),
+                    column: Matcher::Any(Any::Explicit),
+                    row: Matcher::Any(Any::Implicit),
                 }),
             )
         }
@@ -685,7 +738,7 @@ mod tests {
                 ":-: Header :-:",
                 Selector::Table(TableMatcher {
                     column: matcher_text(false, "Header", false),
-                    row: Matcher::Any(AnyVariant::Implicit),
+                    row: Matcher::Any(Any::Implicit),
                 }),
             )
         }
@@ -695,7 +748,7 @@ mod tests {
             find_selector(
                 ":-: * :-: Data",
                 Selector::Table(TableMatcher {
-                    column: Matcher::Any(AnyVariant::Explicit),
+                    column: Matcher::Any(Any::Explicit),
                     row: matcher_text(false, "Data", false),
                 }),
             )

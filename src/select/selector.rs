@@ -16,10 +16,30 @@ pub struct ListItemMatcher {
     pub matcher: Matcher,
 }
 
+#[derive(Eq, PartialEq, Debug)]
+pub struct SectionMatcher {
+    pub title: Matcher,
+}
+
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct LinklikeMatcher {
     pub display_matcher: Matcher,
     pub url_matcher: Matcher,
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub struct BlockQuoteMatcher {
+    pub text: Matcher,
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub struct HtmlMatcher {
+    pub html: Matcher,
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub struct ParagraphMatcher {
+    pub text: Matcher,
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -37,14 +57,14 @@ pub struct TableMatcher {
 #[derive(Eq, PartialEq, Debug)]
 pub enum Selector {
     Chain(Vec<Self>),
-    Section(Matcher),
+    Section(SectionMatcher),
     ListItem(ListItemMatcher),
     Link(LinklikeMatcher),
     Image(LinklikeMatcher),
-    BlockQuote(Matcher),
+    BlockQuote(BlockQuoteMatcher),
     CodeBlock(CodeBlockMatcher),
-    Html(Matcher),
-    Paragraph(Matcher),
+    Html(HtmlMatcher),
+    Paragraph(ParagraphMatcher),
     Table(TableMatcher),
 }
 

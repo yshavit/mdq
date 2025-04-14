@@ -11,6 +11,7 @@ mod sel_table;
 mod selector;
 mod string_matcher;
 
-pub use api::*;
+pub(crate) use api::*;
+
 pub use matcher::*;
 pub use selector::*;

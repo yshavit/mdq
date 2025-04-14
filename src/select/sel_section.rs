@@ -1,16 +1,18 @@
 use crate::md_elem::elem::*;
 use crate::select::match_selector::MatchSelector;
 use crate::select::string_matcher::StringMatcher;
-use crate::select::Matcher;
+use crate::select::SectionMatcher;
 
 #[derive(Debug, PartialEq)]
 pub struct SectionSelector {
     matcher: StringMatcher,
 }
 
-impl From<Matcher> for SectionSelector {
-    fn from(value: Matcher) -> Self {
-        Self { matcher: value.into() }
+impl From<SectionMatcher> for SectionSelector {
+    fn from(value: SectionMatcher) -> Self {
+        Self {
+            matcher: value.title.into(),
+        }
     }
 }
 

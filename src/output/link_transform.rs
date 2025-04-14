@@ -69,7 +69,7 @@ enum LinkTransformState {
     Reference(ReferenceAssigner),
 }
 
-pub struct LinkTransformation<'md> {
+pub(crate) struct LinkTransformation<'md> {
     link_text: Option<Cow<'md, str>>,
 }
 

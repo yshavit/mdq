@@ -14,7 +14,7 @@ use crate::select::Selector;
 use paste::paste;
 use std::collections::HashSet;
 
-pub trait TrySelector<I: Into<MdElem>> {
+pub(crate) trait TrySelector<I: Into<MdElem>> {
     fn try_select(&self, ctx: &MdContext, item: I) -> Result<Vec<MdElem>, MdElem>;
 }
 
