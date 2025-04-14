@@ -145,7 +145,7 @@ impl<'md> MdInlinesWriter<'md> {
                 let (surround_ch, surround_space) = match variant {
                     TextVariant::Plain => (Cow::Borrowed(""), false),
                     TextVariant::Math => (Cow::Borrowed("$"), false),
-                    TextVariant::Html => (Cow::Borrowed(""), false),
+                    TextVariant::InlineHtml => (Cow::Borrowed(""), false),
                     TextVariant::Code => {
                         let backticks_info = BackticksInfo::from(value);
                         let surround_ch = if backticks_info.count == 0 {

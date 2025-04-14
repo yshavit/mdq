@@ -509,7 +509,7 @@ pub mod tests {
         Inline(Inline::Text(Text{variant: TextVariant::Plain, ..})),
         Inline(Inline::Text(Text{variant: TextVariant::Code, ..})),
         Inline(Inline::Text(Text{variant: TextVariant::Math, ..})),
-        Inline(Inline::Text(Text{variant: TextVariant::Html, ..})),
+        Inline(Inline::Text(Text{variant: TextVariant::InlineHtml, ..})),
 
         Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..})),
         Inline(Inline::Link(Link{link_definition: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..})),
@@ -1457,7 +1457,7 @@ pub mod tests {
             fn html() {
                 check_render(
                     vec![MdElem::Inline(Inline::Text(Text {
-                        variant: TextVariant::Html,
+                        variant: TextVariant::InlineHtml,
                         value: "<a hello />".to_string(),
                     }))],
                     indoc! {"<a hello />"},
@@ -2353,7 +2353,7 @@ pub mod tests {
                             value: "Hello ".to_string()
                         }),
                         Inline::Text(Text {
-                            variant: TextVariant::Html,
+                            variant: TextVariant::InlineHtml,
                             value: "<span class=\"greeting\">".to_string()
                         }),
                         Inline::Text(Text {
@@ -2361,7 +2361,7 @@ pub mod tests {
                             value: "world".to_string()
                         }),
                         Inline::Text(Text {
-                            variant: TextVariant::Html,
+                            variant: TextVariant::InlineHtml,
                             value: "</span>".to_string()
                         }),
                     ]

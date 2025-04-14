@@ -149,7 +149,7 @@ impl SelectorAdapter {
                         Vec::new()
                     }
                 }
-                Inline::Text(Text { variant, value }) if variant == TextVariant::Html => {
+                Inline::Text(Text { variant, value }) if variant == TextVariant::InlineHtml => {
                     vec![MdElem::BlockHtml(value.into())]
                 }
                 Inline::Link(Link { text, .. }) => text.into_iter().map(|child| MdElem::Inline(child)).collect(),

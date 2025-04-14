@@ -43,7 +43,7 @@ mod tests {
         Text(Text { variant: TextVariant::Plain, .. }),
         Text(Text { variant: TextVariant::Code, .. }),
         Text(Text { variant: TextVariant::Math, .. }),
-        Text(Text { variant: TextVariant::Html, .. }),
+        Text(Text { variant: TextVariant::InlineHtml, .. }),
         Link { .. },
         Image { .. },
         Footnote(_),
