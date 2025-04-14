@@ -456,7 +456,7 @@ pub mod elem {
         pub reference: LinkReference,
     }
 
-    /// A single list item.
+    /// An item within a list.
     ///
     /// ```markdown
     /// - hello
