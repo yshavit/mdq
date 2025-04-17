@@ -11,13 +11,24 @@ use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::{env, io};
 
+/// The run's overall possible error.
 #[derive(Debug)]
 pub enum Error {
+    /// User provided an invalid selector string.
+    ///
+    /// This comes from [`Selector`'s `TryFrom::<&str>`][Selector#impl-TryFrom<%26str>-for-Selector].
     QueryParse(QueryParseError),
+
+    /// The Markdown file failed to parse.
+    ///
+    /// This comes from [`md_elem::parse`]..
     MarkdownParse(InvalidMd),
+
+    /// Couldn't read an input file.
     FileReadError(Input, io::Error),
 }
 
+/// Returned when the selector string is not valid.
 #[derive(Debug)]
 pub struct QueryParseError {
     query_string: String,
@@ -51,6 +62,7 @@ impl Display for QueryParseError {
     }
 }
 
+/// Stdin or an input file by path.
 #[derive(Debug)]
 pub enum Input {
     Stdin,
@@ -94,13 +106,27 @@ impl Display for Error {
     }
 }
 
+/// A simple facade for handling I/O.
+///
+/// This trait lets you do "I/O-y stuff" like mocking out stdin or reading files. The [`run`] method uses it.
 pub trait OsFacade {
+    /// Read stdin (or your mock of it) to a `String`.
     fn read_stdin(&self) -> io::Result<String>;
+
+    /// Read a file path (or your mock of one) to a `String`.
     fn read_file(&self, path: &str) -> io::Result<String>;
+
+    /// Get a writer for stdout (or your mock of it).
     fn get_stdout(&mut self) -> impl Write;
+
+    /// Handle an error.
     fn write_error(&mut self, err: Error);
 
-    fn read_all(&self, markdown_file_paths: &Vec<String>) -> Result<String, Error> {
+    /// Read a slice of file paths into a single, concatenated `String`.
+    ///
+    /// The default implementation (which you should feel free to use) treats the file path `"-"` as stdin. The first
+    /// `"-"` reads all of stdin (via [`Self::read_stdin`]), and subsequent `"-"`s get silently ignored.
+    fn read_all(&self, markdown_file_paths: &[String]) -> Result<String, Error> {
         if markdown_file_paths.is_empty() {
             return self.read_stdin().map_err(|err| Error::from_io_error(err, Input::Stdin));
         }
@@ -128,8 +154,11 @@ pub trait OsFacade {
     }
 }
 
-// TODO: replace with a method that doesn't take OsFacade (that should be defined in main.rs), but instead takes
-//  an FnOnce(MdElem) -> R
+/// Runs mdq end to end.
+///
+/// This uses the provided [RunOptions] and [OsFacade] to read files into [`MdElem`], filters them via the selector
+/// string in [`RunOptions::selectors`], and then writes them to the given [`OsFacade`] in the format specified by
+/// [`RunOptions::output`].
 pub fn run(cli: &RunOptions, os: &mut impl OsFacade) -> bool {
     match run_or_error(cli, os) {
         Ok(ok) => ok,
