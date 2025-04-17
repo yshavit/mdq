@@ -3,7 +3,7 @@ use crate::output::MdWriter;
 use crate::query::ParseError;
 use crate::run::cli::OutputFormat;
 use crate::run::RunOptions;
-use crate::select::{Selector, SelectorAdapter};
+use crate::select::Selector;
 use crate::{md_elem, output, query};
 use pest::error::ErrorVariant;
 use pest::Span;
