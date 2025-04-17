@@ -1,23 +1,20 @@
 use crate::query::strings::{ParsedString, ParsedStringMode};
 use crate::query::{DetachedSpan, Pair, ParseError};
-use crate::select::{Any, Matcher, Regex};
+use crate::select::{Matcher, Regex};
 
 impl TryFrom<Option<Pair<'_>>> for Matcher {
     type Error = ParseError;
 
     fn try_from(pair: Option<Pair>) -> Result<Self, Self::Error> {
         let Some(pair) = pair else {
-            return Ok(Self::Any(Any::Implicit));
+            return Ok(Self::Any { explicit: false });
         };
         let span = DetachedSpan::from(&pair);
         let parsed_string: ParsedString = pair.into_inner().try_into()?;
         if parsed_string.is_equivalent_to_asterisk() {
-            let any_variant = if parsed_string.explicit_wildcard {
-                Any::Explicit
-            } else {
-                Any::Implicit
-            };
-            return Ok(Self::Any(any_variant));
+            return Ok(Self::Any {
+                explicit: parsed_string.explicit_wildcard,
+            });
         }
         let matcher = match parsed_string.mode {
             ParsedStringMode::CaseSensitive => Self::Text {

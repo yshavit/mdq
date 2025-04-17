@@ -1,3 +1,6 @@
+//! Parsed Markdown nodes (and how to parse them).
+//!
+//! This module provides the AST for a parsed Markdown document. Its main entry point is [parse].
 mod tree;
 mod tree_ref;
 

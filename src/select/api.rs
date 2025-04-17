@@ -75,9 +75,8 @@ adapters! {
     }
 }
 
-// TODO this should not be exposed
 impl SelectorAdapter {
-    pub fn find_nodes(&self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
+    pub(crate) fn find_nodes(&self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
         let mut search_context = SearchContext::new(ctx);
         for node in nodes {
@@ -149,7 +148,7 @@ impl SelectorAdapter {
                         Vec::new()
                     }
                 }
-                Inline::Text(Text { variant, value }) if variant == TextVariant::Html => {
+                Inline::Text(Text { variant, value }) if variant == TextVariant::InlineHtml => {
                     vec![MdElem::BlockHtml(value.into())]
                 }
                 Inline::Link(Link { text, .. }) => text.into_iter().map(|child| MdElem::Inline(child)).collect(),

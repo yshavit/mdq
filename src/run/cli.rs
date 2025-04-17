@@ -71,6 +71,7 @@ macro_rules! create_options_structs {
             pub(crate) markdown_file_paths: Vec<String>,
         }
 
+        /// Options analogous to the mdq CLI's switches.
         #[derive(Parser, Debug, PartialEq, Eq)]
         pub struct RunOptions {
             $(
@@ -141,7 +142,7 @@ create_options_structs! {
     clap(long, default_value_t = true, action = clap::ArgAction::Set)
     pub renumber_footnotes: bool,
 
-    /// Output the results as a JSON object, instead of as markdown.
+    /// Specifies the output format. Defaults to markdown.
     clap(long, short, default_value_t = OutputFormat::Markdown)
     pub output: OutputFormat,
 
@@ -221,6 +222,7 @@ impl CliOptions {
     }
 }
 
+/// Output formats, analogous to `--output` in the CLI.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum OutputFormat {
     /// Output results as Markdown.
