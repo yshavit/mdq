@@ -31,8 +31,8 @@ impl TrySelector<Table> for TableSelector {
 impl From<TableMatcher> for TableSelector {
     fn from(value: TableMatcher) -> Self {
         Self {
-            headers_matcher: value.column.into(),
-            rows_matcher: value.row.into(),
+            headers_matcher: value.headers.into(),
+            rows_matcher: value.rows.into(),
         }
     }
 }

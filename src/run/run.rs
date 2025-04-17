@@ -191,8 +191,7 @@ fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error>
         }
     };
 
-    let selector_adapter = SelectorAdapter::from(selectors);
-    let pipeline_nodes = selector_adapter.find_nodes(&ctx, vec![MdElem::Doc(roots)]);
+    let pipeline_nodes = selectors.find_nodes(&ctx, vec![MdElem::Doc(roots)]);
 
     // TODO: turn this into an impl From
     let md_options = output::MdWriterOptions {

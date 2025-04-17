@@ -122,8 +122,8 @@ impl Selector {
                 }
                 let row_matcher = Matcher::try_from(res.row.take().map_err(to_parse_error)?)?;
                 Ok(Self::Table(TableMatcher {
-                    column: column_matcher,
-                    row: row_matcher,
+                    headers: column_matcher,
+                    rows: row_matcher,
                 }))
             }
             Rule::selector | _ => {
@@ -726,8 +726,8 @@ mod tests {
             find_selector(
                 ":-: * :-:",
                 Selector::Table(TableMatcher {
-                    column: Matcher::Any { explicit: true },
-                    row: Matcher::Any { explicit: false },
+                    headers: Matcher::Any { explicit: true },
+                    rows: Matcher::Any { explicit: false },
                 }),
             )
         }
@@ -737,8 +737,8 @@ mod tests {
             find_selector(
                 ":-: Header :-:",
                 Selector::Table(TableMatcher {
-                    column: matcher_text(false, "Header", false),
-                    row: Matcher::Any { explicit: false },
+                    headers: matcher_text(false, "Header", false),
+                    rows: Matcher::Any { explicit: false },
                 }),
             )
         }
@@ -748,8 +748,8 @@ mod tests {
             find_selector(
                 ":-: * :-: Data",
                 Selector::Table(TableMatcher {
-                    column: Matcher::Any { explicit: true },
-                    row: matcher_text(false, "Data", false),
+                    headers: Matcher::Any { explicit: true },
+                    rows: matcher_text(false, "Data", false),
                 }),
             )
         }
@@ -759,8 +759,8 @@ mod tests {
             find_selector(
                 ":-: Header :-: Data",
                 Selector::Table(TableMatcher {
-                    column: matcher_text(false, "Header", false),
-                    row: matcher_text(false, "Data", false),
+                    headers: matcher_text(false, "Header", false),
+                    rows: matcher_text(false, "Data", false),
                 }),
             )
         }
