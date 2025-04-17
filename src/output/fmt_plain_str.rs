@@ -1,8 +1,7 @@
 use crate::md_elem::elem::*;
 use std::borrow::Borrow;
 
-// TODO this should not be exposed
-pub fn inlines_to_plain_string<N: Borrow<Inline>>(inlines: &[N]) -> String {
+pub(crate) fn inlines_to_plain_string<N: Borrow<Inline>>(inlines: &[N]) -> String {
     let mut result = String::with_capacity(inlines.len() * 5); // random guess
     build_inlines(&mut result, inlines);
     result

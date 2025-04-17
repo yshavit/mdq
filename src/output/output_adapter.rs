@@ -5,15 +5,18 @@ use crate::util::output::{Output, SimpleWrite};
 use serde::Serialize;
 use std::{fmt, io};
 
+/// A struct for writing [MdElem]s as Markdown (as per `--output markdown`).
 pub struct MdWriter {
     options: MdWriterOptions,
 }
 
 impl MdWriter {
+    /// Creates a new [MdWriter] with the given options.
     pub fn with_options(options: MdWriterOptions) -> Self {
         Self { options }
     }
 
+    /// Writes the given nodes to the given writer.
     pub fn write<'md, I, W>(&self, ctx: &'md MdContext, nodes: I, out: &mut W)
     where
         I: IntoIterator<Item = &'md MdElem>,
@@ -28,11 +31,16 @@ impl MdWriter {
     }
 }
 
+/// Utility for translating an [`std::io::Write`] into a [`std::fmt::Write`].
+///
+/// [`std::io::Write`]: io::Write
+/// [`std::fmt::Write`]: fmt::Write
 pub fn io_to_fmt(writer: impl io::Write) -> impl fmt::Write {
     Adapter(writer)
 }
 
-pub fn serializable<'a>(
+/// Transform [`MdElem`]s into a [`Serialize`].
+pub fn md_to_serialize<'a>(
     elems: &'a [MdElem],
     ctx: &'a MdContext,
     inline_options: InlineElemOptions,

@@ -1,3 +1,4 @@
+//! Output `md_elem`s to various formats.
 mod fmt_md;
 mod fmt_md_inlines;
 mod fmt_plain_inline;

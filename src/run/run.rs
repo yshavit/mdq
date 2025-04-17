@@ -188,7 +188,7 @@ fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error>
             OutputFormat::Json => {
                 serde_json::to_writer(
                     &mut stdout,
-                    &output::serializable(&pipeline_nodes, &ctx, md_options.inline_options),
+                    &output::md_to_serialize(&pipeline_nodes, &ctx, md_options.inline_options),
                 )
                 .unwrap();
             }

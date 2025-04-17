@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 
+/// Options for formatting inline elements.
 #[derive(Debug, Copy, Clone)]
 pub struct InlineElemOptions {
     pub link_format: LinkTransform,

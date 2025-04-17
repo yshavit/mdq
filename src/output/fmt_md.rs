@@ -11,13 +11,48 @@ use std::ops::Deref;
 
 #[derive(Copy, Clone, Debug)]
 pub struct MdWriterOptions {
+    /// Where to put link references (for non-inline links).
     pub link_reference_placement: ReferencePlacement,
+    /// Where to put footnote references.
     pub footnote_reference_placement: ReferencePlacement,
+    /// Inline Markdown options.
     pub inline_options: InlineElemOptions,
+    /// Whether to include thematic breaks between top-level elements.
+    ///
+    /// If `true`, each top-level element will be separated by a thematic break:
+    ///
+    /// ```markdown
+    ///    -----
+    /// ```
+    ///
+    /// Note that "top-level" refers to the nodes you pass into [`MdWriter::write`], not to what might
+    /// otherwise look "top level" to a user. For example, if you were to construct an [`MdElem::Section`] with depth 2,
+    /// and within its body another `Section` with depth 1, only the outer depth-2 `Section` would count as top-level
+    /// for these breaks.
+    ///
+    /// [`MdWriter::write`]: crate::output::MdWriter
     pub include_thematic_breaks: bool,
+    /// Optional text wrapping.
+    ///
+    /// Code blocks will never wrap, and certain inline elements (like URLs) will be treated as atomic: if any part of
+    /// them wraps, the whole thing will wrap, and if it starts a line then it will never wrap.
+    ///
+    /// For example:
+    ///
+    /// <pre>
+    /// ┌────────────────────────────────┐
+    /// │This is a long line that will   │
+    /// │wrap. But                       │
+    /// │[this](https://example.com/will/not/wrap)
+    /// |because it's a URL.             │
+    /// └────────────────────────────────┘
+    /// </pre>
+    ///
+    ///
     pub text_width: Option<usize>,
 }
 
+/// Whether to put link definitions at the end of each section, or at the bottom of the whole document.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum ReferencePlacement {
     /// Show link definitions in the first section that uses the link.
