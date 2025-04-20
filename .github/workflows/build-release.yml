@@ -7,7 +7,7 @@ on:
       docker-tag-type:
         description: The docker tag to upload as
         required: true
-        default: latest
+        default: none
         type: choice
         options:
           - latest
@@ -81,22 +81,29 @@ jobs:
           tags: ${{ vars.DOCKERHUB_USERNAME}}/mdq:${{ steps.get-tag.outputs.tag }}
           labels: ${{ steps.meta.outputs.labels }}
 
+  build-targets:
+    uses: ./.github/workflows/list-targets.yml
+
   build:
+    needs: build-targets
     strategy:
       matrix:
-        os: [ ubuntu, macos, windows ]
-    runs-on: ${{ matrix.os }}-latest
+        target: ${{ fromJSON(needs.build-targets.outputs.names) }}
+    runs-on: ${{ fromJSON(needs.build-targets.outputs.build_by_target)[matrix.target] }}-latest
     steps:
 
-      - name: setup
+      - name: Pick file name
         shell: bash
         run: |
-          if [[ "$RUNNER_OS" == Windows ]]; then
+          if [[ "$BUILD_TARGET" == *-windows-* ]]; then
             build_file_name=mdq.exe
           else
             build_file_name=mdq
           fi
           echo "BUILD_FILE_NAME=${build_file_name}" >> "$GITHUB_ENV"
+          echo "BUILD_FILE_PATH=target/$BUILD_TARGET/release/$build_file_name" >> "$GITHUB_ENV"
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
 
       - name: rustc version
         run: rustc --version --verbose
@@ -105,8 +112,37 @@ jobs:
         with:
           ref: ${{ inputs.branch_name }}
 
+      - name: "Cache cargo"
+        id: cache-cargo
+        uses: "actions/cache@v4"
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: install cross
+        run: command -v cross || cargo install cross --git https://github.com/cross-rs/cross
+        if: runner.os != 'macOS'
+        working-directory: ${{ runner.temp }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: build
-        run: cargo build --release
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" = macOS ]]; then
+            build_bin=cargo
+          else
+            build_bin=cross
+          fi
+          "$build_bin" build --release --target "$BUILD_TARGET"
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+          RUNNER_OS: ${{ runner.os }}
 
       - name: check for any changes in the git tree
         shell: bash
@@ -119,17 +155,17 @@ jobs:
           fi
 
       - name: chmod
-        if: ${{ env.RUNNER_OS  != 'Windows' }}
-        run: chmod +x "target/release/$BUILD_FILE_NAME"
+        if: "!contains(matrix.target, 'windows')"
+        run: chmod +x "$BUILD_FILE_PATH"
 
       - name: Attest Build Provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: "target/release/${{ env.BUILD_FILE_NAME }}"
+          subject-path: ${{ env.BUILD_FILE_PATH }}
 
       - name: upload binary
         uses: actions/upload-artifact@v4
         with:
           if-no-files-found: error
-          name: mdq-${{ matrix.os }}
-          path: target/release/${{ env.BUILD_FILE_NAME }}
+          name: mdq-${{ matrix.target }}
+          path: ${{ env.BUILD_FILE_PATH }}
