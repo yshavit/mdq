@@ -1,3 +1,4 @@
+name: List build targets
 on:
   workflow_call:
     outputs:
@@ -15,6 +16,7 @@ jobs:
     outputs:
       names: ${{ steps.targets.outputs.names }}
       build_by_target: ${{ steps.targets.outputs.build_by_target }}
+      validate_by_target: ${{ steps.targets.outputs.validate_by_target }}
     steps:
       - id: targets
         name: List Targets
