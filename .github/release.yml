@@ -1,0 +1,15 @@
+changelog:
+  exclude:
+    authors:
+      - 'github-actions'
+      - 'github-actions[bot]'
+  categories:
+    - title: Breaking Changes
+      labels:
+        - breaking-change
+    - title: Notable Changes
+      labels:
+        - "*"
+    - title: Other Changes
+      labels:
+        - minor
