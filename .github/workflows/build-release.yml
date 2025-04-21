@@ -90,6 +90,8 @@ jobs:
       matrix:
         target: ${{ fromJSON(needs.build-targets.outputs.names) }}
     runs-on: ${{ fromJSON(needs.build-targets.outputs.build_by_target)[matrix.target] }}-latest
+    env:
+      BUILD_TARGET: ${{ fromJSON(needs.build-targets.outputs.rust_target_by_target)[matrix.target] }}
     steps:
 
       - name: Pick file name
@@ -102,8 +104,6 @@ jobs:
           fi
           echo "BUILD_FILE_NAME=${build_file_name}" >> "$GITHUB_ENV"
           echo "BUILD_FILE_PATH=target/$BUILD_TARGET/release/$build_file_name" >> "$GITHUB_ENV"
-        env:
-          BUILD_TARGET: ${{ matrix.target }}
 
       - name: rustc version
         run: rustc --version --verbose
@@ -141,7 +141,6 @@ jobs:
           fi
           "$build_bin" build --release --target "$BUILD_TARGET"
         env:
-          BUILD_TARGET: ${{ matrix.target }}
           RUNNER_OS: ${{ runner.os }}
 
       - name: check for any changes in the git tree
