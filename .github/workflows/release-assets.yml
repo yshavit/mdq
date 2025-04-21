@@ -110,28 +110,34 @@ jobs:
         with:
           pattern: mdq-*
           merge-multiple: 'false'
+          path: from_build
 
       - name: "Zip up the files"
-        working-directory: ${{ steps.download.outputs.download-path }}
         run: |
           set -euo pipefail
-          ls -lhtr
+          mkdir to_upload
+          to_upload="$PWD/to_upload"
           set -x
-          for f in $(ls -1) ; do
-            pushd "$f"
+          for f in $(cd "$DOWNLOAD_DIR"; ls -1) ; do
+            pushd "from_build/$f"
             if [[ -e mdq ]]; then
               chmod +x mdq
             fi
-            zip -r "$f.zip" *
-            mv "$f.zip" ../
+            if [[ "$f" == *-windows-* ]]; then
+              zip -r "$f.zip" *
+              mv "$f.zip" "$to_upload"
+            else
+              tar -czvf "$f.tar.gz" *
+              mv "$f.tar.gz" "$to_upload"
+            fi
             popd
           done
-          ls -lhtr
+        env:
+          DOWNLOAD_DIR: ${{ steps.download.outputs.download-path }}
 
       - name: "Upload binaries to release"
-        working-directory: ${{ steps.download.outputs.download-path }}
         run:
-          gh release -R "$REPO_NAME" upload --clobber "$VERSION_TAG" *.zip
+          gh release -R "$REPO_NAME" upload --clobber "$VERSION_TAG" to_upload/*
         env:
           REPO_NAME: ${{ github.repository }}
           VERSION_TAG: ${{ needs.validate.outputs.version_tag }}
