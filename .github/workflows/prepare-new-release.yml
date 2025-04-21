@@ -16,6 +16,11 @@ on:
         description: 'verify current dev version, w/o "-dev" suffix (e.g. `0.1.0`)'
         required: true
         type: string
+      create_pr:
+        description: whether to create the PR for the release
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   create_draft:
@@ -99,6 +104,7 @@ jobs:
       target_branch_name: ${{ github.event.inputs.base_ref }}
 
   open_pr:
+    if: inputs.create_pr
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
