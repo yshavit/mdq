@@ -6,8 +6,11 @@ on:
         description: json array of string target names
         value: ${{ jobs.list-targets.outputs.names }}
       build_by_target:
-        description: OSes by target
+        description: OSes to use for building, by target
         value: ${{ jobs.list-targets.outputs.build_by_target }}
+      validate_by_target:
+        description: OSes to use for validating, by target
+        value: ${{ jobs.list-targets.outputs.validate_by_target }}
 
 
 jobs:
@@ -42,6 +45,7 @@ jobs:
             }
           }'
           
+          set -x
           echo "names=$(<<<"$targets" jq -c keys)" >> "$GITHUB_OUTPUT"
           echo "build_by_target=$(<<<"$targets" jq -c 'with_entries({key: .key, value: (.value.build)})')" >> "$GITHUB_OUTPUT"
           echo "validate_by_target=$(<<<"$targets" jq -c 'with_entries({key: .key, value: (.value.validate)})')" >> "$GITHUB_OUTPUT"

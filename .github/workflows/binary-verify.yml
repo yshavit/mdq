@@ -25,21 +25,69 @@ on:
 env:
   VERSION: "${{ inputs.version }}"
   RELEASE_TAG: "v${{ inputs.version }}"
+permissions:
+  contents: write # don't actually need to write, but this lets us see draft releases
 
 jobs:
-  linuxy:
+  list-targets:
+    uses: ./.github/workflows/list-targets.yml
+
+  dispatch-targets:
+    needs: list-targets
+    runs-on: ubuntu-latest
+    outputs:
+      windows: ${{ steps.run.outputs.windows }}
+      non-windows: ${{ steps.run.outputs.non-windows }}
+    steps:
+      - name: Run
+        id: run
+        run: |
+          set -x
+          echo "windows=$(<<<"$VALIDATE_BY_TARGET" jq -c 'to_entries | map(select(.value == "windows")) | map(.key)')" >> "$GITHUB_OUTPUT"
+          echo "non-windows=$(<<<"$VALIDATE_BY_TARGET" jq -c 'to_entries | map(select(.value != "windows")) | map(.key)')" >> "$GITHUB_OUTPUT"
+        env:
+          VALIDATE_BY_TARGET: ${{ needs.list-targets.outputs.validate_by_target }}
+          BUILD_BY_TARGET: ${{ needs.list-targets.outputs.build_by_target }}
+
+
+  full-coverage:
+    needs: list-targets
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Get asset names
+        run: >
+          gh release -R ${{ github.repository }} view "$RELEASE_TAG" --json assets | jq -r '.assets | map(.name) | .[]'
+          | sort 
+          | sed -E 's/\.(zip|tar\.gz)$//'
+          | sort
+          > from-release.txt
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Get target names
+        run: <<<"$TARGET_NAMES" jq -r '.[] | "mdq-\(.)"' > from-list-targets.txt
+        env:
+          TARGET_NAMES: ${{ needs.list-targets.outputs.names }}
+
+      - name: Validate that they're the same
+        run: diff -y from-list-targets.txt from-release.txt
+
+
+  unix-like:
+    needs: [ list-targets, dispatch-targets ]
     strategy:
       matrix:
-        os: [ macos, ubuntu ]
-    runs-on: ${{ matrix.os }}-latest
+        target: ${{ fromJSON(needs.dispatch-targets.outputs.non-windows) }}
+    runs-on: ${{ fromJSON(needs.list-targets.outputs.validate_by_target)[matrix.target] }}-latest
     steps:
-      - name: Download zip
-        run: gh release -R ${{ github.repository }} download "$RELEASE_TAG" -p mdq-${{ matrix.os }}.zip
+      - name: Download tarball
+        run: gh release -R ${{ github.repository }} download "$RELEASE_TAG" -p mdq-${{ matrix.target }}.tar.gz
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Expand
-        run: unzip mdq-${{ matrix.os }}.zip
+        run: tar xzvf mdq-${{ matrix.target }}.tar.gz
 
       - name: Run --version
         id: mdq-version
@@ -56,22 +104,26 @@ jobs:
 
 
   windows:
-    runs-on: windows-latest
+    needs: [ list-targets, dispatch-targets ]
+    runs-on: ${{ fromJSON(needs.list-targets.outputs.validate_by_target)[matrix.target] }}-latest
+    strategy:
+      matrix:
+        target: ${{ fromJSON(needs.dispatch-targets.outputs.windows) }}
     steps:
 
       - name: Download zip
-        run: gh release -R ${{ github.repository }} download "$RELEASE_TAG" -p mdq-windows.zip
+        run: gh release -R ${{ github.repository }} download ${{ env.RELEASE_TAG}} -p mdq-${{ matrix.target }}.zip
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Expand
-        run: Expand-Archive mdq-windows.zip
+        run: Expand-Archive mdq-${{ matrix.target }}.zip
 
       # Use JSON, because base64 is a pain in powershell
       - name: Run --version
         id: mdq-version
         run: |
-          $version_json = .\mdq-windows\mdq.exe --version | ConvertTo-Json
+          $version_json = .\mdq-${{ matrix.target }}\mdq.exe --version | ConvertTo-Json
           echo "version_json=$version_json" > $env:GITHUB_OUTPUT
 
       - name: Verify version
