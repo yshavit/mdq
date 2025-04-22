@@ -6,7 +6,7 @@ changelog:
   categories:
     - title: Breaking Changes
       labels:
-        - breaking-change
+        - breaking change
     - title: Notable Changes
       labels:
         - "*"

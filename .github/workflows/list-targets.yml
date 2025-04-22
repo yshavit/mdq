@@ -11,6 +11,9 @@ on:
       validate_by_target:
         description: OSes to use for validating, by target
         value: ${{ jobs.list-targets.outputs.validate_by_target }}
+      rust_target_by_target:
+        description: OSes to use for validating, by target
+        value: ${{ jobs.list-targets.outputs.rust_target_by_target }}
 
 
 jobs:
@@ -20,6 +23,7 @@ jobs:
       names: ${{ steps.targets.outputs.names }}
       build_by_target: ${{ steps.targets.outputs.build_by_target }}
       validate_by_target: ${{ steps.targets.outputs.validate_by_target }}
+      rust_target_by_target: ${{ steps.targets.outputs.rust_target_by_target }}
     steps:
       - id: targets
         name: List Targets
@@ -27,19 +31,23 @@ jobs:
           set -euo pipefail
           
           targets='{
-            "x86_64-pc-windows-gnu": {
+            "windows-x64": {
+              "rust_target": "x86_64-pc-windows-gnu",
               "build": "ubuntu",
               "validate": "windows"
             },
-            "x86_64-unknown-linux-gnu": {
+            "linux-x64": {
+              "rust_target": "x86_64-unknown-linux-gnu",
               "build": "ubuntu",
               "validate": "ubuntu"
             },
-            "x86_64-unknown-linux-musl": {
+            "linux-x64-musl": {
+              "rust_target": "x86_64-unknown-linux-musl",
               "build": "ubuntu",
               "validate": "ubuntu"
             },
-            "aarch64-apple-darwin": {
+            "macos-arm64": {
+              "rust_target": "aarch64-apple-darwin",
               "build": "macos",
               "validate": "macos"
             }
@@ -47,5 +55,6 @@ jobs:
           
           set -x
           echo "names=$(<<<"$targets" jq -c keys)" >> "$GITHUB_OUTPUT"
+          echo "rust_target_by_target=$(<<<"$targets" jq -c 'with_entries({key: .key, value: (.value.rust_target)})')" >> "$GITHUB_OUTPUT"
           echo "build_by_target=$(<<<"$targets" jq -c 'with_entries({key: .key, value: (.value.build)})')" >> "$GITHUB_OUTPUT"
           echo "validate_by_target=$(<<<"$targets" jq -c 'with_entries({key: .key, value: (.value.validate)})')" >> "$GITHUB_OUTPUT"
