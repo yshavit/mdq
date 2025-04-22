@@ -8,7 +8,20 @@ use std::vec::IntoIter;
 use elem::*;
 use markdown::mdast;
 
-// If we ever need any additional document-wide state, we can rename this
+/// Additional context for navigating or parsing a Markdown document.
+///
+/// The main functionality this exposes is [`MdContext::get_footnote`], which lets you look up a footnote's contents by
+/// its id. Footnotes can contain loops, such as:
+///
+/// ```markdown
+/// This is my footnote[^1].
+///
+/// [^1]: Note that it contains a cycle[^2].
+/// [^2]: This cycles back to the first footnote[^1].
+/// ```
+///
+/// That means we can't contain them fully within an MdElem without some external state to hold the links. This is that
+/// state.
 #[derive(Debug, PartialEq)]
 pub struct MdContext {
     footnotes: HashMap<FootnoteId, Vec<MdElem>>,
@@ -32,13 +45,60 @@ impl MdContext {
     }
 }
 
+/// A fully parsed Markdown document.
+///
+/// This comprises the root (top-level) [MdElem]s, as well as the [MdContext] for navigating footnotes.
 pub struct MdDoc {
     pub roots: Vec<MdElem>,
     pub ctx: MdContext,
 }
 
+/// A single node of the parsed Markdown.
+///
+/// These come in three flavors:
+///
+/// - block container nodes, which contain other `MdElem`s within them
+/// - inline container nodes, which contain [`Inline`]s
+/// - leaf nodes, which are scalars and represent the leaf nodes of the tree
 #[derive(Debug, PartialEq, Clone)]
 pub enum MdElem {
+    /// Block container: A full Markdown document, or contiguous section of one.
+    ///
+    /// This is distinct from just a `Vec<MdElem>` in that `Doc` represents a single document, while `Vec<MdElem>`
+    /// represents a stream of elements. For example, if you had:
+    ///
+    /// ```markdown
+    /// # First section
+    ///
+    /// Some text
+    ///
+    /// - a list item
+    /// - another list item
+    ///
+    /// More text.
+    ///
+    /// # Second section
+    ///
+    /// And so on.
+    /// ```
+    ///
+    /// Then that whole thing can be represented by a single `Doc` with two elements (both [`MdElem::Section`]s).
+    /// Additionally, the body of each section is also a `Doc`. The `Doc` for the first section is:
+    ///
+    /// ```markdown
+    /// Some text
+    ///
+    /// - a list item
+    /// - another list item
+    ///
+    /// More text.
+    /// ```
+    ///
+    /// On the other hand, if you select list items containing the word "item", you'll get a `Vec<MdElem>` (_not_ a
+    /// `Doc`) containing two items, one for each list item.
+    ///
+    /// Concretely: When mdq outputs the Markdown, it can (if requested) put thematic breaks or newlines between each
+    /// element of a `Vec<MdElem>`, but it will not do that for the elements within a `Doc`.
     Doc(Vec<MdElem>),
 
     // Container blocks
@@ -50,13 +110,29 @@ pub enum MdElem {
     CodeBlock(CodeBlock),
     Paragraph(Paragraph),
     Table(Table),
+    /// A thematic break:
+    ///
+    /// ```markdown
+    /// -----
+    /// ```
+    ///
+    /// Note that there are several styles of thematic break. mdq unifies them at parse time, which results in some
+    /// information loss; you can't necessarily reconstruct the original Markdown.
     ThematicBreak,
     Inline(Inline),
     BlockHtml(BlockHtml),
 }
 
+/// Options for parsing Markdown.
+///
+/// See: [parse].
 pub struct ParseOptions {
     pub(crate) mdast_options: markdown::ParseOptions,
+    /// Usually only required for debugging. Defaults to `false`.
+    ///
+    /// If mdq encounters an unexpected state coming from the underlying parsing library it uses, it can either ignore
+    /// it or error out. If this field is set to `true`, mdq will ignore the unexpected state. Otherwise, [`parse`] will
+    /// return an `Err` containing [`InvalidMd::UnknownMarkdown`].
     pub allow_unknown_markdown: bool,
 }
 
@@ -69,6 +145,7 @@ impl ParseOptions {
     }
 }
 
+/// Parse some Markdown text.
 pub fn parse(text: &str, options: &ParseOptions) -> Result<MdDoc, InvalidMd> {
     let ast = markdown::to_mdast(text, &options.mdast_options).map_err(|e| InvalidMd::ParseError(format!("{e}")))?;
     let read_options = ReadOptions {
@@ -104,24 +181,46 @@ pub(crate) struct ReadOptions {
     pub allow_unknown_markdown: bool,
 }
 
+/// Various error conditions that can come from trying to parse Markdown.
 #[derive(Debug, PartialEq)]
 pub enum InvalidMd {
+    /// Encountered a Markdown component that mdq doesn't support.
+    ///
+    /// This is typically an extension for a particular Markdown variant which mdq knows about, but does not handle.
     Unsupported(MarkdownPart),
+
+    /// Internal error. You shouldn't get this.
     NonListItemDirectlyUnderList(MarkdownPart),
+    /// Internal error. You shouldn't get this.
     NonRowDirectlyUnderTable(MarkdownPart),
+    /// Internal error. You shouldn't get this.
     NonInlineWhereInlineExpected(MdElem),
+    /// Internal error. You shouldn't get this.
     MissingReferenceDefinition(String),
+    /// Internal error. You shouldn't get this.
     ConflictingReferenceDefinition(String),
+    /// Internal error. You shouldn't get this.
     InternalError(UnknownMdParseError),
+    /// Internal error. You shouldn't get this.
+    ///
+    /// See [`ParseOptions::allow_unknown_markdown`].
     UnknownMarkdown(&'static str),
+    /// Internal error. You shouldn't get this.
     ParseError(String),
 }
 
+/// A portion of unparsable markdown.
+///
+/// This wraps the AST from the underlying library that mdq uses; the only thing you can really do with it is to use its
+/// `Debug`.
 #[derive(Debug, PartialEq, Eq)]
 pub struct MarkdownPart {
     node: mdast::Node,
 }
 
+/// An unknown, internal error.
+///
+/// See [`InvalidMd::InternalError`].
 // A wrapper for [Backtrace] that implements [PartialEq] to always return `true`. This lets us use it in a struct
 // while still letting us use `#[derive(PartialEq)]`
 #[derive(Debug)]
@@ -177,30 +276,108 @@ impl Display for InvalidMd {
     }
 }
 
+/// Inner details of the [MdElem] variants.
 pub mod elem {
     use super::*;
     use std::ops::Deref;
 
+    /// A table row.
+    ///
+    /// This is just a `Vec` of table cells, but the type alias makes it much easier to reason about.
     pub type TableRow = Vec<TableCell>;
+
+    /// A table cell within a row.
+    ///
+    /// This is just a `Vec` of [Inline]s, but the type alias makes it much easier to reason about.
     pub type TableCell = Vec<Inline>;
 
+    /// Different kinds of code blocks.
     #[derive(Debug, PartialEq, Hash, Clone)]
     pub enum CodeVariant {
+        /// A standard code block
+        ///
+        /// ````markdown
+        /// ```
+        /// foo()
+        /// ```
+        /// ````
+        ///
+        /// If the `Option<CodeOpts>` is `None`, this block has no metadata in the opening fence (as in the example
+        /// directly above). Otherwise, the first word directly after the backticks is the language, and the rest of
+        /// the string is the metadata:
+        ///
+        /// ````markdown
+        /// ```rust and some metadata
+        /// foo()
+        /// ```
+        /// ````
         Code(Option<CodeOpts>),
-        Math { metadata: Option<String> },
+        Math {
+            metadata: Option<String>,
+        },
         Toml,
         Yaml,
     }
 
+    /// Some inline text.
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum Inline {
+        /// The marker for a footnote; this is a terminal node in the [MdElem] tree.
+        ///
+        /// ```markdown
+        /// [^1]
+        /// ```
+        ///
+        /// Note that this does not include the content of the footnote. To get that, use [`MdContext::get_footnote`].
         Footnote(FootnoteId),
+
+        /// A span of formatted text (~~deleted~~, _emphasized_, or **strong**).
+        ///
+        /// The span's body is a `Vec<Inline>`, so you can have nested spans, emphasized link text, etc.
         Span(Span),
+
+        /// An image; this is a terminal node in the [MdElem] tree.
+        ///
+        /// ```markdown
+        /// ![alt text](https://example.com/hello-world.png)
+        /// ```
         Image(Image),
+
+        /// A link
+        ///
+        /// ```markdown
+        /// ![display text](https://example.com/hello-world)
+        /// ```
         Link(Link),
+
+        /// Some text; this is a terminal node in the [MdElem] tree.
         Text(Text),
     }
 
+    /// An html block.
+    ///
+    /// These are `<tag>`s that start a line. The exact rules are somewhat involved (see:
+    /// <https://github.github.com/gfm/#html-blocks>), but basically these are non-inlined html tags.
+    ///
+    /// The [`BlockHtml::value`] includes the opening and closing tags, and any text between them:
+    ///
+    /// ```
+    /// use mdq::md_elem::{parse, MdElem, ParseOptions};
+    /// use mdq::md_elem::elem::{BlockHtml, Inline, Paragraph, Text, TextVariant};
+    /// let md_text = r"
+    /// <div>
+    ///
+    /// My div content
+    ///
+    /// </div>
+    /// ";
+    /// let md_elems = parse(md_text, &ParseOptions::gfm()).unwrap();
+    /// assert_eq!(3, md_elems.roots.len());
+    /// let MdElem::BlockHtml(BlockHtml{value}) = &md_elems.roots[0] else { panic!() };
+    /// assert_eq!("<div>", value);
+    /// ```
+    ///
+    /// c.f. [`TextVariant::InlineHtml`]
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct BlockHtml {
         pub value: String,
@@ -212,30 +389,35 @@ pub mod elem {
         }
     }
 
+    /// See [`Inline::Span`]
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct Span {
         pub variant: crate::md_elem::tree::elem::SpanVariant,
         pub children: Vec<crate::md_elem::tree::elem::Inline>,
     }
 
+    /// See [`Inline::Text`]
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct Text {
         pub variant: crate::md_elem::tree::elem::TextVariant,
         pub value: String,
     }
 
+    /// See [`Inline::Link`]
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct Link {
         pub text: Vec<crate::md_elem::tree::elem::Inline>,
         pub link_definition: crate::md_elem::tree::elem::LinkDefinition,
     }
 
+    /// See [`Inline::Image`]
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct Image {
         pub alt: String,
         pub link: crate::md_elem::tree::elem::LinkDefinition,
     }
 
+    /// See [`Inline::Footnote`] and [`MdContext::get_footnote`]
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct FootnoteId {
         pub id: String,
@@ -262,22 +444,34 @@ pub mod elem {
         }
     }
 
+    /// The link in an [`Link`] or [`Image`].
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub struct LinkDefinition {
+        /// The link's destination.
         pub url: String,
         /// If you have `[1]: https://example.com "my title"`, this is the "my title".
         ///
-        /// See: https://github.github.com/gfm/#link-reference-definitions
+        /// See: <https://github.github.com/gfm/#link-reference-definitions>
         pub title: Option<String>,
+        /// The link's reference style.
         pub reference: LinkReference,
     }
 
+    /// An item within a list.
+    ///
+    /// ```markdown
+    /// - hello
+    ///   ^^^^^
+    /// ```
     #[derive(Debug, PartialEq, Clone)]
     pub struct ListItem {
+        /// If `None`, this item is not a task. If `Some`, this is a task, with the bool representing whether it's
+        /// marked as completed.
         pub checked: Option<bool>,
         pub item: Vec<MdElem>,
     }
 
+    /// ~~deleted~~, _emphasized_, or **strong**; see [`Span`]
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum SpanVariant {
         Delete,
@@ -285,14 +479,77 @@ pub mod elem {
         Strong,
     }
 
+    /// See [`Text`]
     #[derive(Debug, PartialEq, Eq, Hash, Clone)]
     pub enum TextVariant {
+        /// Plain text
         Plain,
+
+        /// `inline code`
         Code,
+
+        /// $inline math$
         Math,
-        Html,
+
+        /// inline <span>html</span>
+        ///
+        /// Each tag (and not any text inside matching tags) is its own [`Inline::Text`], and the text's `value`
+        /// includes the angle brackets:
+        ///
+        /// ```
+        /// use mdq::md_elem::{parse, MdElem, ParseOptions};
+        /// use mdq::md_elem::elem::{Inline, Paragraph, Text, TextVariant};
+        /// let md_elems = parse("inline <span>html</span>", &ParseOptions::gfm()).unwrap();
+        /// assert_eq!(1, md_elems.roots.len());
+        /// let MdElem::Paragraph(Paragraph{body}) = &md_elems.roots[0] else { panic!() };
+        /// assert_eq!(4, body.len());
+        /// assert_eq!(&Inline::Text(Text{variant: TextVariant::InlineHtml, value: "<span>".to_string()}), &body[1]);
+        /// ```
+        ///
+        /// c.f. [`BlockHtml`]
+        InlineHtml,
     }
 
+    /// A section title and its body.
+    ///
+    /// ```markdown
+    /// # This is a title with depth 1
+    ///
+    /// This is its body.
+    /// ```
+    ///
+    /// Note that many Markdown parsers treat Markdown as non-hierarchical: the title is a top-level node, and its
+    /// body is another top-level node sibling to it. mdq does not do this: each section's body belongs to the section.
+    ///
+    /// Deeper sections will be contained as [`MdElem::Section`]s within this [`Section::body`]. For example, given:
+    ///
+    /// ```markdown
+    /// # This is a title with depth 1
+    ///
+    /// Hello, world.
+    ///
+    /// ## This is a title with depth 2
+    ///
+    /// Alpha, bravo.
+    ///
+    /// # Back to depth 1
+    ///
+    /// Foo, bar.
+    /// ```
+    ///
+    /// ... the tree would look roughly like:
+    ///
+    /// - This is a title with depth 1
+    ///
+    ///   Hello, world.
+    ///
+    ///   - This is a title with depth 2
+    ///
+    ///     Alpha, bravo
+    ///
+    /// - Back to depth 1
+    ///
+    ///   Foo, bar.
     #[derive(Debug, PartialEq, Clone)]
     pub struct Section {
         pub depth: u8,
@@ -300,28 +557,66 @@ pub mod elem {
         pub body: Vec<MdElem>,
     }
 
+    /// Just a standard paragraph
+    ///
+    /// ```markdown
+    /// Hello, world.
+    /// ```
     #[derive(Debug, PartialEq, Clone)]
     pub struct Paragraph {
         pub body: Vec<Inline>,
     }
 
+    /// A block quote.
+    ///
+    /// ```markdown
+    /// Hello, world.
+    /// ```
     #[derive(Debug, PartialEq, Clone)]
     pub struct BlockQuote {
         pub body: Vec<MdElem>,
     }
 
+    /// A list.
+    ///
+    /// ```markdown
+    /// - hello
+    /// - world
+    /// ```
+    ///
+    /// or
+    ///
+    /// ```markdown
+    /// 1. hello
+    /// 2. world
+    /// ```
+    ///
+    /// If [`List::starting_index`] is `None`, this is an unordered list. If it is `Some`, this is an ordered list,
+    /// starting at the specified index.
     #[derive(Debug, PartialEq, Clone)]
     pub struct List {
         pub starting_index: Option<u32>,
         pub items: Vec<ListItem>,
     }
 
+    /// A table.
+    ///
+    /// Tables will always have at least one row, and the length of [`Table::alignments`] should equal the length of
+    /// that first row's `Vec<TableCell>`.
     #[derive(Debug, PartialEq, Clone)]
     pub struct Table {
         pub alignments: Vec<Option<ColumnAlignment>>,
+        /// The table's rows. Each `TableRow` is a `Vec<TableCell>`, and each `TableCell` is a `Vec<Inline>`. It can
+        /// get confusing to iterate these nested vecs!
+        ///
+        /// The first row is the header row.
         pub rows: Vec<TableRow>,
     }
 
+    /// Left, right, or center for table columns.
+    ///
+    /// This enum does not define "no alignment". It is typically used in an `Option<ColumnAlignment>`, where "no
+    /// alignment" is represented as `None`.
     #[derive(Debug, PartialEq, Clone, Copy)]
     pub enum ColumnAlignment {
         Left,
@@ -329,21 +624,64 @@ pub mod elem {
         Center,
     }
 
+    /// A code block.
+    ///
+    /// ````markdown
+    /// ```
+    /// code block
+    /// ```
+    /// ````
+    ///
+    /// This includes "code-like" blocks like yaml and block-level math, which some variants of Markdown support.
     #[derive(Debug, PartialEq, Clone)]
     pub struct CodeBlock {
+        /// The type of code block
         pub variant: CodeVariant,
+        /// The contents of the code block; everything between the fence lines, or the indented contents.
         pub value: String,
     }
 
-    /// See https://github.github.com/gfm/#link-reference-definitions
+    /// A [LinkDefinition]'s reference style.
+    ///
+    /// See <https://github.github.com/gfm/#link-reference-definitions>
     #[derive(Debug, PartialEq, Eq, Clone, Hash)]
     pub enum LinkReference {
+        /// ```markdown
+        /// [hello](https://example.com/world)
+        /// ```
         Inline,
+
+        /// ```markdown
+        /// [hello][hello-link]
+        ///
+        /// [hello-link]: https://example.com/world
+        /// ```
+        ///
+        /// This includes numbered links:
+        ///
+        /// ```markdown
+        /// [hello][1]
+        ///
+        /// [1]: https://example.com/world
+        /// ```
         Full(String),
+
+        /// ```markdown
+        /// [hello][]
+        ///
+        /// [hello]: https://example.com/world
+        /// ```
         Collapsed,
+
+        /// ```markdown
+        /// [hello]
+        ///
+        /// [hello]: https://example.com/world
+        /// ```
         Shortcut,
     }
 
+    /// See [`CodeVariant::Code`]
     #[derive(Debug, PartialEq, Hash, Clone)]
     pub struct CodeOpts {
         pub language: String,
@@ -753,7 +1091,7 @@ impl MdElem {
             let inline = match child {
                 MdElem::Inline(inline) => inline,
                 MdElem::BlockHtml(html) => Inline::Text(Text {
-                    variant: TextVariant::Html,
+                    variant: TextVariant::InlineHtml,
                     value: html.value,
                 }),
                 _ => return Err(InvalidMd::NonInlineWhereInlineExpected(child)),
@@ -1331,11 +1669,11 @@ mod tests {
                     assert_eq!(body, vec![
                         mdq_inline!("In "),
                         Inline::Text (Text{
-                            variant: TextVariant::Html,
+                            variant: TextVariant::InlineHtml,
                             value: "<em>".to_string()}),
                         mdq_inline!("a paragraph."),
                         Inline::Text (Text{
-                            variant: TextVariant::Html,
+                            variant: TextVariant::InlineHtml,
                             value: "</em>".to_string()}),
                     ])
                 });
@@ -1351,11 +1689,11 @@ mod tests {
                     assert_eq!(body, vec![
                         mdq_inline!("In "),
                         Inline::Text (Text{
-                            variant: TextVariant::Html,
+                            variant: TextVariant::InlineHtml,
                             value: "<em\nnewline  >".to_string()}),
                         mdq_inline!("a paragraph."),
                         Inline::Text (Text{
-                            variant: TextVariant::Html,
+                            variant: TextVariant::InlineHtml,
                             value: "</em>".to_string()}),
                     ])
                 });

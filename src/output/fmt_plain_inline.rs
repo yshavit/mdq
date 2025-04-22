@@ -8,19 +8,24 @@ pub struct PlainWriterOptions {
     pub include_breaks: bool,
 }
 
+/// A struct for writing [MdElem]s as plain text (as per `--output plain`)
+///
+/// This generally strips all Markdown-y aspects of from the elements, and leaves only the core text. For example,
+/// `_emphasized text_` will be rendered simply as `"emphasized text"`, and `- a list` will be rendered just as
+/// "`a list"`.
+///
+/// Links and images will have their URLs removed, leaving only the display/alt text.
 pub struct PlainWriter {
     options: PlainWriterOptions,
 }
 
 impl PlainWriter {
+    /// Create a new `PlainWriter` with the given options
     pub fn with_options(options: PlainWriterOptions) -> Self {
         Self { options }
     }
 
-    pub fn options(&mut self) -> &mut PlainWriterOptions {
-        &mut self.options
-    }
-
+    /// Writes the given nodes to the given writer.
     pub fn write<'md, I, W>(&self, nodes: I, out: &mut W)
     where
         I: IntoIterator<Item = &'md MdElem>,

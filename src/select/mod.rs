@@ -1,3 +1,4 @@
+//! Selector strings. This is the heart of mdq.
 mod api;
 mod match_selector;
 mod matcher;
