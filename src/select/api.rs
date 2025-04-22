@@ -111,7 +111,7 @@ impl SelectorAdapter {
                 }
                 wrapped
             }
-            MdElem::Section(s) => vec![MdElem::Doc(s.body)], // TODO Should this just be s.body? Should I just get rid of Doc altogether?
+            MdElem::Section(s) => vec![MdElem::Doc(s.body)],
             MdElem::Paragraph(p) => p.body.into_iter().map(|child| MdElem::Inline(child)).collect(),
             MdElem::BlockQuote(b) => vec![MdElem::Doc(b.body)],
             MdElem::List(list) => {

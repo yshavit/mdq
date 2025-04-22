@@ -303,8 +303,6 @@ mod tests {
         }
     }
 
-    // TODO move the tests in matchers.rs to here, and consolidate them
-
     fn check_parse(variant: StringVariant, input: &str, expect: ParsedString, remaining: &str) {
         let (pairs, _) = variant.parse(input).unwrap();
         let consumed = pairs.as_str();

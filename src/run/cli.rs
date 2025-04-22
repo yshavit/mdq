@@ -1,3 +1,4 @@
+use crate::output;
 use crate::output::{LinkTransform, ReferencePlacement};
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, ValueEnum};
@@ -72,7 +73,7 @@ macro_rules! create_options_structs {
         }
 
         /// Options analogous to the mdq CLI's switches.
-        #[derive(Parser, Debug, PartialEq, Eq)]
+        #[derive(Parser, Debug, PartialEq, Eq, Clone)]
         pub struct RunOptions {
             $(
             $(#[$meta])*
@@ -178,6 +179,21 @@ impl Default for RunOptions {
             quiet: false,
             allow_unknown_markdown: false,
             markdown_file_paths: vec![],
+        }
+    }
+}
+
+impl From<&RunOptions> for output::MdWriterOptions {
+    fn from(cli: &RunOptions) -> Self {
+        output::MdWriterOptions {
+            link_reference_placement: cli.link_pos,
+            footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
+            inline_options: output::InlineElemOptions {
+                link_format: cli.link_format,
+                renumber_footnotes: cli.renumber_footnotes,
+            },
+            include_thematic_breaks: cli.should_add_breaks(),
+            text_width: cli.wrap_width,
         }
     }
 }
