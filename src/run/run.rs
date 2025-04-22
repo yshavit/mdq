@@ -1,5 +1,5 @@
 use crate::md_elem::{InvalidMd, MdDoc, MdElem, ParseOptions};
-use crate::output::MdWriter;
+use crate::output::{MdWriter, MdWriterOptions};
 use crate::query::ParseError;
 use crate::run::cli::OutputFormat;
 use crate::run::RunOptions;
@@ -193,16 +193,7 @@ fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error>
 
     let pipeline_nodes = selectors.find_nodes(&ctx, vec![MdElem::Doc(roots)]);
 
-    let md_options = output::MdWriterOptions {
-        link_reference_placement: cli.link_pos,
-        footnote_reference_placement: cli.footnote_pos.unwrap_or(cli.link_pos),
-        inline_options: output::InlineElemOptions {
-            link_format: cli.link_format,
-            renumber_footnotes: cli.renumber_footnotes,
-        },
-        include_thematic_breaks: cli.should_add_breaks(),
-        text_width: cli.wrap_width,
-    };
+    let md_options: MdWriterOptions = cli.into();
 
     let found_any = !pipeline_nodes.is_empty();
 
