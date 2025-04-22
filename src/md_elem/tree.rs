@@ -202,7 +202,8 @@ pub enum InvalidMd {
     /// Internal error. You shouldn't get this.
     InternalError(UnknownMdParseError),
     /// Internal error. You shouldn't get this.
-    /// Internal error. You shouldn't get this. See [`ParseOptions::allow_unknown_markdown`].
+    ///
+    /// See [`ParseOptions::allow_unknown_markdown`].
     UnknownMarkdown(&'static str),
     /// Internal error. You shouldn't get this.
     ParseError(String),

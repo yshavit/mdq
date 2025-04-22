@@ -247,7 +247,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
 
         let mut row_strs = Vec::with_capacity(alignments.len());
 
-        let mut column_widths = [0].repeat(alignments.len());
+        let mut column_widths = vec![0; alignments.len()];
         if !alignments.is_empty() {
             for (idx, alignment) in alignments.iter().enumerate() {
                 let width = match *alignment {
