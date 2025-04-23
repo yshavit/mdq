@@ -74,7 +74,7 @@ pub enum Input {
 }
 
 impl Error {
-    pub fn from_io_error(error: io::Error, file: Input) -> Self {
+    pub(crate) fn from_io_error(error: io::Error, file: Input) -> Self {
         Error::FileReadError(file, error)
     }
 }
