@@ -291,7 +291,6 @@ impl Display for InvalidMd {
 /// Inner details of the [MdElem] variants.
 pub mod elem {
     use super::*;
-    use std::ops::Deref;
 
     /// A table row.
     ///
@@ -441,15 +440,22 @@ pub mod elem {
         }
     }
 
-    impl Deref for crate::md_elem::tree::elem::FootnoteId {
-        type Target = String;
-
-        fn deref(&self) -> &Self::Target {
+    impl crate::md_elem::tree::elem::FootnoteId {
+        /// Gets this footnote's reference id as a string.
+        ///
+        /// For example, given the markdown:
+        ///
+        /// ```markdown
+        /// Hello[^1], world.
+        ///
+        /// [^1]: this is a standard greeting
+        /// ```
+        ///
+        /// the `FootnoteId`'s `as_str()` would be `"^1"`.
+        pub fn as_str(&self) -> &str {
             &self.id
         }
-    }
 
-    impl crate::md_elem::tree::elem::FootnoteId {
         pub(crate) fn new(id: String, label: Option<String>) -> crate::md_elem::tree::elem::FootnoteId {
             let id = label.unwrap_or(id);
             Self { id }

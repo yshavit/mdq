@@ -18,7 +18,7 @@ pub struct InlineElemOptions {
 pub(crate) struct MdInlinesWriter<'md> {
     ctx: &'md MdContext,
     seen_links: HashSet<LinkLabel<'md>>,
-    seen_footnotes: HashSet<&'md String>,
+    seen_footnotes: HashSet<&'md str>,
     pending_references: PendingReferences<'md>,
     link_transformer: LinkTransformer,
     footnote_transformer: FootnoteTransformer<'md>,
@@ -109,7 +109,7 @@ impl<'md> MdInlinesWriter<'md> {
         let mut to_stringer = self.footnote_transformer.new_to_stringer();
 
         for fid in self.pending_references.footnotes.drain() {
-            let transformed_k = to_stringer.transform(fid);
+            let transformed_k = to_stringer.transform(fid.as_str());
             let ctx = self.ctx;
             let footnote_value = ctx.get_footnote(&&fid);
             result.push((transformed_k, footnote_value))
@@ -171,7 +171,7 @@ impl<'md> MdInlinesWriter<'md> {
             Inline::Image(image) => self.write_linklike(out, image),
             Inline::Footnote(footnote_id) => {
                 out.write_str("[^");
-                self.footnote_transformer.write(out, &footnote_id);
+                self.footnote_transformer.write(out, footnote_id.as_str());
                 out.write_char(']');
                 self.add_footnote(footnote_id);
             }
@@ -179,7 +179,7 @@ impl<'md> MdInlinesWriter<'md> {
     }
 
     fn add_footnote(&mut self, label: &'md FootnoteId) {
-        if self.seen_footnotes.insert(label) {
+        if self.seen_footnotes.insert(label.as_str()) {
             self.pending_references.footnotes.insert(label);
             let ctx = self.ctx;
             let text = ctx.get_footnote(&label);

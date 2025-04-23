@@ -21,7 +21,7 @@ fn build_inline(out: &mut String, elem: &Inline) {
         Inline::Image(Image { alt, .. }) => out.push_str(alt),
         Inline::Footnote(footnote) => {
             out.push_str("[^");
-            out.push_str(&footnote);
+            out.push_str(footnote.as_str());
             out.push(']');
         }
     }
