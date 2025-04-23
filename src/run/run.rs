@@ -201,7 +201,7 @@ fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error>
         let mut stdout = os.get_stdout();
         match cli.output {
             OutputFormat::Markdown | OutputFormat::Md => {
-                MdWriter::with_options(md_options).write(&ctx, &pipeline_nodes, &mut output::io_to_fmt(&mut stdout));
+                MdWriter::with_options(md_options).write(&ctx, &pipeline_nodes, &mut output::IoAdapter(&mut stdout));
             }
             OutputFormat::Json => {
                 let inline_options = md_options.inline_options;
