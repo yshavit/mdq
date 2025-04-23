@@ -1,8 +1,6 @@
 use crate::md_elem::{MdContext, MdElem};
-use crate::output::tree_ref_serde::MdSerde;
-use crate::output::{write_md, InlineElemOptions, MdWriterOptions};
+use crate::output::{write_md, MdWriterOptions};
 use crate::util::output::{Output, SimpleWrite};
-use serde::Serialize;
 use std::{fmt, io};
 
 /// A struct for writing [MdElem]s as Markdown (as per `--output markdown`).
@@ -37,15 +35,6 @@ impl MdWriter {
 /// [`std::fmt::Write`]: fmt::Write
 pub fn io_to_fmt(writer: impl io::Write) -> impl fmt::Write {
     Adapter(writer)
-}
-
-/// Transform [`MdElem`]s into a [`Serialize`].
-pub fn md_to_serialize<'a>(
-    elems: &'a [MdElem],
-    ctx: &'a MdContext,
-    inline_options: InlineElemOptions,
-) -> impl Serialize + 'a {
-    MdSerde::new(&elems, &ctx, inline_options)
 }
 
 struct Adapter<W>(W);

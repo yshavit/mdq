@@ -88,7 +88,7 @@ pub(crate) struct LinkTransformation<'md> {
 ///
 /// ```compile_fail
 ///     let link_ref = self.link_transformer.transform(self, link_like)
-///                    ^^^^^^^^^^^^^^^^^^^^^           ^^^^
+///     //             ^^^^^^^^^^^^^^^^^^^^^           ^^^^
 ///                    first borrow                    second borrow
 /// ```
 ///

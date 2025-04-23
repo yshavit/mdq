@@ -1,5 +1,5 @@
 use crate::md_elem::{InvalidMd, MdDoc, MdElem, ParseOptions};
-use crate::output::{MdWriter, MdWriterOptions};
+use crate::output::{MdWriter, MdWriterOptions, SerializableMd};
 use crate::query::ParseError;
 use crate::run::cli::OutputFormat;
 use crate::run::RunOptions;
@@ -204,11 +204,9 @@ fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error>
                 MdWriter::with_options(md_options).write(&ctx, &pipeline_nodes, &mut output::io_to_fmt(&mut stdout));
             }
             OutputFormat::Json => {
-                serde_json::to_writer(
-                    &mut stdout,
-                    &output::md_to_serialize(&pipeline_nodes, &ctx, md_options.inline_options),
-                )
-                .unwrap();
+                let inline_options = md_options.inline_options;
+                serde_json::to_writer(&mut stdout, &SerializableMd::new(&pipeline_nodes, &ctx, inline_options))
+                    .unwrap();
             }
             OutputFormat::Plain => {
                 output::PlainWriter::with_options(output::PlainWriterOptions {
