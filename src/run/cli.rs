@@ -12,7 +12,7 @@ macro_rules! create_options_structs {
             pub $name:ident : $ty:ty
         ),* $(,)?
     ) => {
-        #[derive(Parser, Debug)]
+        #[derive(Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Parser)]
         #[command(version, about, long_about = None)]
         #[doc(hidden)]
         pub struct CliOptions {
@@ -73,7 +73,7 @@ macro_rules! create_options_structs {
         }
 
         /// Options analogous to the mdq CLI's switches.
-        #[derive(Parser, Debug, PartialEq, Eq, Clone)]
+        #[derive(Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Parser)]
         pub struct RunOptions {
             $(
             $(#[$meta])*
@@ -165,24 +165,6 @@ create_options_structs! {
     pub allow_unknown_markdown: bool,
 }
 
-impl Default for RunOptions {
-    fn default() -> Self {
-        Self {
-            link_pos: ReferencePlacement::Section,
-            footnote_pos: None,
-            link_format: LinkTransform::Reference,
-            renumber_footnotes: true,
-            output: OutputFormat::Markdown,
-            add_breaks: None,
-            wrap_width: None,
-            selectors: "".to_string(),
-            quiet: false,
-            allow_unknown_markdown: false,
-            markdown_file_paths: vec![],
-        }
-    }
-}
-
 impl From<&RunOptions> for output::MdWriterOptions {
     fn from(cli: &RunOptions) -> Self {
         output::MdWriterOptions {
@@ -239,7 +221,7 @@ impl CliOptions {
 }
 
 /// Output formats, analogous to `--output` in the CLI.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
 pub enum OutputFormat {
     /// Output results as Markdown.
     Markdown,
@@ -285,6 +267,12 @@ pub enum OutputFormat {
     /// Here's an unordered list.
     /// ```
     Plain,
+}
+
+impl Default for OutputFormat {
+    fn default() -> Self {
+        Self::Markdown
+    }
 }
 
 impl Display for OutputFormat {

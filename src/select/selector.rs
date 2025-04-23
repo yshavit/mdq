@@ -3,7 +3,7 @@ use crate::query::ParseError;
 use crate::select::{Matcher, SelectorAdapter};
 
 /// The completion state that a [`ListItemMatcher`] looks for.
-#[derive(Eq, PartialEq, Debug, Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ListItemTask {
     /// `- [x] foo`
     Selected,
@@ -16,7 +16,7 @@ pub enum ListItemTask {
 }
 
 /// matcher for [`Selector::ListItem`]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ListItemMatcher {
     /// Whether this matches an ordered list (`1. foo`) or an unordered one (`- foo`).
     pub ordered: bool,
@@ -28,52 +28,52 @@ pub struct ListItemMatcher {
 }
 
 /// matcher for [`Selector::Section`]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SectionMatcher {
     pub title: Matcher,
 }
 
 /// matcher for both [`Selector::Link`] and [`Selector::Image`]
-#[derive(Eq, PartialEq, Debug, Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LinklikeMatcher {
     pub display_matcher: Matcher,
     pub url_matcher: Matcher,
 }
 
 /// matcher for [`Selector::BlockQuote`]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BlockQuoteMatcher {
     pub text: Matcher,
 }
 
 /// matcher for [`Selector::Html`]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HtmlMatcher {
     pub html: Matcher,
 }
 
 /// matcher for [`Selector::Paragraph`]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ParagraphMatcher {
     pub text: Matcher,
 }
 
 /// matcher for [`Selector::CodeBlock`]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CodeBlockMatcher {
     pub language: Matcher,
     pub contents: Matcher,
 }
 
 /// matcher for [`Selector::Table`]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TableMatcher {
     pub headers: Matcher,
     pub rows: Matcher,
 }
 
 /// The in-memory equivalent of mdq's selector query string.
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Selector {
     /// `foo | bar`
     Chain(Vec<Self>),

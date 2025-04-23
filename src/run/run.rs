@@ -31,7 +31,7 @@ pub enum Error {
 impl std::error::Error for Error {}
 
 /// Returned when the selector string is not valid.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct QueryParseError {
     query_string: String,
     error: ParseError,
@@ -67,7 +67,7 @@ impl Display for QueryParseError {
 }
 
 /// Stdin or an input file by path.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Input {
     Stdin,
     FilePath(String),

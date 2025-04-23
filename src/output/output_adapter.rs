@@ -4,6 +4,7 @@ use crate::util::output::{Output, SimpleWrite};
 use std::{fmt, io};
 
 /// A struct for writing [MdElem]s as Markdown (as per `--output markdown`).
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MdWriter {
     options: MdWriterOptions,
 }
@@ -44,6 +45,7 @@ impl MdWriter {
 ///
 /// [`std::io::Write`]: io::Write
 /// [`std::fmt::Write`]: fmt::Write
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IoAdapter<W>(pub W);
 
 impl<W> From<W> for IoAdapter<W> {

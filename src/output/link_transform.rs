@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 /// Whether to render links as inline, reference form, or keep them as they were.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
 pub enum LinkTransform {
     /// Keep links as they were in the original
     Keep,
@@ -22,6 +22,12 @@ pub enum LinkTransform {
     /// Links that weren't already in reference form will be auto-assigned a reference id. Links that were in reference
     /// form will have the link number be reordered.
     Reference,
+}
+
+impl Default for LinkTransform {
+    fn default() -> Self {
+        LinkTransform::Keep
+    }
 }
 
 pub(crate) struct LinkTransformer {

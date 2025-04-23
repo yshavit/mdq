@@ -8,7 +8,7 @@ use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 
 /// A wrapper around [`&[MdElem]`](MdElem) that implements [`Serialize`].
-#[derive(Serialize)]
+#[derive(Clone, Default, Debug, Serialize)]
 pub struct SerializableMd<'md> {
     items: Vec<SerdeElem<'md>>,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
@@ -17,7 +17,7 @@ pub struct SerializableMd<'md> {
     footnotes: HashMap<String, Vec<SerdeElem<'md>>>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum SerdeElem<'md> {
     Document(Vec<SerdeElem<'md>>),
@@ -66,7 +66,7 @@ fn serialize_thematic_break<S: Serializer>(ser: S) -> Result<S::Ok, S::Error> {
     ser.serialize_none()
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub(crate) struct LinkSerde<'md> {
     url: &'md String,
 
@@ -99,7 +99,7 @@ impl<'md> From<&'md LinkDefinition> for LinkSerde<'md> {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum AlignSerde {
     Left,
@@ -119,7 +119,7 @@ impl From<Option<ColumnAlignment>> for AlignSerde {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub(crate) struct LiSerde<'md> {
     item: Vec<SerdeElem<'md>>,
 
@@ -130,14 +130,14 @@ pub(crate) struct LiSerde<'md> {
     checked: &'md Option<bool>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum LinkCollapseStyle {
     Collapsed,
     Shortcut,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum CodeBlockType {
     Code,

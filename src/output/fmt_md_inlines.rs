@@ -9,7 +9,7 @@ use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 
 /// Options for formatting inline elements.
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct InlineElemOptions {
     pub link_format: LinkTransform,
     pub renumber_footnotes: bool,

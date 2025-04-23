@@ -9,7 +9,7 @@ use std::borrow::Cow;
 use std::cmp::max;
 use std::ops::Deref;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MdWriterOptions {
     /// Where to put link references (for non-inline links).
     pub link_reference_placement: ReferencePlacement,
@@ -53,7 +53,7 @@ pub struct MdWriterOptions {
 }
 
 /// Whether to put link definitions at the end of each section, or at the bottom of the whole document.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
 pub enum ReferencePlacement {
     /// Show link definitions in the first section that uses the link.
     ///
@@ -92,6 +92,12 @@ pub enum ReferencePlacement {
     /// ^^^^^^^^^^^^^^^^^^^^^^^^
     /// ```
     Doc,
+}
+
+impl Default for ReferencePlacement {
+    fn default() -> Self {
+        ReferencePlacement::Section
+    }
 }
 
 pub(crate) fn write_md<'md, I, W>(options: MdWriterOptions, out: &mut Output<W>, ctx: &'md MdContext, nodes: I)

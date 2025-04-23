@@ -3,7 +3,7 @@ use crate::md_elem::*;
 use crate::output::fmt_plain_writer::NewlineCollapser;
 use std::io::{Error, LineWriter, Write};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PlainWriterOptions {
     pub include_breaks: bool,
 }
@@ -15,6 +15,7 @@ pub struct PlainWriterOptions {
 /// "`a list"`.
 ///
 /// Links and images will have their URLs removed, leaving only the display/alt text.
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PlainWriter {
     options: PlainWriterOptions,
 }

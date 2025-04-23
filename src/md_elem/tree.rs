@@ -22,7 +22,7 @@ use markdown::mdast;
 ///
 /// That means we can't contain them fully within an MdElem without some external state to hold the links. This is that
 /// state.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct MdContext {
     footnotes: HashMap<FootnoteId, Vec<MdElem>>,
 
@@ -48,6 +48,7 @@ impl MdContext {
 /// A fully parsed Markdown document.
 ///
 /// This comprises the root (top-level) [MdElem]s, as well as the [MdContext] for navigating footnotes.
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct MdDoc {
     pub roots: Vec<MdElem>,
     pub ctx: MdContext,
@@ -60,7 +61,7 @@ pub struct MdDoc {
 /// - block container nodes, which contain other `MdElem`s within them
 /// - inline container nodes, which contain [`Inline`]s
 /// - leaf nodes, which are scalars and represent the leaf nodes of the tree
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum MdElem {
     /// Block container: A full Markdown document, or contiguous section of one.
     ///
@@ -126,6 +127,7 @@ pub enum MdElem {
 /// Options for parsing Markdown.
 ///
 /// See: [parse].
+#[derive(Default, Debug)]
 pub struct ParseOptions {
     pub(crate) mdast_options: markdown::ParseOptions,
     /// Usually only required for debugging. Defaults to `false`.
@@ -182,7 +184,7 @@ pub(crate) struct ReadOptions {
 }
 
 /// Various error conditions that can come from trying to parse Markdown.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum InvalidMd {
     /// Encountered a Markdown component that mdq doesn't support.
     ///
@@ -215,7 +217,7 @@ impl std::error::Error for InvalidMd {}
 ///
 /// This wraps the AST from the underlying library that mdq uses; the only thing you can really do with it is to use its
 /// `Debug`.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MarkdownPart {
     node: mdast::Node,
 }
@@ -229,6 +231,14 @@ pub struct MarkdownPart {
 pub struct UnknownMdParseError {
     backtrace: Backtrace,
 }
+
+impl Display for UnknownMdParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.backtrace, f)
+    }
+}
+
+impl std::error::Error for UnknownMdParseError {}
 
 impl PartialEq for UnknownMdParseError {
     fn eq(&self, _other: &Self) -> bool {
@@ -294,7 +304,7 @@ pub mod elem {
     pub type TableCell = Vec<Inline>;
 
     /// Different kinds of code blocks.
-    #[derive(Debug, PartialEq, Hash, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub enum CodeVariant {
         /// A standard code block
         ///
@@ -380,7 +390,7 @@ pub mod elem {
     /// ```
     ///
     /// c.f. [`TextVariant::InlineHtml`]
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct BlockHtml {
         pub value: String,
     }
@@ -392,35 +402,35 @@ pub mod elem {
     }
 
     /// See [`Inline::Span`]
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct Span {
         pub variant: crate::md_elem::tree::elem::SpanVariant,
         pub children: Vec<crate::md_elem::tree::elem::Inline>,
     }
 
     /// See [`Inline::Text`]
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct Text {
         pub variant: crate::md_elem::tree::elem::TextVariant,
         pub value: String,
     }
 
     /// See [`Inline::Link`]
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct Link {
         pub text: Vec<crate::md_elem::tree::elem::Inline>,
         pub link_definition: crate::md_elem::tree::elem::LinkDefinition,
     }
 
     /// See [`Inline::Image`]
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct Image {
         pub alt: String,
         pub link: crate::md_elem::tree::elem::LinkDefinition,
     }
 
     /// See [`Inline::Footnote`] and [`MdContext::get_footnote`]
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct FootnoteId {
         pub id: String,
     }
@@ -447,7 +457,7 @@ pub mod elem {
     }
 
     /// The link in an [`Link`] or [`Image`].
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct LinkDefinition {
         /// The link's destination.
         pub url: String,
@@ -465,7 +475,7 @@ pub mod elem {
     /// - hello
     ///   ^^^^^
     /// ```
-    #[derive(Debug, PartialEq, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct ListItem {
         /// If `None`, this item is not a task. If `Some`, this is a task, with the bool representing whether it's
         /// marked as completed.
@@ -474,7 +484,7 @@ pub mod elem {
     }
 
     /// ~~deleted~~, _emphasized_, or **strong**; see [`Span`]
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum SpanVariant {
         Delete,
         Emphasis,
@@ -482,7 +492,7 @@ pub mod elem {
     }
 
     /// See [`Text`]
-    #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum TextVariant {
         /// Plain text
         Plain,
@@ -552,7 +562,7 @@ pub mod elem {
     /// - Back to depth 1
     ///
     ///   Foo, bar.
-    #[derive(Debug, PartialEq, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct Section {
         pub depth: u8,
         pub title: Vec<Inline>,
@@ -564,7 +574,7 @@ pub mod elem {
     /// ```markdown
     /// Hello, world.
     /// ```
-    #[derive(Debug, PartialEq, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct Paragraph {
         pub body: Vec<Inline>,
     }
@@ -574,7 +584,7 @@ pub mod elem {
     /// ```markdown
     /// Hello, world.
     /// ```
-    #[derive(Debug, PartialEq, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct BlockQuote {
         pub body: Vec<MdElem>,
     }
@@ -595,7 +605,7 @@ pub mod elem {
     ///
     /// If [`List::starting_index`] is `None`, this is an unordered list. If it is `Some`, this is an ordered list,
     /// starting at the specified index.
-    #[derive(Debug, PartialEq, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct List {
         pub starting_index: Option<u32>,
         pub items: Vec<ListItem>,
@@ -605,7 +615,7 @@ pub mod elem {
     ///
     /// Tables will always have at least one row, and the length of [`Table::alignments`] should equal the length of
     /// that first row's `Vec<TableCell>`.
-    #[derive(Debug, PartialEq, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct Table {
         pub alignments: Vec<Option<ColumnAlignment>>,
         /// The table's rows. Each `TableRow` is a `Vec<TableCell>`, and each `TableCell` is a `Vec<Inline>`. It can
@@ -619,7 +629,7 @@ pub mod elem {
     ///
     /// This enum does not define "no alignment". It is typically used in an `Option<ColumnAlignment>`, where "no
     /// alignment" is represented as `None`.
-    #[derive(Debug, PartialEq, Clone, Copy)]
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum ColumnAlignment {
         Left,
         Right,
@@ -635,7 +645,7 @@ pub mod elem {
     /// ````
     ///
     /// This includes "code-like" blocks like yaml and block-level math, which some variants of Markdown support.
-    #[derive(Debug, PartialEq, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct CodeBlock {
         /// The type of code block
         pub variant: CodeVariant,
@@ -646,7 +656,7 @@ pub mod elem {
     /// A [LinkDefinition]'s reference style.
     ///
     /// See <https://github.github.com/gfm/#link-reference-definitions>
-    #[derive(Debug, PartialEq, Eq, Clone, Hash)]
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum LinkReference {
         /// ```markdown
         /// [hello](https://example.com/world)
@@ -684,7 +694,7 @@ pub mod elem {
     }
 
     /// See [`CodeVariant::Code`]
-    #[derive(Debug, PartialEq, Hash, Clone)]
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct CodeOpts {
         pub language: String,
         pub metadata: Option<String>,
