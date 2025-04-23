@@ -73,7 +73,7 @@ macro_rules! create_options_structs {
         }
 
         /// Options analogous to the mdq CLI's switches.
-        #[derive(Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Parser)]
+        #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Parser)]
         pub struct RunOptions {
             $(
             $(#[$meta])*
@@ -163,6 +163,24 @@ create_options_structs! {
     // See: tree.rs > Lookups::unknown_markdown.
     clap(long, hide = true)
     pub allow_unknown_markdown: bool,
+}
+
+impl Default for RunOptions {
+    fn default() -> Self {
+        Self {
+            link_pos: ReferencePlacement::Section,
+            footnote_pos: None,
+            link_format: LinkTransform::Reference,
+            renumber_footnotes: true,
+            output: OutputFormat::Markdown,
+            add_breaks: None,
+            wrap_width: None,
+            selectors: "".to_string(),
+            quiet: false,
+            allow_unknown_markdown: false,
+            markdown_file_paths: vec![],
+        }
+    }
 }
 
 impl From<&RunOptions> for output::MdWriterOptions {

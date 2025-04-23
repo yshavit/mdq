@@ -26,7 +26,7 @@ pub enum LinkTransform {
 
 impl Default for LinkTransform {
     fn default() -> Self {
-        LinkTransform::Keep
+        LinkTransform::Reference
     }
 }
 
