@@ -121,7 +121,7 @@ pub trait OsFacade {
     fn read_file(&self, path: &str) -> io::Result<String>;
 
     /// Get a writer for stdout (or your mock of it).
-    fn get_stdout(&mut self) -> impl Write;
+    fn stdout(&mut self) -> impl Write;
 
     /// Handle an error.
     fn write_error(&mut self, err: Error);
@@ -202,7 +202,7 @@ fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error>
     let found_any = !pipeline_nodes.is_empty();
 
     if !cli.quiet {
-        let mut stdout = os.get_stdout();
+        let mut stdout = os.stdout();
         match cli.output {
             OutputFormat::Markdown | OutputFormat::Md => {
                 MdWriter::with_options(md_options).write(&ctx, &pipeline_nodes, &mut output::IoAdapter(&mut stdout));

@@ -18,7 +18,7 @@ impl OsFacade for RealOs {
         std::fs::read_to_string(path)
     }
 
-    fn get_stdout(&mut self) -> impl io::Write {
+    fn stdout(&mut self) -> impl io::Write {
         stdout().lock()
     }
 
