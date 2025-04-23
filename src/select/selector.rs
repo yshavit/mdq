@@ -98,7 +98,14 @@ pub enum Selector {
 }
 
 impl Selector {
-    /// Filter and manipulate the provided `MdElem`s according to this selector.
+    /// Filter (and possibly manipulate) the provided [`MdElem`]s according to this selector.
+    ///
+    /// For each element of the `nodes` argument, if that element matches this selector, it will be returned in the
+    /// result. Otherwise, this method will recurse into that node's children and match against them, and so on. This
+    /// also means that each element may turn into multiple elements in the result, if multiple of its children match.
+    /// If an element _and_ its children (or other descendants) match, the result will only include that parent.
+    ///
+    /// This may return an empty `Vec`. That's not an error per se; it just means that none of the elements matched.
     pub fn find_nodes(self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
         SelectorAdapter::from(self).find_nodes(ctx, nodes)
     }
