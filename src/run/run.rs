@@ -28,12 +28,16 @@ pub enum Error {
     FileReadError(Input, io::Error),
 }
 
+impl std::error::Error for Error {}
+
 /// Returned when the selector string is not valid.
 #[derive(Debug)]
 pub struct QueryParseError {
     query_string: String,
     error: ParseError,
 }
+
+impl std::error::Error for QueryParseError {}
 
 impl Display for QueryParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

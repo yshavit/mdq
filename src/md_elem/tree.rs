@@ -209,6 +209,8 @@ pub enum InvalidMd {
     ParseError(String),
 }
 
+impl std::error::Error for InvalidMd {}
+
 /// A portion of unparsable markdown.
 ///
 /// This wraps the AST from the underlying library that mdq uses; the only thing you can really do with it is to use its
