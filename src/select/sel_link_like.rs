@@ -16,8 +16,8 @@ impl From<LinklikeMatcher> for LinkSelector {
 
 impl MatchSelector<Link> for LinkSelector {
     fn matches(&self, item: &Link) -> bool {
-        self.matchers.display_matcher.matches_inlines(&item.text)
-            && self.matchers.url_matcher.matches(&item.link_definition.url)
+        self.matchers.display_matcher.matches_inlines(&item.display)
+            && self.matchers.url_matcher.matches(&item.link.url)
     }
 }
 

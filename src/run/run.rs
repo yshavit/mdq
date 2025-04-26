@@ -21,7 +21,7 @@ pub enum Error {
 
     /// The Markdown file failed to parse.
     ///
-    /// This comes from [`md_elem::parse`]..
+    /// This comes from [`md_elem::MdDoc::parse`]..
     MarkdownParse(InvalidMd),
 
     /// Couldn't read an input file.
@@ -160,7 +160,7 @@ pub trait OsFacade {
 
 /// Runs mdq end to end.
 ///
-/// This uses the provided [RunOptions] and [OsFacade] to read files into [`MdElem`], filters them via the selector
+/// This uses the provided [RunOptions] and [OsFacade] to read files into [`md_elem::MdElem`], filters them via the selector
 /// string in [`RunOptions::selectors`], and then writes them to the given [`OsFacade`] in the format specified by
 /// [`RunOptions::output`].
 pub fn run(cli: &RunOptions, os: &mut impl OsFacade) -> bool {
@@ -177,7 +177,7 @@ fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error>
     let contents_str = os.read_all(&cli.markdown_file_paths)?;
     let mut options = ParseOptions::gfm();
     options.allow_unknown_markdown = cli.allow_unknown_markdown;
-    let md_doc = match md_elem::parse(&contents_str, &options).map_err(|e| e.into()) {
+    let md_doc = match md_elem::MdDoc::parse(&contents_str, &options).map_err(|e| e.into()) {
         Ok(mdqs) => mdqs,
         Err(err) => {
             return Err(Error::MarkdownParse(err));

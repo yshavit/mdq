@@ -57,7 +57,7 @@ pub(crate) trait LinkLike<'md> {
 
 impl<'md> LinkLike<'md> for &'md Link {
     fn link_info(&self) -> (LinkLikeType, LinkLabel<'md>, &'md LinkDefinition) {
-        (LinkLikeType::Link, LinkLabel::Inline(&self.text), &self.link_definition)
+        (LinkLikeType::Link, LinkLabel::Inline(&self.display), &self.link)
     }
 }
 
@@ -241,13 +241,13 @@ impl<'md> MdInlinesWriter<'md> {
                     self.find_references_in_footnote_inlines(&item.children);
                 }
                 Inline::Link(link) => {
-                    let link_label = match &link.link_definition.reference {
+                    let link_label = match &link.link.reference {
                         LinkReference::Inline => None,
                         LinkReference::Full(reference) => Some(LinkLabel::Text(Cow::Borrowed(reference))),
-                        LinkReference::Collapsed | LinkReference::Shortcut => Some(LinkLabel::Inline(&link.text)),
+                        LinkReference::Collapsed | LinkReference::Shortcut => Some(LinkLabel::Inline(&link.display)),
                     };
                     if let Some(label) = link_label {
-                        self.add_link_reference(label, &link.link_definition);
+                        self.add_link_reference(label, &link.link);
                     }
                 }
                 Inline::Image(_) | Inline::Text(_) => {
@@ -702,7 +702,7 @@ mod tests {
         let md_str = output.take_underlying().unwrap();
 
         let options = ParseOptions::gfm();
-        let md_tree = parse(&md_str, &options).unwrap().roots;
+        let md_tree = MdDoc::parse(&md_str, &options).unwrap().roots;
 
         unwrap!(&md_tree[0], MdElem::Paragraph(p));
         let parsed = get_only(&p.body);
@@ -726,11 +726,11 @@ mod tests {
             },
         );
         let link = Inline::Link(Link {
-            text: vec![Inline::Text(Text {
+            display: vec![Inline::Text(Text {
                 variant: TextVariant::Plain,
                 value: input_description.to_string(),
             })],
-            link_definition: LinkDefinition {
+            link: LinkDefinition {
                 url: input_url.to_string(),
                 title: link_title,
                 reference: LinkReference::Inline,

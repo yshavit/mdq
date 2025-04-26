@@ -213,8 +213,8 @@ impl<'md> SerdeElem<'md> {
                 }
             }
             MdElem::Inline(Inline::Link(link)) => Self::Link {
-                display: inlines_to_string(&link.text, inlines_writer),
-                link: (&link.link_definition).into(),
+                display: inlines_to_string(&link.display, inlines_writer),
+                link: (&link.link).into(),
             },
             MdElem::Inline(Inline::Image(img)) => Self::Image {
                 alt: &img.alt,
@@ -452,8 +452,8 @@ mod tests {
     fn link_with_reference() {
         check_md_ref(
             MdElem::Inline(Inline::Link(Link {
-                text: vec![mdq_inline!("hello")],
-                link_definition: LinkDefinition {
+                display: vec![mdq_inline!("hello")],
+                link: LinkDefinition {
                     url: "https://example.com/hi.html".to_string(),
                     title: None,
                     reference: LinkReference::Collapsed,

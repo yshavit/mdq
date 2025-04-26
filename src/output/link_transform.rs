@@ -484,17 +484,17 @@ mod tests {
         link: &'md Link,
     ) -> LinkReference {
         let actual = LinkTransformation::new(transformer.transform_variant(), &mut iw, link)
-            .apply(&mut transformer, &link.link_definition.reference);
+            .apply(&mut transformer, &link.link.reference);
         actual
     }
 
     fn make_link(label: &str, link_ref: LinkReference) -> Link {
         let link = Link {
-            text: vec![Inline::Text(Text {
+            display: vec![Inline::Text(Text {
                 variant: TextVariant::Plain,
                 value: label.to_string(),
             })],
-            link_definition: LinkDefinition {
+            link: LinkDefinition {
                 url: "https://example.com".to_string(),
                 title: None,
                 reference: link_ref,
@@ -526,8 +526,8 @@ mod tests {
                 },
             );
             let link = Link {
-                text: vec![label],
-                link_definition: LinkDefinition {
+                display: vec![label],
+                link: LinkDefinition {
                     url: "https://example.com".to_string(),
                     title: None,
                     reference: reference.clone(),

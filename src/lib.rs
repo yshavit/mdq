@@ -2,7 +2,7 @@
 //!
 //! The general flow is to:
 //!
-//! 1. Parse Markdown into [`md_elem::MdElem`]s via [`md_elem::parse`]
+//! 1. Parse Markdown into [`md_elem::MdElem`]s via [`md_elem::MdDoc::parse`]
 //! 2. Parse a query via [`select::Selector`'s `TryFrom::<&str>`][selector-parse]
 //! 3. Use [`select::Selector::find_nodes`] to filter the `MdElem`s down
 //! 4. Use [`output`] to write the results

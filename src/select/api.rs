@@ -151,7 +151,9 @@ impl SelectorAdapter {
                 Inline::Text(Text { variant, value }) if variant == TextVariant::InlineHtml => {
                     vec![MdElem::BlockHtml(value.into())]
                 }
-                Inline::Link(Link { text, .. }) => text.into_iter().map(|child| MdElem::Inline(child)).collect(),
+                Inline::Link(Link { display: text, .. }) => {
+                    text.into_iter().map(|child| MdElem::Inline(child)).collect()
+                }
                 Inline::Text(_) | Inline::Image(_) => Vec::new(),
             },
             MdElem::BlockHtml(_) => Vec::new(),
@@ -185,8 +187,8 @@ mod test {
         #[test]
         fn link_direct() {
             let link = Link {
-                text: vec![mdq_inline!("link text")],
-                link_definition: LinkDefinition {
+                display: vec![mdq_inline!("link text")],
+                link: LinkDefinition {
                     url: "https://example.com".to_string(),
                     title: None,
                     reference: LinkReference::Inline,
