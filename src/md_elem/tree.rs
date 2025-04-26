@@ -365,7 +365,7 @@ pub mod elem {
         Text(Text),
     }
 
-    /// An html block.
+    /// An HTML block.
     ///
     /// These are `<tag>`s that start a line. The exact rules are somewhat involved (see:
     /// <https://github.github.com/gfm/#html-blocks>), but basically these are non-inlined html tags.
@@ -373,8 +373,7 @@ pub mod elem {
     /// The [`BlockHtml::value`] includes the opening and closing tags, and any text between them:
     ///
     /// ```
-    /// use mdq::md_elem::{parse, MdElem, ParseOptions};
-    /// use mdq::md_elem::elem::{BlockHtml, Inline, Paragraph, Text, TextVariant};
+    /// use mdq::md_elem::{*, elem::*};
     /// let md_text = r"
     /// <div>
     ///
@@ -382,10 +381,20 @@ pub mod elem {
     ///
     /// </div>
     /// ";
-    /// let md_elems = parse(md_text, &ParseOptions::gfm()).unwrap();
-    /// assert_eq!(3, md_elems.roots.len());
-    /// let MdElem::BlockHtml(BlockHtml{value}) = &md_elems.roots[0] else { panic!() };
-    /// assert_eq!("<div>", value);
+    /// let parsed = parse(md_text, &ParseOptions::gfm()).unwrap();
+    ///
+    /// let expected = vec![
+    ///     MdElem::BlockHtml(BlockHtml{value: "<div>".to_string()}),
+    ///     MdElem::Paragraph(Paragraph{
+    ///         body: vec![Inline::Text(Text{
+    ///             variant: TextVariant::Plain,
+    ///             value: "My div content".to_string(),
+    ///         })]
+    ///     }),
+    ///     MdElem::BlockHtml(BlockHtml{value: "</div>".to_string()}),
+    /// ];
+    /// assert_eq!(parsed.roots, expected);
+    /// assert_eq!(parsed.roots, expected);
     /// ```
     ///
     /// c.f. [`TextVariant::InlineHtml`]
@@ -587,8 +596,26 @@ pub mod elem {
 
     /// A block quote.
     ///
-    /// ```markdown
-    /// Hello, world.
+    /// ```
+    /// use mdq::md_elem::{*, elem::*};
+    /// let md_text = r"
+    /// > Hello, world
+    /// ";
+    /// let parsed = parse(md_text, &ParseOptions::gfm()).unwrap();
+    ///
+    /// let expected = vec![
+    ///     MdElem::BlockQuote(BlockQuote{
+    ///         body: vec![
+    ///             MdElem::Paragraph(Paragraph{
+    ///                 body: vec![Inline::Text(Text{
+    ///                     variant: TextVariant::Plain,
+    ///                     value: "Hello, world".to_string(),
+    ///                 })]
+    ///             })
+    ///         ]
+    ///     })
+    /// ];
+    /// assert_eq!(parsed.roots, expected);
     /// ```
     #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub struct BlockQuote {
