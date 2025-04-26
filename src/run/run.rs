@@ -1,4 +1,4 @@
-use crate::md_elem::{InvalidMd, MdDoc, MdElem, ParseOptions};
+use crate::md_elem::{InvalidMd, ParseOptions};
 use crate::output::{MdWriter, MdWriterOptions, SerializableMd};
 use crate::query::ParseError;
 use crate::run::cli::OutputFormat;
@@ -177,7 +177,7 @@ fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error>
     let contents_str = os.read_all(&cli.markdown_file_paths)?;
     let mut options = ParseOptions::gfm();
     options.allow_unknown_markdown = cli.allow_unknown_markdown;
-    let MdDoc { roots, ctx } = match md_elem::parse(&contents_str, &options).map_err(|e| e.into()) {
+    let md_doc = match md_elem::parse(&contents_str, &options).map_err(|e| e.into()) {
         Ok(mdqs) => mdqs,
         Err(err) => {
             return Err(Error::MarkdownParse(err));
@@ -195,7 +195,7 @@ fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error>
         }
     };
 
-    let pipeline_nodes = selectors.find_nodes(&ctx, vec![MdElem::Doc(roots)]);
+    let (pipeline_nodes, ctx) = selectors.find_nodes(md_doc);
 
     let md_options: MdWriterOptions = cli.into();
 

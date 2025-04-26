@@ -1,4 +1,4 @@
-use crate::md_elem::{MdContext, MdElem};
+use crate::md_elem::{MdContext, MdDoc, MdElem};
 use crate::query::ParseError;
 use crate::select::{Matcher, SelectorAdapter};
 
@@ -98,7 +98,7 @@ pub enum Selector {
 }
 
 impl Selector {
-    /// Filter (and possibly manipulate) the provided [`MdElem`]s according to this selector.
+    /// Filter (and possibly manipulate) [`MdElem`]s in the provided [`MdDoc`] according to this selector.
     ///
     /// For each element of the `nodes` argument, if that element matches this selector, it will be returned in the
     /// result. Otherwise, this method will recurse into that node's children and match against them, and so on. This
@@ -106,7 +106,15 @@ impl Selector {
     /// If an element _and_ its children (or other descendants) match, the result will only include that parent.
     ///
     /// This may return an empty `Vec`. That's not an error per se; it just means that none of the elements matched.
-    pub fn find_nodes(self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
+    ///
+    /// The result also includes an [`MdContext`] that you can use with [`MdWriter`](crate::output::MdWriter).
+    pub fn find_nodes(self, doc: MdDoc) -> (Vec<MdElem>, MdContext) {
+        let MdDoc { ctx, roots } = doc;
+        let result_elems = self.find_nodes0(&ctx, vec![MdElem::Doc(roots)]);
+        (result_elems, ctx)
+    }
+
+    fn find_nodes0(self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
         SelectorAdapter::from(self).find_nodes(ctx, nodes)
     }
 }

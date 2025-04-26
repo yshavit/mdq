@@ -1,10 +1,22 @@
 use pest::error::ErrorVariant;
 use pest::Span;
+use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ParseError {
     Pest(crate::query::Error),
     Other(DetachedSpan, String),
+}
+
+impl std::error::Error for ParseError {}
+
+impl Display for ParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseError::Pest(error) => Display::fmt(error, f),
+            ParseError::Other(_, message) => Display::fmt(message, f),
+        }
+    }
 }
 
 impl ParseError {
