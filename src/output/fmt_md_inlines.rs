@@ -3,13 +3,14 @@ use crate::md_elem::*;
 use crate::output::footnote_transform::FootnoteTransformer;
 use crate::output::link_transform::{LinkLabel, LinkTransform, LinkTransformation, LinkTransformer};
 use crate::util::output::{Output, SimpleWrite};
+use derive_builder::Builder;
 use serde::Serialize;
 use std::borrow::Cow;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 
 /// Options for formatting inline elements.
-#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Builder)]
 pub struct InlineElemOptions {
     pub link_format: LinkTransform,
     pub renumber_footnotes: bool,

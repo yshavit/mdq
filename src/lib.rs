@@ -30,7 +30,7 @@
 //! - foo
 //! - bar
 //! "##};
-//! let parsed_md = mdq::md_elem::parse(markdown_text, &mdq::md_elem::ParseOptions::default())?;
+//! let parsed_md = mdq::md_elem::MdDoc::parse(markdown_text, &mdq::md_elem::ParseOptions::default())?;
 //!
 //! // Parse a selector that looks for a section with title containing "second", and
 //! // then looks for list items within it

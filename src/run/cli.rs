@@ -2,6 +2,7 @@ use crate::output;
 use crate::output::{LinkTransform, ReferencePlacement};
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, ValueEnum};
+use derive_builder::Builder;
 use std::fmt::{Display, Formatter};
 
 macro_rules! create_options_structs {
@@ -73,11 +74,10 @@ macro_rules! create_options_structs {
         }
 
         /// Options analogous to the mdq CLI's switches.
-        #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Parser)]
+        #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Builder)]
         pub struct RunOptions {
             $(
             $(#[$meta])*
-            #[arg$clap]
             pub $name: $ty,
             )*
 

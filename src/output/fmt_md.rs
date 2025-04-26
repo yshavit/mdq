@@ -5,11 +5,12 @@ use crate::output::link_transform::LinkLabel;
 use crate::util::output::{Block, Output, SimpleWrite};
 use crate::util::str_utils::{pad_to, CountingWriter};
 use clap::ValueEnum;
+use derive_builder::Builder;
 use std::borrow::Cow;
 use std::cmp::max;
 use std::ops::Deref;
 
-#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Builder)]
 pub struct MdWriterOptions {
     /// Where to put link references (for non-inline links).
     pub link_reference_placement: ReferencePlacement,
