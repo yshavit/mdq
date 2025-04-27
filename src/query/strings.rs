@@ -153,7 +153,6 @@ impl ParsedString {
 mod tests {
     use super::*;
     use crate::query::pest::StringVariant;
-    use pretty_assertions::assert_eq;
 
     mod strings {
         use super::*;
