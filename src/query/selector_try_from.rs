@@ -156,7 +156,7 @@ mod tests {
             let parse_attempt = variant.parse(query_str);
             let (only_pair, remaining) = match parse_attempt {
                 Err(err) => {
-                    let ErrorVariant::ParsingError { positives, .. } = &err.variant else {
+                    let ErrorVariant::ParsingError { positives, .. } = &err.pest_error.variant else {
                         return Err(err.into());
                     };
                     // See what this thing tried to parse. If it failed at trying to parse the string variant itself,
@@ -813,10 +813,7 @@ mod tests {
                 Ok(selector) => panic!("{selector:?}"),
                 Err(ParseError::Pest(err)) => format!("{err}"),
                 Err(ParseError::Other(span, message)) => {
-                    let error = Error::new_from_span(
-                        ErrorVariant::CustomError { message },
-                        Span::new(query_text, span.start, span.end).unwrap(),
-                    );
+                    let error = Error::new_from_span(Span::new(query_text, span.start, span.end).unwrap(), message);
                     format! {"{error}"}
                 }
             },

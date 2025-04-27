@@ -5,7 +5,6 @@ use crate::run::cli::OutputFormat;
 use crate::run::RunOptions;
 use crate::select::Selector;
 use crate::{md_elem, output, query};
-use pest::error::ErrorVariant;
 use pest::Span;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
@@ -54,12 +53,7 @@ impl Display for QueryParseError {
                         span.start, self.query_string, message
                     );
                 };
-                let pest_err = query::Error::new_from_span(
-                    ErrorVariant::CustomError {
-                        message: message.to_string(),
-                    },
-                    full_span,
-                );
+                let pest_err = query::Error::new_from_span(full_span, message.to_string());
                 write!(f, "{pest_err}")
             }
         }

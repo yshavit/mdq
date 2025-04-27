@@ -12,4 +12,4 @@ pub use error::*;
 #[cfg(test)]
 pub use pest::StringVariant;
 #[allow(unused_imports)]
-pub use pest::{Error, Pair, Pairs, Query};
+pub(crate) use pest::{Error, Pair, Pairs, Query};

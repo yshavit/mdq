@@ -1,4 +1,3 @@
-use pest::error::ErrorVariant;
 use pest::Span;
 use std::fmt::{Display, Formatter};
 
@@ -26,12 +25,7 @@ impl ParseError {
             ParseError::Other(span, message) => match Span::new(query_text, span.start, span.end) {
                 None => message.to_string(),
                 Some(span) => {
-                    let pest_err = crate::query::Error::new_from_span(
-                        ErrorVariant::CustomError {
-                            message: message.to_string(),
-                        },
-                        span,
-                    );
+                    let pest_err = crate::query::Error::new_from_span(span, message.to_string());
                     pest_err.to_string()
                 }
             },

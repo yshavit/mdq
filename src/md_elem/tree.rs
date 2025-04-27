@@ -238,7 +238,7 @@ impl std::error::Error for InvalidMd {}
 /// `Debug`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MarkdownPart {
-    node: mdast::Node,
+    node: Box<mdast::Node>,
 }
 
 /// An unknown, internal error.
@@ -1263,7 +1263,9 @@ impl MdElem {
                 let mut li_nodes = Vec::with_capacity(node.children.len());
                 for node in node.children {
                     let mdast::Node::ListItem(li_node) = node else {
-                        return Err(InvalidMd::NonListItemDirectlyUnderList(MarkdownPart { node }));
+                        return Err(InvalidMd::NonListItemDirectlyUnderList(MarkdownPart {
+                            node: Box::new(node),
+                        }));
                     };
                     let li_mdq = ListItem {
                         checked: li_node.checked,
@@ -1375,7 +1377,9 @@ impl MdElem {
                         children: cell_nodes, ..
                     }) = row_node
                     else {
-                        return Err(InvalidMd::NonRowDirectlyUnderTable(MarkdownPart { node: row_node }));
+                        return Err(InvalidMd::NonRowDirectlyUnderTable(MarkdownPart {
+                            node: Box::new(row_node),
+                        }));
                     };
                     let mut column = Vec::with_capacity(cell_nodes.len());
                     for cell_node in cell_nodes {
@@ -1417,7 +1421,7 @@ impl MdElem {
             mdx_nodes! {} => {
                 // If you implement this, make sure to remove the mdx_nodes macro. That means you'll also need to
                 // adjust the test `nodes_matcher` macro.
-                return Err(InvalidMd::Unsupported(MarkdownPart { node }));
+                return Err(InvalidMd::Unsupported(MarkdownPart { node: Box::new(node) }));
             }
         };
         Ok(vec![result])
