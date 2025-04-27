@@ -7,7 +7,10 @@ pub struct ParseError {
 }
 
 impl ParseError {
-    pub(crate) fn from_inner(inner: InnerParseError) -> Self {
+    /// Creates a new ParseError from an [InnerParseError].
+    ///
+    /// This is intentionally not a [From] impl, because we want to keep it `pub(crate)`.
+    pub(crate) fn new(inner: InnerParseError) -> Self {
         Self { inner }
     }
 }

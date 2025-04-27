@@ -324,7 +324,7 @@ mod test {
         let (actual_matcher, actual_remaining) = match Matcher::parse(string_variant, text) {
             Ok(parsed) => parsed,
             Err(err) => {
-                let public_err = ParseError::from_inner(err);
+                let public_err = ParseError::new(err);
                 panic!("{public_err:?}")
             }
         };

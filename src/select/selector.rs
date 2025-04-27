@@ -123,7 +123,7 @@ impl TryFrom<&'_ str> for Selector {
     type Error = ParseError;
 
     fn try_from(value: &'_ str) -> Result<Self, Self::Error> {
-        Selector::try_parse(value).map_err(ParseError::from_inner)
+        Selector::try_parse(value).map_err(ParseError::new)
     }
 }
 
@@ -131,6 +131,6 @@ impl TryFrom<&'_ String> for Selector {
     type Error = ParseError;
 
     fn try_from(value: &'_ String) -> Result<Self, Self::Error> {
-        Selector::try_parse(value).map_err(ParseError::from_inner)
+        Selector::try_from(value.as_str())
     }
 }
