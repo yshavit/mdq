@@ -180,7 +180,7 @@ impl<W: SimpleWrite> Output<W> {
     ///
     /// - `Some('\n')` is translated to a [Self::ensure_newlines].
     /// - `None` basically flushes pending blocks, but doesn't write anything else; we use this in [Self::pop_block],
-    ///  and it's particularly useful for empty quote blocks (`">"`) and trailing newlines in `pre` blocks.
+    ///   and it's particularly useful for empty quote blocks (`">"`) and trailing newlines in `pre` blocks.
     fn perform_write(&mut self, write: WriteAction) {
         match write {
             WriteAction::Char(ch) => {
