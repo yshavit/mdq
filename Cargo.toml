@@ -8,7 +8,7 @@ description = "Select and render specific elements in a Markdown document"
 repository = "https://github.com/yshavit/mdq"
 keywords = ["markdown", "parsing"]
 categories = ["command-line-utilities", "text-editors"]
-rust-version = "1.79.0"
+rust-version = "1.78.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
