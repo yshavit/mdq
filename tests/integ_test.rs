@@ -36,7 +36,7 @@ impl<const N: usize> mdq::run::OsFacade for CaseRunner<'_, N> {
         Err(io::Error::new(ErrorKind::NotFound, format!("File not found: {}", path)))
     }
 
-    fn get_stdout(&mut self) -> impl io::Write {
+    fn stdout(&mut self) -> impl io::Write {
         &mut self.stdout
     }
 

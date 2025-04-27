@@ -1,10 +1,22 @@
 use pest::error::ErrorVariant;
 use pest::Span;
+use std::fmt::{Display, Formatter};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ParseError {
     Pest(crate::query::Error),
     Other(DetachedSpan, String),
+}
+
+impl std::error::Error for ParseError {}
+
+impl Display for ParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseError::Pest(error) => Display::fmt(error, f),
+            ParseError::Other(_, message) => Display::fmt(message, f),
+        }
+    }
 }
 
 impl ParseError {
@@ -34,7 +46,7 @@ impl From<crate::query::Error> for ParseError {
 }
 
 /// Like a [pest::Span], but without a reference to the underlying `&str`, and thus cheaply Copyable.
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Hash)]
 pub struct DetachedSpan {
     pub start: usize,
     pub end: usize,

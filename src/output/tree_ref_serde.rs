@@ -7,8 +7,9 @@ use serde::{Serialize, Serializer};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 
-#[derive(Serialize)]
-pub struct MdSerde<'md> {
+/// A wrapper around [`&[MdElem]`](MdElem) that implements [`Serialize`].
+#[derive(Clone, Default, Debug, Serialize)]
+pub struct SerializableMd<'md> {
     items: Vec<SerdeElem<'md>>,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     links: HashMap<Cow<'md, str>, UrlAndTitle<'md>>,
@@ -16,9 +17,9 @@ pub struct MdSerde<'md> {
     footnotes: HashMap<String, Vec<SerdeElem<'md>>>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum SerdeElem<'md> {
+pub(crate) enum SerdeElem<'md> {
     Document(Vec<SerdeElem<'md>>),
     BlockQuote(Vec<SerdeElem<'md>>),
     CodeBlock {
@@ -65,8 +66,8 @@ fn serialize_thematic_break<S: Serializer>(ser: S) -> Result<S::Ok, S::Error> {
     ser.serialize_none()
 }
 
-#[derive(Serialize)]
-pub struct LinkSerde<'md> {
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct LinkSerde<'md> {
     url: &'md String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -98,9 +99,9 @@ impl<'md> From<&'md LinkDefinition> for LinkSerde<'md> {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum AlignSerde {
+pub(crate) enum AlignSerde {
     Left,
     Right,
     Center,
@@ -118,8 +119,8 @@ impl From<Option<ColumnAlignment>> for AlignSerde {
     }
 }
 
-#[derive(Serialize)]
-pub struct LiSerde<'md> {
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct LiSerde<'md> {
     item: Vec<SerdeElem<'md>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -129,27 +130,27 @@ pub struct LiSerde<'md> {
     checked: &'md Option<bool>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum LinkCollapseStyle {
+pub(crate) enum LinkCollapseStyle {
     Collapsed,
     Shortcut,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum CodeBlockType {
+pub(crate) enum CodeBlockType {
     Code,
     Math,
     Toml,
     Yaml,
 }
 
-impl<'md> MdSerde<'md> {
+impl<'md> SerializableMd<'md> {
     pub fn new(elems: &'md [MdElem], ctx: &'md MdContext, opts: InlineElemOptions) -> Self {
         let mut inlines_writer = MdInlinesWriter::new(ctx, opts);
         const DEFAULT_CAPACITY: usize = 16; // we could compute these, but it's not really worth it
-        let mut result = MdSerde {
+        let mut result = SerializableMd {
             items: Vec::with_capacity(elems.len()),
             links: HashMap::with_capacity(DEFAULT_CAPACITY),
             footnotes: HashMap::with_capacity(DEFAULT_CAPACITY),
@@ -212,8 +213,8 @@ impl<'md> SerdeElem<'md> {
                 }
             }
             MdElem::Inline(Inline::Link(link)) => Self::Link {
-                display: inlines_to_string(&link.text, inlines_writer),
-                link: (&link.link_definition).into(),
+                display: inlines_to_string(&link.display, inlines_writer),
+                link: (&link.link).into(),
             },
             MdElem::Inline(Inline::Image(img)) => Self::Image {
                 alt: &img.alt,
@@ -451,8 +452,8 @@ mod tests {
     fn link_with_reference() {
         check_md_ref(
             MdElem::Inline(Inline::Link(Link {
-                text: vec![mdq_inline!("hello")],
-                link_definition: LinkDefinition {
+                display: vec![mdq_inline!("hello")],
+                link: LinkDefinition {
                     url: "https://example.com/hi.html".to_string(),
                     title: None,
                     reference: LinkReference::Collapsed,
@@ -647,7 +648,11 @@ mod tests {
     fn check_with(opts: InlineElemOptions, elem_ref: MdElem, expect: &str) {
         CHECKER.see(&elem_ref);
         let mut actual_bytes = Vec::with_capacity(32);
-        serde_json::to_writer(&mut actual_bytes, &MdSerde::new(&[elem_ref], &MdContext::empty(), opts)).unwrap();
+        serde_json::to_writer(
+            &mut actual_bytes,
+            &SerializableMd::new(&[elem_ref], &MdContext::empty(), opts),
+        )
+        .unwrap();
         let actual_string = String::from_utf8(actual_bytes).unwrap();
         assert_eq!(actual_string, expect);
     }

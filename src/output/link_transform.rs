@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 /// Whether to render links as inline, reference form, or keep them as they were.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
 pub enum LinkTransform {
     /// Keep links as they were in the original
     Keep,
@@ -22,6 +22,12 @@ pub enum LinkTransform {
     /// Links that weren't already in reference form will be auto-assigned a reference id. Links that were in reference
     /// form will have the link number be reordered.
     Reference,
+}
+
+impl Default for LinkTransform {
+    fn default() -> Self {
+        LinkTransform::Reference
+    }
 }
 
 pub(crate) struct LinkTransformer {
@@ -88,7 +94,7 @@ pub(crate) struct LinkTransformation<'md> {
 ///
 /// ```compile_fail
 ///     let link_ref = self.link_transformer.transform(self, link_like)
-///                    ^^^^^^^^^^^^^^^^^^^^^           ^^^^
+///     //             ^^^^^^^^^^^^^^^^^^^^^           ^^^^
 ///                    first borrow                    second borrow
 /// ```
 ///
@@ -478,17 +484,17 @@ mod tests {
         link: &'md Link,
     ) -> LinkReference {
         let actual = LinkTransformation::new(transformer.transform_variant(), &mut iw, link)
-            .apply(&mut transformer, &link.link_definition.reference);
+            .apply(&mut transformer, &link.link.reference);
         actual
     }
 
     fn make_link(label: &str, link_ref: LinkReference) -> Link {
         let link = Link {
-            text: vec![Inline::Text(Text {
+            display: vec![Inline::Text(Text {
                 variant: TextVariant::Plain,
                 value: label.to_string(),
             })],
-            link_definition: LinkDefinition {
+            link: LinkDefinition {
                 url: "https://example.com".to_string(),
                 title: None,
                 reference: link_ref,
@@ -520,8 +526,8 @@ mod tests {
                 },
             );
             let link = Link {
-                text: vec![label],
-                link_definition: LinkDefinition {
+                display: vec![label],
+                link: LinkDefinition {
                     url: "https://example.com".to_string(),
                     title: None,
                     reference: reference.clone(),

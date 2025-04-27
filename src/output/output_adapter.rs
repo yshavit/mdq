@@ -1,11 +1,10 @@
 use crate::md_elem::{MdContext, MdElem};
-use crate::output::tree_ref_serde::MdSerde;
-use crate::output::{write_md, InlineElemOptions, MdWriterOptions};
+use crate::output::{write_md, MdWriterOptions};
 use crate::util::output::{Output, SimpleWrite};
-use serde::Serialize;
 use std::{fmt, io};
 
 /// A struct for writing [MdElem]s as Markdown (as per `--output markdown`).
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MdWriter {
     options: MdWriterOptions,
 }
@@ -24,33 +23,38 @@ impl MdWriter {
     {
         write_md(
             self.options,
-            &mut Output::new(Adapter(out), self.options.text_width),
+            &mut Output::new(IoAdapter(out), self.options.text_width),
             ctx,
             nodes.into_iter(),
         )
     }
 }
 
-/// Utility for translating an [`std::io::Write`] into a [`std::fmt::Write`].
+/// Adapter to convert between I/O types.
+///
+/// To use, wrap the source type in the `IoAdapter`, and use that adapter as the target type. For example, to convert
+/// a [`std::io::Write`] into a [`std::fmt::Write`]:
+///
+/// ```
+/// use mdq::output::IoAdapter;
+///
+/// fn example(input: impl std::io::Write) -> impl std::fmt::Write {
+/// 	IoAdapter(input)
+/// }
+/// ```
 ///
 /// [`std::io::Write`]: io::Write
 /// [`std::fmt::Write`]: fmt::Write
-pub fn io_to_fmt(writer: impl io::Write) -> impl fmt::Write {
-    Adapter(writer)
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct IoAdapter<W>(pub W);
+
+impl<W> From<W> for IoAdapter<W> {
+    fn from(value: W) -> Self {
+        Self(value)
+    }
 }
 
-/// Transform [`MdElem`]s into a [`Serialize`].
-pub fn md_to_serialize<'a>(
-    elems: &'a [MdElem],
-    ctx: &'a MdContext,
-    inline_options: InlineElemOptions,
-) -> impl Serialize + 'a {
-    MdSerde::new(&elems, &ctx, inline_options)
-}
-
-struct Adapter<W>(W);
-
-impl<W: fmt::Write> SimpleWrite for Adapter<W> {
+impl<W: fmt::Write> SimpleWrite for IoAdapter<W> {
     fn write_char(&mut self, ch: char) -> io::Result<()> {
         self.0
             .write_char(ch)
@@ -62,7 +66,7 @@ impl<W: fmt::Write> SimpleWrite for Adapter<W> {
     }
 }
 
-impl<W: io::Write> fmt::Write for Adapter<W> {
+impl<W: io::Write> fmt::Write for IoAdapter<W> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.0.write_all(s.as_bytes()).map_err(|_| fmt::Error)
     }

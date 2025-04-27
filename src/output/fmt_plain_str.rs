@@ -17,11 +17,11 @@ fn build_inline(out: &mut String, elem: &Inline) {
     match elem {
         Inline::Span(Span { children, .. }) => build_inlines(out, children),
         Inline::Text(Text { value, .. }) => out.push_str(value),
-        Inline::Link(Link { text, .. }) => build_inlines(out, text),
+        Inline::Link(Link { display: text, .. }) => build_inlines(out, text),
         Inline::Image(Image { alt, .. }) => out.push_str(alt),
         Inline::Footnote(footnote) => {
             out.push_str("[^");
-            out.push_str(&footnote);
+            out.push_str(footnote.as_str());
             out.push(']');
         }
     }
@@ -65,7 +65,7 @@ mod tests {
 
     #[test]
     fn inline_html() {
-        let md_elems = parse("Hello <foo> world", &ParseOptions::gfm()).unwrap().roots;
+        let md_elems = MdDoc::parse("Hello <foo> world", &ParseOptions::gfm()).unwrap().roots;
         unwrap!(&md_elems[0], MdElem::Paragraph(contents));
         unwrap!(&contents.body[1], inline @ Inline::Text(_));
         VARIANTS_CHECKER.see(inline);
@@ -115,7 +115,7 @@ mod tests {
     fn check(md: &str, expect: &str) {
         let mut options = ParseOptions::gfm();
         options.mdast_options.constructs.math_text = true;
-        let md_elems = parse(md, &options).unwrap().roots;
+        let md_elems = MdDoc::parse(md, &options).unwrap().roots;
         unwrap!(&md_elems[0], MdElem::Paragraph(p));
         p.body.iter().for_each(|inline| VARIANTS_CHECKER.see(inline));
         let actual = inlines_to_plain_string(&p.body);

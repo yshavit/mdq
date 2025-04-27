@@ -3,13 +3,14 @@ use crate::md_elem::*;
 use crate::output::footnote_transform::FootnoteTransformer;
 use crate::output::link_transform::{LinkLabel, LinkTransform, LinkTransformation, LinkTransformer};
 use crate::util::output::{Output, SimpleWrite};
+use derive_builder::Builder;
 use serde::Serialize;
 use std::borrow::Cow;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 
 /// Options for formatting inline elements.
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Builder)]
 pub struct InlineElemOptions {
     pub link_format: LinkTransform,
     pub renumber_footnotes: bool,
@@ -18,7 +19,7 @@ pub struct InlineElemOptions {
 pub(crate) struct MdInlinesWriter<'md> {
     ctx: &'md MdContext,
     seen_links: HashSet<LinkLabel<'md>>,
-    seen_footnotes: HashSet<&'md String>,
+    seen_footnotes: HashSet<&'md str>,
     pending_references: PendingReferences<'md>,
     link_transformer: LinkTransformer,
     footnote_transformer: FootnoteTransformer<'md>,
@@ -57,7 +58,7 @@ pub(crate) trait LinkLike<'md> {
 
 impl<'md> LinkLike<'md> for &'md Link {
     fn link_info(&self) -> (LinkLikeType, LinkLabel<'md>, &'md LinkDefinition) {
-        (LinkLikeType::Link, LinkLabel::Inline(&self.text), &self.link_definition)
+        (LinkLikeType::Link, LinkLabel::Inline(&self.display), &self.link)
     }
 }
 
@@ -109,7 +110,7 @@ impl<'md> MdInlinesWriter<'md> {
         let mut to_stringer = self.footnote_transformer.new_to_stringer();
 
         for fid in self.pending_references.footnotes.drain() {
-            let transformed_k = to_stringer.transform(fid);
+            let transformed_k = to_stringer.transform(fid.as_str());
             let ctx = self.ctx;
             let footnote_value = ctx.get_footnote(&&fid);
             result.push((transformed_k, footnote_value))
@@ -171,7 +172,7 @@ impl<'md> MdInlinesWriter<'md> {
             Inline::Image(image) => self.write_linklike(out, image),
             Inline::Footnote(footnote_id) => {
                 out.write_str("[^");
-                self.footnote_transformer.write(out, &footnote_id);
+                self.footnote_transformer.write(out, footnote_id.as_str());
                 out.write_char(']');
                 self.add_footnote(footnote_id);
             }
@@ -179,7 +180,7 @@ impl<'md> MdInlinesWriter<'md> {
     }
 
     fn add_footnote(&mut self, label: &'md FootnoteId) {
-        if self.seen_footnotes.insert(label) {
+        if self.seen_footnotes.insert(label.as_str()) {
             self.pending_references.footnotes.insert(label);
             let ctx = self.ctx;
             let text = ctx.get_footnote(&label);
@@ -241,13 +242,13 @@ impl<'md> MdInlinesWriter<'md> {
                     self.find_references_in_footnote_inlines(&item.children);
                 }
                 Inline::Link(link) => {
-                    let link_label = match &link.link_definition.reference {
+                    let link_label = match &link.link.reference {
                         LinkReference::Inline => None,
                         LinkReference::Full(reference) => Some(LinkLabel::Text(Cow::Borrowed(reference))),
-                        LinkReference::Collapsed | LinkReference::Shortcut => Some(LinkLabel::Inline(&link.text)),
+                        LinkReference::Collapsed | LinkReference::Shortcut => Some(LinkLabel::Inline(&link.display)),
                     };
                     if let Some(label) = link_label {
-                        self.add_link_reference(label, &link.link_definition);
+                        self.add_link_reference(label, &link.link);
                     }
                 }
                 Inline::Image(_) | Inline::Text(_) => {
@@ -702,7 +703,7 @@ mod tests {
         let md_str = output.take_underlying().unwrap();
 
         let options = ParseOptions::gfm();
-        let md_tree = parse(&md_str, &options).unwrap().roots;
+        let md_tree = MdDoc::parse(&md_str, &options).unwrap().roots;
 
         unwrap!(&md_tree[0], MdElem::Paragraph(p));
         let parsed = get_only(&p.body);
@@ -726,11 +727,11 @@ mod tests {
             },
         );
         let link = Inline::Link(Link {
-            text: vec![Inline::Text(Text {
+            display: vec![Inline::Text(Text {
                 variant: TextVariant::Plain,
                 value: input_description.to_string(),
             })],
-            link_definition: LinkDefinition {
+            link: LinkDefinition {
                 url: input_url.to_string(),
                 title: link_title,
                 reference: LinkReference::Inline,

@@ -1,7 +1,10 @@
+use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
+
 /// A type for matching against expected strings.
 ///
 /// Given a selector like `# hello world` (for a section selector), this defines the `hello world` portion.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Matcher {
     /// Quoted or unquoted text, with optional anchoring.
     Text {
@@ -35,3 +38,21 @@ impl PartialEq for Regex {
 }
 
 impl Eq for Regex {}
+
+impl PartialOrd for Regex {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        PartialOrd::partial_cmp(self.re.as_str(), other.re.as_str())
+    }
+}
+
+impl Ord for Regex {
+    fn cmp(&self, other: &Self) -> Ordering {
+        Ord::cmp(self.re.as_str(), other.re.as_str())
+    }
+}
+
+impl Hash for Regex {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Hash::hash(self.re.as_str(), state);
+    }
+}

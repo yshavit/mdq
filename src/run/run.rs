@@ -1,5 +1,5 @@
-use crate::md_elem::{InvalidMd, MdDoc, MdElem, ParseOptions};
-use crate::output::{MdWriter, MdWriterOptions};
+use crate::md_elem::{InvalidMd, ParseOptions};
+use crate::output::{MdWriter, MdWriterOptions, SerializableMd};
 use crate::query::ParseError;
 use crate::run::cli::OutputFormat;
 use crate::run::RunOptions;
@@ -21,19 +21,23 @@ pub enum Error {
 
     /// The Markdown file failed to parse.
     ///
-    /// This comes from [`md_elem::parse`]..
+    /// This comes from [`md_elem::MdDoc::parse`]..
     MarkdownParse(InvalidMd),
 
     /// Couldn't read an input file.
     FileReadError(Input, io::Error),
 }
 
+impl std::error::Error for Error {}
+
 /// Returned when the selector string is not valid.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct QueryParseError {
     query_string: String,
     error: ParseError,
 }
+
+impl std::error::Error for QueryParseError {}
 
 impl Display for QueryParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -63,14 +67,14 @@ impl Display for QueryParseError {
 }
 
 /// Stdin or an input file by path.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Input {
     Stdin,
     FilePath(String),
 }
 
 impl Error {
-    pub fn from_io_error(error: io::Error, file: Input) -> Self {
+    pub(crate) fn from_io_error(error: io::Error, file: Input) -> Self {
         Error::FileReadError(file, error)
     }
 }
@@ -117,7 +121,7 @@ pub trait OsFacade {
     fn read_file(&self, path: &str) -> io::Result<String>;
 
     /// Get a writer for stdout (or your mock of it).
-    fn get_stdout(&mut self) -> impl Write;
+    fn stdout(&mut self) -> impl Write;
 
     /// Handle an error.
     fn write_error(&mut self, err: Error);
@@ -156,7 +160,7 @@ pub trait OsFacade {
 
 /// Runs mdq end to end.
 ///
-/// This uses the provided [RunOptions] and [OsFacade] to read files into [`MdElem`], filters them via the selector
+/// This uses the provided [RunOptions] and [OsFacade] to read files into [`md_elem::MdElem`], filters them via the selector
 /// string in [`RunOptions::selectors`], and then writes them to the given [`OsFacade`] in the format specified by
 /// [`RunOptions::output`].
 pub fn run(cli: &RunOptions, os: &mut impl OsFacade) -> bool {
@@ -173,7 +177,7 @@ fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error>
     let contents_str = os.read_all(&cli.markdown_file_paths)?;
     let mut options = ParseOptions::gfm();
     options.allow_unknown_markdown = cli.allow_unknown_markdown;
-    let MdDoc { roots, ctx } = match md_elem::parse(&contents_str, &options).map_err(|e| e.into()) {
+    let md_doc = match md_elem::MdDoc::parse(&contents_str, &options).map_err(|e| e.into()) {
         Ok(mdqs) => mdqs,
         Err(err) => {
             return Err(Error::MarkdownParse(err));
@@ -191,24 +195,22 @@ fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error>
         }
     };
 
-    let pipeline_nodes = selectors.find_nodes(&ctx, vec![MdElem::Doc(roots)]);
+    let (pipeline_nodes, ctx) = selectors.find_nodes(md_doc);
 
     let md_options: MdWriterOptions = cli.into();
 
     let found_any = !pipeline_nodes.is_empty();
 
     if !cli.quiet {
-        let mut stdout = os.get_stdout();
+        let mut stdout = os.stdout();
         match cli.output {
             OutputFormat::Markdown | OutputFormat::Md => {
-                MdWriter::with_options(md_options).write(&ctx, &pipeline_nodes, &mut output::io_to_fmt(&mut stdout));
+                MdWriter::with_options(md_options).write(&ctx, &pipeline_nodes, &mut output::IoAdapter(&mut stdout));
             }
             OutputFormat::Json => {
-                serde_json::to_writer(
-                    &mut stdout,
-                    &output::md_to_serialize(&pipeline_nodes, &ctx, md_options.inline_options),
-                )
-                .unwrap();
+                let inline_options = md_options.inline_options;
+                serde_json::to_writer(&mut stdout, &SerializableMd::new(&pipeline_nodes, &ctx, inline_options))
+                    .unwrap();
             }
             OutputFormat::Plain => {
                 output::PlainWriter::with_options(output::PlainWriterOptions {

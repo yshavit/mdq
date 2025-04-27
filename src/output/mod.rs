@@ -15,5 +15,6 @@ pub use crate::output::fmt_md::*;
 pub use crate::output::fmt_md_inlines::*;
 pub use crate::output::link_transform::*;
 pub use crate::output::output_adapter::*;
+pub use crate::output::tree_ref_serde::*;
 
 pub use crate::output::fmt_plain_inline::*;

@@ -1,4 +1,9 @@
-//! Selector strings. This is the heart of mdq.
+//! The query and filtering ability of mdq.
+//!
+//! The main item here is [`Selector`]:
+//!
+//! - Parse text into `Selector` using `try_into`.
+//! - Run it against an [`MdDoc`](crate::md_elem::MdDoc) using [`Selector::find_nodes`].
 mod api;
 mod match_selector;
 mod matcher;

@@ -2,6 +2,7 @@ use crate::output;
 use crate::output::{LinkTransform, ReferencePlacement};
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, ValueEnum};
+use derive_builder::Builder;
 use std::fmt::{Display, Formatter};
 
 macro_rules! create_options_structs {
@@ -12,7 +13,7 @@ macro_rules! create_options_structs {
             pub $name:ident : $ty:ty
         ),* $(,)?
     ) => {
-        #[derive(Parser, Debug)]
+        #[derive(Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Parser)]
         #[command(version, about, long_about = None)]
         #[doc(hidden)]
         pub struct CliOptions {
@@ -73,11 +74,10 @@ macro_rules! create_options_structs {
         }
 
         /// Options analogous to the mdq CLI's switches.
-        #[derive(Parser, Debug, PartialEq, Eq, Clone)]
+        #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Builder)]
         pub struct RunOptions {
             $(
             $(#[$meta])*
-            #[arg$clap]
             pub $name: $ty,
             )*
 
@@ -239,7 +239,7 @@ impl CliOptions {
 }
 
 /// Output formats, analogous to `--output` in the CLI.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
 pub enum OutputFormat {
     /// Output results as Markdown.
     Markdown,
@@ -285,6 +285,12 @@ pub enum OutputFormat {
     /// Here's an unordered list.
     /// ```
     Plain,
+}
+
+impl Default for OutputFormat {
+    fn default() -> Self {
+        Self::Markdown
+    }
 }
 
 impl Display for OutputFormat {

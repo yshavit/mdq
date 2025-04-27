@@ -1,15 +1,19 @@
 [package]
+authors = ["Yuval Shavit <dev@yuvalshavit.com>"]
 name = "mdq"
 version = "0.6.2-dev"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "Select specific elements in a Markdown document"
+description = "Select and render specific elements in a Markdown document"
 repository = "https://github.com/yshavit/mdq"
+keywords = ["markdown", "parsing"]
+categories = ["command-line-utilities", "text-editors"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 clap = { version = "4.5.7", features = ["derive"] }
+derive_builder = "0.20.2"
 markdown = "1.0.0-alpha.20"
 memchr = "2.7.4"
 paste = "1.0"

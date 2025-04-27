@@ -1,9 +1,9 @@
-use crate::md_elem::{MdContext, MdElem};
+use crate::md_elem::{MdContext, MdDoc, MdElem};
 use crate::query::ParseError;
 use crate::select::{Matcher, SelectorAdapter};
 
 /// The completion state that a [`ListItemMatcher`] looks for.
-#[derive(Eq, PartialEq, Debug, Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ListItemTask {
     /// `- [x] foo`
     Selected,
@@ -16,7 +16,7 @@ pub enum ListItemTask {
 }
 
 /// matcher for [`Selector::ListItem`]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ListItemMatcher {
     /// Whether this matches an ordered list (`1. foo`) or an unordered one (`- foo`).
     pub ordered: bool,
@@ -28,52 +28,52 @@ pub struct ListItemMatcher {
 }
 
 /// matcher for [`Selector::Section`]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SectionMatcher {
     pub title: Matcher,
 }
 
 /// matcher for both [`Selector::Link`] and [`Selector::Image`]
-#[derive(Eq, PartialEq, Debug, Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LinklikeMatcher {
     pub display_matcher: Matcher,
     pub url_matcher: Matcher,
 }
 
 /// matcher for [`Selector::BlockQuote`]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BlockQuoteMatcher {
     pub text: Matcher,
 }
 
 /// matcher for [`Selector::Html`]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HtmlMatcher {
     pub html: Matcher,
 }
 
 /// matcher for [`Selector::Paragraph`]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ParagraphMatcher {
     pub text: Matcher,
 }
 
 /// matcher for [`Selector::CodeBlock`]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CodeBlockMatcher {
     pub language: Matcher,
     pub contents: Matcher,
 }
 
 /// matcher for [`Selector::Table`]
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TableMatcher {
     pub headers: Matcher,
     pub rows: Matcher,
 }
 
 /// The in-memory equivalent of mdq's selector query string.
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Selector {
     /// `foo | bar`
     Chain(Vec<Self>),
@@ -98,8 +98,23 @@ pub enum Selector {
 }
 
 impl Selector {
-    /// Filter and manipulate the provided `MdElem`s according to this selector.
-    pub fn find_nodes(self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
+    /// Filter (and possibly manipulate) [`MdElem`]s in the provided [`MdDoc`] according to this selector.
+    ///
+    /// For each element of the `nodes` argument, if that element matches this selector, it will be returned in the
+    /// result. Otherwise, this method will recurse into that node's children and match against them, and so on. This
+    /// also means that each element may turn into multiple elements in the result, if multiple of its children match.
+    /// If an element _and_ its children (or other descendants) match, the result will only include that parent.
+    ///
+    /// This may return an empty `Vec`. That's not an error per se; it just means that none of the elements matched.
+    ///
+    /// The result also includes an [`MdContext`] that you can use with [`MdWriter`](crate::output::MdWriter).
+    pub fn find_nodes(self, doc: MdDoc) -> (Vec<MdElem>, MdContext) {
+        let MdDoc { ctx, roots } = doc;
+        let result_elems = self.find_nodes0(&ctx, vec![MdElem::Doc(roots)]);
+        (result_elems, ctx)
+    }
+
+    fn find_nodes0(self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
         SelectorAdapter::from(self).find_nodes(ctx, nodes)
     }
 }
