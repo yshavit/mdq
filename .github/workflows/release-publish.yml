@@ -82,33 +82,9 @@ jobs:
       - name: Push
         run: docker push "$DOCKER_PUBLISH_TAG"
 
-  crates-io:
-    needs: verify
-    environment: "crates.io"
-    runs-on: ubuntu-latest
-    steps:
-
-      - name: Get PR base ref
-        id: base-ref
-        run: echo "name=$(echo "$PR_JSON" | jq -r .baseRefName)" >> "$GITHUB_OUTPUT"
-        env:
-          PR_JSON: ${{ needs.verify.outputs.pr-json }}
-
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.base-ref.outputs.name }}
-
-      - name: cargo login
-        run: cargo login <<<"$CRATESIO_API_TOKEN"
-        env:
-          CRATESIO_API_TOKEN: ${{ secrets.CRATESIO_API_TOKEN }}
-
-      - name: Publish
-        run: cargo publish
-
   publish:
 
-    needs: [ verify, docker, crates-io ]
+    needs: [ verify, docker ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -178,4 +154,22 @@ jobs:
           git push
         env:
           TARGET_REF: ${{ steps.base-ref.outputs.name }}
+
+  crates-io:
+    needs: publish
+    environment: "crates.io"
+    runs-on: ubuntu-latest
+    steps:
+
+      - uses: actions/checkout@v4
+        with:
+          ref: "v${{ steps.base-ref.outputs.name }}"
+
+      - name: cargo login
+        run: cargo login <<<"$CRATESIO_API_TOKEN"
+        env:
+          CRATESIO_API_TOKEN: ${{ secrets.CRATESIO_API_TOKEN }}
+
+      - name: Publish
+        run: cargo publish
 
