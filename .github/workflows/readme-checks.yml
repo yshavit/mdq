@@ -46,6 +46,21 @@ jobs:
         env:
           MSRV_VERSION: ${{ steps.run-msrv.outputs.result }}
 
+      - name: check version in Cargo.toml
+        run: |
+          msrv_toml="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[].rust_version')"
+          if [[ "$msrv_toml" != "$MSRV_VERSION" ]]; then
+            grep -n '^rust-version =' Cargo.toml | while read -r line; do
+              line_no="$(<<<"$line" cut -f1 -d:)"
+              echo "::error file=Cargo.toml,line=$line_no,title=Cargo.toml::rust-version should have been $MSRV_VERSION"
+            done
+            exit 1
+          fi
+        env:
+          MSRV_VERSION: ${{ steps.run-msrv.outputs.result }}
+
+
+  
   build-crate-docs:
     runs-on: ubuntu-latest
     steps:
