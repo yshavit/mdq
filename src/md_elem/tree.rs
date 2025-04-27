@@ -1214,13 +1214,13 @@ macro_rules! mdx_nodes {
 /// Creates a nested enum.
 ///
 /// This macro translates:
-/// ```compile_fail
-/// m_node!(A::B::C { foo: 123 }
+/// ```text
+/// m_node!(A::B::C { foo: 123 })
 /// ```
 ///
 /// into:
 ///
-/// ```compile_fail
+/// ```text
 /// A::B(B::C(C { foo: 123 }))
 /// ```
 macro_rules! m_node {
