@@ -2,6 +2,11 @@ use pest::Span;
 use std::fmt::{Display, Formatter};
 
 /// An error representing an invalid selector query.
+///
+/// <div class="warning">
+/// This struct's <code>source()</code> is not part of the public contract, and may change at any time without that change being
+/// marked as a breaking change.
+/// </div>
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParseError {
     pub(crate) inner: InnerParseError,
@@ -23,8 +28,11 @@ impl Display for ParseError {
 }
 
 impl std::error::Error for ParseError {
+    /// This method gets the error's source, if available. **Not part of the public API contract.**
+    ///
+    /// Please see the warning on [this struct's main documentation](ParseError).
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.inner)
+        self.inner.source()
     }
 }
 
