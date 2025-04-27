@@ -8,8 +8,14 @@ if ! echo "$*" | grep -q -- '--message-format json' ; then
 fi
 
 tmp_file="$(mktemp)"
+set +e
 cargo "$@" "${json_opts[@]}" > "$tmp_file"
-exit_code=0
+exit_code=$?
+set -e
+if [[ "$exit_code" != 0 ]]; then
+  echo "::error title=check failed:cargo $* failed"
+fi
+
 while IFS= read -r line; do
   if [[ -n "$line" ]]; then
     echo "$line"
