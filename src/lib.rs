@@ -8,7 +8,7 @@
 //! [`breaking change` label] in the project's issue tracker.
 //!
 //! [release notes on GitHub]: https://github.com/yshavit/mdq/releases
-//! [`breaking change` label]: https://github.com/yshavit/mdq/issues?q=label%3A%22breaking%20change%22%20
+//! [`breaking change` label]: https://github.com/yshavit/mdq/issues?q=label%3A%22breaking%20change%22
 //!
 //! </div>
 //!
