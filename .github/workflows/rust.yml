@@ -94,6 +94,8 @@ jobs:
         run: |
           gh release -R obi1kenobi/cargo-semver-checks download -p  cargo-semver-checks-x86_64-unknown-linux-gnu.tar.gz  -O - | tar xz
         working-directory: ${{ env.RUNNER_TEMP }}
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Check out repo
         uses: actions/checkout@v4
