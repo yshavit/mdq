@@ -3,7 +3,7 @@ use pest_derive::Parser;
 use std::fmt::Debug;
 
 #[cfg(test)]
-pub use crate::query::query::test_helpers::StringVariant;
+pub use crate::query::pest::test_helpers::StringVariant;
 
 #[derive(Parser)]
 #[grammar = "query/grammar.pest"]
@@ -94,11 +94,10 @@ mod test_helpers {
         }
 
         pub fn as_rule(self) -> Rule {
-            let rule = match self {
+            match self {
                 StringVariant::AngleBracket => Rule::string_for_unit_tests__do_not_use_angle,
                 StringVariant::Pipe => Rule::string_for_unit_tests__do_not_use_pipe,
-            };
-            rule
+            }
         }
     }
 }

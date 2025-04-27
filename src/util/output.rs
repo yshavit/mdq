@@ -104,7 +104,7 @@ impl<W: SimpleWrite> Output<W> {
         Self {
             stream: to,
             indenter: IndentHandler::new(),
-            words_buffer: text_width.map_or_else(WordsBuffer::disabled, |width| WordsBuffer::new(width)),
+            words_buffer: text_width.map_or_else(WordsBuffer::disabled, WordsBuffer::new),
             writing_state: WritingState::HaveNotWrittenAnything,
         }
     }
@@ -289,7 +289,7 @@ impl IndentationRange {
     }
 }
 
-impl<'a> IndentInfo<'a> {
+impl IndentInfo<'_> {
     fn pre_write(&self, writing_state: &mut WritingState, trailing_padding: bool, out: &mut impl SimpleWrite) -> usize {
         if self.static_info.newlines > 0 {
             for _ in 0..(self.static_info.newlines - 1) {
@@ -400,7 +400,7 @@ impl IndentHandler {
                     .pending_blocks
                     .iter()
                     .position(|b| matches!(b, Block::Indent(_)))
-                    .unwrap_or_else(|| self.pending_blocks.len());
+                    .unwrap_or(self.pending_blocks.len());
             self.blocks.append(&mut self.pending_blocks);
             0..indent_end_idx
         } else {
@@ -434,7 +434,7 @@ impl IndentHandler {
     }
 }
 
-impl<'a, W: SimpleWrite> PreWriter<'a, W> {
+impl<W: SimpleWrite> PreWriter<'_, W> {
     pub fn write_str(&mut self, text: &str) {
         self.output.write_str(text)
     }

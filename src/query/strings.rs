@@ -1,4 +1,4 @@
-use crate::query::query::{Pairs, Rule};
+use crate::query::pest::{Pairs, Rule};
 use crate::query::{DetachedSpan, ParseError};
 use std::borrow::Cow;
 use std::fmt::{Debug, Formatter, Write};
@@ -154,7 +154,7 @@ impl TryFrom<Pairs<'_>> for ParsedString {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query::query::StringVariant;
+    use crate::query::pest::StringVariant;
     use pretty_assertions::assert_eq;
 
     mod strings {

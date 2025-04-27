@@ -52,7 +52,7 @@ impl<'a, W: SimpleWrite> CountingWriter<'a, W> {
     }
 }
 
-impl<'a, W: SimpleWrite> SimpleWrite for CountingWriter<'a, W> {
+impl<W: SimpleWrite> SimpleWrite for CountingWriter<'_, W> {
     fn write_char(&mut self, ch: char) -> std::io::Result<()> {
         self.underlying.write_char(ch)?;
         self.count += 1;
@@ -64,7 +64,7 @@ impl<'a, W: SimpleWrite> SimpleWrite for CountingWriter<'a, W> {
     }
 }
 
-impl<'a, W: SimpleWrite> std::fmt::Write for CountingWriter<'a, W> {
+impl<W: SimpleWrite> std::fmt::Write for CountingWriter<'_, W> {
     fn write_str(&mut self, text: &str) -> std::fmt::Result {
         Self::write_str(self, text).map_err(|_| std::fmt::Error)
     }

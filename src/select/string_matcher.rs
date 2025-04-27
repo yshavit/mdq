@@ -31,7 +31,7 @@ impl StringMatcher {
 
     fn matches_node(&self, node: &MdElem) -> bool {
         match node {
-            MdElem::Doc(elems) => self.matches_any(&elems),
+            MdElem::Doc(elems) => self.matches_any(elems),
             MdElem::Paragraph(p) => self.matches_inlines(&p.body),
             MdElem::ThematicBreak | MdElem::CodeBlock(_) => false,
             MdElem::Table(table) => {
@@ -140,17 +140,17 @@ mod test {
     #[test]
     fn bareword_anchor_start() {
         let m = parse_and_check("^ hello |after", re_insensitive("^hello"), "|after");
-        assert_eq!(false, m.matches("pre hello"));
-        assert_eq!(true, m.matches("hello"));
-        assert_eq!(true, m.matches("hello post"));
+        assert!(!m.matches("pre hello"));
+        assert!(m.matches("hello"));
+        assert!(m.matches("hello post"));
     }
 
     #[test]
     fn bareword_anchor_end() {
         let m = parse_and_check(" hello $ |after", re_insensitive("hello$"), "|after");
-        assert_eq!(true, m.matches("pre hello"));
-        assert_eq!(true, m.matches("hello"));
-        assert_eq!(false, m.matches("hello post"));
+        assert!(m.matches("pre hello"));
+        assert!(m.matches("hello"));
+        assert!(!m.matches("hello post"));
     }
 
     #[test]
@@ -168,9 +168,9 @@ mod test {
     #[test]
     fn only_both_anchors() {
         let matcher = parse_and_check("^$ |after", re("^$"), "|after");
-        assert_eq!(matcher.matches(""), true);
-        assert_eq!(matcher.matches("x"), false);
-        assert_eq!(matcher.matches("\n"), false);
+        assert!(matcher.matches(""));
+        assert!(!matcher.matches("x"));
+        assert!(!matcher.matches("\n"));
 
         parse_and_check("^  $ |after", re("^$"), "|after");
     }
@@ -178,31 +178,31 @@ mod test {
     #[test]
     fn bareword_case_sensitivity() {
         let m = parse_and_check("hello", re_insensitive("hello"), "");
-        assert_eq!(true, m.matches("hello"));
-        assert_eq!(true, m.matches("HELLO"));
+        assert!(m.matches("hello"));
+        assert!(m.matches("HELLO"));
     }
 
     #[test]
     fn quoted_case_sensitivity() {
         let m = parse_and_check("'hello'", re("hello"), "");
-        assert_eq!(true, m.matches("hello"));
-        assert_eq!(false, m.matches("HELLO"));
+        assert!(m.matches("hello"));
+        assert!(!m.matches("HELLO"));
     }
 
     #[test]
     fn quoted_anchor_start() {
         let m = parse_and_check("^'hello'", re("^hello"), "");
-        assert_eq!(false, m.matches("pre hello"));
-        assert_eq!(true, m.matches("hello"));
-        assert_eq!(true, m.matches("hello post"));
+        assert!(!m.matches("pre hello"));
+        assert!(m.matches("hello"));
+        assert!(m.matches("hello post"));
     }
 
     #[test]
     fn quoted_anchor_end() {
         let m = parse_and_check("'hello'$", re("hello$"), "");
-        assert_eq!(true, m.matches("pre hello"));
-        assert_eq!(true, m.matches("hello"));
-        assert_eq!(false, m.matches("hello post"));
+        assert!(m.matches("pre hello"));
+        assert!(m.matches("hello"));
+        assert!(!m.matches("hello post"));
     }
 
     #[test]
@@ -221,8 +221,8 @@ mod test {
     #[test]
     fn bareword_regex_char() {
         let m = parse_and_check("hello.world", re_insensitive("hello\\.world"), "");
-        assert_eq!(true, m.matches("hello.world"));
-        assert_eq!(false, m.matches("hello world")); // the period is _not_ a regex any
+        assert!(m.matches("hello.world"));
+        assert!(!m.matches("hello world")); // the period is _not_ a regex any
     }
 
     #[test]
@@ -307,7 +307,7 @@ mod test {
     #[test]
     fn any() {
         let empty_matcher = parse_and_check("| rest", StringMatcher::any(), "| rest");
-        assert_eq!(empty_matcher.matches(""), true);
+        assert!(empty_matcher.matches(""));
 
         parse_and_check("| rest", StringMatcher::any(), "| rest");
         parse_and_check("*| rest", StringMatcher::any(), "| rest");
@@ -343,9 +343,8 @@ mod test {
     }
 
     fn expect_err(text: &str) {
-        match Matcher::parse(StringVariant::Pipe, text) {
-            Ok(unexpected) => panic!("unexpected success: {unexpected:?}"),
-            Err(_) => {}
+        if let Ok(unexpected) = Matcher::parse(StringVariant::Pipe, text) {
+            panic!("unexpected success: {unexpected:?}")
         }
     }
 

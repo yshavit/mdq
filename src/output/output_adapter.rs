@@ -39,7 +39,7 @@ impl MdWriter {
 /// use mdq::output::IoAdapter;
 ///
 /// fn example(input: impl std::io::Write) -> impl std::fmt::Write {
-/// 	IoAdapter(input)
+///     IoAdapter(input)
 /// }
 /// ```
 ///

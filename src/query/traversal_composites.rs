@@ -1,4 +1,4 @@
-use crate::query::query::{Pair, Pairs, Rule};
+use crate::query::pest::{Pair, Pairs, Rule};
 use crate::query::traversal::MatchStoreResult;
 use crate::query::traversal::PairMatchStore;
 use crate::query::traversal::PairMatcher;

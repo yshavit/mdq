@@ -175,6 +175,7 @@ fn parse0(text: &str, options: &ParseOptions) -> Result<MdDoc, InvalidMd> {
     MdDoc::read(ast, &read_options)
 }
 
+#[derive(Default)]
 pub(crate) struct ReadOptions {
     /// For links and images, enforce that reference-style links have at most one definition. If this value is
     /// `false` and a link has multiple definitions, the first one will be picked.
@@ -1348,13 +1349,10 @@ impl MdElem {
                 let mdast::Code { value, lang, meta, .. } = node;
                 m_node!(MdElem::CodeBlock {
                     value,
-                    variant: CodeVariant::Code(match lang {
-                        None => None,
-                        Some(lang) => Some(CodeOpts {
-                            language: lang,
-                            metadata: meta,
-                        }),
-                    }),
+                    variant: CodeVariant::Code(lang.map(|lang| CodeOpts {
+                        language: lang,
+                        metadata: meta,
+                    })),
                 })
             }
             mdast::Node::Math(node) => {
@@ -1591,7 +1589,7 @@ where
     footnotes_repo: &'a mut MdContext,
 }
 
-impl<'a, I> Iterator for NodeToMdqIter<'a, I>
+impl<I> Iterator for NodeToMdqIter<'_, I>
 where
     I: Iterator<Item = mdast::Node>,
 {
@@ -1634,7 +1632,7 @@ impl Lookups {
             allow_unknown_markdown: read_opts.allow_unknown_markdown,
         };
 
-        result.build_lookups(node, &read_opts)?;
+        result.build_lookups(node, read_opts)?;
 
         Ok(result)
     }
@@ -1654,7 +1652,7 @@ impl Lookups {
         reference_kind: mdast::ReferenceKind,
         lookups: &Lookups,
     ) -> Result<LinkDefinition, InvalidMd> {
-        if let None = label {
+        if label.is_none() {
             lookups.unknown_markdown("link label was None")?;
         }
         let Some(definition) = self.link_definitions.get(&identifier) else {
@@ -3115,7 +3113,7 @@ mod tests {
                     }),
                 ],
             })];
-            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(Ok))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -3148,7 +3146,7 @@ mod tests {
                     })],
                 })],
             })];
-            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(Ok))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -3209,7 +3207,7 @@ mod tests {
                     }),
                 ],
             })];
-            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(Ok))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -3232,7 +3230,7 @@ mod tests {
                     body: vec![mdq_inline!("two")],
                 }),
             ];
-            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(Ok))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -3281,7 +3279,7 @@ mod tests {
                     }),
                 ],
             })];
-            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(Ok))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -3322,7 +3320,7 @@ mod tests {
                     body: vec![],
                 }),
             ];
-            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(Ok))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -3354,7 +3352,7 @@ mod tests {
                     })],
                 }),
             ];
-            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(Ok))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -3404,7 +3402,7 @@ mod tests {
     }
 
     /// A simple representation of some nodes. Very non-exhaustive, just for testing.
-    fn simple_to_string(nodes: &Vec<mdast::Node>) -> String {
+    fn simple_to_string(nodes: &[mdast::Node]) -> String {
         fn build(out: &mut String, node: &mdast::Node) {
             let (tag, text) = match node {
                 mdast::Node::Text(text_node) => ("", text_node.value.as_str()),
@@ -3432,14 +3430,5 @@ mod tests {
         InvalidMd::InternalError(UnknownMdParseError {
             backtrace: Backtrace::force_capture(),
         })
-    }
-
-    impl Default for ReadOptions {
-        fn default() -> Self {
-            Self {
-                validate_no_conflicting_links: false,
-                allow_unknown_markdown: false,
-            }
-        }
     }
 }

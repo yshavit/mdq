@@ -100,7 +100,7 @@ impl Display for Error {
                 writeln!(f, "{err}")
             }
             Error::FileReadError(file, err) => {
-                if env::var("MDQ_PORTABLE_ERRORS").unwrap_or(String::new()).is_empty() {
+                if env::var("MDQ_PORTABLE_ERRORS").unwrap_or_default().is_empty() {
                     writeln!(f, "{err} while reading {file}")
                 } else {
                     writeln!(f, "{} while reading {file}", err.kind())
@@ -177,12 +177,7 @@ fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error>
     let contents_str = os.read_all(&cli.markdown_file_paths)?;
     let mut options = ParseOptions::gfm();
     options.allow_unknown_markdown = cli.allow_unknown_markdown;
-    let md_doc = match md_elem::MdDoc::parse(&contents_str, &options).map_err(|e| e.into()) {
-        Ok(mdqs) => mdqs,
-        Err(err) => {
-            return Err(Error::MarkdownParse(err));
-        }
-    };
+    let md_doc = md_elem::MdDoc::parse(&contents_str, &options).map_err(Error::MarkdownParse)?;
 
     let selectors_str = &cli.selectors;
     let selectors: Selector = match selectors_str.try_into() {

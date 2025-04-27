@@ -1,4 +1,4 @@
-use crate::query::query::Rule;
+use crate::query::pest::Rule;
 use crate::query::traversal::{ByRule, OneOf, PairMatcher};
 use crate::query::traversal_composites::{
     BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, ParagraphTraverser,
@@ -35,8 +35,8 @@ impl TryFrom<Pairs<'_>> for Selector {
 
 impl Selector {
     pub(crate) fn try_parse(value: &'_ str) -> Result<Self, ParseError> {
-        let parsed: Pairs = Query::parse(value).map_err(|err| ParseError::from(err))?;
-        let parsed_selectors = Selector::try_from(parsed).map_err(|e| ParseError::from(e))?;
+        let parsed: Pairs = Query::parse(value).map_err(ParseError::from)?;
+        let parsed_selectors = Selector::try_from(parsed)?;
         Ok(parsed_selectors)
     }
 
@@ -110,7 +110,7 @@ impl Selector {
                 let res = TableTraverser::traverse(children);
                 let column_matcher_span = res.column.take().map_err(to_parse_error)?;
                 let detached_span = match &column_matcher_span {
-                    None => DetachedSpan::from(span),
+                    None => span,
                     Some(column_matcher_span) => DetachedSpan::from(column_matcher_span),
                 };
                 let column_matcher = Matcher::try_from(column_matcher_span)?;
@@ -144,7 +144,7 @@ impl Selector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query::query::{Query, StringVariant};
+    use crate::query::pest::{Query, StringVariant};
     use crate::query::traversal::OneOf;
     use crate::query::Error;
     use pest::error::ErrorVariant;
