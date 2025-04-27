@@ -94,6 +94,9 @@ jobs:
       - name: Check out repo
         uses: actions/checkout@v4
 
+      - name: Also fetch target branch
+        run: git fetch origin "$GITHUB_BASE_REF"
+
       - name: Install semver-checks
         run: |
           set -euo pipefail
