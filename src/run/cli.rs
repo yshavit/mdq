@@ -200,7 +200,7 @@ impl From<&RunOptions> for output::MdWriterOptions {
 
 impl RunOptions {
     pub fn should_add_breaks(&self) -> bool {
-        self.add_breaks.unwrap_or_else(|| match self.output {
+        self.add_breaks.unwrap_or(match self.output {
             OutputFormat::Json => false,
             OutputFormat::Markdown | OutputFormat::Md => true,
             OutputFormat::Plain => false,
@@ -212,7 +212,7 @@ impl CliOptions {
     pub fn extra_validation(&self) -> bool {
         match self.output {
             OutputFormat::Json => {
-                if matches!(self.wrap_width, Some(_)) {
+                if self.wrap_width.is_some() {
                     let _ = CliOptions::command()
                         .error(
                             ErrorKind::ArgumentConflict,

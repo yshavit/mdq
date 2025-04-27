@@ -83,8 +83,7 @@ fn generate_integ_test_cases(out_dir: &String) -> Result<(), String> {
     let out_path = Path::new(&out_dir).join(CASES_WRITE);
     fs::create_dir_all(out_path.parent().expect("no parent dir found"))
         .map_err(|e| format!("mkdirs on {}: {}", out_path.to_string_lossy(), e))?;
-    fs::write(&out_path, out.get())
-        .map_err(|e| format!("writing to {}: {}", out_path.to_string_lossy(), e))?;
+    fs::write(&out_path, out.get()).map_err(|e| format!("writing to {}: {}", out_path.to_string_lossy(), e))?;
 
     Ok(())
 }
@@ -109,7 +108,7 @@ impl DirEntryHelper {
         stem.to_string_lossy().to_string()
     }
 
-    fn run<F, E: ToString, R>(&self, action: F) -> Result<R, String>
+    fn run<F, E, R>(&self, action: F) -> Result<R, String>
     where
         E: ToString,
         F: FnOnce(&DirEntry) -> Result<R, E>,

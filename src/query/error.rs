@@ -24,7 +24,7 @@ impl ParseError {
         match self {
             ParseError::Pest(e) => format!("{e}"),
             ParseError::Other(span, message) => match Span::new(query_text, span.start, span.end) {
-                None => format!("{message}"),
+                None => message.to_string(),
                 Some(span) => {
                     let pest_err = crate::query::Error::new_from_span(
                         ErrorVariant::CustomError {
