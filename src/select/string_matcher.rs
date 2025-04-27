@@ -119,7 +119,7 @@ impl SubstringToRegex {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::query::StringVariant;
+    use crate::query::{ParseError, StringVariant};
     use std::str::FromStr;
 
     #[test]
@@ -324,8 +324,8 @@ mod test {
         let (actual_matcher, actual_remaining) = match Matcher::parse(string_variant, text) {
             Ok(parsed) => parsed,
             Err(err) => {
-                eprintln!("{}", err.to_string(text));
-                panic!("{err:?}")
+                let public_err = ParseError::from_inner(err);
+                panic!("{public_err:?}")
             }
         };
         let actual_string_matcher: StringMatcher = actual_matcher.into();

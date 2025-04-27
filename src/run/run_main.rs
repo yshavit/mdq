@@ -1,6 +1,6 @@
 use crate::md_elem::{InvalidMd, ParseOptions};
 use crate::output::{MdWriter, MdWriterOptions, SerializableMd};
-use crate::query::ParseError;
+use crate::query::{InnerParseError, ParseError};
 use crate::run::cli::OutputFormat;
 use crate::run::RunOptions;
 use crate::select::Selector;
@@ -40,11 +40,11 @@ impl std::error::Error for QueryParseError {}
 
 impl Display for QueryParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &self.error {
-            ParseError::Pest(err) => {
+        match &self.error.inner {
+            InnerParseError::Pest(err) => {
                 write!(f, "{err}")
             }
-            ParseError::Other(span, message) => {
+            InnerParseError::Other(span, message) => {
                 let Some(full_span) = Span::new(&self.query_string, span.start, span.end) else {
                     // not expected to happen, but just in case!
                     return write!(

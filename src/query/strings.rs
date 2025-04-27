@@ -1,5 +1,5 @@
 use crate::query::pest::{Pairs, Rule};
-use crate::query::{DetachedSpan, ParseError};
+use crate::query::{DetachedSpan, InnerParseError};
 use std::borrow::Cow;
 use std::fmt::{Debug, Formatter, Write};
 
@@ -69,10 +69,8 @@ impl Debug for ParsedString {
     }
 }
 
-impl TryFrom<Pairs<'_>> for ParsedString {
-    type Error = ParseError;
-
-    fn try_from(pairs: Pairs) -> Result<Self, Self::Error> {
+impl ParsedString {
+    pub(crate) fn new_from_pairs(pairs: Pairs) -> Result<Self, InnerParseError> {
         let mut s = Self {
             text: String::with_capacity(pairs.as_str().len()),
             anchor_start: false,
@@ -81,7 +79,7 @@ impl TryFrom<Pairs<'_>> for ParsedString {
             explicit_wildcard: false,
         };
 
-        fn build_string(me: &mut ParsedString, pairs: Pairs) -> Result<(), ParseError> {
+        fn build_string(me: &mut ParsedString, pairs: Pairs) -> Result<(), InnerParseError> {
             // If you change or move this, update the comment in grammar.pest ("If you add a variant...") as needed.
             for pair in pairs {
                 let span = DetachedSpan::from(&pair);
@@ -102,7 +100,7 @@ impl TryFrom<Pairs<'_>> for ParsedString {
                                 'r' => '\r',
                                 't' => '\t',
                                 err => {
-                                    return Err(ParseError::Other(span, format!("invalid escape char: {err:?}")));
+                                    return Err(InnerParseError::Other(span, format!("invalid escape char: {err:?}")));
                                 }
                             };
                             me.text.push(result);
@@ -111,10 +109,10 @@ impl TryFrom<Pairs<'_>> for ParsedString {
                     Rule::unicode_seq => {
                         let seq = pair.as_str();
                         let Ok(code_point) = u32::from_str_radix(pair.as_str(), 16) else {
-                            return Err(ParseError::Other(span, format!("invalid unicode sequence: {seq}")));
+                            return Err(InnerParseError::Other(span, format!("invalid unicode sequence: {seq}")));
                         };
                         let Some(ch) = char::from_u32(code_point) else {
-                            return Err(ParseError::Other(span, format!("invalid unicode sequence: {seq}")));
+                            return Err(InnerParseError::Other(span, format!("invalid unicode sequence: {seq}")));
                         };
                         me.text.push(ch);
                     }
@@ -306,7 +304,10 @@ mod tests {
     fn check_parse(variant: StringVariant, input: &str, expect: ParsedString, remaining: &str) {
         let (pairs, _) = variant.parse(input).unwrap();
         let consumed = pairs.as_str();
-        let rule_tree: Vec<ParsedString> = pairs.into_iter().map(|p| p.into_inner().try_into().unwrap()).collect();
+        let rule_tree: Vec<ParsedString> = pairs
+            .into_iter()
+            .map(|p| ParsedString::new_from_pairs(p.into_inner()).unwrap())
+            .collect();
         assert_eq!(rule_tree, vec![expect]);
         assert_eq!(&input[consumed.len()..], remaining);
     }

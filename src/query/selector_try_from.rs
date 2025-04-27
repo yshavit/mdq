@@ -4,16 +4,14 @@ use crate::query::traversal_composites::{
     BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, ParagraphTraverser,
     SectionResults, SectionTraverser, TableTraverser,
 };
-use crate::query::{DetachedSpan, Pair, Pairs, ParseError, Query};
+use crate::query::{DetachedSpan, InnerParseError, Pair, Pairs, Query};
 use crate::select::{
     BlockQuoteMatcher, CodeBlockMatcher, HtmlMatcher, LinklikeMatcher, ListItemMatcher, ListItemTask, Matcher,
     ParagraphMatcher, SectionMatcher, Selector, TableMatcher,
 };
 
-impl TryFrom<Pairs<'_>> for Selector {
-    type Error = ParseError;
-
-    fn try_from(root: Pairs) -> Result<Self, Self::Error> {
+impl Selector {
+    fn new_from_pairs(root: Pairs) -> Result<Self, InnerParseError> {
         // Get "all" the selector chains; there should be at most 1.
         let selector_chains = ByRule::new(Rule::selector_chain).find_all_in(root);
         let mut selectors: Vec<Self> = Vec::new();
@@ -34,15 +32,15 @@ impl TryFrom<Pairs<'_>> for Selector {
 }
 
 impl Selector {
-    pub(crate) fn try_parse(value: &'_ str) -> Result<Self, ParseError> {
-        let parsed: Pairs = Query::parse(value).map_err(ParseError::from)?;
-        let parsed_selectors = Selector::try_from(parsed)?;
+    pub(crate) fn try_parse(value: &'_ str) -> Result<Self, InnerParseError> {
+        let parsed: Pairs = Query::parse(value).map_err(InnerParseError::from)?;
+        let parsed_selectors = Selector::new_from_pairs(parsed)?;
         Ok(parsed_selectors)
     }
 
-    fn find_selector(root: Pair) -> Result<Self, ParseError> {
+    fn find_selector(root: Pair) -> Result<Self, InnerParseError> {
         let span = DetachedSpan::from(&root);
-        let to_parse_error = |es: String| -> ParseError { ParseError::Other(span, es) };
+        let to_parse_error = |es: String| InnerParseError::Other(span, es);
 
         let (as_rule, children) = (root.as_rule(), root.into_inner());
 
@@ -115,7 +113,7 @@ impl Selector {
                 };
                 let column_matcher = Matcher::try_from(column_matcher_span)?;
                 if matches!(column_matcher, Matcher::Any { explicit: false }) {
-                    return Err(ParseError::Other(
+                    return Err(InnerParseError::Other(
                         detached_span,
                         "table column matcher cannot empty; use an explicit \"*\"".to_string(),
                     ));
@@ -152,7 +150,7 @@ mod tests {
     use std::cmp::{max, min};
 
     impl Matcher {
-        pub fn parse(variant: StringVariant, query_str: &str) -> Result<(Matcher, &str), ParseError> {
+        pub(crate) fn parse(variant: StringVariant, query_str: &str) -> Result<(Matcher, &str), InnerParseError> {
             let parse_attempt = variant.parse(query_str);
             let (only_pair, remaining) = match parse_attempt {
                 Err(err) => {
@@ -177,7 +175,7 @@ mod tests {
                         span.end = max(span.end, pair_span.start());
                         one_of.store(pair);
                     }
-                    let matcher = one_of.take().map_err(|msg| ParseError::Other(span, msg))?;
+                    let matcher = one_of.take().map_err(|msg| InnerParseError::Other(span, msg))?;
                     (matcher, remaining)
                 }
             };
@@ -802,17 +800,17 @@ mod tests {
             }
         };
 
-        let result = Selector::try_from(pairs);
+        let result = Selector::new_from_pairs(pairs);
         assert_eq!(result, Ok(expect));
     }
 
     fn expect_parse_error(query_text: &str, expect: &str) {
         let pairs = Query::parse(query_text);
         let err_msg = match pairs {
-            Ok(pairs) => match Selector::try_from(pairs) {
+            Ok(pairs) => match Selector::new_from_pairs(pairs) {
                 Ok(selector) => panic!("{selector:?}"),
-                Err(ParseError::Pest(err)) => format!("{err}"),
-                Err(ParseError::Other(span, message)) => {
+                Err(InnerParseError::Pest(err)) => format!("{err}"),
+                Err(InnerParseError::Other(span, message)) => {
                     let error = Error::new_from_span(Span::new(query_text, span.start, span.end).unwrap(), message);
                     format! {"{error}"}
                 }
