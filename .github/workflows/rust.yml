@@ -115,7 +115,7 @@ jobs:
               echo "::error title=semver-checks::semver-checks found breaking changes, but the 'breaking change' label isn't applied. Please add that label."
               exit 1
             else
-              echo "::warning title=semver-checks::semver-checks found breaking changes. The 'breaking change' label is, so no action needed if this is an acceptable change."
+              echo "::warning title=semver-checks::semver-checks found breaking changes. The 'breaking change' label is applied, so no action needed if this is an acceptable change."
             fi
           fi
         env:
