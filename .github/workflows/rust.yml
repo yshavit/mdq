@@ -111,11 +111,11 @@ jobs:
           if ! "$RUNNER_TEMP/cargo-semver-checks" semver-checks --baseline-rev "origin/$GITHUB_BASE_REF" ; then
             # There were breaking changes. Make sure we have the appropriate label!
             breaking_change_label_count="$(gh pr view 364 --json labels | jq '.labels | select("breaking change") | length')"
-            if [[ "$breaking_change_label_count" != 0 ]]; then
+            if [[ "$breaking_change_label_count" != 1 ]]; then
               echo "::error title=semver-checks::semver-checks found breaking changes, but the 'breaking change' label isn't applied. Please add that label."
               exit 1
             else
-              echo "::warning title=semver-checks::semver-checks found breaking changes. The 'breaking change' label isn't applied, so no action needed if this is an acceptable change."
+              echo "::warning title=semver-checks::semver-checks found breaking changes. The 'breaking change' label is, so no action needed if this is an acceptable change."
             fi
           fi
         env:
