@@ -108,4 +108,4 @@ jobs:
 
       - name: Run semver-checks
         run: |
-          "$RUNNER_TEMP/cargo-semver-checks" --baseline-version "$GITHUB_BASE_REF"
+          "$RUNNER_TEMP/cargo-semver-checks" semver-checks --baseline-version "$GITHUB_BASE_REF"
