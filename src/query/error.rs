@@ -1,6 +1,7 @@
 use pest::Span;
 use std::fmt::{Display, Formatter};
 
+/// An error representing an invalid selector query.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParseError {
     pub(crate) inner: InnerParseError,
@@ -15,24 +16,57 @@ impl ParseError {
     }
 }
 
+impl Display for ParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.inner, f)
+    }
+}
+
+impl std::error::Error for ParseError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.inner)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum InnerParseError {
     Pest(crate::query::Error),
     Other(DetachedSpan, String),
 }
 
-impl std::error::Error for ParseError {}
-
-impl Display for ParseError {
+impl Display for InnerParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &self.inner {
+        match &self {
             InnerParseError::Pest(error) => Display::fmt(error, f),
             InnerParseError::Other(_, message) => Display::fmt(message, f),
         }
     }
 }
 
+impl std::error::Error for InnerParseError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            InnerParseError::Pest(err) => Some(err),
+            InnerParseError::Other(_, _) => None,
+        }
+    }
+}
+
 impl ParseError {
+    /// Gets a string suitable for displaying to a user, given the original query string.
+    ///
+    /// ```
+    /// use mdq::select::Selector;
+    /// let query_text = "$ ! invalid query string ! $";
+    /// let parse_error = Selector::try_from(query_text).expect_err("expected an error");
+    /// let expected_error = r" --> 1:1
+    ///   |
+    /// 1 | $ ! invalid query string ! $
+    ///   | ^---
+    ///   |
+    ///   = expected valid query";
+    /// assert_eq!(parse_error.to_string(query_text), expected_error);
+    /// ```
     pub fn to_string(&self, query_text: &str) -> String {
         match &self.inner {
             InnerParseError::Pest(e) => format!("{e}"),
