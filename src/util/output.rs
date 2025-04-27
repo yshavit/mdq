@@ -22,8 +22,7 @@ pub struct Stream<W>(pub W);
 
 impl<W: std::io::Write> SimpleWrite for Stream<W> {
     fn write_char(&mut self, ch: char) -> std::io::Result<()> {
-        self.0.write(ch.encode_utf8(&mut [0u8; 4]).as_bytes())?;
-        Ok(())
+        std::io::Write::write_all(&mut self.0, ch.encode_utf8(&mut [0u8; 4]).as_bytes())
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
@@ -264,6 +263,9 @@ impl IndentationRange {
         let mut wrote = 0;
         // see https://github.com/rust-lang/rust/pull/27186 for why we have to build the range manually
         let mut pending_padding = 0;
+
+        // this form is easier to read than take(.end).skip(.start)
+        #[allow(clippy::needless_range_loop)]
         for idx in self.block_range.start..self.block_range.end {
             match blocks[idx] {
                 Block::Plain => {}
@@ -1047,6 +1049,39 @@ mod tests {
             let mut out = Output::new(String::new(), Some(wrap));
             action(&mut out);
             out.take_underlying().unwrap()
+        }
+    }
+
+    mod stream_simple_write {
+        use super::*;
+
+        #[test]
+        fn single_byte_char() -> std::io::Result<()> {
+            let mut bb = Vec::new();
+            let mut stream = Stream(&mut bb);
+            SimpleWrite::write_char(&mut stream, 'a')?;
+            assert_eq!(&bb, b"a");
+            Ok(())
+        }
+
+        #[test]
+        fn multi_byte_char() -> std::io::Result<()> {
+            let mut bb = Vec::new();
+            let mut stream = Stream(&mut bb);
+            SimpleWrite::write_char(&mut stream, '☃')?;
+            let expected: &[u8] = &[0xE2, 0x98, 0x83];
+            assert_eq!(&bb, expected);
+            Ok(())
+        }
+
+        #[test]
+        fn four_byte_char() -> std::io::Result<()> {
+            let mut bb = Vec::new();
+            let mut stream = Stream(&mut bb);
+            SimpleWrite::write_char(&mut stream, '𝄞')?;
+            let expected: &[u8] = &[0xF0, 0x9D, 0x84, 0x9E];
+            assert_eq!(&bb, expected);
+            Ok(())
         }
     }
 

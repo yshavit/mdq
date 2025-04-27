@@ -1331,6 +1331,9 @@ impl MdElem {
                     Err(InvalidMd::ConflictingReferenceDefinition(footnote_id.id))
                 } else {
                     let children = MdElem::all(node.children, lookups, ctx)?;
+
+                    // Can't use HashMap::entry without cloning footnote_id.
+                    #[allow(clippy::map_entry)]
                     if ctx.footnotes.contains_key(&footnote_id) {
                         Err(InvalidMd::ConflictingReferenceDefinition(footnote_id.id))
                     } else {
@@ -1604,9 +1607,7 @@ where
             if let Some(pending) = self.pending.next() {
                 return Some(Ok(pending));
             }
-            let Some(next_node) = self.children.next() else {
-                return None;
-            };
+            let next_node = self.children.next()?;
             match MdElem::from_mdast_0(next_node, self.lookups, self.footnotes_repo) {
                 Ok(mdq_node) => {
                     self.pending = mdq_node.into_iter();

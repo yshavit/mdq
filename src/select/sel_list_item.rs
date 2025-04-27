@@ -67,7 +67,9 @@ impl TrySelector<List> for ListItemSelector {
                         starting_index: idx,
                         items: vec![item],
                     }));
-                    idx.as_mut().map(|idx| *idx += 1);
+                    if let Some(idx) = idx.as_mut() {
+                        *idx += 1;
+                    }
                 }
                 Err(MdElem::Doc(items_doc))
             }

@@ -126,7 +126,7 @@ impl Selector {
                     rows: row_matcher,
                 }))
             }
-            Rule::selector | _ => {
+            _ => {
                 // We only expect to get here if we hit the Rule::selector rule. In that case, traversing the inners
                 // (there should only be one) will get us the actual, concrete selector for this selector union.
                 let mut one = OneOf::default();
