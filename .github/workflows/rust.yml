@@ -91,8 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install semver-checks
-        run: |
-          gh release -R obi1kenobi/cargo-semver-checks download -p  cargo-semver-checks-x86_64-unknown-linux-gnu.tar.gz  -O - | tar xz
+        run: "gh release -R obi1kenobi/cargo-semver-checks download -p  cargo-semver-checks-x86_64-unknown-linux-gnu.tar.gz  -O - | tar xz"
         working-directory: ${{ env.RUNNER_TEMP }}
 
       - name: Check out repo
