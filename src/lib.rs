@@ -1,6 +1,18 @@
 //! This crate is the library behind the [mdq] CLI tool.
 //!
-//! The general flow is to:
+//! <div class="warning">
+//!
+//! **This is a preview API**. While I'll try to keep it as stable as possible, some breaking changes may occur.
+//!
+//! I will note any such changes in the [release notes on GitHub]. You can also find them searching the
+//! [`breaking change` label] in the project's issue tracker.
+//!
+//! [release notes on GitHub]: https://github.com/yshavit/mdq/releases
+//! [`breaking change` label]: https://github.com/yshavit/mdq/issues?q=label%3A%22breaking%20change%22%20
+//!
+//! </div>
+//!
+//! The general flow to use this crate is:
 //!
 //! 1. Parse Markdown into [`md_elem::MdElem`]s via [`md_elem::MdDoc::parse`]
 //! 2. Parse a query via [`select::Selector`'s `TryFrom::<&str>`][selector-parse]
