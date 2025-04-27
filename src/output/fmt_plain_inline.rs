@@ -109,7 +109,7 @@ where
             write_inlines(out, &s.title)?;
             writeln!(out)?;
             writeln!(out)?;
-            write_plain_result(out, s.body.iter().map(|e| e.into()))
+            write_plain_result(out, s.body.iter())
         }
         MdElem::Table(t) => {
             for row in &t.rows {
@@ -543,7 +543,7 @@ mod test {
             ]
         });
         check_plain(
-            MdElem::from(md),
+            md,
             Expect {
                 with_breaks: "hello world! sponsored by Example Corp.\n",
                 no_breaks: "hello world! sponsored by Example Corp.\n",

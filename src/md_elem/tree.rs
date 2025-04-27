@@ -175,6 +175,7 @@ fn parse0(text: &str, options: &ParseOptions) -> Result<MdDoc, InvalidMd> {
     MdDoc::read(ast, &read_options)
 }
 
+#[derive(Default)]
 pub(crate) struct ReadOptions {
     /// For links and images, enforce that reference-style links have at most one definition. If this value is
     /// `false` and a link has multiple definitions, the first one will be picked.
@@ -237,7 +238,7 @@ impl std::error::Error for InvalidMd {}
 /// `Debug`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MarkdownPart {
-    node: mdast::Node,
+    node: Box<mdast::Node>,
 }
 
 /// An unknown, internal error.
@@ -1213,13 +1214,13 @@ macro_rules! mdx_nodes {
 /// Creates a nested enum.
 ///
 /// This macro translates:
-/// ```compile_fail
-/// m_node!(A::B::C { foo: 123 }
+/// ```text
+/// m_node!(A::B::C { foo: 123 })
 /// ```
 ///
 /// into:
 ///
-/// ```compile_fail
+/// ```text
 /// A::B(B::C(C { foo: 123 }))
 /// ```
 macro_rules! m_node {
@@ -1262,7 +1263,9 @@ impl MdElem {
                 let mut li_nodes = Vec::with_capacity(node.children.len());
                 for node in node.children {
                     let mdast::Node::ListItem(li_node) = node else {
-                        return Err(InvalidMd::NonListItemDirectlyUnderList(MarkdownPart { node }));
+                        return Err(InvalidMd::NonListItemDirectlyUnderList(MarkdownPart {
+                            node: Box::new(node),
+                        }));
                     };
                     let li_mdq = ListItem {
                         checked: li_node.checked,
@@ -1328,6 +1331,9 @@ impl MdElem {
                     Err(InvalidMd::ConflictingReferenceDefinition(footnote_id.id))
                 } else {
                     let children = MdElem::all(node.children, lookups, ctx)?;
+
+                    // Can't use HashMap::entry without cloning footnote_id.
+                    #[allow(clippy::map_entry)]
                     if ctx.footnotes.contains_key(&footnote_id) {
                         Err(InvalidMd::ConflictingReferenceDefinition(footnote_id.id))
                     } else {
@@ -1348,13 +1354,10 @@ impl MdElem {
                 let mdast::Code { value, lang, meta, .. } = node;
                 m_node!(MdElem::CodeBlock {
                     value,
-                    variant: CodeVariant::Code(match lang {
-                        None => None,
-                        Some(lang) => Some(CodeOpts {
-                            language: lang,
-                            metadata: meta,
-                        }),
-                    }),
+                    variant: CodeVariant::Code(lang.map(|lang| CodeOpts {
+                        language: lang,
+                        metadata: meta,
+                    })),
                 })
             }
             mdast::Node::Math(node) => {
@@ -1377,7 +1380,9 @@ impl MdElem {
                         children: cell_nodes, ..
                     }) = row_node
                     else {
-                        return Err(InvalidMd::NonRowDirectlyUnderTable(MarkdownPart { node: row_node }));
+                        return Err(InvalidMd::NonRowDirectlyUnderTable(MarkdownPart {
+                            node: Box::new(row_node),
+                        }));
                     };
                     let mut column = Vec::with_capacity(cell_nodes.len());
                     for cell_node in cell_nodes {
@@ -1419,7 +1424,7 @@ impl MdElem {
             mdx_nodes! {} => {
                 // If you implement this, make sure to remove the mdx_nodes macro. That means you'll also need to
                 // adjust the test `nodes_matcher` macro.
-                return Err(InvalidMd::Unsupported(MarkdownPart { node }));
+                return Err(InvalidMd::Unsupported(MarkdownPart { node: Box::new(node) }));
             }
         };
         Ok(vec![result])
@@ -1591,7 +1596,7 @@ where
     footnotes_repo: &'a mut MdContext,
 }
 
-impl<'a, I> Iterator for NodeToMdqIter<'a, I>
+impl<I> Iterator for NodeToMdqIter<'_, I>
 where
     I: Iterator<Item = mdast::Node>,
 {
@@ -1602,9 +1607,7 @@ where
             if let Some(pending) = self.pending.next() {
                 return Some(Ok(pending));
             }
-            let Some(next_node) = self.children.next() else {
-                return None;
-            };
+            let next_node = self.children.next()?;
             match MdElem::from_mdast_0(next_node, self.lookups, self.footnotes_repo) {
                 Ok(mdq_node) => {
                     self.pending = mdq_node.into_iter();
@@ -1634,7 +1637,7 @@ impl Lookups {
             allow_unknown_markdown: read_opts.allow_unknown_markdown,
         };
 
-        result.build_lookups(node, &read_opts)?;
+        result.build_lookups(node, read_opts)?;
 
         Ok(result)
     }
@@ -1654,7 +1657,7 @@ impl Lookups {
         reference_kind: mdast::ReferenceKind,
         lookups: &Lookups,
     ) -> Result<LinkDefinition, InvalidMd> {
-        if let None = label {
+        if label.is_none() {
             lookups.unknown_markdown("link label was None")?;
         }
         let Some(definition) = self.link_definitions.get(&identifier) else {
@@ -3115,7 +3118,7 @@ mod tests {
                     }),
                 ],
             })];
-            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(Ok))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -3148,7 +3151,7 @@ mod tests {
                     })],
                 })],
             })];
-            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(Ok))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -3209,7 +3212,7 @@ mod tests {
                     }),
                 ],
             })];
-            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(Ok))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -3232,7 +3235,7 @@ mod tests {
                     body: vec![mdq_inline!("two")],
                 }),
             ];
-            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(Ok))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -3281,7 +3284,7 @@ mod tests {
                     }),
                 ],
             })];
-            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(Ok))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -3322,7 +3325,7 @@ mod tests {
                     body: vec![],
                 }),
             ];
-            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(Ok))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -3354,7 +3357,7 @@ mod tests {
                     })],
                 }),
             ];
-            let actual = MdElem::all_from_iter(linear.into_iter().map(|n| Ok(n)))?;
+            let actual = MdElem::all_from_iter(linear.into_iter().map(Ok))?;
             assert_eq!(expect, actual);
             Ok(())
         }
@@ -3404,7 +3407,7 @@ mod tests {
     }
 
     /// A simple representation of some nodes. Very non-exhaustive, just for testing.
-    fn simple_to_string(nodes: &Vec<mdast::Node>) -> String {
+    fn simple_to_string(nodes: &[mdast::Node]) -> String {
         fn build(out: &mut String, node: &mdast::Node) {
             let (tag, text) = match node {
                 mdast::Node::Text(text_node) => ("", text_node.value.as_str()),
@@ -3432,14 +3435,5 @@ mod tests {
         InvalidMd::InternalError(UnknownMdParseError {
             backtrace: Backtrace::force_capture(),
         })
-    }
-
-    impl Default for ReadOptions {
-        fn default() -> Self {
-            Self {
-                validate_no_conflicting_links: false,
-                allow_unknown_markdown: false,
-            }
-        }
     }
 }

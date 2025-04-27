@@ -1,4 +1,4 @@
-mod query;
+mod pest;
 
 mod error;
 mod matcher_try_from;
@@ -10,6 +10,6 @@ mod traversal_composites;
 pub use error::*;
 
 #[cfg(test)]
-pub use query::StringVariant;
+pub use pest::StringVariant;
 #[allow(unused_imports)]
-pub use query::{Error, Pair, Pairs, Query};
+pub(crate) use pest::{Error, Pair, Pairs, Query};

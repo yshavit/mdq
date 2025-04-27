@@ -19,5 +19,6 @@ mod string_matcher;
 
 pub(crate) use api::*;
 
+pub use crate::query::ParseError;
 pub use matcher::*;
 pub use selector::*;

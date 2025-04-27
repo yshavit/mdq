@@ -30,7 +30,7 @@ struct PendingReferences<'md> {
     pub footnotes: HashSet<&'md FootnoteId>,
 }
 
-impl<'md> PendingReferences<'md> {
+impl PendingReferences<'_> {
     fn with_capacity(capacity: usize) -> Self {
         Self {
             links: HashMap::with_capacity(capacity),
@@ -112,7 +112,7 @@ impl<'md> MdInlinesWriter<'md> {
         for fid in self.pending_references.footnotes.drain() {
             let transformed_k = to_stringer.transform(fid.as_str());
             let ctx = self.ctx;
-            let footnote_value = ctx.get_footnote(&&fid);
+            let footnote_value = ctx.get_footnote(fid);
             result.push((transformed_k, footnote_value))
         }
         result
@@ -183,7 +183,7 @@ impl<'md> MdInlinesWriter<'md> {
         if self.seen_footnotes.insert(label.as_str()) {
             self.pending_references.footnotes.insert(label);
             let ctx = self.ctx;
-            let text = ctx.get_footnote(&label);
+            let text = ctx.get_footnote(label);
             self.find_references_in_footnote_elems(text);
         }
     }
@@ -195,7 +195,7 @@ impl<'md> MdInlinesWriter<'md> {
         for elem in text {
             match elem {
                 MdElem::Doc(doc) => {
-                    self.find_references_in_footnote_elems(&doc);
+                    self.find_references_in_footnote_elems(doc);
                 }
                 MdElem::BlockQuote(block) => {
                     self.find_references_in_footnote_elems(&block.body);
@@ -699,7 +699,7 @@ mod tests {
                 renumber_footnotes: false,
             },
         );
-        writer.write_inline_element(&mut output, &orig);
+        writer.write_inline_element(&mut output, orig);
         let md_str = output.take_underlying().unwrap();
 
         let options = ParseOptions::gfm();

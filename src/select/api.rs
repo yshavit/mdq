@@ -45,7 +45,7 @@ macro_rules! adapters {
         }
 
         impl SelectorAdapter {
-            fn try_select_node<'md>(&self, ctx: &MdContext, node: MdElem) -> Result<Vec<MdElem>, MdElem> {
+            fn try_select_node(&self, ctx: &MdContext, node: MdElem) -> Result<Vec<MdElem>, MdElem> {
                 match (&self, node) {
                     $(
                     (Self::$name(adapter), MdElem::$md_elem(elem)) => adapter.try_select(ctx, elem),
@@ -85,8 +85,8 @@ impl SelectorAdapter {
         result
     }
 
-    fn build_output<'md>(&self, out: &mut Vec<MdElem>, ctx: &mut SearchContext<'md>, node: MdElem) {
-        match self.try_select_node(&ctx.md_context, node) {
+    fn build_output(&self, out: &mut Vec<MdElem>, ctx: &mut SearchContext, node: MdElem) {
+        match self.try_select_node(ctx.md_context, node) {
             Ok(mut found) => out.append(&mut found),
             Err(not_found) => {
                 for child in Self::find_children(ctx, not_found) {
@@ -107,12 +107,12 @@ impl SelectorAdapter {
             MdElem::Doc(body) => {
                 let mut wrapped = Vec::with_capacity(body.len());
                 for elem in body {
-                    wrapped.push(elem.into());
+                    wrapped.push(elem);
                 }
                 wrapped
             }
             MdElem::Section(s) => vec![MdElem::Doc(s.body)],
-            MdElem::Paragraph(p) => p.body.into_iter().map(|child| MdElem::Inline(child)).collect(),
+            MdElem::Paragraph(p) => p.body.into_iter().map(MdElem::Inline).collect(),
             MdElem::BlockQuote(b) => vec![MdElem::Doc(b.body)],
             MdElem::List(list) => {
                 let mut result = Vec::with_capacity(list.items.len());
@@ -137,9 +137,7 @@ impl SelectorAdapter {
             }
             MdElem::ThematicBreak | MdElem::CodeBlock(_) => Vec::new(),
             MdElem::Inline(inline) => match inline {
-                Inline::Span(Span { children, .. }) => {
-                    children.into_iter().map(|child| MdElem::Inline(child)).collect()
-                }
+                Inline::Span(Span { children, .. }) => children.into_iter().map(MdElem::Inline).collect(),
                 Inline::Footnote(footnote) => {
                     // guard against cycles
                     if ctx.seen_footnotes.insert(footnote.clone()) {
@@ -148,12 +146,13 @@ impl SelectorAdapter {
                         Vec::new()
                     }
                 }
-                Inline::Text(Text { variant, value }) if variant == TextVariant::InlineHtml => {
+                Inline::Text(Text {
+                    variant: TextVariant::InlineHtml,
+                    value,
+                }) => {
                     vec![MdElem::BlockHtml(value.into())]
                 }
-                Inline::Link(Link { display: text, .. }) => {
-                    text.into_iter().map(|child| MdElem::Inline(child)).collect()
-                }
+                Inline::Link(Link { display: text, .. }) => text.into_iter().map(MdElem::Inline).collect(),
                 Inline::Text(_) | Inline::Image(_) => Vec::new(),
             },
             MdElem::BlockHtml(_) => Vec::new(),

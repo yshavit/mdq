@@ -54,7 +54,7 @@ pub struct MdWriterOptions {
 }
 
 /// Whether to put link definitions at the end of each section, or at the bottom of the whole document.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, ValueEnum)]
 pub enum ReferencePlacement {
     /// Show link definitions in the first section that uses the link.
     ///
@@ -73,6 +73,7 @@ pub enum ReferencePlacement {
     ///
     /// Lorem ipsum in the second sub-section.
     /// ```
+    #[default]
     Section,
 
     /// Show link definitions at the bottom of the document.
@@ -93,12 +94,6 @@ pub enum ReferencePlacement {
     /// ^^^^^^^^^^^^^^^^^^^^^^^^
     /// ```
     Doc,
-}
-
-impl Default for ReferencePlacement {
-    fn default() -> Self {
-        ReferencePlacement::Section
-    }
 }
 
 pub(crate) fn write_md<'md, I, W>(options: MdWriterOptions, out: &mut Output<W>, ctx: &'md MdContext, nodes: I)
@@ -130,7 +125,7 @@ struct MdWriterState<'s, 'md> {
     inlines_writer: &'s mut MdInlinesWriter<'md>,
 }
 
-impl<'s, 'md> MdWriterState<'s, 'md> {
+impl<'md> MdWriterState<'_, 'md> {
     fn write_md<I, W>(&mut self, out: &mut Output<W>, nodes: I, add_break: bool) -> usize
     where
         I: Iterator<Item = &'md MdElem>,
@@ -182,7 +177,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                         }
                     });
                 });
-                self.write_md(out, body.into_iter(), false);
+                self.write_md(out, body.iter(), false);
                 self.write_link_refs_as_needed(out);
             }
             MdElem::ThematicBreak => {
@@ -231,7 +226,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
     fn write_block_quote<W: SimpleWrite>(&mut self, out: &mut Output<W>, block: &'md BlockQuote) {
         out.with_block(Block::Quote, |out| {
             let body = &block.body;
-            self.write_md(out, body.into_iter(), false);
+            self.write_md(out, body.iter(), false);
         });
     }
 
@@ -270,7 +265,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
         for row in rows {
             let mut col_strs = Vec::with_capacity(row.len());
             for (idx, cell) in row.iter().enumerate() {
-                let col_str = self.line_to_string(&cell);
+                let col_str = self.line_to_string(cell);
                 // Extend the row_sizes if needed. This happens if we had fewer alignments than columns in any
                 // row. I'm not sure if that's possible, but it's easy to guard against.
                 while column_widths.len() <= idx {
@@ -300,7 +295,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                 };
                 pad_to(
                     out,
-                    &col,
+                    col,
                     *column_widths.get(idx).unwrap_or(&0) - left_padding_count - 1, // -1 for right padding
                     alignments.get(idx).copied().flatten(),
                 );
@@ -325,7 +320,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
             for (idx, &align) in alignments.iter().enumerate() {
                 let width = column_widths
                     .get(idx)
-                    .unwrap_or_else(|| match align {
+                    .unwrap_or(match align {
                         Some(ColumnAlignment::Left | ColumnAlignment::Right) => &2,
                         Some(ColumnAlignment::Center) => &3,
                         None => &1,
@@ -375,7 +370,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                 } else {
                     None
                 };
-                let leading_backticks_count = Self::count_longest_opening_backticks(&value);
+                let leading_backticks_count = Self::count_longest_opening_backticks(value);
                 let surround_backticks = if leading_backticks_count < 3 {
                     Cow::Borrowed("```")
                 } else {
@@ -387,7 +382,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                 let meta = if let Some(meta) = metadata {
                     let mut meta_with_space = String::with_capacity(meta.len() + 1);
                     meta_with_space.push(' ');
-                    meta_with_space.push_str(&meta);
+                    meta_with_space.push_str(meta);
                     Some(meta_with_space)
                 } else {
                     None
@@ -441,7 +436,7 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
         let count = counting_writer.count();
         out.with_block(Block::Indent(count), |out| {
             let body = &item.item;
-            self.write_md(out, body.into_iter(), false);
+            self.write_md(out, body.iter(), false);
         });
     }
 
@@ -490,22 +485,22 @@ impl<'s, 'md> MdWriterState<'s, 'md> {
                     }
                     out.without_wrapping(|out| {
                         out.write_str("]: ");
-                        out.write_str(&link_def.url);
-                        self.inlines_writer.write_url_title(out, &link_def.title);
+                        out.write_str(link_def.url);
+                        self.inlines_writer.write_url_title(out, link_def.title);
                     });
                     newline(out);
                 }
             }
             if matches!(which, DefinitionsToWrite::Footnotes | DefinitionsToWrite::Both) {
                 let mut defs_to_write: Vec<_> = self.inlines_writer.drain_pending_footnotes();
-                defs_to_write.sort_unstable_by(|a, b| (&a.0).cmp(&b.0));
+                defs_to_write.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
                 for (link_ref, text) in defs_to_write {
                     out.write_str("[^");
                     out.write_str(&link_ref);
                     out.write_str("]: ");
                     out.with_block(Block::Indent(2), |out| {
-                        self.write_md(out, text.into_iter(), false);
+                        self.write_md(out, text.iter(), false);
                     });
                 }
             }
@@ -586,6 +581,11 @@ pub mod tests {
         List(_),
         Table(_),
     });
+
+    #[test]
+    fn reference_placement_default() {
+        assert_eq!(ReferencePlacement::default(), ReferencePlacement::Section);
+    }
 
     #[test]
     fn empty() {
@@ -1650,7 +1650,7 @@ pub mod tests {
                             mdq_inline!(span Emphasis [mdq_inline!("world")]),
                             mdq_inline!("!"),
                         ],
-                        link: link,
+                        link,
                     })),
                     m_node!(MdElem::ThematicBreak),
                 ];

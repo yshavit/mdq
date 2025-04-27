@@ -183,7 +183,7 @@ impl<'md> SerdeElem<'md> {
     {
         let mut result = Vec::with_capacity(elems.len());
         for elem in elems {
-            result.push(Self::build(elem.borrow().into(), inlines_writer));
+            result.push(Self::build(elem.borrow(), inlines_writer));
         }
         result
     }

@@ -1,16 +1,14 @@
 use crate::query::strings::{ParsedString, ParsedStringMode};
-use crate::query::{DetachedSpan, Pair, ParseError};
+use crate::query::{DetachedSpan, InnerParseError, Pair};
 use crate::select::{Matcher, Regex};
 
-impl TryFrom<Option<Pair<'_>>> for Matcher {
-    type Error = ParseError;
-
-    fn try_from(pair: Option<Pair>) -> Result<Self, Self::Error> {
+impl Matcher {
+    pub(crate) fn try_from(pair: Option<Pair>) -> Result<Self, InnerParseError> {
         let Some(pair) = pair else {
             return Ok(Self::Any { explicit: false });
         };
         let span = DetachedSpan::from(&pair);
-        let parsed_string: ParsedString = pair.into_inner().try_into()?;
+        let parsed_string = ParsedString::new_from_pairs(pair.into_inner())?;
         if parsed_string.is_equivalent_to_asterisk() {
             return Ok(Self::Any {
                 explicit: parsed_string.explicit_wildcard,
@@ -30,8 +28,8 @@ impl TryFrom<Option<Pair<'_>>> for Matcher {
                 anchor_end: parsed_string.anchor_end,
             },
             ParsedStringMode::Regex => {
-                let re = regex::Regex::new(&parsed_string.text)
-                    .map_err(|e| ParseError::Other(span.into(), e.to_string()))?;
+                let re =
+                    regex::Regex::new(&parsed_string.text).map_err(|e| InnerParseError::Other(span, e.to_string()))?;
                 Self::Regex(Regex { re })
             }
         };

@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 /// Whether to render links as inline, reference form, or keep them as they were.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, ValueEnum)]
 pub enum LinkTransform {
     /// Keep links as they were in the original
     Keep,
@@ -21,13 +21,8 @@ pub enum LinkTransform {
     ///
     /// Links that weren't already in reference form will be auto-assigned a reference id. Links that were in reference
     /// form will have the link number be reordered.
+    #[default]
     Reference,
-}
-
-impl Default for LinkTransform {
-    fn default() -> Self {
-        LinkTransform::Reference
-    }
 }
 
 pub(crate) struct LinkTransformer {
@@ -53,7 +48,7 @@ impl<'md> LinkLabel<'md> {
                         renumber_footnotes: false,
                     },
                 );
-                inlines_to_string(&mut inline_writer, *inlines)
+                inlines_to_string(&mut inline_writer, inlines)
             }
         }
     }
@@ -82,20 +77,12 @@ pub(crate) struct LinkTransformation<'md> {
 
 /// A temporary holder to perform link transformations.
 ///
-/// To use:
-///
-/// ```compile_fail
-///     // self: MdInlinesWriter
-///     let link_ref = LinkTransformation::new(self.link_transformer.transform_variant(), self, link_like)
-///         .apply(&mut self.link_transformer, &link.reference);
-/// ```
-///
 /// We need this because ownership prohibits:
 ///
-/// ```compile_fail
-///     let link_ref = self.link_transformer.transform(self, link_like)
-///     //             ^^^^^^^^^^^^^^^^^^^^^           ^^^^
-///                    first borrow                    second borrow
+/// ```text
+/// let link_ref = self.link_transformer.transform(self, link_like)
+/// //             ^^^^^^^^^^^^^^^^^^^^^           ^^^^
+///                first borrow                    second borrow
 /// ```
 ///
 /// This lets us use the `transform_variant()`'s Copy-ability to release the borrow.
@@ -112,7 +99,7 @@ impl<'md> LinkTransformation<'md> {
                     LinkReference::Inline | LinkReference::Full(_) => None,
                     LinkReference::Collapsed | LinkReference::Shortcut => {
                         let text = match label {
-                            LinkLabel::Text(text) => Cow::from(text),
+                            LinkLabel::Text(text) => text,
                             LinkLabel::Inline(text) => Cow::Owned(inlines_to_string(inline_writer, text)),
                         };
                         Some(text)
@@ -167,7 +154,7 @@ impl ReferenceAssigner {
     fn assign<'md>(&mut self, state: LinkTransformation<'md>, link: &'md LinkReference) -> Cow<'md, LinkReference> {
         match &link {
             LinkReference::Inline => self.assign_new(),
-            LinkReference::Full(prev) => self.assign_if_numeric(prev).unwrap_or_else(|| Cow::Borrowed(link)),
+            LinkReference::Full(prev) => self.assign_if_numeric(prev).unwrap_or(Cow::Borrowed(link)),
             LinkReference::Collapsed | LinkReference::Shortcut => {
                 let text_cow = state.link_text.unwrap();
                 self.assign_if_numeric(text_cow.deref()).unwrap_or_else(|| {
@@ -479,17 +466,17 @@ mod tests {
     }
 
     fn transform<'md>(
-        mut transformer: &mut LinkTransformer,
-        mut iw: &mut MdInlinesWriter<'md>,
+        transformer: &mut LinkTransformer,
+        iw: &mut MdInlinesWriter<'md>,
         link: &'md Link,
     ) -> LinkReference {
-        let actual = LinkTransformation::new(transformer.transform_variant(), &mut iw, link)
-            .apply(&mut transformer, &link.link.reference);
+        let actual =
+            LinkTransformation::new(transformer.transform_variant(), iw, link).apply(transformer, &link.link.reference);
         actual
     }
 
     fn make_link(label: &str, link_ref: LinkReference) -> Link {
-        let link = Link {
+        Link {
             display: vec![Inline::Text(Text {
                 variant: TextVariant::Plain,
                 value: label.to_string(),
@@ -499,8 +486,7 @@ mod tests {
                 title: None,
                 reference: link_ref,
             },
-        };
-        link
+        }
     }
 
     struct Given {

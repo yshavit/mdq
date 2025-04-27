@@ -1,9 +1,9 @@
+#[cfg(test)]
+pub use crate::query::pest::test_helpers::StringVariant;
 use pest::Parser;
 use pest_derive::Parser;
-use std::fmt::Debug;
-
-#[cfg(test)]
-pub use crate::query::query::test_helpers::StringVariant;
+use std::fmt::{Debug, Display, Formatter};
+use std::rc::Rc;
 
 #[derive(Parser)]
 #[grammar = "query/grammar.pest"]
@@ -13,17 +13,50 @@ pub struct Query {
     _private: (),
 }
 
-pub type Pair<'a> = pest::iterators::Pair<'a, Rule>;
-pub type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
-pub type Error = pest::error::Error<Rule>;
+pub(crate) type Pair<'a> = pest::iterators::Pair<'a, Rule>;
+pub(crate) type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Error {
+    pub(crate) pest_error: Rc<pest::error::Error<Rule>>,
+}
+
+impl Error {
+    pub(crate) fn new_from_span(span: pest::Span, message: String) -> Self {
+        Self {
+            pest_error: Rc::new(pest::error::Error::new_from_span(
+                pest::error::ErrorVariant::CustomError {
+                    message: message.to_string(),
+                },
+                span,
+            )),
+        }
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.pest_error, f)
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl From<pest::error::Error<Rule>> for Error {
+    fn from(value: pest::error::Error<Rule>) -> Self {
+        Self {
+            pest_error: Rc::new(value),
+        }
+    }
+}
 
 impl Query {
     pub fn parse(query_text: &str) -> Result<Pairs, Error> {
         QueryPairs::parse(Rule::top, query_text).map_err(Self::format_err)
     }
 
-    fn format_err(err: Error) -> Error {
-        err.renamed_rules(|err| {
+    fn format_err(err: pest::error::Error<Rule>) -> Error {
+        let renamed = err.renamed_rules(|err| {
             match err {
                 Rule::EOI => "end of input",
                 Rule::WHITESPACE => "whitespace",
@@ -65,7 +98,10 @@ impl Query {
             }
             .to_string()
             .replace('_', "\"")
-        })
+        });
+        Error {
+            pest_error: Rc::new(renamed),
+        }
     }
 }
 
@@ -94,11 +130,10 @@ mod test_helpers {
         }
 
         pub fn as_rule(self) -> Rule {
-            let rule = match self {
+            match self {
                 StringVariant::AngleBracket => Rule::string_for_unit_tests__do_not_use_angle,
                 StringVariant::Pipe => Rule::string_for_unit_tests__do_not_use_pipe,
-            };
-            rule
+            }
         }
     }
 }

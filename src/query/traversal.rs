@@ -1,4 +1,4 @@
-use crate::query::query::{Pair, Pairs, Rule};
+use crate::query::pest::{Pair, Pairs, Rule};
 
 pub type OnePair<'a> = OneOf<Pair<'a>>;
 
@@ -86,7 +86,7 @@ impl<T> OneOf<T> {
 #[derive(Debug)]
 pub struct FindAll<'a, M>(M, Vec<Pair<'a>>);
 
-impl<'a, M> FindAll<'a, M> {
+impl<M> FindAll<'_, M> {
     pub fn new(matcher: M) -> Self {
         Self(matcher, Vec::new())
     }
@@ -120,7 +120,7 @@ impl ByRule {
     }
 }
 
-impl<'a> PairMatcher for ByRule {
+impl PairMatcher for ByRule {
     fn matches(&self, pair: &Pair) -> bool {
         self.0 == pair.as_rule()
     }

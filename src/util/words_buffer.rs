@@ -91,14 +91,14 @@ impl WordsBuffer {
             // invocation will write it. We do want to note that we're no longer in the first word, so that later
             // account of chars will work correctly.
             if self.pending_word_char_count > 0 {
-                if self.chars_written_to_line + self.pending_word_char_count + 1 <= self.current_line_length() {
+                if self.chars_written_to_line + self.pending_word_char_count < self.current_line_length() {
                     // Pending word fits on the current line.
                     self.drain_pending_word(action);
                     self.writing_first_word = false;
                 } else {
                     // Need to start a new line, and then, since we *are* now at the start of a line, we can just action the
                     // pending word directly.
-                    self.start_new_line(|ch| action(ch));
+                    self.start_new_line(&mut action);
                     self.drain_without_leading_space(action);
                 }
             } else {
@@ -114,8 +114,8 @@ impl WordsBuffer {
             // we know isn't the first word, because that was handled above).
             let allocated_chars = self.chars_written_to_line + self.pending_word_char_count + 2;
             if allocated_chars > self.current_line_length() {
-                self.start_new_line(|ch| action(ch));
-                self.drain_without_leading_space(|ch| action(ch));
+                self.start_new_line(&mut action);
+                self.drain_without_leading_space(&mut action);
                 self.shorten_current_line_by += action(ch);
                 self.chars_written_to_line += 1;
             } else {

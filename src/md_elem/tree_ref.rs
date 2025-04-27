@@ -52,11 +52,9 @@ mod elem_ref {
                     // no columns match: clear everything out
                     self.alignments.clear();
                     self.rows.clear();
-                    return;
                 }
                 n if n == first_row.len() => {
                     // all columns match: no need to go one by one, just return without modifications
-                    return;
                 }
                 _ => {
                     // some columns match: retain those, and discard the rest
@@ -76,7 +74,7 @@ mod elem_ref {
                 if idx == 0 {
                     return true;
                 }
-                row.iter().any(|cell| f(cell))
+                row.iter().any(&mut f)
             });
         }
 
@@ -250,7 +248,7 @@ mod tests {
             .collect();
             let mut rows = Vec::with_capacity(cells.len());
 
-            while let Some(row_strings) = rows_iter.next() {
+            for row_strings in rows_iter {
                 let mut row = Vec::with_capacity(row_strings.len());
                 for cell_string in row_strings {
                     row.push(cell(cell_string));

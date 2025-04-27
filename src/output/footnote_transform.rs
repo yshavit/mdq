@@ -99,7 +99,7 @@ mod test {
         // write nine labels; we don't care about the results
         let nine_labels: Vec<_> = (1..10).map(|i| format!("footnote-{i}")).collect();
         for label in &nine_labels {
-            transformer.write(&mut Output::without_text_wrapping(String::new()), &label);
+            transformer.write(&mut Output::without_text_wrapping(String::new()), label);
         }
 
         // the tenth label should remap to "10" with an expected len of 2

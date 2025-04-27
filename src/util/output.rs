@@ -22,8 +22,7 @@ pub struct Stream<W>(pub W);
 
 impl<W: std::io::Write> SimpleWrite for Stream<W> {
     fn write_char(&mut self, ch: char) -> std::io::Result<()> {
-        self.0.write(ch.encode_utf8(&mut [0u8; 4]).as_bytes())?;
-        Ok(())
+        std::io::Write::write_all(&mut self.0, ch.encode_utf8(&mut [0u8; 4]).as_bytes())
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
@@ -104,7 +103,7 @@ impl<W: SimpleWrite> Output<W> {
         Self {
             stream: to,
             indenter: IndentHandler::new(),
-            words_buffer: text_width.map_or_else(WordsBuffer::disabled, |width| WordsBuffer::new(width)),
+            words_buffer: text_width.map_or_else(WordsBuffer::disabled, WordsBuffer::new),
             writing_state: WritingState::HaveNotWrittenAnything,
         }
     }
@@ -181,7 +180,7 @@ impl<W: SimpleWrite> Output<W> {
     ///
     /// - `Some('\n')` is translated to a [Self::ensure_newlines].
     /// - `None` basically flushes pending blocks, but doesn't write anything else; we use this in [Self::pop_block],
-    ///    and it's particularly useful for empty quote blocks (`">"`) and trailing newlines in `pre` blocks.
+    ///   and it's particularly useful for empty quote blocks (`">"`) and trailing newlines in `pre` blocks.
     fn perform_write(&mut self, write: WriteAction) {
         match write {
             WriteAction::Char(ch) => {
@@ -264,6 +263,9 @@ impl IndentationRange {
         let mut wrote = 0;
         // see https://github.com/rust-lang/rust/pull/27186 for why we have to build the range manually
         let mut pending_padding = 0;
+
+        // this form is easier to read than take(.end).skip(.start)
+        #[allow(clippy::needless_range_loop)]
         for idx in self.block_range.start..self.block_range.end {
             match blocks[idx] {
                 Block::Plain => {}
@@ -289,7 +291,7 @@ impl IndentationRange {
     }
 }
 
-impl<'a> IndentInfo<'a> {
+impl IndentInfo<'_> {
     fn pre_write(&self, writing_state: &mut WritingState, trailing_padding: bool, out: &mut impl SimpleWrite) -> usize {
         if self.static_info.newlines > 0 {
             for _ in 0..(self.static_info.newlines - 1) {
@@ -400,7 +402,7 @@ impl IndentHandler {
                     .pending_blocks
                     .iter()
                     .position(|b| matches!(b, Block::Indent(_)))
-                    .unwrap_or_else(|| self.pending_blocks.len());
+                    .unwrap_or(self.pending_blocks.len());
             self.blocks.append(&mut self.pending_blocks);
             0..indent_end_idx
         } else {
@@ -434,7 +436,7 @@ impl IndentHandler {
     }
 }
 
-impl<'a, W: SimpleWrite> PreWriter<'a, W> {
+impl<W: SimpleWrite> PreWriter<'_, W> {
     pub fn write_str(&mut self, text: &str) {
         self.output.write_str(text)
     }
@@ -1047,6 +1049,39 @@ mod tests {
             let mut out = Output::new(String::new(), Some(wrap));
             action(&mut out);
             out.take_underlying().unwrap()
+        }
+    }
+
+    mod stream_simple_write {
+        use super::*;
+
+        #[test]
+        fn single_byte_char() -> std::io::Result<()> {
+            let mut bb = Vec::new();
+            let mut stream = Stream(&mut bb);
+            SimpleWrite::write_char(&mut stream, 'a')?;
+            assert_eq!(&bb, b"a");
+            Ok(())
+        }
+
+        #[test]
+        fn multi_byte_char() -> std::io::Result<()> {
+            let mut bb = Vec::new();
+            let mut stream = Stream(&mut bb);
+            SimpleWrite::write_char(&mut stream, '☃')?;
+            let expected: &[u8] = &[0xE2, 0x98, 0x83];
+            assert_eq!(&bb, expected);
+            Ok(())
+        }
+
+        #[test]
+        fn four_byte_char() -> std::io::Result<()> {
+            let mut bb = Vec::new();
+            let mut stream = Stream(&mut bb);
+            SimpleWrite::write_char(&mut stream, '𝄞')?;
+            let expected: &[u8] = &[0xF0, 0x9D, 0x84, 0x9E];
+            assert_eq!(&bb, expected);
+            Ok(())
         }
     }
 

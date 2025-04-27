@@ -41,7 +41,7 @@ impl Eq for Regex {}
 
 impl PartialOrd for Regex {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        PartialOrd::partial_cmp(self.re.as_str(), other.re.as_str())
+        Some(self.cmp(other))
     }
 }
 

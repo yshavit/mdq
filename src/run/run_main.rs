@@ -1,11 +1,10 @@
 use crate::md_elem::{InvalidMd, ParseOptions};
 use crate::output::{MdWriter, MdWriterOptions, SerializableMd};
-use crate::query::ParseError;
+use crate::query::{InnerParseError, ParseError};
 use crate::run::cli::OutputFormat;
 use crate::run::RunOptions;
 use crate::select::Selector;
 use crate::{md_elem, output, query};
-use pest::error::ErrorVariant;
 use pest::Span;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
@@ -41,11 +40,11 @@ impl std::error::Error for QueryParseError {}
 
 impl Display for QueryParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &self.error {
-            ParseError::Pest(err) => {
+        match &self.error.inner {
+            InnerParseError::Pest(err) => {
                 write!(f, "{err}")
             }
-            ParseError::Other(span, message) => {
+            InnerParseError::Other(span, message) => {
                 let Some(full_span) = Span::new(&self.query_string, span.start, span.end) else {
                     // not expected to happen, but just in case!
                     return write!(
@@ -54,12 +53,7 @@ impl Display for QueryParseError {
                         span.start, self.query_string, message
                     );
                 };
-                let pest_err = query::Error::new_from_span(
-                    ErrorVariant::CustomError {
-                        message: message.to_string(),
-                    },
-                    full_span,
-                );
+                let pest_err = query::Error::new_from_span(full_span, message.to_string());
                 write!(f, "{pest_err}")
             }
         }
@@ -100,7 +94,7 @@ impl Display for Error {
                 writeln!(f, "{err}")
             }
             Error::FileReadError(file, err) => {
-                if env::var("MDQ_PORTABLE_ERRORS").unwrap_or(String::new()).is_empty() {
+                if env::var("MDQ_PORTABLE_ERRORS").unwrap_or_default().is_empty() {
                     writeln!(f, "{err} while reading {file}")
                 } else {
                     writeln!(f, "{} while reading {file}", err.kind())
@@ -177,12 +171,7 @@ fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error>
     let contents_str = os.read_all(&cli.markdown_file_paths)?;
     let mut options = ParseOptions::gfm();
     options.allow_unknown_markdown = cli.allow_unknown_markdown;
-    let md_doc = match md_elem::MdDoc::parse(&contents_str, &options).map_err(|e| e.into()) {
-        Ok(mdqs) => mdqs,
-        Err(err) => {
-            return Err(Error::MarkdownParse(err));
-        }
-    };
+    let md_doc = md_elem::MdDoc::parse(&contents_str, &options).map_err(Error::MarkdownParse)?;
 
     let selectors_str = &cli.selectors;
     let selectors: Selector = match selectors_str.try_into() {
