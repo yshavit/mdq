@@ -83,3 +83,40 @@ jobs:
       - uses: actions/checkout@v4
       - name: cargo fmt
         run: cargo fmt --check
+
+
+  semver:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Also fetch target branch
+        run: git fetch origin "$GITHUB_BASE_REF"
+
+      - name: Install semver-checks
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          gh release -R obi1kenobi/cargo-semver-checks download -p  cargo-semver-checks-x86_64-unknown-linux-gnu.tar.gz  -O - | tar xz
+        working-directory: ${{ env.RUNNER_TEMP }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Run semver-checks
+        run: |
+          if ! "$RUNNER_TEMP/cargo-semver-checks" semver-checks --baseline-rev "origin/$GITHUB_BASE_REF" ; then
+            # There were breaking changes. Make sure we have the appropriate label!
+            breaking_change_label_count="$(gh pr view 364 --json labels | jq '.labels | select("breaking change") | length')"
+            if [[ "$breaking_change_label_count" != 1 ]]; then
+              echo "::error title=semver-checks::semver-checks found breaking changes, but the 'breaking change' label isn't applied. Please add that label."
+              exit 1
+            else
+              echo "::warning title=semver-checks::semver-checks found breaking changes. The 'breaking change' label is applied, so no action needed if this is an acceptable change."
+            fi
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
