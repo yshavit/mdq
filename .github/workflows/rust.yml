@@ -117,3 +117,5 @@ jobs:
               echo "::warning title=semver-checks::semver-checks found breaking changes. The 'breaking change' label isn't applied, so no action needed if this is an acceptable change."
             fi
           fi
+        env:
+          GH_TOKEN: ${{ github.token }}
