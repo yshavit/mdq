@@ -107,4 +107,11 @@ jobs:
 
       - name: Run semver-checks
         run: |
-          "$RUNNER_TEMP/cargo-semver-checks" semver-checks --baseline-rev "origin/$GITHUB_BASE_REF"
+          if ! "$RUNNER_TEMP/cargo-semver-checks" semver-checks --baseline-rev "origin/$GITHUB_BASE_REF" ; then
+            # There were breaking changes. Make sure we have the appropriate label!
+            breaking_change_label_count="$(gh pr view 364 --json labels | jq '.labels | select("breaking change") | length')"
+            if [[ "$breaking_change_label_count" != 0 ]]; then
+              echo "::error title=semver-checks:semver-checks found breaking changes, but the 'breaking change' label isn't applied. Please add that label."
+              exit 1
+            fi
+          fi
