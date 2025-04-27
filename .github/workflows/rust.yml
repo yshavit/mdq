@@ -100,6 +100,7 @@ jobs:
       - name: Install semver-checks
         run: |
           set -euo pipefail
+          cd "$RUNNER_TEMP"
           gh release -R obi1kenobi/cargo-semver-checks download -p  cargo-semver-checks-x86_64-unknown-linux-gnu.tar.gz  -O - | tar xz
         working-directory: ${{ env.RUNNER_TEMP }}
         env:
