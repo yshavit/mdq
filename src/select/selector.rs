@@ -74,6 +74,7 @@ pub struct TableMatcher {
 
 /// The in-memory equivalent of mdq's selector query string.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum Selector {
     /// `foo | bar`
     Chain(Vec<Self>),
