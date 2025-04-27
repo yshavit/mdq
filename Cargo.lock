@@ -314,7 +314,7 @@ dependencies = [
 
 [[package]]
 name = "mdq"
-version = "0.7.2-dev"
+version = "0.7.2"
 dependencies = [
  "clap",
  "derive_builder",
