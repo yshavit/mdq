@@ -65,12 +65,6 @@ jobs:
         env:
           VERIFY_VERSION: ${{ github.event.inputs.base_ref_version }}
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-
       - name: Update Cargo.toml
         run: |
           set -euo pipefail
