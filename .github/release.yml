@@ -10,6 +10,9 @@ changelog:
     - title: Notable Changes
       labels:
         - "*"
+      exclude:
+        labels:
+          - minor
     - title: Other Changes
       labels:
         - minor
