@@ -138,14 +138,18 @@ mod test_utils {
     /// This requires that each pattern matches exactly one shape of item; in other words, that there aren't any
     /// dead-code branches.
     macro_rules! variants_checker {
-        ($name:ident = $enum_type:ty { $($variant:pat),* $(,)? } $(ignore { $($ignore_variant:pat),* $(,)? })?) => {
+        ($name:ident = $($rest:tt)*) => {
+            variants_checker!{ ($name): $name = $($rest)* }
+        };
+
+        ( ( $($name:ident),+ ): $tname:ident = $enum_type:ty { $($variant:pat),* $(,)? } $(ignore { $($ignore_variant:pat),* $(,)? })?) => {
 
             paste::paste!{
-                pub struct [<VariantsChecker $name:lower:camel>] {
+                pub struct [<VariantsChecker $tname:lower:camel>] {
                     require: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
                 }
 
-                impl [<VariantsChecker $name:lower:camel>] {
+                impl [<VariantsChecker $tname:lower:camel>] {
                     fn see(&self, node: &$enum_type) {
                         let node_str = match node {
                             $($enum_type::$variant => stringify!($variant),)*
@@ -182,16 +186,23 @@ mod test_utils {
                             thread::sleep(retry_delay);
                         }
                     }
-                }
 
-                lazy_static::lazy_static! {
-                    static ref $name: [<VariantsChecker $name:lower:camel>] = [<VariantsChecker $name:lower:camel>] {
-                        require: std::sync::Arc::new(
-                            std::sync::Mutex::new(
-                                vec![$(stringify!($variant).to_string(),)*].into_iter().collect()
+                    fn new() -> Self {
+                        Self {
+                            require: std::sync::Arc::new(
+                                std::sync::Mutex::new(
+                                    vec![$(stringify!($variant).to_string(),)*].into_iter().collect()
+                                )
                             )
-                        )
-                    };
+                        }
+                    }
+                }
+            }
+
+            $(
+            paste::paste!{
+                lazy_static::lazy_static! {
+                    static ref $name: [<VariantsChecker $tname:lower:camel>] = [<VariantsChecker $tname:lower:camel>]::new();
                 }
 
                 #[test]
@@ -199,6 +210,7 @@ mod test_utils {
                     $name.wait_for_all();
                 }
             }
+            )+
         };
     }
     pub(crate) use variants_checker;
