@@ -1,3 +1,4 @@
+use crate::md_elem::concatenate::Concatenate;
 use std::backtrace::Backtrace;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -327,7 +328,6 @@ impl Display for InvalidMd {
 ///   elements. (These include things like text variants and link definitions).
 pub mod elem {
     use super::*;
-    use crate::md_elem::concatenate::Concatenate;
     use std::mem;
 
     /// A table row.
@@ -1267,7 +1267,6 @@ macro_rules! m_node {
         $head::$next( m_node!($next $(:: $($tail)::*)? $({ $($args)* })?) )
     };
 }
-use crate::md_elem::concatenate::Concatenate;
 pub(crate) use m_node;
 
 impl MdDoc {
