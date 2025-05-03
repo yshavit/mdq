@@ -10,7 +10,7 @@ pub trait Concatenate: Sized {
         results.push(first);
         let mut prev = results.last_mut().expect("can't be empty immediately after push");
 
-        while let Some(curr) = iter.next() {
+        for curr in iter {
             match prev.try_concatenate(curr) {
                 Ok(()) => {}
                 Err(new_segment) => {

@@ -410,7 +410,7 @@ pub mod elem {
                     // Combine span(my) + span(other) into span(my+other)
                     // But my and other are also spans, and now that they're concatenated, we may have elements that
                     // are newly concatenable. So, recurse!
-                    my.children.extend(other.children.drain(..));
+                    my.children.append(&mut other.children);
                     my.children = Concatenate::concatenate_similar(mem::take(&mut my.children));
                     Ok(())
                 }
@@ -1591,26 +1591,10 @@ impl MdElem {
                 }),
                 _ => return Err(InvalidMd::NonInlineWhereInlineExpected(child)),
             };
-            // If both this and the previous were plain text, then just combine the texts. This can happen if there was
-            // a Node::Break between them.
-            if let (
-                Some(Inline::Text(Text {
-                    variant: TextVariant::Plain,
-                    value: prev_text,
-                })),
-                Inline::Text(Text {
-                    variant: TextVariant::Plain,
-                    value: new_text,
-                }),
-            ) = (result.last_mut(), &inline)
-            {
-                prev_text.push_str(new_text)
-            } else {
-                result.push(inline);
-            }
+            result.push(inline);
         }
-        let result = Concatenate::concatenate_similar(result);
-        Ok(result)
+        let merged = Concatenate::concatenate_similar(result);
+        Ok(merged)
     }
 }
 
