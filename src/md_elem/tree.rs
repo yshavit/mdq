@@ -327,6 +327,8 @@ impl Display for InvalidMd {
 ///   elements. (These include things like text variants and link definitions).
 pub mod elem {
     use super::*;
+    use crate::md_elem::concatenate::Concatenate;
+    use std::mem;
 
     /// A table row.
     ///
@@ -399,6 +401,30 @@ pub mod elem {
 
         /// Some text; this is a terminal node in the [MdElem] tree.
         Text(Text),
+    }
+
+    impl Concatenate for Inline {
+        fn try_concatenate(&mut self, mut other: Self) -> Result<(), Self> {
+            match (self, &mut other) {
+                (Self::Span(my), Self::Span(other)) if my.variant == other.variant => {
+                    // Combine span(my) + span(other) into span(my+other)
+                    // But my and other are also spans, and now that they're concatenated, we may have elements that
+                    // are newly concatenable. So, recurse!
+                    my.children.extend(other.children.drain(..));
+                    my.children = Concatenate::concatenate_similar(mem::take(&mut my.children));
+                    Ok(())
+                }
+                (Self::Text(my), Self::Text(other))
+                    if my.variant == TextVariant::Plain && other.variant == TextVariant::Plain =>
+                {
+                    // Only combine plaintext; other text elements have semantic meaning that may be lost.
+                    // For example, two expressions `x + y` and `1 + 2` don't imply `x + y 1 + 2`
+                    my.value.push_str(&other.value);
+                    Ok(())
+                }
+                _ => Err(other),
+            }
+        }
     }
 
     /// Leaf block markdown representing block-level HTML.
@@ -1241,6 +1267,7 @@ macro_rules! m_node {
         $head::$next( m_node!($next $(:: $($tail)::*)? $({ $($args)* })?) )
     };
 }
+use crate::md_elem::concatenate::Concatenate;
 pub(crate) use m_node;
 
 impl MdDoc {
@@ -1542,7 +1569,7 @@ impl MdElem {
             })
             .for_each(|mdq_node| result.push(mdq_node));
 
-        result.shrink_to_fit();
+        let result = Concatenate::concatenate_similar(result);
         Ok(result)
     }
 
@@ -1582,7 +1609,17 @@ impl MdElem {
                 result.push(inline);
             }
         }
+        let result = Concatenate::concatenate_similar(result);
         Ok(result)
+    }
+}
+
+impl Concatenate for MdElem {
+    fn try_concatenate(&mut self, other: Self) -> Result<(), Self> {
+        match (self, other) {
+            (Self::Inline(me), Self::Inline(other)) => me.try_concatenate(other).map_err(Self::Inline),
+            (_, other) => Err(other),
+        }
     }
 }
 
@@ -3403,6 +3440,90 @@ mod tests {
                     })],
                 })]
             );
+        }
+    }
+
+    mod concats {
+        use super::*;
+        use SpanVariant::*;
+        use TextVariant::*;
+
+        #[test]
+        fn em_span_to_em_span() {
+            check(
+                [span(Emphasis, "hello, "), span(Emphasis, "world")],
+                [span(Emphasis, "hello, world")],
+            );
+        }
+
+        #[test]
+        fn strong_span_to_strong_span() {
+            check(
+                [span(Strong, "hello, "), span(Strong, "world")],
+                [span(Strong, "hello, world")],
+            );
+        }
+
+        #[test]
+        fn strong_span_to_em_span() {
+            check(
+                [span(Strong, "hello, "), span(Emphasis, "world")],
+                [span(Strong, "hello, "), span(Emphasis, "world")],
+            );
+        }
+
+        #[test]
+        fn plain_text_to_plain_text() {
+            check(
+                [text(Plain, "hello, "), text(Plain, "world")],
+                [text(Plain, "hello, world")],
+            );
+        }
+
+        #[test]
+        fn code_to_code() {
+            // don't concat code
+            check(
+                [text(Code, "hello, "), text(Code, "world")],
+                [text(Code, "hello, "), text(Code, "world")],
+            );
+        }
+
+        #[test]
+        fn math_to_math() {
+            // don't concat math
+            check(
+                [text(Math, "hello, "), text(Math, "world")],
+                [text(Math, "hello, "), text(Math, "world")],
+            );
+        }
+
+        #[test]
+        fn plain_text_to_code() {
+            check(
+                [text(Plain, "hello, "), text(Code, "world")],
+                [text(Plain, "hello, "), text(Code, "world")],
+            );
+        }
+
+        fn check<const N: usize, const M: usize>(incoming: [Inline; N], expected: [Inline; M]) {
+            let actual = Concatenate::concatenate_similar(incoming.into_iter().collect());
+            let expected: Vec<_> = expected.into_iter().collect();
+            assert_eq!(actual, expected);
+        }
+
+        fn text(variant: TextVariant, value: &str) -> Inline {
+            Inline::Text(Text {
+                variant,
+                value: value.to_string(),
+            })
+        }
+
+        fn span(variant: SpanVariant, value: &str) -> Inline {
+            Inline::Span(Span {
+                variant,
+                children: vec![text(Plain, value)],
+            })
         }
     }
 
