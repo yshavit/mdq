@@ -327,6 +327,7 @@ impl Display for InvalidMd {
 ///   elements. (These include things like text variants and link definitions).
 pub mod elem {
     use super::*;
+    use crate::md_elem::concatenate::Concatenate;
 
     /// A table row.
     ///
@@ -399,6 +400,22 @@ pub mod elem {
 
         /// Some text; this is a terminal node in the [MdElem] tree.
         Text(Text),
+    }
+
+    impl Concatenate for Inline {
+        fn try_concatenate(&mut self, mut other: Self) -> Result<(), Self> {
+            match (self, &mut other) {
+                (Self::Span(my), Self::Span(other)) if my.variant == other.variant => {
+                    my.children.extend(other.children.drain(..));
+                    Ok(())
+                }
+                (Self::Text(my), Self::Text(other)) if my.variant == other.variant => {
+                    my.value.push_str(&other.value);
+                    Ok(())
+                }
+                _ => Err(other),
+            }
+        }
     }
 
     /// Leaf block markdown representing block-level HTML.
@@ -1241,6 +1258,7 @@ macro_rules! m_node {
         $head::$next( m_node!($next $(:: $($tail)::*)? $({ $($args)* })?) )
     };
 }
+use crate::md_elem::concatenate::Concatenate;
 pub(crate) use m_node;
 
 impl MdDoc {
@@ -1542,7 +1560,7 @@ impl MdElem {
             })
             .for_each(|mdq_node| result.push(mdq_node));
 
-        result.shrink_to_fit();
+        let result = Concatenate::concatenate_similar(result);
         Ok(result)
     }
 
@@ -1582,7 +1600,17 @@ impl MdElem {
                 result.push(inline);
             }
         }
+        let result = Concatenate::concatenate_similar(result);
         Ok(result)
+    }
+}
+
+impl Concatenate for MdElem {
+    fn try_concatenate(&mut self, other: Self) -> Result<(), Self> {
+        match (self, other) {
+            (Self::Inline(me), Self::Inline(other)) => me.try_concatenate(other).map_err(Self::Inline),
+            (_, other) => Err(other),
+        }
     }
 }
 
