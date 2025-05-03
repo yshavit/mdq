@@ -3489,6 +3489,26 @@ mod tests {
             );
         }
 
+        #[test]
+        fn empty() {
+            check([], []);
+        }
+
+        #[test]
+        fn multiple() {
+            check(
+                [
+                    span(Emphasis, "a"),
+                    span(Emphasis, "b"),
+                    span(Emphasis, "c"),
+                    span(Strong, "d"),
+                    span(Strong, "e"),
+                    span(Emphasis, "f"),
+                ],
+                [span(Emphasis, "abc"), span(Strong, "de"), span(Emphasis, "f")],
+            );
+        }
+
         fn check<const N: usize, const M: usize>(incoming: [Inline; N], expected: [Inline; M]) {
             let actual = Concatenate::concatenate_similar(incoming.into_iter().collect());
             let expected: Vec<_> = expected.into_iter().collect();
