@@ -1,3 +1,4 @@
+use crate::md_elem::elem::FrontMatterVariant;
 use crate::query::pest::Rule;
 use crate::query::traversal::{ByRule, OneOf, PairMatcher};
 use crate::query::traversal_composites::{
@@ -96,7 +97,22 @@ impl Selector {
             }
             Rule::select_front_matter => {
                 let res = FrontMatterTraverser::traverse(children);
-                let variant_matcher = Matcher::try_from(res.variant.take().map_err(to_parse_error)?)?;
+                let variant_pair = res.variant.take().map_err(to_parse_error)?;
+                let variant_matcher = match variant_pair {
+                    None => None,
+                    Some(variant_pair) => match variant_pair.as_str() {
+                        "" => None,
+                        "toml" => Some(FrontMatterVariant::Toml),
+                        "yaml" => Some(FrontMatterVariant::Yaml),
+                        other => {
+                            let span = DetachedSpan::from(&variant_pair);
+                            return Err(InnerParseError::Other(
+                                span,
+                                format!(r#"front matter language must be "toml" or "yaml". Found {other:?}."#),
+                            ));
+                        }
+                    },
+                };
                 let body_matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
                 Ok(Self::FrontMatter(FrontMatterMatcher {
                     variant: variant_matcher,

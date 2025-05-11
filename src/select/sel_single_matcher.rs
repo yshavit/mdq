@@ -52,7 +52,7 @@ impl MatchSelector<BlockHtml> for HtmlSelector {
 
 #[derive(Debug, PartialEq)]
 pub struct FrontMatterSelector {
-    variant: StringMatcher,
+    variant: Option<FrontMatterVariant>,
     text: StringMatcher,
 }
 
@@ -67,6 +67,10 @@ impl From<FrontMatterMatcher> for FrontMatterSelector {
 
 impl MatchSelector<FrontMatter> for FrontMatterSelector {
     fn matches(&self, front_matter: &FrontMatter) -> bool {
-        self.variant.matches(front_matter.variant.name()) && self.text.matches(&front_matter.body)
+        let variant_selected = self
+            .variant
+            .map(|selected| selected == front_matter.variant)
+            .unwrap_or(true);
+        variant_selected && self.text.matches(&front_matter.body)
     }
 }

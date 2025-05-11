@@ -46,7 +46,14 @@ expect_success = false
 
 [expect."select other matter"]
 cli_args = ["+++other"]
-output = '''
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:4
+  |
+1 | +++other
+  |    ^---^
+  |
+  = front matter language must be "toml" or "yaml". Found "other".
 '''
 expect_success = false
 

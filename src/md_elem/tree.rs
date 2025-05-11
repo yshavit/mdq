@@ -490,10 +490,10 @@ pub mod elem {
         pub body: String,
     }
 
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
     pub enum FrontMatterVariant {
-        Yaml,
         Toml,
+        Yaml,
     }
 
     impl FrontMatterVariant {

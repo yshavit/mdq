@@ -1,3 +1,4 @@
+use crate::md_elem::elem::FrontMatterVariant;
 use crate::md_elem::{MdContext, MdDoc, MdElem};
 use crate::query::ParseError;
 use crate::select::{Matcher, SelectorAdapter};
@@ -68,7 +69,7 @@ pub struct CodeBlockMatcher {
 /// matcher for [`Selector::FrontMatter`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FrontMatterMatcher {
-    pub variant: Matcher,
+    pub variant: Option<FrontMatterVariant>,
     pub text: Matcher,
 }
 
