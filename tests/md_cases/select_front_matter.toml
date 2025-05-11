@@ -75,6 +75,18 @@ output = '''
 expect_success = false
 
 
+[expect."plain output"]
+cli_args = ["-o", "plain"]
+output = '''
+title: Test Front Matter
+author: Me
+My Document
+This is the document body.
+it has: a block that looks like front matter
+but: isn't
+'''
+
+
 [expect."select a paragraph that looks like front matter"]
 cli_args = ["-o", "json"]
 output_json = true
