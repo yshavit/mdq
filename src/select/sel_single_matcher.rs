@@ -67,8 +67,6 @@ impl From<FrontMatterMatcher> for FrontMatterSelector {
 
 impl MatchSelector<FrontMatter> for FrontMatterSelector {
     fn matches(&self, front_matter: &FrontMatter) -> bool {
-        let variant_disp = format!("{:?}", self.variant);
-        println!("variant_disp: {}", variant_disp);
         self.variant.matches(&front_matter.variant.name()) && self.text.matches(&front_matter.body)
     }
 }

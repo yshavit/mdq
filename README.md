@@ -121,6 +121,7 @@ The filter syntax is designed to mirror Markdown syntax. You can select...
 | Raw HTML         | `</> html_tag`                   |
 | Plain paragraphs | `P: paragraph text `             |
 | Tables           | `:-: header text :-: row text`   |
+| Front matter     | `+++variant front matter text`   |
 
 (Tables selection differs from other selections in that you can actually select only certain headers and rows, such that
 the resulting element is of a different shape than the original. See the example below, or the wiki for more detail.)
