@@ -188,19 +188,16 @@ impl<'md> MdWriterState<'_, 'md> {
                 }
                 self.prev_was_thematic_break = true;
             }
-            MdElem::CodeBlock(block) => {
-                self.write_code_block(out, block);
-            }
+            MdElem::CodeBlock(block) => self.write_code_block(out, block),
             MdElem::Paragraph(para) => self.write_paragraph(out, para),
             MdElem::BlockQuote(block) => self.write_block_quote(out, block),
             MdElem::List(list) => self.write_list(out, list),
             MdElem::Table(table) => self.write_table(out, table),
-            MdElem::Inline(inline) => {
-                self.inlines_writer.write_inline_element(out, inline);
-            }
+            MdElem::Inline(inline) => self.inlines_writer.write_inline_element(out, inline),
             MdElem::BlockHtml(html) => out.with_block(Block::Plain, |out| {
                 out.write_str(&html.value);
             }),
+            MdElem::FrontMatter(front_matter) => self.write_front_matter(out, front_matter),
         }
     }
 
@@ -405,6 +402,20 @@ impl<'md> MdWriterState<'_, 'md> {
         });
     }
 
+    fn write_front_matter<W: SimpleWrite>(&mut self, out: &mut Output<W>, front_matter: &'md FrontMatter) {
+        let front_matter_line = match front_matter.variant {
+            FrontMatterVariant::Yaml => "---",
+            FrontMatterVariant::Toml => "+++",
+        };
+        out.with_pre_block(|out| {
+            out.write_str(front_matter_line);
+            out.write_char('\n');
+            out.write_str(&front_matter.body);
+            out.write_char('\n');
+            out.write_str(front_matter_line);
+        })
+    }
+
     fn count_longest_opening_backticks(contents: &str) -> usize {
         let mut max_len = 0;
         for line in contents.split('\n') {
@@ -576,6 +587,8 @@ pub mod tests {
         CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..}),
         CodeBlock(CodeBlock{variant: CodeVariant::Toml, ..}),
         CodeBlock(CodeBlock{variant: CodeVariant::Yaml, ..}),
+        FrontMatter(FrontMatter{variant: FrontMatterVariant::Toml, ..}),
+        FrontMatter(FrontMatter{variant: FrontMatterVariant::Yaml, ..}),
         Paragraph(_),
         BlockQuote(_),
         List(_),
@@ -1382,6 +1395,40 @@ pub mod tests {
                 ```
                 two
                 ```"#},
+            );
+        }
+    }
+
+    mod front_matter {
+        use super::*;
+
+        #[test]
+        fn yaml() {
+            check_render(
+                md_elems![FrontMatter {
+                    variant: FrontMatterVariant::Yaml,
+                    body: "one\ntwo".to_string(),
+                }],
+                indoc! {r#"
+                ---
+                one
+                two
+                ---"#},
+            );
+        }
+
+        #[test]
+        fn toml() {
+            check_render(
+                md_elems![FrontMatter {
+                    variant: FrontMatterVariant::Toml,
+                    body: "one\ntwo".to_string(),
+                }],
+                indoc! {r#"
+                +++
+                one
+                two
+                +++"#},
             );
         }
     }

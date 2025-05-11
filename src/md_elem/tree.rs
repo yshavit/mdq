@@ -128,6 +128,7 @@ pub enum MdElem {
 
     // Leaf blocks
     CodeBlock(CodeBlock),
+    FrontMatter(FrontMatter),
     Paragraph(Paragraph),
     Table(Table),
     /// A thematic break:
@@ -146,7 +147,7 @@ pub enum MdElem {
 /// Options for parsing Markdown.
 ///
 /// See: [`MdDoc::parse`].
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct ParseOptions {
     pub(crate) mdast_options: markdown::ParseOptions,
     /// Usually only required for debugging. Defaults to `false`.
@@ -155,6 +156,14 @@ pub struct ParseOptions {
     /// it or error out. If this field is set to `true`, mdq will ignore the unexpected state. Otherwise,
     /// [`MdDoc::parse`] will return an `Err` containing [`InvalidMd::UnknownMarkdown`].
     pub allow_unknown_markdown: bool,
+}
+
+impl Default for ParseOptions {
+    fn default() -> Self {
+        let mut me = Self::gfm();
+        me.mdast_options.constructs.frontmatter = true;
+        me
+    }
 }
 
 impl ParseOptions {
@@ -473,6 +482,18 @@ pub mod elem {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
             write!(f, "{}", self.value)
         }
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+    pub struct FrontMatter {
+        pub variant: FrontMatterVariant,
+        pub body: String,
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub enum FrontMatterVariant {
+        Yaml,
+        Toml,
     }
 
     /// Inline markdown representing formatted text (~~deleted~~, _emphasized_, or **strong**).
@@ -1438,13 +1459,13 @@ impl MdElem {
             mdast::Node::Paragraph(node) => m_node!(MdElem::Paragraph {
                 body: Self::inlines(node.children, lookups, ctx)?,
             }),
-            mdast::Node::Toml(node) => m_node!(MdElem::CodeBlock {
-                variant: CodeVariant::Toml,
-                value: node.value,
+            mdast::Node::Toml(node) => m_node!(MdElem::FrontMatter {
+                variant: FrontMatterVariant::Toml,
+                body: node.value,
             }),
-            mdast::Node::Yaml(node) => m_node!(MdElem::CodeBlock {
-                variant: CodeVariant::Yaml,
-                value: node.value,
+            mdast::Node::Yaml(node) => m_node!(MdElem::FrontMatter {
+                variant: FrontMatterVariant::Yaml,
+                body: node.value,
             }),
             mdast::Node::Html(node) => m_node!(MdElem::BlockHtml { value: node.value }),
             mdx_nodes! {} => {
@@ -2724,9 +2745,9 @@ mod tests {
                 my: toml
                 +++"#},
             );
-            check!(&root.children[0], Node::Toml(_), lookups => m_node!(MdElem::CodeBlock{variant, value}) = {
-                assert_eq!(variant, CodeVariant::Toml);
-                assert_eq!(value, r#"my: toml"#);
+            check!(&root.children[0], Node::Toml(_), lookups => m_node!(MdElem::FrontMatter{variant, body}) = {
+                assert_eq!(variant, FrontMatterVariant::Toml);
+                assert_eq!(body, r#"my: toml"#);
             })
         }
 
@@ -2738,12 +2759,12 @@ mod tests {
                 &opts,
                 indoc! {r#"
                 ---
-                my: toml
+                my: yaml
                 ---"#},
             );
-            check!(&root.children[0], Node::Yaml(_), lookups => m_node!(MdElem::CodeBlock{variant, value}) = {
-                assert_eq!(variant, CodeVariant::Yaml);
-                assert_eq!(value, r#"my: toml"#);
+            check!(&root.children[0], Node::Yaml(_), lookups => m_node!(MdElem::FrontMatter{variant, body}) = {
+                assert_eq!(variant, FrontMatterVariant::Yaml);
+                assert_eq!(body, r#"my: yaml"#);
             })
         }
 

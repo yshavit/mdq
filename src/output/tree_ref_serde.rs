@@ -34,6 +34,10 @@ pub(crate) enum SerdeElem<'md> {
         #[serde(skip_serializing_if = "Option::is_none")]
         metadata: Option<&'md String>,
     },
+    FrontMatter {
+        body: &'md String,
+        variant: &'static str,
+    },
     Paragraph(String),
     Link {
         display: String,
@@ -212,6 +216,16 @@ impl<'md> SerdeElem<'md> {
                     language,
                 }
             }
+            MdElem::FrontMatter(fm) => {
+                let variant = match fm.variant {
+                    FrontMatterVariant::Yaml => "yaml",
+                    FrontMatterVariant::Toml => "toml",
+                };
+                Self::FrontMatter {
+                    variant,
+                    body: &fm.body,
+                }
+            }
             MdElem::Inline(Inline::Link(link)) => Self::Link {
                 display: inlines_to_string(&link.display, inlines_writer),
                 link: (&link.link).into(),
@@ -297,6 +311,7 @@ mod tests {
 
         BlockQuote(_),
         CodeBlock(_),
+        FrontMatter(_),
         Inline(_),
         List(_),
         Paragraph(_),
@@ -420,6 +435,24 @@ mod tests {
                         "type": "code",
                         "language": "rust",
                         "metadata": "my-metadata"
+                    }}
+                ]}
+            ),
+        );
+    }
+
+    #[test]
+    fn front_matter() {
+        check(
+            MdElem::FrontMatter(FrontMatter {
+                variant: FrontMatterVariant::Yaml,
+                body: "my front_matter".to_string(),
+            }),
+            json_str!(
+                {"items": [
+                    {"front_matter": {
+                        "body": "my front matter",
+                        "variant": "yaml"
                     }}
                 ]}
             ),

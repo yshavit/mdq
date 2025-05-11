@@ -135,7 +135,6 @@ impl SelectorAdapter {
                 }
                 result
             }
-            MdElem::ThematicBreak | MdElem::CodeBlock(_) => Vec::new(),
             MdElem::Inline(inline) => match inline {
                 Inline::Span(Span { children, .. }) => children.into_iter().map(MdElem::Inline).collect(),
                 Inline::Footnote(footnote) => {
@@ -155,7 +154,7 @@ impl SelectorAdapter {
                 Inline::Link(Link { display: text, .. }) => text.into_iter().map(MdElem::Inline).collect(),
                 Inline::Text(_) | Inline::Image(_) => Vec::new(),
             },
-            MdElem::BlockHtml(_) => Vec::new(),
+            MdElem::ThematicBreak | MdElem::CodeBlock(_) | MdElem::FrontMatter(_) | MdElem::BlockHtml(_) => Vec::new(),
         }
     }
 }

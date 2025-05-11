@@ -33,7 +33,6 @@ impl StringMatcher {
         match node {
             MdElem::Doc(elems) => self.matches_any(elems),
             MdElem::Paragraph(p) => self.matches_inlines(&p.body),
-            MdElem::ThematicBreak | MdElem::CodeBlock(_) => false,
             MdElem::Table(table) => {
                 for row in &table.rows {
                     for cell in row {
@@ -54,6 +53,9 @@ impl StringMatcher {
             }
             MdElem::BlockHtml(html) => self.matches(&html.value),
             MdElem::Inline(inline) => self.matches_inlines(&[inline]),
+            // Base cases: these don't recurse, so we say the StringMatcher doesn't match them. A Selector still may,
+            // but that's Selector-specific logic, not StringMatcher logic.
+            MdElem::ThematicBreak | MdElem::CodeBlock(_) | MdElem::FrontMatter(_) => false,
         }
     }
 
