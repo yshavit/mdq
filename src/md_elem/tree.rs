@@ -376,7 +376,7 @@ pub mod elem {
         Math {
             metadata: Option<String>,
         },
-        Toml,
+        Toml, // TODO rm this!
         Yaml,
     }
 
@@ -497,6 +497,38 @@ pub mod elem {
     pub enum FrontMatterVariant {
         Yaml,
         Toml,
+    }
+
+    impl FrontMatterVariant {
+        /// Gets the written-out name of this variant.
+        ///
+        /// ```
+        /// use mdq::md_elem::elem::FrontMatterVariant;
+        ///
+        /// assert_eq!(FrontMatterVariant::Toml.name(), "toml");
+        /// assert_eq!(FrontMatterVariant::Yaml.name(), "yaml");
+        /// ```
+        pub fn name(self) -> &'static str {
+            match self {
+                FrontMatterVariant::Toml => "toml",
+                FrontMatterVariant::Yaml => "yaml",
+            }
+        }
+
+        /// Gets the separator that's used in front matter syntax to specify this variant.
+        ///
+        /// ```
+        /// use mdq::md_elem::elem::FrontMatterVariant;
+        ///
+        /// assert_eq!(FrontMatterVariant::Toml.as_separator(), "+++");
+        /// assert_eq!(FrontMatterVariant::Yaml.as_separator(), "---");
+        /// ```
+        pub fn as_separator(self) -> &'static str {
+            match self {
+                FrontMatterVariant::Toml => "+++",
+                FrontMatterVariant::Yaml => "---",
+            }
+        }
     }
 
     /// Inline markdown representing formatted text (~~deleted~~, _emphasized_, or **strong**).

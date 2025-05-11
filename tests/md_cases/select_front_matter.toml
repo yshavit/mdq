@@ -14,7 +14,7 @@ This is the document body.
 needed = false
 
 
-[expect."select front matter"]
+[expect."select any front matter"]
 cli_args = ["+++"]
 output = '''
 +++
@@ -22,6 +22,27 @@ title: Test Front Matter
 author: Me
 +++
 '''
+
+[expect."select toml matter"]
+cli_args = ["+++toml"]
+output = '''
++++
+title: Test Front Matter
+author: Me
++++
+'''
+
+[expect."select yaml matter"]
+cli_args = ["+++yaml"]
+output = '''
+'''
+expect_success = false
+
+[expect."select other matter"]
+cli_args = ["+++other"]
+output = '''
+'''
+expect_success = false
 
 [expect."select front matter with text matcher"]
 cli_args = ["+++ title: Test Front Matter"]

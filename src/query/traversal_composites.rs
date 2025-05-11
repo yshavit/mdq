@@ -101,6 +101,7 @@ composite_finder! { CodeBlock {
 }}
 
 composite_finder! { FrontMatter {
+    variant OnePair<'a>: ByTag,
     text OnePair<'a>: ByTag,
 }}
 

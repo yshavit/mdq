@@ -6,8 +6,8 @@ use crate::query::traversal_composites::{
 };
 use crate::query::{DetachedSpan, InnerParseError, Pair, Pairs, Query};
 use crate::select::{
-    BlockQuoteMatcher, CodeBlockMatcher, FrontMatterMatcher, HtmlMatcher, LinklikeMatcher, ListItemMatcher, ListItemTask, Matcher,
-    ParagraphMatcher, SectionMatcher, Selector, TableMatcher,
+    BlockQuoteMatcher, CodeBlockMatcher, FrontMatterMatcher, HtmlMatcher, LinklikeMatcher, ListItemMatcher,
+    ListItemTask, Matcher, ParagraphMatcher, SectionMatcher, Selector, TableMatcher,
 };
 
 impl Selector {
@@ -94,10 +94,14 @@ impl Selector {
                     contents: contents_matcher,
                 }))
             }
-            Rule::front_matter => {
+            Rule::select_front_matter => {
                 let res = FrontMatterTraverser::traverse(children);
+                let variant_matcher = Matcher::try_from(res.variant.take().map_err(to_parse_error)?)?;
                 let body_matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
-                Ok(Self::FrontMatter(FrontMatterMatcher { body: body_matcher }))
+                Ok(Self::FrontMatter(FrontMatterMatcher {
+                    variant: variant_matcher,
+                    text: body_matcher,
+                }))
             }
             Rule::select_html => {
                 let res = HtmlTraverser::traverse(children);

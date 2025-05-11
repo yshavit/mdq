@@ -68,7 +68,8 @@ pub struct CodeBlockMatcher {
 /// matcher for [`Selector::FrontMatter`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FrontMatterMatcher {
-    pub body: Matcher,
+    pub variant: Matcher,
+    pub text: Matcher,
 }
 
 /// matcher for [`Selector::Table`]

@@ -403,16 +403,12 @@ impl<'md> MdWriterState<'_, 'md> {
     }
 
     fn write_front_matter<W: SimpleWrite>(&mut self, out: &mut Output<W>, front_matter: &'md FrontMatter) {
-        let front_matter_line = match front_matter.variant {
-            FrontMatterVariant::Yaml => "---",
-            FrontMatterVariant::Toml => "+++",
-        };
         out.with_pre_block(|out| {
-            out.write_str(front_matter_line);
+            out.write_str(front_matter.variant.as_separator());
             out.write_char('\n');
             out.write_str(&front_matter.body);
             out.write_char('\n');
-            out.write_str(front_matter_line);
+            out.write_str(front_matter.variant.as_separator());
         })
     }
 

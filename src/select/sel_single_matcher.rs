@@ -52,19 +52,23 @@ impl MatchSelector<BlockHtml> for HtmlSelector {
 
 #[derive(Debug, PartialEq)]
 pub struct FrontMatterSelector {
-    matcher: StringMatcher,
+    variant: StringMatcher,
+    text: StringMatcher,
 }
 
 impl From<FrontMatterMatcher> for FrontMatterSelector {
     fn from(value: FrontMatterMatcher) -> Self {
         Self {
-            matcher: value.body.into(),
+            variant: value.variant.into(),
+            text: value.text.into(),
         }
     }
 }
 
 impl MatchSelector<FrontMatter> for FrontMatterSelector {
     fn matches(&self, front_matter: &FrontMatter) -> bool {
-        self.matcher.matches(&front_matter.body)
+        let variant_disp = format!("{:?}", self.variant);
+        println!("variant_disp: {}", variant_disp);
+        self.variant.matches(&front_matter.variant.name()) && self.text.matches(&front_matter.body)
     }
 }

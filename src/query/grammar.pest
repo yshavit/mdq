@@ -10,7 +10,7 @@ selector = {
   | select_link
   | select_block_quote
   | select_code_block
-  | front_matter
+  | select_front_matter
   | select_html
   | select_paragraph
   | select_table
@@ -41,8 +41,8 @@ select_block_quote_start = @{ ">" ~ selector_delim }
 select_code_block =  { code_block_start ~ PUSH_LITERAL("|") ~ #text = string }
 code_block_start  = ${ "```" ~ PUSH_LITERAL(" ") ~ #language = string ~ selector_delim }
 
-front_matter =  { front_matter_start ~ PUSH_LITERAL("|") ~ #text = string }
-front_matter_start = @{ "+++" ~ selector_delim }
+select_front_matter =  { front_matter_start ~ PUSH_LITERAL("|") ~ #text = string }
+front_matter_start  = ${ "+++" ~ PUSH_LITERAL(" ") ~ #variant = string ~ selector_delim }
 
 select_html =  { html_start ~ PUSH_LITERAL("|") ~ #text = string }
 html_start  = @{ "</>" ~ selector_delim }
