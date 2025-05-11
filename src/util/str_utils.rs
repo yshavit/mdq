@@ -70,22 +70,32 @@ impl<W: SimpleWrite> std::fmt::Write for CountingWriter<'_, W> {
     }
 }
 
-/// Trims leading empty lines from a string slice.
+/// A struct that represents trimmed leading empty lines from a string.
 ///
 /// An "empty line" is defined as a line that consists of zero or more whitespace characters,
 /// and nothing else.
-pub fn trim_leading_empty_lines(s: &str) -> &str {
-    let mut start = 0;
-    // using split_inclusive() instead of just split() because we need to count \r\n as 2 chars; so we can't just take
-    // the split()s, and assume a one-char newline for each one.
-    for line in s.split_inclusive('\n') {
-        if line.chars().all(|c| c.is_whitespace()) {
-            start += line.len();
-        } else {
-            break;
+pub(crate) struct TrimmedEmptyLines<S> {
+    pub(crate) trimmed: S,
+    pub(crate) remaining: S,
+}
+
+impl<'a> From<&'a str> for TrimmedEmptyLines<&'a str> {
+    fn from(s: &'a str) -> Self {
+        let mut start = 0;
+        // using split_inclusive() instead of just split() because we need to count \r\n as 2 chars; so we can't just take
+        // the split()s, and assume a one-char newline for each one.
+        for line in s.split_inclusive('\n') {
+            if line.chars().all(|c| c.is_whitespace()) {
+                start += line.len();
+            } else {
+                break;
+            }
+        }
+        Self {
+            trimmed: &s[..start],
+            remaining: &s[start..],
         }
     }
-    &s[start..]
 }
 
 #[cfg(test)]

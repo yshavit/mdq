@@ -1,5 +1,5 @@
 use crate::md_elem::concatenate::Concatenate;
-use crate::util::str_utils::trim_leading_empty_lines;
+use crate::util::str_utils::TrimmedEmptyLines;
 use std::backtrace::Backtrace;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -70,7 +70,14 @@ impl MdDoc {
     ///
     /// See the various examples in [`elem`] for examples of this parsing in action.
     pub fn parse(text: &str, options: &ParseOptions) -> Result<Self, InvalidMd> {
-        parse0(text, options)
+        // mdast requires front matter to be literally the first char. We'll be more forgiving.
+        let trimmed = TrimmedEmptyLines::from(text);
+        let mut result = parse0(trimmed.remaining, options);
+        if matches!(result, Err(_)) && !trimmed.trimmed.is_empty() {
+            // re-parse on the original text, so that we get the correct offsets
+            result = parse0(text, options);
+        }
+        result
     }
 }
 
@@ -178,9 +185,6 @@ impl ParseOptions {
 
 /// Parse some Markdown text.
 fn parse0(text: &str, options: &ParseOptions) -> Result<MdDoc, InvalidMd> {
-    // mdast requires front matter to be literally the first char. We'll be more forgiving.
-    let text = trim_leading_empty_lines(text);
-
     let ast = markdown::to_mdast(text, &options.mdast_options).map_err(|e| InvalidMd::ParseError(format!("{e}")))?;
     let read_options = ReadOptions {
         validate_no_conflicting_links: false,
