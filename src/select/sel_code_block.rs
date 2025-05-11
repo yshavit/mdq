@@ -28,7 +28,7 @@ impl MatchSelector<CodeBlock> for CodeBlockSelector {
                 };
                 self.lang_matcher.matches(actual_lang)
             }
-            CodeVariant::Math { .. } | CodeVariant::Toml | CodeVariant::Yaml => false,
+            CodeVariant::Math { .. } => false,
         };
         lang_matches && self.contents_matcher.matches(&code_block.value)
     }

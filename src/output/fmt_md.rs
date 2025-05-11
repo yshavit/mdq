@@ -386,8 +386,6 @@ impl<'md> MdWriterState<'_, 'md> {
                 };
                 (Cow::Borrowed("$$"), meta)
             }
-            CodeVariant::Toml => (Cow::Borrowed("+++"), None),
-            CodeVariant::Yaml => (Cow::Borrowed("---"), None),
         };
 
         out.with_pre_block(|out| {
@@ -581,8 +579,6 @@ pub mod tests {
         CodeBlock(CodeBlock{variant: CodeVariant::Code(Some(CodeOpts{metadata: Some(_), ..})), ..}),
         CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: None}, ..}),
         CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..}),
-        CodeBlock(CodeBlock{variant: CodeVariant::Toml, ..}),
-        CodeBlock(CodeBlock{variant: CodeVariant::Yaml, ..}),
         FrontMatter(FrontMatter{variant: FrontMatterVariant::Toml, ..}),
         FrontMatter(FrontMatter{variant: FrontMatterVariant::Yaml, ..}),
         Paragraph(_),
@@ -1286,36 +1282,6 @@ pub mod tests {
                 one
                 two
                 $$"#},
-            );
-        }
-
-        #[test]
-        fn toml() {
-            check_render(
-                md_elems![CodeBlock {
-                    variant: CodeVariant::Toml,
-                    value: "one\ntwo".to_string(),
-                }],
-                indoc! {r#"
-                +++
-                one
-                two
-                +++"#},
-            );
-        }
-
-        #[test]
-        fn yaml() {
-            check_render(
-                md_elems![CodeBlock {
-                    variant: CodeVariant::Yaml,
-                    value: "one\ntwo".to_string(),
-                }],
-                indoc! {r#"
-                ---
-                one
-                two
-                ---"#},
             );
         }
 

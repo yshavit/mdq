@@ -146,8 +146,6 @@ pub(crate) enum LinkCollapseStyle {
 pub(crate) enum CodeBlockType {
     Code,
     Math,
-    Toml,
-    Yaml,
 }
 
 impl<'md> SerializableMd<'md> {
@@ -206,8 +204,6 @@ impl<'md> SerdeElem<'md> {
                         Some(&code_opts.language),
                     ),
                     CodeVariant::Math { metadata } => (CodeBlockType::Math, metadata.as_ref(), None),
-                    CodeVariant::Toml => (CodeBlockType::Toml, None, None),
-                    CodeVariant::Yaml => (CodeBlockType::Yaml, None, None),
                 };
                 Self::CodeBlock {
                     code: value,

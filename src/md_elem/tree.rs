@@ -376,8 +376,6 @@ pub mod elem {
         Math {
             metadata: Option<String>,
         },
-        Toml, // TODO rm this!
-        Yaml,
     }
 
     /// Some inline text.

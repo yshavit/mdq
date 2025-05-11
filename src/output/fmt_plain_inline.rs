@@ -591,7 +591,7 @@ mod test {
                 body: md_elems!("block quote paragraph 1", "block quote paragraph 2"),
             }),
             md_elem!(CodeBlock {
-                variant: CodeVariant::Toml,
+                variant: CodeVariant::Code(None),
                 value: "code block 1 line 1\ncode block 1 line 2".to_string()
             }),
             MdElem::BlockHtml("<hr>".into()),
