@@ -78,8 +78,7 @@ pub fn trim_leading_empty_lines(s: &str) -> &str {
     let mut start = 0;
     // using split_inclusive() instead of just split() because we need to count \r\n as 2 chars; so we can't just take
     // the split()s, and assume a one-char newline for each one.
-    let mut lines = s.split_inclusive(|c| c == '\n');
-    while let Some(line) = lines.next() {
+    for line in s.split_inclusive('\n') {
         if line.chars().all(|c| c.is_whitespace()) {
             start += line.len();
         } else {

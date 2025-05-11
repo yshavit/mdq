@@ -67,6 +67,6 @@ impl From<FrontMatterMatcher> for FrontMatterSelector {
 
 impl MatchSelector<FrontMatter> for FrontMatterSelector {
     fn matches(&self, front_matter: &FrontMatter) -> bool {
-        self.variant.matches(&front_matter.variant.name()) && self.text.matches(&front_matter.body)
+        self.variant.matches(front_matter.variant.name()) && self.text.matches(&front_matter.body)
     }
 }
