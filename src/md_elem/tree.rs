@@ -1,4 +1,5 @@
 use crate::md_elem::concatenate::Concatenate;
+use crate::util::str_utils::trim_leading_empty_lines;
 use std::backtrace::Backtrace;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -1322,7 +1323,6 @@ macro_rules! m_node {
         $head::$next( m_node!($next $(:: $($tail)::*)? $({ $($args)* })?) )
     };
 }
-use crate::util::str_utils::trim_leading_empty_lines;
 pub(crate) use m_node;
 
 impl MdDoc {
