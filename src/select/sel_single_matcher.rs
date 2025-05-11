@@ -1,7 +1,7 @@
 use crate::md_elem::elem::*;
 use crate::select::match_selector::MatchSelector;
 use crate::select::string_matcher::StringMatcher;
-use crate::select::{BlockQuoteMatcher, HtmlMatcher, ParagraphMatcher, SectionMatcher};
+use crate::select::{BlockQuoteMatcher, FrontMatterMatcher, HtmlMatcher, ParagraphMatcher, SectionMatcher};
 use paste::paste;
 
 macro_rules! single_matcher_adapter {
@@ -47,5 +47,24 @@ impl From<HtmlMatcher> for HtmlSelector {
 impl MatchSelector<BlockHtml> for HtmlSelector {
     fn matches(&self, html: &BlockHtml) -> bool {
         self.matcher.matches(&html.value)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct FrontMatterSelector {
+    matcher: StringMatcher,
+}
+
+impl From<FrontMatterMatcher> for FrontMatterSelector {
+    fn from(value: FrontMatterMatcher) -> Self {
+        Self {
+            matcher: value.body.into(),
+        }
+    }
+}
+
+impl MatchSelector<FrontMatter> for FrontMatterSelector {
+    fn matches(&self, front_matter: &FrontMatter) -> bool {
+        self.matcher.matches(&front_matter.body)
     }
 }

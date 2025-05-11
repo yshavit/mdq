@@ -65,6 +65,12 @@ pub struct CodeBlockMatcher {
     pub contents: Matcher,
 }
 
+/// matcher for [`Selector::FrontMatter`]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FrontMatterMatcher {
+    pub body: Matcher,
+}
+
 /// matcher for [`Selector::Table`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TableMatcher {
@@ -90,6 +96,8 @@ pub enum Selector {
     BlockQuote(BlockQuoteMatcher),
     /// ` ```language contents `
     CodeBlock(CodeBlockMatcher),
+    /// `+++ front matter`
+    FrontMatter(FrontMatterMatcher),
     /// `</> html-tags`
     Html(HtmlMatcher),
     /// `P: paragraph text`

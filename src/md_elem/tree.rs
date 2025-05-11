@@ -177,6 +177,9 @@ impl ParseOptions {
 
 /// Parse some Markdown text.
 fn parse0(text: &str, options: &ParseOptions) -> Result<MdDoc, InvalidMd> {
+    // mdast requires front matter to be literally the first char. We'll be more forgiving.
+    let text = trim_leading_empty_lines(text);
+
     let ast = markdown::to_mdast(text, &options.mdast_options).map_err(|e| InvalidMd::ParseError(format!("{e}")))?;
     let read_options = ReadOptions {
         validate_no_conflicting_links: false,
@@ -1216,6 +1219,7 @@ pub mod elem {
     from_for_md_elem! { List }
     from_for_md_elem! { Section }
     from_for_md_elem! { CodeBlock }
+    from_for_md_elem! { FrontMatter }
     from_for_md_elem! { Paragraph }
     from_for_md_elem! { Table }
     from_for_md_elem! { Inline }
@@ -1288,6 +1292,7 @@ macro_rules! m_node {
         $head::$next( m_node!($next $(:: $($tail)::*)? $({ $($args)* })?) )
     };
 }
+use crate::util::str_utils::trim_leading_empty_lines;
 pub(crate) use m_node;
 
 impl MdDoc {

@@ -1,12 +1,12 @@
 use crate::query::pest::Rule;
 use crate::query::traversal::{ByRule, OneOf, PairMatcher};
 use crate::query::traversal_composites::{
-    BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, ParagraphTraverser,
-    SectionResults, SectionTraverser, TableTraverser,
+    BlockQuoteTraverser, CodeBlockTraverser, FrontMatterTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser,
+    ParagraphTraverser, SectionResults, SectionTraverser, TableTraverser,
 };
 use crate::query::{DetachedSpan, InnerParseError, Pair, Pairs, Query};
 use crate::select::{
-    BlockQuoteMatcher, CodeBlockMatcher, HtmlMatcher, LinklikeMatcher, ListItemMatcher, ListItemTask, Matcher,
+    BlockQuoteMatcher, CodeBlockMatcher, FrontMatterMatcher, HtmlMatcher, LinklikeMatcher, ListItemMatcher, ListItemTask, Matcher,
     ParagraphMatcher, SectionMatcher, Selector, TableMatcher,
 };
 
@@ -93,6 +93,11 @@ impl Selector {
                     language: language_matcher,
                     contents: contents_matcher,
                 }))
+            }
+            Rule::front_matter => {
+                let res = FrontMatterTraverser::traverse(children);
+                let body_matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
+                Ok(Self::FrontMatter(FrontMatterMatcher { body: body_matcher }))
             }
             Rule::select_html => {
                 let res = HtmlTraverser::traverse(children);

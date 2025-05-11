@@ -7,6 +7,7 @@ use crate::select::sel_link_like::LinkSelector;
 use crate::select::sel_list_item::ListItemSelector;
 use crate::select::sel_section::SectionSelector;
 use crate::select::sel_single_matcher::BlockQuoteSelector;
+use crate::select::sel_single_matcher::FrontMatterSelector;
 use crate::select::sel_single_matcher::HtmlSelector;
 use crate::select::sel_single_matcher::ParagraphSelector;
 use crate::select::sel_table::TableSelector;
@@ -66,6 +67,7 @@ adapters! {
     ListItem => List,
     BlockQuote => BlockQuote,
     CodeBlock => CodeBlock,
+    FrontMatter => FrontMatter,
     Html => BlockHtml,
     Paragraph => Paragraph,
     Table => Table,

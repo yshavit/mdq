@@ -1,0 +1,48 @@
+[given]
+md = '''
++++
+title: Test Front Matter
+author: Me
++++
+
+# My Document
+
+This is the document body.
+'''
+
+[chained]
+needed = false
+
+
+[expect."select front matter"]
+cli_args = ["+++"]
+output = '''
++++
+title: Test Front Matter
+author: Me
++++
+'''
+
+[expect."select front matter with text matcher"]
+cli_args = ["+++ title: Test Front Matter"]
+output = '''
++++
+title: Test Front Matter
+author: Me
++++
+'''
+
+[expect."select front matter with regex matcher"]
+cli_args = ["+++ /author: .*/"]
+output = '''
++++
+title: Test Front Matter
+author: Me
++++
+'''
+
+[expect."select front matter with no match"]
+cli_args = ["+++ non-existent"]
+output = '''
+'''
+expect_success = false

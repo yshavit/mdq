@@ -169,7 +169,7 @@ pub fn run(cli: &RunOptions, os: &mut impl OsFacade) -> bool {
 
 fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error> {
     let contents_str = os.read_all(&cli.markdown_file_paths)?;
-    let mut options = ParseOptions::gfm();
+    let mut options = ParseOptions::default();
     options.allow_unknown_markdown = cli.allow_unknown_markdown;
     let md_doc = md_elem::MdDoc::parse(&contents_str, &options).map_err(Error::MarkdownParse)?;
 

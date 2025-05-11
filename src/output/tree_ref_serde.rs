@@ -446,7 +446,7 @@ mod tests {
         check(
             MdElem::FrontMatter(FrontMatter {
                 variant: FrontMatterVariant::Yaml,
-                body: "my front_matter".to_string(),
+                body: "my front matter".to_string(),
             }),
             json_str!(
                 {"items": [
