@@ -119,7 +119,7 @@ where
             Ok(())
         }
         MdElem::BlockHtml(h) => {
-            writeln!(out, "{}", h)?;
+            writeln!(out, "{}", h.value)?;
             writeln!(out)
         }
         MdElem::ThematicBreak => Ok(()),
