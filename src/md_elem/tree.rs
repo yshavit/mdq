@@ -517,10 +517,10 @@ pub mod elem {
         /// ```
         /// use mdq::md_elem::elem::FrontMatterVariant;
         ///
-        /// assert_eq!(FrontMatterVariant::Toml.as_separator(), "+++");
-        /// assert_eq!(FrontMatterVariant::Yaml.as_separator(), "---");
+        /// assert_eq!(FrontMatterVariant::Toml.separator(), "+++");
+        /// assert_eq!(FrontMatterVariant::Yaml.separator(), "---");
         /// ```
-        pub fn as_separator(self) -> &'static str {
+        pub fn separator(self) -> &'static str {
             match self {
                 FrontMatterVariant::Toml => "+++",
                 FrontMatterVariant::Yaml => "---",

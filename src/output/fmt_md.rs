@@ -402,11 +402,11 @@ impl<'md> MdWriterState<'_, 'md> {
 
     fn write_front_matter<W: SimpleWrite>(&mut self, out: &mut Output<W>, front_matter: &'md FrontMatter) {
         out.with_pre_block(|out| {
-            out.write_str(front_matter.variant.as_separator());
+            out.write_str(front_matter.variant.separator());
             out.write_char('\n');
             out.write_str(&front_matter.body);
             out.write_char('\n');
-            out.write_str(front_matter.variant.as_separator());
+            out.write_str(front_matter.variant.separator());
         })
     }
 
