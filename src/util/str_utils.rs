@@ -194,7 +194,7 @@ mod test {
         }
 
         fn check(given: &str, expected: &str) {
-            assert_eq!(trim_leading_empty_lines(given), expected);
+            assert_eq!(TrimmedEmptyLines::from(given).remaining, expected);
         }
     }
 

@@ -73,7 +73,7 @@ impl MdDoc {
         // mdast requires front matter to be literally the first char. We'll be more forgiving.
         let trimmed = TrimmedEmptyLines::from(text);
         let mut result = parse0(trimmed.remaining, options);
-        if matches!(result, Err(_)) && !trimmed.trimmed.is_empty() {
+        if result.is_err() && !trimmed.trimmed.is_empty() {
             // re-parse on the original text, so that we get the correct offsets
             result = parse0(text, options);
         }
