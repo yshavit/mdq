@@ -59,7 +59,7 @@ pub struct FrontMatterSelector {
 impl From<FrontMatterMatcher> for FrontMatterSelector {
     fn from(value: FrontMatterMatcher) -> Self {
         Self {
-            variant: value.variant.into(),
+            variant: value.variant,
             text: value.text.into(),
         }
     }
