@@ -70,6 +70,34 @@ impl<W: SimpleWrite> std::fmt::Write for CountingWriter<'_, W> {
     }
 }
 
+/// A struct that represents trimmed leading empty lines from a string.
+///
+/// An "empty line" is defined as a line that consists of zero or more whitespace characters,
+/// and nothing else.
+pub(crate) struct TrimmedEmptyLines<S> {
+    pub(crate) trimmed: S,
+    pub(crate) remaining: S,
+}
+
+impl<'a> From<&'a str> for TrimmedEmptyLines<&'a str> {
+    fn from(s: &'a str) -> Self {
+        let mut start = 0;
+        // using split_inclusive() instead of just split() because we need to count \r\n as 2 chars; so we can't just take
+        // the split()s, and assume a one-char newline for each one.
+        for line in s.split_inclusive('\n') {
+            if line.chars().all(|c| c.is_whitespace()) {
+                start += line.len();
+            } else {
+                break;
+            }
+        }
+        Self {
+            trimmed: &s[..start],
+            remaining: &s[start..],
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -119,6 +147,54 @@ mod test {
     fn string_already_too_big() {
         for align in [ColumnAlignment::Left, ColumnAlignment::Center, ColumnAlignment::Right] {
             assert_eq!("abcdef", output_and_get(|out| pad_to(out, "abcdef", 3, Some(align))));
+        }
+    }
+
+    mod trim_leading_empty_lines {
+        use super::*;
+
+        #[test]
+        fn starts_with_newline() {
+            check("\nhello\nworld", "hello\nworld");
+        }
+
+        #[test]
+        fn starts_with_space_then_newline() {
+            check("  \nhello\nworld", "hello\nworld");
+        }
+
+        #[test]
+        fn starts_with_space_then_char() {
+            check("  a\nhello\nworld", "  a\nhello\nworld");
+        }
+
+        #[test]
+        fn starts_with_char() {
+            check("hello world", "hello world");
+        }
+
+        #[test]
+        fn empty() {
+            check("", "");
+        }
+
+        #[test]
+        fn all_newlines() {
+            check("\n\n\n", "");
+        }
+
+        #[test]
+        fn crlf() {
+            check("\r\n\r\nhello", "hello");
+        }
+
+        #[test]
+        fn just_cr() {
+            check("\rhello", "\rhello");
+        }
+
+        fn check(given: &str, expected: &str) {
+            assert_eq!(TrimmedEmptyLines::from(given).remaining, expected);
         }
     }
 

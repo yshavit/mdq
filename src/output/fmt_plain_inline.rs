@@ -82,9 +82,9 @@ where
     match node {
         MdElem::Doc(doc) => write_plain_result(out, doc.iter()),
         MdElem::BlockQuote(block) => write_plain_result(out, block.body.iter()),
-        MdElem::CodeBlock(block) => {
-            if !block.value.is_empty() {
-                writeln!(out, "{}", block.value)?;
+        MdElem::CodeBlock(CodeBlock { value: body, .. }) | MdElem::FrontMatter(FrontMatter { body, .. }) => {
+            if !body.is_empty() {
+                writeln!(out, "{}", body)?;
                 writeln!(out)?;
             }
             Ok(())
@@ -119,7 +119,7 @@ where
             Ok(())
         }
         MdElem::BlockHtml(h) => {
-            writeln!(out, "{}", h)?;
+            writeln!(out, "{}", h.value)?;
             writeln!(out)
         }
         MdElem::ThematicBreak => Ok(()),
@@ -181,6 +181,7 @@ mod test {
         Doc(_),
         BlockQuote(_),
         CodeBlock(_),
+        FrontMatter(_),
         Inline(_),
         List(_),
         Paragraph(_),
@@ -265,6 +266,36 @@ mod test {
         });
         check_plain(
             match_or_panic!(md_elem => MdElem::CodeBlock(_)),
+            Expect {
+                with_breaks: "hello, world\n",
+                no_breaks: "hello, world\n",
+            },
+        )
+    }
+
+    #[test]
+    fn front_matter_empty() {
+        let md_elem = md_elem!(FrontMatter {
+            variant: FrontMatterVariant::Yaml,
+            body: "".to_string()
+        });
+        check_plain(
+            match_or_panic!(md_elem => MdElem::FrontMatter(_)),
+            Expect {
+                with_breaks: "",
+                no_breaks: "",
+            },
+        )
+    }
+
+    #[test]
+    fn front_matter_not_empty() {
+        let md_elem = md_elem!(FrontMatter {
+            variant: FrontMatterVariant::Yaml,
+            body: "hello, world".to_string()
+        });
+        check_plain(
+            match_or_panic!(md_elem => MdElem::FrontMatter(_)),
             Expect {
                 with_breaks: "hello, world\n",
                 no_breaks: "hello, world\n",
@@ -560,7 +591,7 @@ mod test {
                 body: md_elems!("block quote paragraph 1", "block quote paragraph 2"),
             }),
             md_elem!(CodeBlock {
-                variant: CodeVariant::Toml,
+                variant: CodeVariant::Code(None),
                 value: "code block 1 line 1\ncode block 1 line 2".to_string()
             }),
             MdElem::BlockHtml("<hr>".into()),

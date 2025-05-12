@@ -222,7 +222,7 @@ impl<'md> MdInlinesWriter<'md> {
                 MdElem::Inline(inline) => {
                     self.find_references_in_footnote_inlines([inline]);
                 }
-                MdElem::CodeBlock(_) | MdElem::BlockHtml(_) | MdElem::ThematicBreak => {
+                MdElem::CodeBlock(_) | MdElem::FrontMatter(_) | MdElem::BlockHtml(_) | MdElem::ThematicBreak => {
                     // nothing
                 }
             }

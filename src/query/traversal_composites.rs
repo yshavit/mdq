@@ -100,6 +100,11 @@ composite_finder! { CodeBlock {
     text OnePair<'a>: ByTag,
 }}
 
+composite_finder! { FrontMatter {
+    variant OnePair<'a>: ByTag,
+    text OnePair<'a>: ByTag,
+}}
+
 composite_finder! { Html {
     text OnePair<'a>: ByTag,
 }}
