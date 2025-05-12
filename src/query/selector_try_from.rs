@@ -646,7 +646,7 @@ mod tests {
                 "</> /<div.*>/",
                 Selector::Html(HtmlMatcher {
                     html: Matcher::Regex(Regex {
-                        re: regex::Regex::new("<div.*>").unwrap(),
+                        re: fancy_regex::Regex::new("<div.*>").unwrap(),
                     }),
                 }),
             )

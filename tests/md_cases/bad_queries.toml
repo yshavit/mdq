@@ -61,15 +61,12 @@ cli_args = ['# /\P{/']
 expect_success = false
 output = ''
 output_err = '''Syntax error in select specifier:
- --> 1:3
+ --> 1:4
   |
 1 | # /\P{/
-  |   ^---^
+  |    ^
   |
-  = regex parse error:
-    \P{
-       ^
-error: incomplete escape sequence, reached end of pattern prematurely
+  = regex parse error: Unicode escape not closed
 '''
 
 [expect."bareword isn't closed"]

@@ -2,7 +2,7 @@ use crate::md_elem::elem::*;
 use crate::md_elem::*;
 use crate::output::inlines_to_plain_string;
 use crate::select::Matcher;
-use regex::Regex;
+use fancy_regex::Regex;
 use std::borrow::Borrow;
 
 #[derive(Debug)]
@@ -18,7 +18,12 @@ impl PartialEq for StringMatcher {
 
 impl StringMatcher {
     pub fn matches(&self, haystack: &str) -> bool {
-        self.re.is_match(haystack)
+        match self.re.is_match(haystack) {
+            Ok(m) => m,
+            Err(e) => {
+                panic!("failed to evaluate regular expression: {e}");
+            }
+        }
     }
 
     pub fn matches_inlines<I: Borrow<Inline>>(&self, haystack: &[I]) -> bool {
@@ -106,7 +111,7 @@ impl SubstringToRegex {
         if self.anchor_start {
             pattern.push('^');
         }
-        pattern.push_str(&regex::escape(&self.look_for));
+        pattern.push_str(&fancy_regex::escape(&self.look_for));
         if self.anchor_end {
             pattern.push('$');
         }
@@ -313,6 +318,15 @@ mod test {
         parse_and_check("*| rest", StringMatcher::any(), "| rest");
         parse_and_check("* | rest", StringMatcher::any(), "| rest");
         parse_and_check_with(StringVariant::AngleBracket, "> rest", StringMatcher::any(), "> rest");
+    }
+
+    /// Test for fancy_regex specific feature (lookaround)
+    #[test]
+    fn fancy_regex_lookahead() {
+        let matcher = re(r#"foo(?=bar)"#); // Positive lookahead: matches "foo" only if followed by "bar"
+        assert!(matcher.matches("foobar"));
+        assert!(!matcher.matches("foo"));
+        assert!(!matcher.matches("foobaz"));
     }
 
     fn parse_and_check_with(
