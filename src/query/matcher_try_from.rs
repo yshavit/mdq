@@ -32,7 +32,7 @@ impl Matcher {
                 let re = fancy_regex::Regex::new(&parsed_string.text).map_err(|e| {
                     match e {
                         Error::ParseError(pos, err) => {
-                            let mut re_span = DetachedSpan::from(span);
+                            let mut re_span = span;
                             re_span.start += pos + 1; // +1 for the regex's opening slash
                             re_span.end = re_span.start;
                             InnerParseError::Other(re_span, format!("regex parse error: {err}"))
