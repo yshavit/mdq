@@ -28,7 +28,7 @@ pub enum Matcher {
 /// The actual regex library is intentionally obscured so that it can change in the future without breaking the API.
 #[derive(Debug, Clone)]
 pub struct Regex {
-    pub(crate) re: regex::Regex,
+    pub(crate) re: fancy_regex::Regex,
 }
 
 impl PartialEq for Regex {
