@@ -1,7 +1,7 @@
 use crate::md_elem::elem::FrontMatterVariant;
 use crate::md_elem::{MdContext, MdDoc, MdElem};
 use crate::query::ParseError;
-use crate::select::{Matcher, SelectorAdapter};
+use crate::select::{MatchReplace, SelectorAdapter};
 
 /// The completion state that a [`ListItemMatcher`] looks for.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -25,59 +25,59 @@ pub struct ListItemMatcher {
     ///
     /// Tasks are typically unordered, but may also be ordered (`1. [ ] foo`).
     pub task: ListItemTask,
-    pub matcher: Matcher,
+    pub matcher: MatchReplace,
 }
 
 /// matcher for [`Selector::Section`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SectionMatcher {
-    pub title: Matcher,
+    pub title: MatchReplace,
 }
 
 /// matcher for both [`Selector::Link`] and [`Selector::Image`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LinklikeMatcher {
-    pub display_matcher: Matcher,
-    pub url_matcher: Matcher,
+    pub display_matcher: MatchReplace,
+    pub url_matcher: MatchReplace,
 }
 
 /// matcher for [`Selector::BlockQuote`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BlockQuoteMatcher {
-    pub text: Matcher,
+    pub text: MatchReplace,
 }
 
 /// matcher for [`Selector::Html`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HtmlMatcher {
-    pub html: Matcher,
+    pub html: MatchReplace,
 }
 
 /// matcher for [`Selector::Paragraph`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ParagraphMatcher {
-    pub text: Matcher,
+    pub text: MatchReplace,
 }
 
 /// matcher for [`Selector::CodeBlock`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CodeBlockMatcher {
-    pub language: Matcher,
-    pub contents: Matcher,
+    pub language: MatchReplace,
+    pub contents: MatchReplace,
 }
 
 /// matcher for [`Selector::FrontMatter`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FrontMatterMatcher {
     pub variant: Option<FrontMatterVariant>,
-    pub text: Matcher,
+    pub text: MatchReplace,
 }
 
 /// matcher for [`Selector::Table`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TableMatcher {
-    pub headers: Matcher,
-    pub rows: Matcher,
+    pub headers: MatchReplace,
+    pub rows: MatchReplace,
 }
 
 /// The in-memory equivalent of mdq's selector query string.

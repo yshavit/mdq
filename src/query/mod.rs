@@ -1,6 +1,7 @@
 mod pest;
 
 mod error;
+mod match_replace_try_from;
 mod matcher_try_from;
 mod selector_try_from;
 mod strings;

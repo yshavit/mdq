@@ -1,7 +1,7 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
 use crate::output::inlines_to_plain_string;
-use crate::select::Matcher;
+use crate::select::{MatchReplace, Matcher};
 use fancy_regex::Regex;
 use std::borrow::Borrow;
 
@@ -93,6 +93,12 @@ impl From<Matcher> for StringMatcher {
             Matcher::Regex(re) => Self::regex(re.re),
             Matcher::Any { .. } => Self::any(),
         }
+    }
+}
+
+impl From<MatchReplace> for StringMatcher {
+    fn from(value: MatchReplace) -> Self {
+        Self::from(value.matcher)
     }
 }
 
