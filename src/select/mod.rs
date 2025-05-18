@@ -5,6 +5,7 @@
 //! - Parse text into `Selector` using `try_into`.
 //! - Run it against an [`MdDoc`](crate::md_elem::MdDoc) using [`Selector::find_nodes`].
 mod api;
+mod match_replace;
 mod match_selector;
 mod matcher;
 mod sel_chain;
@@ -20,5 +21,6 @@ mod string_matcher;
 pub(crate) use api::*;
 
 pub use crate::query::ParseError;
+pub use match_replace::*;
 pub use matcher::*;
 pub use selector::*;
