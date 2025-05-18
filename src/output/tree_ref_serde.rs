@@ -34,6 +34,10 @@ pub(crate) enum SerdeElem<'md> {
         #[serde(skip_serializing_if = "Option::is_none")]
         metadata: Option<&'md String>,
     },
+    FrontMatter {
+        body: &'md String,
+        variant: &'static str,
+    },
     Paragraph(String),
     Link {
         display: String,
@@ -142,8 +146,6 @@ pub(crate) enum LinkCollapseStyle {
 pub(crate) enum CodeBlockType {
     Code,
     Math,
-    Toml,
-    Yaml,
 }
 
 impl<'md> SerializableMd<'md> {
@@ -202,14 +204,22 @@ impl<'md> SerdeElem<'md> {
                         Some(&code_opts.language),
                     ),
                     CodeVariant::Math { metadata } => (CodeBlockType::Math, metadata.as_ref(), None),
-                    CodeVariant::Toml => (CodeBlockType::Toml, None, None),
-                    CodeVariant::Yaml => (CodeBlockType::Yaml, None, None),
                 };
                 Self::CodeBlock {
                     code: value,
                     code_type,
                     metadata,
                     language,
+                }
+            }
+            MdElem::FrontMatter(fm) => {
+                let variant = match fm.variant {
+                    FrontMatterVariant::Yaml => "yaml",
+                    FrontMatterVariant::Toml => "toml",
+                };
+                Self::FrontMatter {
+                    variant,
+                    body: &fm.body,
                 }
             }
             MdElem::Inline(Inline::Link(link)) => Self::Link {
@@ -297,6 +307,7 @@ mod tests {
 
         BlockQuote(_),
         CodeBlock(_),
+        FrontMatter(_),
         Inline(_),
         List(_),
         Paragraph(_),
@@ -420,6 +431,24 @@ mod tests {
                         "type": "code",
                         "language": "rust",
                         "metadata": "my-metadata"
+                    }}
+                ]}
+            ),
+        );
+    }
+
+    #[test]
+    fn front_matter() {
+        check(
+            MdElem::FrontMatter(FrontMatter {
+                variant: FrontMatterVariant::Yaml,
+                body: "my front matter".to_string(),
+            }),
+            json_str!(
+                {"items": [
+                    {"front_matter": {
+                        "body": "my front matter",
+                        "variant": "yaml"
                     }}
                 ]}
             ),

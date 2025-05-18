@@ -1,3 +1,7 @@
+---
+title: My example
+---
+
 # Greetings
 
 ![welcome image](https://example.com/welcome.png)

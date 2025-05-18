@@ -106,21 +106,22 @@ cat example.md | mdq '# usage | -'
 
 The filter syntax is designed to mirror Markdown syntax. You can select...
 
-| Element          | Syntax                           |
-|------------------|----------------------------------|
-| Sections         | `# title text`                   |
-| Lists            | `- unordered list item text`     |
-| "                | `1. ordered list item text`      |
-| "                | `- [ ] uncompleted task`         |
-| "                | `- [x] completed task`           |
-| "                | `- [?] any task`                 |
-| Links            | `[display text](url)`            |
-| Images           | `![alt text](url)`               |
-| Block quotes     | `> block quote text`             |
-| Code blocks      | ` ```language <code block text>` |
-| Raw HTML         | `</> html_tag`                   |
-| Plain paragraphs | `P: paragraph text `             |
-| Tables           | `:-: header text :-: row text`   |
+| Element          | Syntax                              |
+|------------------|-------------------------------------|
+| Sections         | `# title text`                      |
+| Lists            | `- unordered list item text`        |
+| "                | `1. ordered list item text`         |
+| "                | `- [ ] uncompleted task`            |
+| "                | `- [x] completed task`              |
+| "                | `- [?] any task`                    |
+| Links            | `[display text](url)`               |
+| Images           | `![alt text](url)`                  |
+| Block quotes     | `> block quote text`                |
+| Code blocks      | ` ```language <code block text>`    |
+| Raw HTML         | `</> html_tag`                      |
+| Plain paragraphs | `P: paragraph text `                |
+| Tables           | `:-: header text :-: row text`      |
+| Front matter     | `+++[toml\|yaml] front matter text` |
 
 (Tables selection differs from other selections in that you can actually select only certain headers and rows, such that
 the resulting element is of a different shape than the original. See the example below, or the wiki for more detail.)

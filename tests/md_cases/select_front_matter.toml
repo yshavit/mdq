@@ -1,0 +1,136 @@
+[given]
+md = '''
++++
+title: Test Front Matter
+author: Me
++++
+
+# My Document
+
+This is the document body.
+
+---
+it has: a block that looks like front matter
+but: isn't
+---
+
+'''
+
+[chained]
+needed = false
+
+
+[expect."select any front matter"]
+cli_args = ["+++"]
+output = '''
++++
+title: Test Front Matter
+author: Me
++++
+'''
+
+[expect."select toml matter"]
+cli_args = ["+++toml"]
+output = '''
++++
+title: Test Front Matter
+author: Me
++++
+'''
+
+[expect."select yaml matter"]
+cli_args = ["+++yaml"]
+output = '''
+'''
+expect_success = false
+
+[expect."select other matter"]
+cli_args = ["+++other"]
+output = ''
+output_err = '''Syntax error in select specifier:
+ --> 1:4
+  |
+1 | +++other
+  |    ^---^
+  |
+  = front matter language must be "toml" or "yaml". Found "other".
+'''
+expect_success = false
+
+[expect."select front matter with text matcher"]
+cli_args = ["+++ title: Test Front Matter"]
+output = '''
++++
+title: Test Front Matter
+author: Me
++++
+'''
+
+[expect."select front matter with regex matcher"]
+cli_args = ["+++ /author: .*/"]
+output = '''
++++
+title: Test Front Matter
+author: Me
++++
+'''
+
+[expect."select front matter with no match"]
+cli_args = ["+++ non-existent"]
+output = '''
+'''
+expect_success = false
+
+
+[expect."plain output"]
+cli_args = ["-o", "plain"]
+output = '''
+title: Test Front Matter
+author: Me
+My Document
+This is the document body.
+it has: a block that looks like front matter
+but: isn't
+'''
+
+
+[expect."select a paragraph that looks like front matter"]
+cli_args = ["-o", "json"]
+output_json = true
+output = '''
+{
+  "items": [
+    {
+      "document": [
+        {
+          "front_matter": {
+            "body": "title: Test Front Matter\nauthor: Me",
+            "variant": "toml"
+          }
+        },
+        {
+          "section": {
+            "depth": 1,
+            "title": "My Document",
+            "body": [
+              {
+                "paragraph": "This is the document body."
+              },
+              {
+                "thematic_break": null
+              },
+              {
+                "section": {
+                  "depth": 2,
+                  "title": "it has: a block that looks like front matter\nbut: isn't",
+                  "body": []
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+'''

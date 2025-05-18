@@ -1,13 +1,14 @@
+use crate::md_elem::elem::FrontMatterVariant;
 use crate::query::pest::Rule;
 use crate::query::traversal::{ByRule, OneOf, PairMatcher};
 use crate::query::traversal_composites::{
-    BlockQuoteTraverser, CodeBlockTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser, ParagraphTraverser,
-    SectionResults, SectionTraverser, TableTraverser,
+    BlockQuoteTraverser, CodeBlockTraverser, FrontMatterTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser,
+    ParagraphTraverser, SectionResults, SectionTraverser, TableTraverser,
 };
 use crate::query::{DetachedSpan, InnerParseError, Pair, Pairs, Query};
 use crate::select::{
-    BlockQuoteMatcher, CodeBlockMatcher, HtmlMatcher, LinklikeMatcher, ListItemMatcher, ListItemTask, Matcher,
-    ParagraphMatcher, SectionMatcher, Selector, TableMatcher,
+    BlockQuoteMatcher, CodeBlockMatcher, FrontMatterMatcher, HtmlMatcher, LinklikeMatcher, ListItemMatcher,
+    ListItemTask, Matcher, ParagraphMatcher, SectionMatcher, Selector, TableMatcher,
 };
 
 impl Selector {
@@ -92,6 +93,30 @@ impl Selector {
                 Ok(Self::CodeBlock(CodeBlockMatcher {
                     language: language_matcher,
                     contents: contents_matcher,
+                }))
+            }
+            Rule::select_front_matter => {
+                let res = FrontMatterTraverser::traverse(children);
+                let variant_pair = res.variant.take().map_err(to_parse_error)?;
+                let variant_matcher = match variant_pair {
+                    None => None,
+                    Some(variant_pair) => match variant_pair.as_str() {
+                        "" => None,
+                        "toml" => Some(FrontMatterVariant::Toml),
+                        "yaml" => Some(FrontMatterVariant::Yaml),
+                        other => {
+                            let span = DetachedSpan::from(&variant_pair);
+                            return Err(InnerParseError::Other(
+                                span,
+                                format!(r#"front matter language must be "toml" or "yaml". Found {other:?}."#),
+                            ));
+                        }
+                    },
+                };
+                let body_matcher = Matcher::try_from(res.text.take().map_err(to_parse_error)?)?;
+                Ok(Self::FrontMatter(FrontMatterMatcher {
+                    variant: variant_matcher,
+                    text: body_matcher,
                 }))
             }
             Rule::select_html => {

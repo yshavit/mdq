@@ -76,6 +76,7 @@ impl Query {
                 Rule::image_start => "_![_",
                 Rule::select_block_quote | Rule::select_block_quote_start => "_>_",
                 Rule::select_code_block | Rule::code_block_start => "_```_",
+                Rule::select_front_matter | Rule::front_matter_start => "_+++_",
                 Rule::select_html | Rule::html_start => "_</>_",
                 Rule::select_paragraph | Rule::select_paragraph_start => "_P:_",
                 Rule::select_table | Rule::table_start => "_:-:_",

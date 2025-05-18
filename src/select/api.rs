@@ -7,6 +7,7 @@ use crate::select::sel_link_like::LinkSelector;
 use crate::select::sel_list_item::ListItemSelector;
 use crate::select::sel_section::SectionSelector;
 use crate::select::sel_single_matcher::BlockQuoteSelector;
+use crate::select::sel_single_matcher::FrontMatterSelector;
 use crate::select::sel_single_matcher::HtmlSelector;
 use crate::select::sel_single_matcher::ParagraphSelector;
 use crate::select::sel_table::TableSelector;
@@ -66,6 +67,7 @@ adapters! {
     ListItem => List,
     BlockQuote => BlockQuote,
     CodeBlock => CodeBlock,
+    FrontMatter => FrontMatter,
     Html => BlockHtml,
     Paragraph => Paragraph,
     Table => Table,
@@ -135,7 +137,6 @@ impl SelectorAdapter {
                 }
                 result
             }
-            MdElem::ThematicBreak | MdElem::CodeBlock(_) => Vec::new(),
             MdElem::Inline(inline) => match inline {
                 Inline::Span(Span { children, .. }) => children.into_iter().map(MdElem::Inline).collect(),
                 Inline::Footnote(footnote) => {
@@ -155,7 +156,7 @@ impl SelectorAdapter {
                 Inline::Link(Link { display: text, .. }) => text.into_iter().map(MdElem::Inline).collect(),
                 Inline::Text(_) | Inline::Image(_) => Vec::new(),
             },
-            MdElem::BlockHtml(_) => Vec::new(),
+            MdElem::ThematicBreak | MdElem::CodeBlock(_) | MdElem::FrontMatter(_) | MdElem::BlockHtml(_) => Vec::new(),
         }
     }
 }
