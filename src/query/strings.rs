@@ -144,6 +144,7 @@ impl ParsedString {
                         build_string(me, pair.into_inner())?;
                     }
                     Rule::regex_normal_char => {
+                        // Append to either the match pattern or replacement string based on the current parsing context
                         let to_edit = match me.replace_string {
                             None => &mut me.text,
                             Some(ref mut s) => s,
@@ -151,6 +152,7 @@ impl ParsedString {
                         to_edit.push_str(pair.as_str());
                     }
                     Rule::regex_escaped_slash => {
+                        // Append to either the match pattern or replacement string based on the current parsing context
                         let to_edit = match me.replace_string {
                             None => &mut me.text,
                             Some(ref mut s) => s,
