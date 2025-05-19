@@ -355,6 +355,79 @@ mod tests {
         }
     }
 
+    mod debug_str {
+        use super::*;
+        use crate::query::strings::tests::CaseMode::*;
+
+        #[test]
+        fn regex() {
+            assert_eq!(format!("{:?}", parsed_regex("hello there", None)), r"/hello there/");
+        }
+
+        #[test]
+        fn regex_escaped_slash() {
+            assert_eq!(format!("{:?}", parsed_regex(r"hello/there", None)), r"/hello\/there/");
+        }
+
+        #[test]
+        fn regex_replace() {
+            assert_eq!(
+                format!("{:?}", parsed_regex("hello there", Some("hi"))),
+                r"!s/hello there/hi/"
+            );
+        }
+
+        #[test]
+        fn regex_replace_escaped_slash() {
+            assert_eq!(
+                format!("{:?}", parsed_regex(r"hello/there", Some(r"pooh/bear"))),
+                r"!s/hello\/there/pooh\/bear/"
+            );
+        }
+
+        #[test]
+        fn string_with_anchor() {
+            assert_eq!(
+                format!("{:?}", parsed_text(CaseSensitive, true, "hello", true)),
+                "^\"hello\"$"
+            );
+        }
+
+        #[test]
+        fn case_insensitive() {
+            assert_eq!(
+                format!("{:?}", parsed_text(CaseInsensitive, false, "hello", false)),
+                "(i)\"hello\""
+            );
+        }
+
+        #[test]
+        fn implicit_wildcard() {
+            let wildcard = ParsedString {
+                text: String::new(),
+                anchor_start: false,
+                anchor_end: false,
+                mode: ParsedStringMode::CaseSensitive,
+                explicit_wildcard: false,
+                replace_string: None,
+            };
+            assert_eq!(format!("{wildcard:?}"), "implicit *");
+        }
+
+        #[test]
+        fn explicit_wildcard() {
+            let wildcard = ParsedString {
+                text: String::new(),
+                anchor_start: false,
+                anchor_end: false,
+                mode: ParsedStringMode::CaseSensitive,
+                explicit_wildcard: true,
+                replace_string: None,
+            };
+            assert_eq!(format!("{wildcard:?}"), "explicit *");
+        }
+    }
+
     fn check_parse(variant: StringVariant, input: &str, expect: ParsedString, remaining: &str) {
         let (pairs, _) = variant.parse(input).unwrap();
         let consumed = pairs.as_str();
