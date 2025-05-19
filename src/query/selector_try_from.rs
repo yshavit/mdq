@@ -175,7 +175,7 @@ mod tests {
     use std::cmp::{max, min};
 
     impl Matcher {
-        pub(crate) fn parse(variant: StringVariant, query_str: &str) -> Result<(Matcher, &str), InnerParseError> {
+        pub(crate) fn parse(variant: StringVariant, query_str: &str) -> Result<(MatchReplace, &str), InnerParseError> {
             let parse_attempt = variant.parse(query_str);
             let (only_pair, remaining) = match parse_attempt {
                 Err(err) => {
@@ -204,7 +204,7 @@ mod tests {
                     (matcher, remaining)
                 }
             };
-            let matcher = Matcher::try_from(only_pair)?;
+            let matcher = MatchReplace::try_from(only_pair)?;
             Ok((matcher, remaining))
         }
     }

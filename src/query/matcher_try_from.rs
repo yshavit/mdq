@@ -1,28 +1,34 @@
 use crate::query::strings::{ParsedString, ParsedStringMode};
 use crate::query::{DetachedSpan, InnerParseError, Pair};
-use crate::select::{Matcher, Regex};
+use crate::select::{MatchReplace, Matcher, Regex};
 use fancy_regex::Error;
 
-impl Matcher {
+impl MatchReplace {
     pub(crate) fn try_from(pair: Option<Pair>) -> Result<Self, InnerParseError> {
         let Some(pair) = pair else {
-            return Ok(Self::Any { explicit: false });
+            return Ok(Self {
+                matcher: Matcher::Any { explicit: false },
+                replacement: None,
+            });
         };
         let span = DetachedSpan::from(&pair);
         let parsed_string = ParsedString::new_from_pairs(pair.into_inner())?;
         if parsed_string.is_equivalent_to_asterisk() {
-            return Ok(Self::Any {
-                explicit: parsed_string.explicit_wildcard,
+            return Ok(Self {
+                matcher: Matcher::Any {
+                    explicit: parsed_string.explicit_wildcard,
+                },
+                replacement: None,
             });
         }
         let matcher = match parsed_string.mode {
-            ParsedStringMode::CaseSensitive => Self::Text {
+            ParsedStringMode::CaseSensitive => Matcher::Text {
                 case_sensitive: true,
                 anchor_start: parsed_string.anchor_start,
                 text: parsed_string.text,
                 anchor_end: parsed_string.anchor_end,
             },
-            ParsedStringMode::CaseInsensitive => Self::Text {
+            ParsedStringMode::CaseInsensitive => Matcher::Text {
                 case_sensitive: false,
                 anchor_start: parsed_string.anchor_start,
                 text: parsed_string.text,
@@ -43,9 +49,12 @@ impl Matcher {
                         }
                     }
                 })?;
-                Self::Regex(Regex { re })
+                Matcher::Regex(Regex { re })
             }
         };
-        Ok(matcher)
+        Ok(Self {
+            matcher,
+            replacement: parsed_string.replace_string,
+        })
     }
 }
