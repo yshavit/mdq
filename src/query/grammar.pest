@@ -69,10 +69,15 @@ string = {
 asterisk = @{ "*" }
 unquoted_string = @{ LETTER ~ (!(PEEK | "$") ~ ANY)* }
 
-regex               = ${ "/" ~ regex_char* ~ "/" }
+regex               = ${
+  // Put these into a single rule, so that the error message just says "regex" for both the plain and replace variant.
+    ("/" ~ regex_char* ~ "/")
+  | ("!s/" ~ regex_char* ~ "/" ~ regex_replacement_segment? ~ "/")
+}
 regex_char          = ${
     (regex_escaped_slash | regex_normal_char)
 }
+regex_replacement_segment = ${ regex_char+ }
 regex_escaped_slash = @{ "\\/" }
 regex_normal_char   = @{ !("/") ~ ANY }
 
