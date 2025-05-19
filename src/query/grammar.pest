@@ -74,7 +74,7 @@ regex_char          = ${
     (regex_escaped_slash | regex_normal_char)
 }
 regex_escaped_slash = @{ "\\/" }
-regex_normal_char   = @{ !("/") ~ ANY }
+regex_normal_char   = @{ (!("/" | "\\/") ~ ANY)+ }
 
 quoted_string = ${ PUSH("'" | "\"") ~ quoted_char* ~ POP }
 
