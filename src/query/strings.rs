@@ -1,6 +1,5 @@
 use crate::query::pest::{Pairs, Rule};
 use crate::query::{DetachedSpan, InnerParseError};
-use std::borrow::Cow;
 use std::fmt::{Debug, Formatter, Write};
 
 #[derive(Eq, PartialEq)]
@@ -10,6 +9,7 @@ pub struct ParsedString {
     pub anchor_end: bool,
     pub mode: ParsedStringMode,
     pub explicit_wildcard: bool,
+    pub replace_string: Option<String>,
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -43,13 +43,25 @@ impl Debug for ParsedString {
 
         match self.mode {
             ParsedStringMode::Regex => {
+                fn write_regex_chars(t: &str, f: &mut Formatter<'_>) -> std::fmt::Result {
+                    for ch in t.chars() {
+                        if ch == '/' {
+                            f.write_str("\\/")?;
+                        } else {
+                            f.write_char(ch)?;
+                        }
+                    }
+                    Ok(())
+                }
+                if self.replace_string.is_some() {
+                    f.write_str("!s")?;
+                }
                 f.write_char('/')?;
-                let escaped = if self.text.contains("/") {
-                    Cow::Owned(self.text.replace("/", "//"))
-                } else {
-                    Cow::Borrowed(&self.text)
-                };
-                f.write_str(&escaped)?;
+                write_regex_chars(&self.text, f)?;
+                if let Some(replace_string) = &self.replace_string {
+                    f.write_char('/')?;
+                    write_regex_chars(replace_string, f)?;
+                }
                 f.write_char('/')?;
             }
             ParsedStringMode::CaseSensitive | ParsedStringMode::CaseInsensitive => {
@@ -77,6 +89,7 @@ impl ParsedString {
             anchor_end: false,
             mode: ParsedStringMode::CaseSensitive,
             explicit_wildcard: false,
+            replace_string: None,
         };
 
         fn build_string(me: &mut ParsedString, pairs: Pairs) -> Result<(), InnerParseError> {
@@ -126,15 +139,27 @@ impl ParsedString {
                         me.mode = ParsedStringMode::CaseInsensitive;
                         me.text.push_str(pair.as_str().trim_end());
                     }
-                    Rule::regex => {
+                    Rule::regex | Rule::regex_replace => {
                         me.mode = ParsedStringMode::Regex;
                         build_string(me, pair.into_inner())?;
                     }
                     Rule::regex_normal_char => {
-                        me.text.push_str(pair.as_str());
+                        let to_edit = match me.replace_string {
+                            None => &mut me.text,
+                            Some(ref mut s) => s,
+                        };
+                        to_edit.push_str(pair.as_str());
                     }
                     Rule::regex_escaped_slash => {
-                        me.text.push('/');
+                        let to_edit = match me.replace_string {
+                            None => &mut me.text,
+                            Some(ref mut s) => s,
+                        };
+                        to_edit.push('/');
+                    }
+                    Rule::regex_replacement_segment => {
+                        me.replace_string = Some(String::with_capacity(pair.as_str().len()));
+                        build_string(me, pair.into_inner())?;
                     }
                     _ => {
                         build_string(me, pair.into_inner())?;
@@ -291,12 +316,32 @@ mod tests {
 
         #[test]
         fn normal_regex() {
-            check_parse(StringVariant::Pipe, "/hello there$/", parsed_regex("hello there$"), "");
+            check_parse(
+                StringVariant::Pipe,
+                "/hello there$/",
+                parsed_regex("hello there$", None),
+                "",
+            );
         }
 
         #[test]
         fn regex_with_escaped_slash() {
-            check_parse(StringVariant::Pipe, r"/hello\/there/", parsed_regex(r"hello/there"), "");
+            check_parse(
+                StringVariant::Pipe,
+                r"/hello\/there/",
+                parsed_regex(r"hello/there", None),
+                "",
+            );
+        }
+
+        #[test]
+        fn with_replacement() {
+            check_parse(
+                StringVariant::Pipe,
+                "!s/hello there$/hi/",
+                parsed_regex("hello there$", Some("hi")),
+                "",
+            );
         }
     }
 
@@ -327,16 +372,18 @@ mod tests {
                 CaseMode::CaseInsensitive => ParsedStringMode::CaseInsensitive,
             },
             explicit_wildcard: false,
+            replace_string: None,
         }
     }
 
-    fn parsed_regex(text: &str) -> ParsedString {
+    fn parsed_regex(text: &str, replacement: Option<&str>) -> ParsedString {
         ParsedString {
             anchor_start: false,
             text: text.to_string(),
             anchor_end: false,
             mode: ParsedStringMode::Regex,
             explicit_wildcard: false,
+            replace_string: replacement.map(String::from),
         }
     }
 
@@ -347,6 +394,7 @@ mod tests {
             anchor_end: false,
             mode: ParsedStringMode::CaseSensitive,
             explicit_wildcard: true,
+            replace_string: None,
         }
     }
 }
