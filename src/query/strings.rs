@@ -343,6 +343,16 @@ mod tests {
                 "",
             );
         }
+
+        #[test]
+        fn regex_with_escaped_slash_and_replacement() {
+            check_parse(
+                StringVariant::Pipe,
+                r"!s/hello\/there/pooh\/bear/",
+                parsed_regex(r"hello/there", Some("pooh/bear")),
+                "",
+            );
+        }
     }
 
     fn check_parse(variant: StringVariant, input: &str, expect: ParsedString, remaining: &str) {
