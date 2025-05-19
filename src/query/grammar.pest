@@ -60,7 +60,6 @@ string = {
   // end delimiter for unquoted string will have been PUSH_LITERAL'd by here
   (
         asterisk
-      | regex_replace
       | regex
       | ( anchor_start? ~ ( quoted_string | unquoted_string ) ~ anchor_end? )
       | ( anchor_start ~ anchor_end )
@@ -70,8 +69,11 @@ string = {
 asterisk = @{ "*" }
 unquoted_string = @{ LETTER ~ (!(PEEK | "$") ~ ANY)* }
 
-regex               = ${ "/" ~ regex_char* ~ "/" }
-regex_replace       = ${ "!s/" ~ regex_char* ~ "/" ~ regex_replacement_segment? ~ "/" }
+regex               = ${
+  // Put these into a single rule, so that the error message just says "regex" for both the plain and replace variant.
+    ("/" ~ regex_char* ~ "/")
+  | ("!s/" ~ regex_char* ~ "/" ~ regex_replacement_segment? ~ "/")
+}
 regex_char          = ${
     (regex_escaped_slash | regex_normal_char)
 }

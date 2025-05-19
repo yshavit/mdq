@@ -139,7 +139,7 @@ impl ParsedString {
                         me.mode = ParsedStringMode::CaseInsensitive;
                         me.text.push_str(pair.as_str().trim_end());
                     }
-                    Rule::regex | Rule::regex_replace => {
+                    Rule::regex => {
                         me.mode = ParsedStringMode::Regex;
                         build_string(me, pair.into_inner())?;
                     }

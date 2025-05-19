@@ -85,7 +85,6 @@ impl Query {
                 | Rule::string_for_unit_tests__do_not_use_pipe => "string",
                 Rule::unquoted_string => "unquoted string",
                 Rule::regex => "regex",
-                Rule::regex_replace => "regex",
                 Rule::regex_char => "regex character",
                 Rule::regex_escaped_slash => "_/_",
                 Rule::regex_normal_char => "regex character",
