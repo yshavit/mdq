@@ -78,6 +78,27 @@ impl StringMatcher {
             replacement: None,
         }
     }
+
+    fn from_text(text: String, case_sensitive: bool, anchor_start: bool, anchor_end: bool) -> Self {
+        let mut pattern = String::with_capacity(text.len() + 10); // +10 for modifiers, escapes, etc
+        if !case_sensitive && !text.is_empty() {
+            // (is_empty isn't necessary, just makes for a cleaner regex)
+            pattern.push_str("(?i)");
+        }
+        if anchor_start {
+            pattern.push('^');
+        }
+        pattern.push_str(&fancy_regex::escape(&text));
+        if anchor_end {
+            pattern.push('$');
+        }
+
+        let re = Regex::new(&pattern).expect("internal error");
+        Self {
+            re,
+            replacement: None,
+        }
+    }
 }
 
 impl From<MatchReplace> for StringMatcher {
@@ -88,48 +109,12 @@ impl From<MatchReplace> for StringMatcher {
                 anchor_start,
                 text,
                 anchor_end,
-            } => SubstringToRegex {
-                look_for: text,
-                case_sensitive,
-                anchor_start,
-                anchor_end,
-            }
-            .to_string_matcher(),
+            } => Self::from_text(text, case_sensitive, anchor_start, anchor_end),
             Matcher::Regex(re) => Self::regex(re.re),
             Matcher::Any { .. } => Self::any(),
         };
         result.replacement = value.replacement;
         result
-    }
-}
-
-struct SubstringToRegex {
-    look_for: String,
-    case_sensitive: bool,
-    anchor_start: bool,
-    anchor_end: bool,
-}
-
-impl SubstringToRegex {
-    fn to_string_matcher(&self) -> StringMatcher {
-        let mut pattern = String::with_capacity(self.look_for.len() + 10); // +10 for modifiers, escapes, etc
-        if !self.case_sensitive && !self.look_for.is_empty() {
-            // (is_empty isn't necessary, just makes for a cleaner regex)
-            pattern.push_str("(?i)");
-        }
-        if self.anchor_start {
-            pattern.push('^');
-        }
-        pattern.push_str(&fancy_regex::escape(&self.look_for));
-        if self.anchor_end {
-            pattern.push('$');
-        }
-
-        let re = Regex::new(&pattern).expect("internal error");
-        StringMatcher {
-            re,
-            replacement: None,
-        }
     }
 }
 
