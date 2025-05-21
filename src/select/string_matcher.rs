@@ -65,7 +65,7 @@ impl StringMatcher {
         }
     }
 
-    pub fn re_for_any() -> Regex {
+    fn re_for_any() -> Regex {
         Regex::new(".*").expect("internal error")
     }
 
