@@ -73,10 +73,7 @@ impl StringMatcher {
     }
 
     fn regex(re: Regex) -> Self {
-        Self {
-            re,
-            replacement: None,
-        }
+        Self { re, replacement: None }
     }
 
     fn from_text(text: String, case_sensitive: bool, anchor_start: bool, anchor_end: bool) -> Self {
@@ -94,10 +91,7 @@ impl StringMatcher {
         }
 
         let re = Regex::new(&pattern).expect("internal error");
-        Self {
-            re,
-            replacement: None,
-        }
+        Self { re, replacement: None }
     }
 }
 
