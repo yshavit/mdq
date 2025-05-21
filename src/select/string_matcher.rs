@@ -8,11 +8,12 @@ use std::borrow::Borrow;
 #[derive(Debug)]
 pub struct StringMatcher {
     re: Regex,
+    pub replacement: Option<String>,
 }
 
 impl PartialEq for StringMatcher {
     fn eq(&self, other: &Self) -> bool {
-        self.re.as_str() == other.re.as_str()
+        self.re.as_str() == other.re.as_str() && self.replacement == other.replacement
     }
 }
 
@@ -67,17 +68,21 @@ impl StringMatcher {
     pub fn any() -> Self {
         Self {
             re: Regex::new(".*").expect("internal error"),
+            replacement: None,
         }
     }
 
     fn regex(re: Regex) -> Self {
-        Self { re }
+        Self {
+            re,
+            replacement: None,
+        }
     }
 }
 
 impl From<MatchReplace> for StringMatcher {
     fn from(value: MatchReplace) -> Self {
-        match value.matcher {
+        let mut result = match value.matcher {
             Matcher::Text {
                 case_sensitive,
                 anchor_start,
@@ -92,7 +97,9 @@ impl From<MatchReplace> for StringMatcher {
             .to_string_matcher(),
             Matcher::Regex(re) => Self::regex(re.re),
             Matcher::Any { .. } => Self::any(),
-        }
+        };
+        result.replacement = value.replacement;
+        result
     }
 }
 
@@ -119,7 +126,10 @@ impl SubstringToRegex {
         }
 
         let re = Regex::new(&pattern).expect("internal error");
-        StringMatcher { re }
+        StringMatcher {
+            re,
+            replacement: None,
+        }
     }
 }
 
@@ -367,6 +377,7 @@ mod test {
     fn re(value: &str) -> StringMatcher {
         StringMatcher {
             re: Regex::new(value).expect("test error"),
+            replacement: None,
         }
     }
 
@@ -381,6 +392,7 @@ mod test {
         fn from(value: &str) -> Self {
             Self {
                 re: Regex::from_str(value).unwrap(),
+                replacement: None,
             }
         }
     }
