@@ -7,8 +7,8 @@ use crate::select::Selector;
 use crate::{md_elem, output, query};
 use pest::Span;
 use std::fmt::{Display, Formatter};
+use std::io;
 use std::io::Write;
-use std::{env, io};
 
 /// The run's overall possible error.
 #[derive(Debug)]
@@ -94,11 +94,16 @@ impl Display for Error {
                 writeln!(f, "{err}")
             }
             Error::FileReadError(file, err) => {
-                if env::var("MDQ_PORTABLE_ERRORS").unwrap_or_default().is_empty() {
-                    writeln!(f, "{err} while reading {file}")
-                } else {
-                    writeln!(f, "{} while reading {file}", err.kind())
+                #[cfg(test)]
+                {
+                    // For tests, use a simpler, more portable error string. Especially useful for integ tests.
+                    writeln!(f, "{err} while reading {file}")?
                 }
+                #[cfg(not(test))]
+                {
+                    writeln!(f, "{} while reading {file}", err.kind())?
+                }
+                Ok(())
             }
         }
     }

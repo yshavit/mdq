@@ -86,7 +86,7 @@ function run_test_spec() {
 
     local actual_success=true
     set -x
-    MDQ_PORTABLE_ERRORS=1 "$mdq" <<<"$stdin" "${cli_args[@]}" >actual_out.txt 2>actual_err.txt || actual_success=false
+    "$mdq" <<<"$stdin" "${cli_args[@]}" >actual_out.txt 2>actual_err.txt || actual_success=false
     set +x
 
     if [[ "$output_json" == true ]]; then
