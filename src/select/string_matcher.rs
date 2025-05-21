@@ -75,9 +75,9 @@ impl StringMatcher {
     }
 }
 
-impl From<Matcher> for StringMatcher {
-    fn from(value: Matcher) -> Self {
-        match value {
+impl From<MatchReplace> for StringMatcher {
+    fn from(value: MatchReplace) -> Self {
+        match value.matcher {
             Matcher::Text {
                 case_sensitive,
                 anchor_start,
@@ -93,12 +93,6 @@ impl From<Matcher> for StringMatcher {
             Matcher::Regex(re) => Self::regex(re.re),
             Matcher::Any { .. } => Self::any(),
         }
-    }
-}
-
-impl From<MatchReplace> for StringMatcher {
-    fn from(value: MatchReplace) -> Self {
-        Self::from(value.matcher)
     }
 }
 
