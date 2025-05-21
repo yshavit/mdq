@@ -8,7 +8,7 @@ use std::borrow::Borrow;
 #[derive(Debug)]
 pub struct StringMatcher {
     re: Regex,
-    pub replacement: Option<String>,
+    replacement: Option<String>,
 }
 
 impl PartialEq for StringMatcher {
