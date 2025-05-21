@@ -8,11 +8,12 @@ use std::borrow::Borrow;
 #[derive(Debug)]
 pub struct StringMatcher {
     re: Regex,
+    replacement: Option<String>,
 }
 
 impl PartialEq for StringMatcher {
     fn eq(&self, other: &Self) -> bool {
-        self.re.as_str() == other.re.as_str()
+        self.re.as_str() == other.re.as_str() && self.replacement == other.replacement
     }
 }
 
@@ -64,68 +65,46 @@ impl StringMatcher {
         }
     }
 
-    pub fn any() -> Self {
-        Self {
-            re: Regex::new(".*").expect("internal error"),
-        }
+    fn re_for_any() -> Regex {
+        Regex::new(".*").expect("internal error")
     }
 
-    fn regex(re: Regex) -> Self {
-        Self { re }
+    fn re_for_regex(re: Regex) -> Regex {
+        re
     }
-}
 
-impl From<Matcher> for StringMatcher {
-    fn from(value: Matcher) -> Self {
-        match value {
-            Matcher::Text {
-                case_sensitive,
-                anchor_start,
-                text,
-                anchor_end,
-            } => SubstringToRegex {
-                look_for: text,
-                case_sensitive,
-                anchor_start,
-                anchor_end,
-            }
-            .to_string_matcher(),
-            Matcher::Regex(re) => Self::regex(re.re),
-            Matcher::Any { .. } => Self::any(),
+    fn re_from_text(text: String, case_sensitive: bool, anchor_start: bool, anchor_end: bool) -> Regex {
+        let mut pattern = String::with_capacity(text.len() + 10); // +10 for modifiers, escapes, etc
+        if !case_sensitive && !text.is_empty() {
+            // (is_empty isn't necessary, just makes for a cleaner regex)
+            pattern.push_str("(?i)");
         }
+        if anchor_start {
+            pattern.push('^');
+        }
+        pattern.push_str(&fancy_regex::escape(&text));
+        if anchor_end {
+            pattern.push('$');
+        }
+
+        Regex::new(&pattern).expect("internal error")
     }
 }
 
 impl From<MatchReplace> for StringMatcher {
     fn from(value: MatchReplace) -> Self {
-        Self::from(value.matcher)
-    }
-}
-
-struct SubstringToRegex {
-    look_for: String,
-    case_sensitive: bool,
-    anchor_start: bool,
-    anchor_end: bool,
-}
-
-impl SubstringToRegex {
-    fn to_string_matcher(&self) -> StringMatcher {
-        let mut pattern = String::with_capacity(self.look_for.len() + 10); // +10 for modifiers, escapes, etc
-        if !self.case_sensitive && !self.look_for.is_empty() {
-            // (is_empty isn't necessary, just makes for a cleaner regex)
-            pattern.push_str("(?i)");
-        }
-        if self.anchor_start {
-            pattern.push('^');
-        }
-        pattern.push_str(&fancy_regex::escape(&self.look_for));
-        if self.anchor_end {
-            pattern.push('$');
-        }
-
-        let re = Regex::new(&pattern).expect("internal error");
-        StringMatcher { re }
+        let MatchReplace { matcher, replacement } = value;
+        let re = match matcher {
+            Matcher::Text {
+                case_sensitive,
+                anchor_start,
+                text,
+                anchor_end,
+            } => Self::re_from_text(text, case_sensitive, anchor_start, anchor_end),
+            Matcher::Regex(re) => Self::re_for_regex(re.re),
+            Matcher::Any { .. } => Self::re_for_any(),
+        };
+        Self { re, replacement }
     }
 }
 
@@ -168,14 +147,14 @@ mod test {
 
     #[test]
     fn only_starting_anchor() {
-        parse_and_check("^ |", StringMatcher::any(), "^ |");
-        parse_and_check("^", StringMatcher::any(), "^");
+        parse_and_check("^ |", StringMatcher::re_for_any(), "^ |");
+        parse_and_check("^", StringMatcher::re_for_any(), "^");
     }
 
     #[test]
     fn only_ending_anchor() {
-        parse_and_check("$ |", StringMatcher::any(), "$ |");
-        parse_and_check("$", StringMatcher::any(), "$");
+        parse_and_check("$ |", StringMatcher::re_for_any(), "$ |");
+        parse_and_check("$", StringMatcher::re_for_any(), "$");
     }
 
     #[test]
@@ -300,15 +279,27 @@ mod test {
     //noinspection RegExpSingleCharAlternation (for the "(a|b)" case)
     #[test]
     fn regex() {
-        parse_and_check(r#"/foo/"#, StringMatcher::regex(Regex::new("foo").unwrap()), "");
-        parse_and_check(r#"/foo /"#, StringMatcher::regex(Regex::new("foo ").unwrap()), "");
-        parse_and_check(r#"/foo/bar"#, StringMatcher::regex(Regex::new("foo").unwrap()), "bar");
-        parse_and_check(r#"//"#, StringMatcher::regex(Regex::new("").unwrap()), "");
-        parse_and_check(r#"/(a|b)/"#, StringMatcher::regex(Regex::new("(a|b)").unwrap()), "");
-        parse_and_check(r#"/\d/"#, StringMatcher::regex(Regex::new("\\d").unwrap()), "");
+        parse_and_check(r#"/foo/"#, StringMatcher::re_for_regex(Regex::new("foo").unwrap()), "");
+        parse_and_check(
+            r#"/foo /"#,
+            StringMatcher::re_for_regex(Regex::new("foo ").unwrap()),
+            "",
+        );
+        parse_and_check(
+            r#"/foo/bar"#,
+            StringMatcher::re_for_regex(Regex::new("foo").unwrap()),
+            "bar",
+        );
+        parse_and_check(r#"//"#, StringMatcher::re_for_regex(Regex::new("").unwrap()), "");
+        parse_and_check(
+            r#"/(a|b)/"#,
+            StringMatcher::re_for_regex(Regex::new("(a|b)").unwrap()),
+            "",
+        );
+        parse_and_check(r#"/\d/"#, StringMatcher::re_for_regex(Regex::new("\\d").unwrap()), "");
         parse_and_check(
             r#"/fizz\/buzz/"#,
-            StringMatcher::regex(Regex::new("fizz/buzz").unwrap()),
+            StringMatcher::re_for_regex(Regex::new("fizz/buzz").unwrap()),
             "",
         );
 
@@ -319,19 +310,28 @@ mod test {
 
     #[test]
     fn any() {
-        let empty_matcher = parse_and_check("| rest", StringMatcher::any(), "| rest");
+        let empty_matcher = parse_and_check("| rest", StringMatcher::re_for_any(), "| rest");
         assert!(empty_matcher.matches(""));
 
-        parse_and_check("| rest", StringMatcher::any(), "| rest");
-        parse_and_check("*| rest", StringMatcher::any(), "| rest");
-        parse_and_check("* | rest", StringMatcher::any(), "| rest");
-        parse_and_check_with(StringVariant::AngleBracket, "> rest", StringMatcher::any(), "> rest");
+        parse_and_check("| rest", StringMatcher::re_for_any(), "| rest");
+        parse_and_check("*| rest", StringMatcher::re_for_any(), "| rest");
+        parse_and_check("* | rest", StringMatcher::re_for_any(), "| rest");
+        parse_and_check_with(
+            StringVariant::AngleBracket,
+            "> rest",
+            StringMatcher::re_for_any(),
+            "> rest",
+        );
     }
 
     /// Test for fancy_regex specific feature (lookaround)
     #[test]
     fn fancy_regex_lookahead() {
-        let matcher = re(r#"foo(?=bar)"#); // Positive lookahead: matches "foo" only if followed by "bar"
+        let re_instance = re(r#"foo(?=bar)"#); // Positive lookahead: matches "foo" only if followed by "bar"
+        let matcher = StringMatcher {
+            re: re_instance,
+            replacement: None,
+        };
         assert!(matcher.matches("foobar"));
         assert!(!matcher.matches("foo"));
         assert!(!matcher.matches("foobaz"));
@@ -340,7 +340,7 @@ mod test {
     fn parse_and_check_with(
         string_variant: StringVariant,
         text: &str,
-        expect: StringMatcher,
+        expect_re: Regex,
         expect_remaining: &str,
     ) -> StringMatcher {
         let (actual_matcher, actual_remaining) = match Matcher::parse(string_variant, text) {
@@ -350,18 +350,22 @@ mod test {
                 panic!("{public_err:?}")
             }
         };
+        let expect = StringMatcher {
+            re: expect_re,
+            replacement: None,
+        };
         let actual_string_matcher: StringMatcher = actual_matcher.into();
         assert_eq!(actual_string_matcher, expect);
         assert_eq!(actual_remaining, expect_remaining);
         expect
     }
 
-    fn parse_and_check(text: &str, expect: StringMatcher, expect_remaining: &str) -> StringMatcher {
+    fn parse_and_check(text: &str, expect: Regex, expect_remaining: &str) -> StringMatcher {
         parse_and_check_with(StringVariant::Pipe, text, expect, expect_remaining)
     }
 
     fn expect_empty(text: &str) {
-        parse_and_check(text, StringMatcher::any(), text);
+        parse_and_check(text, StringMatcher::re_for_any(), text);
     }
 
     fn expect_err(text: &str) {
@@ -370,13 +374,11 @@ mod test {
         }
     }
 
-    fn re(value: &str) -> StringMatcher {
-        StringMatcher {
-            re: Regex::new(value).expect("test error"),
-        }
+    fn re(value: &str) -> Regex {
+        Regex::new(value).expect("test error")
     }
 
-    fn re_insensitive(value: &str) -> StringMatcher {
+    fn re_insensitive(value: &str) -> Regex {
         let mut s = String::with_capacity(value.len() + 3);
         s.push_str("(?i)");
         s.push_str(value);
@@ -387,6 +389,7 @@ mod test {
         fn from(value: &str) -> Self {
             Self {
                 re: Regex::from_str(value).unwrap(),
+                replacement: None,
             }
         }
     }
