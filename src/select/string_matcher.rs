@@ -143,6 +143,22 @@ mod test {
     use crate::query::{ParseError, StringVariant};
     use std::str::FromStr;
 
+    /// PartialEq implementation for StringMatchError. This is only available in tests, so that we don't expose the
+    /// brittle handling of our `RegexError` variant.
+    impl PartialEq for StringMatchError {
+        fn eq(&self, other: &Self) -> bool {
+            match (self, other) {
+                (StringMatchError::NotSupported, StringMatchError::NotSupported) => true,
+                (StringMatchError::RegexError(_), StringMatchError::RegexError(_)) => {
+                    // We can't compare fancy_regex::Error instances, so we'll consider them equal
+                    // if they're both RegexError variants. This is sufficient for our testing needs.
+                    true
+                }
+                _ => false,
+            }
+        }
+    }
+
     #[test]
     fn bareword() {
         parse_and_check("hello", re_insensitive("hello"), "");
@@ -364,6 +380,48 @@ mod test {
         assert!(matcher.matches("foobar").unwrap());
         assert!(!matcher.matches("foo").unwrap());
         assert!(!matcher.matches("foobaz").unwrap());
+    }
+
+    #[test]
+    fn matches_with_replacement_returns_not_supported_error() {
+        let matcher_with_replacement = StringMatcher::from(MatchReplace {
+            matcher: Matcher::Text {
+                case_sensitive: false,
+                anchor_start: false,
+                text: "hello".to_string(),
+                anchor_end: false,
+            },
+            replacement: Some("world".to_string()),
+        });
+
+        assert_eq!(
+            matcher_with_replacement.matches("hello"),
+            Err(StringMatchError::NotSupported)
+        );
+    }
+
+    #[test]
+    fn matches_inlines_with_replacement_returns_not_supported_error() {
+        let matcher_with_replacement = StringMatcher::from(MatchReplace {
+            matcher: Matcher::Any { explicit: false },
+            replacement: Some("replacement".to_string()),
+        });
+
+        let inlines: Vec<Inline> = vec![]; // empty inlines for simplicity
+        assert_eq!(
+            matcher_with_replacement.matches_inlines(&inlines),
+            Err(StringMatchError::NotSupported)
+        );
+    }
+
+    #[test]
+    fn string_match_error_to_select_error_formatting() {
+        let not_supported_error = StringMatchError::NotSupported;
+        let select_error = not_supported_error.to_select_error("section");
+        assert_eq!(
+            select_error.to_string(),
+            "section selector does not support string replace"
+        );
     }
 
     fn parse_and_check_with(

@@ -8,9 +8,7 @@ use crate::select::TrySelector;
 pub trait MatchSelector<I> {
     fn matches(&self, item: &I) -> std::result::Result<bool, StringMatchError>;
 
-    fn name() -> &'static str {
-        todo!() // will be something like "section" for SectionSelector, etc
-    }
+    fn name() -> &'static str;
 }
 
 impl<I, M> TrySelector<I> for M

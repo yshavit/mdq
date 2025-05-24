@@ -27,14 +27,16 @@ pub(crate) enum Select {
 }
 
 /// An error that occurred during selection processing.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SelectError {
     message: String,
 }
 
 impl SelectError {
-    pub(crate) fn new(message: String) -> Self {
-        Self { message }
+    pub(crate) fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
     }
 }
 
