@@ -28,22 +28,22 @@ pub(crate) enum Select {
 
 /// An error that occurred during selection processing.
 #[derive(Debug)]
-pub struct SelectionError {
+pub struct SelectError {
     message: String,
 }
 
-impl Display for SelectionError {
+impl Display for SelectError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.message)
     }
 }
 
-impl Error for SelectionError {
+impl Error for SelectError {
     // Default implementations are fine for now
 }
 
 /// A `Result` type alias for selection operations.
-pub type Result<T> = std::result::Result<T, SelectionError>;
+pub type Result<T> = std::result::Result<T, SelectError>;
 
 pub(crate) trait TrySelector<I: Into<MdElem>> {
     fn try_select(&self, ctx: &MdContext, item: I) -> Result<Select>;

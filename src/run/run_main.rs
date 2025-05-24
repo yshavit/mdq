@@ -3,7 +3,7 @@ use crate::output::{MdWriter, MdWriterOptions, SerializableMd};
 use crate::query::{InnerParseError, ParseError};
 use crate::run::cli::OutputFormat;
 use crate::run::RunOptions;
-use crate::select::{SelectionError, Selector};
+use crate::select::{SelectError, Selector};
 use crate::{md_elem, output, query};
 use pest::Span;
 use std::fmt::{Display, Formatter};
@@ -27,7 +27,7 @@ pub enum Error {
     FileReadError(Input, io::Error),
 
     /// An error occurred during selection processing.
-    SelectionError(SelectionError),
+    SelectionError(SelectError),
 }
 
 impl std::error::Error for Error {}
