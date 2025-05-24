@@ -121,12 +121,8 @@ impl Selector {
     /// The result also includes an [`MdContext`] that you can use with [`MdWriter`](crate::output::MdWriter).
     pub fn find_nodes(self, doc: MdDoc) -> Result<(Vec<MdElem>, MdContext)> {
         let MdDoc { ctx, roots } = doc;
-        let result_elems = self.find_nodes0(&ctx, vec![MdElem::Doc(roots)])?;
+        let result_elems = SelectorAdapter::from(self).find_nodes(&ctx, vec![MdElem::Doc(roots)])?;
         Ok((result_elems, ctx))
-    }
-
-    fn find_nodes0(self, ctx: &MdContext, nodes: Vec<MdElem>) -> Result<Vec<MdElem>> {
-        SelectorAdapter::from(self).find_nodes(ctx, nodes)
     }
 }
 
