@@ -99,7 +99,7 @@ mod test {
                 .try_select(&MdContext::default(), link)
                 .unwrap_err()
                 .to_string(),
-            "link selector does not support string replace"
+            "hyperlink selector does not support string replace"
         );
     }
 
