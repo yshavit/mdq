@@ -14,7 +14,7 @@ pub struct StringMatcher {
 #[derive(Clone, Debug)]
 pub(crate) enum StringMatchError {
     NotSupported,
-    RegexError(fancy_regex::Error),
+    RegexError(Box<fancy_regex::Error>),
 }
 
 impl StringMatchError {
@@ -40,7 +40,7 @@ impl StringMatcher {
         }
         match self.re.is_match(haystack) {
             Ok(m) => Ok(m),
-            Err(e) => Err(StringMatchError::RegexError(e)),
+            Err(e) => Err(StringMatchError::RegexError(Box::new(e))),
         }
     }
 
