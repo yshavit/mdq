@@ -19,6 +19,8 @@ impl From<CodeBlockMatcher> for CodeBlockSelector {
 }
 
 impl MatchSelector<CodeBlock> for CodeBlockSelector {
+    const NAME: &'static str = "code block";
+
     fn matches(&self, code_block: &CodeBlock) -> Result<bool, StringMatchError> {
         let lang_matches = match &code_block.variant {
             CodeVariant::Code(code_opts) => {
@@ -31,10 +33,6 @@ impl MatchSelector<CodeBlock> for CodeBlockSelector {
             CodeVariant::Math { .. } => false,
         };
         Ok(lang_matches && self.contents_matcher.matches(&code_block.value)?)
-    }
-
-    fn name() -> &'static str {
-        "code block"
     }
 }
 

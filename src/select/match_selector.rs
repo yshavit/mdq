@@ -6,9 +6,9 @@ use crate::select::TrySelector;
 /// MatchSelector is a helper trait for implementing [TrySelector]. Simply provide the boolean predicate for whether a
 /// given item matches, and MatchSelector will do the rest.
 pub trait MatchSelector<I> {
-    fn matches(&self, item: &I) -> std::result::Result<bool, StringMatchError>;
+    const NAME: &'static str;
 
-    fn name() -> &'static str;
+    fn matches(&self, item: &I) -> std::result::Result<bool, StringMatchError>;
 }
 
 impl<I, M> TrySelector<I> for M
@@ -17,7 +17,7 @@ where
     M: MatchSelector<I>,
 {
     fn try_select(&self, _: &MdContext, item: I) -> Result<Select> {
-        if self.matches(&item).map_err(|e| e.to_select_error(M::name()))? {
+        if self.matches(&item).map_err(|e| e.to_select_error(M::NAME))? {
             Ok(Select::Hit(vec![item.into()]))
         } else {
             Ok(Select::Miss(item.into()))

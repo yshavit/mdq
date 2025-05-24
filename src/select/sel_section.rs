@@ -17,12 +17,10 @@ impl From<SectionMatcher> for SectionSelector {
 }
 
 impl MatchSelector<Section> for SectionSelector {
+    const NAME: &'static str = "section";
+
     fn matches(&self, section: &Section) -> Result<bool, StringMatchError> {
         self.matcher.matches_inlines(&section.title)
-    }
-
-    fn name() -> &'static str {
-        "section"
     }
 }
 

@@ -15,13 +15,11 @@ impl From<LinklikeMatcher> for LinkSelector {
 }
 
 impl MatchSelector<Link> for LinkSelector {
+    const NAME: &'static str = "hyperlink";
+
     fn matches(&self, item: &Link) -> Result<bool, StringMatchError> {
         Ok(self.matchers.display_matcher.matches_inlines(&item.display)?
             && self.matchers.url_matcher.matches(&item.link.url)?)
-    }
-
-    fn name() -> &'static str {
-        "link"
     }
 }
 
@@ -37,12 +35,10 @@ impl From<LinklikeMatcher> for ImageSelector {
 }
 
 impl MatchSelector<Image> for ImageSelector {
+    const NAME: &'static str = "image";
+
     fn matches(&self, item: &Image) -> Result<bool, StringMatchError> {
         Ok(self.matchers.display_matcher.matches(&item.alt)? && self.matchers.url_matcher.matches(&item.link.url)?)
-    }
-
-    fn name() -> &'static str {
-        "image"
     }
 }
 

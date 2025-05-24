@@ -13,12 +13,10 @@ macro_rules! single_matcher_adapter {
             }
 
             impl MatchSelector<$name> for [<$name Selector>] {
+                const NAME: &'static str = $selector_name;
+
                 fn matches(&self, matcher: &$name) -> Result<bool, StringMatchError> {
                     self.matcher.$match_fn(&matcher.$tree_struct_field)
-                }
-
-                fn name() -> &'static str {
-                    $selector_name
                 }
             }
 
@@ -48,12 +46,10 @@ impl From<HtmlMatcher> for HtmlSelector {
 }
 
 impl MatchSelector<BlockHtml> for HtmlSelector {
+    const NAME: &'static str = "html";
+
     fn matches(&self, html: &BlockHtml) -> Result<bool, StringMatchError> {
         self.matcher.matches(&html.value)
-    }
-
-    fn name() -> &'static str {
-        "html"
     }
 }
 
@@ -73,16 +69,14 @@ impl From<FrontMatterMatcher> for FrontMatterSelector {
 }
 
 impl MatchSelector<FrontMatter> for FrontMatterSelector {
+    const NAME: &'static str = "front matter";
+
     fn matches(&self, front_matter: &FrontMatter) -> Result<bool, StringMatchError> {
         let variant_selected = self
             .variant
             .map(|selected| selected == front_matter.variant)
             .unwrap_or(true);
         Ok(variant_selected && self.text.matches(&front_matter.body)?)
-    }
-
-    fn name() -> &'static str {
-        "front matter"
     }
 }
 
