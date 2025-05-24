@@ -15,15 +15,20 @@ impl TrySelector<Table> for TableSelector {
 
         table.normalize();
 
-        table.retain_columns_by_header(|line| self.headers_matcher.matches_inlines(line));
+        table
+            .retain_columns_by_header(|line| self.headers_matcher.matches_inlines(line))
+            .map_err(|e| e.to_select_error("table"))?;
         if table.is_empty() {
             return Ok(Select::Miss(orig.into()));
         }
 
-        table.retain_rows(|line| self.rows_matcher.matches_inlines(line));
+        table
+            .retain_rows(|line| self.rows_matcher.matches_inlines(line))
+            .map_err(|e| e.to_select_error("table"))?;
         if table.is_empty() {
             return Ok(Select::Miss(orig.into()));
         }
+
         Ok(Select::Hit(vec![table.into()]))
     }
 }

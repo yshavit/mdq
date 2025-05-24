@@ -51,7 +51,10 @@ impl TrySelector<List> for ListItemSelector {
             [li] => {
                 let matched = self.li_type.matches(&starting_index)
                     && task_matches(self.checkbox, li.checked)
-                    && self.string_matcher.matches_any(&li.item);
+                    && self
+                        .string_matcher
+                        .matches_any(&li.item)
+                        .map_err(|e| e.to_select_error("list item"))?;
                 let list = MdElem::List(List { starting_index, items });
                 if matched {
                     Ok(Select::Hit(vec![list]))
