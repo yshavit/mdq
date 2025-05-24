@@ -1,7 +1,7 @@
 use crate::md_elem::elem::List;
 use crate::md_elem::{MdContext, MdElem};
 use crate::select::string_matcher::StringMatcher;
-use crate::select::{ListItemMatcher, ListItemTask, Result, Selection, TrySelector};
+use crate::select::{ListItemMatcher, ListItemTask, Result, Select, TrySelector};
 
 #[derive(Debug, PartialEq)]
 pub struct ListItemSelector {
@@ -40,7 +40,7 @@ fn task_matches(matcher: ListItemTask, md_is_checked: Option<bool>) -> bool {
 }
 
 impl TrySelector<List> for ListItemSelector {
-    fn try_select(&self, _: &MdContext, item: List) -> Result<Selection> {
+    fn try_select(&self, _: &MdContext, item: List) -> Result<Select> {
         // This one works a bit differently than most:
         // - If the item has a single list, check it; this is essentially a recursive base case.
         // - Otherwise, never match, but return an MdElem::Doc of the list items, each as its own list.
@@ -54,9 +54,9 @@ impl TrySelector<List> for ListItemSelector {
                     && self.string_matcher.matches_any(&li.item);
                 let list = MdElem::List(List { starting_index, items });
                 if matched {
-                    Ok(Selection::Selected(vec![list]))
+                    Ok(Select::Hit(vec![list]))
                 } else {
-                    Ok(Selection::NotSelected(list))
+                    Ok(Select::Miss(list))
                 }
             }
             _ => {
@@ -71,7 +71,7 @@ impl TrySelector<List> for ListItemSelector {
                         *idx += 1;
                     }
                 }
-                Ok(Selection::NotSelected(MdElem::Doc(items_doc)))
+                Ok(Select::Miss(MdElem::Doc(items_doc)))
             }
         }
     }

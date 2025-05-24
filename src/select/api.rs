@@ -19,11 +19,11 @@ use std::fmt::{Display, Formatter};
 
 /// Represents the result of a selection operation.
 #[derive(Debug, PartialEq)]
-pub(crate) enum Selection {
+pub(crate) enum Select {
     /// The element was successfully selected, containing the matched elements.
-    Selected(Vec<MdElem>),
+    Hit(Vec<MdElem>),
     /// The element was not selected, containing the original element.
-    NotSelected(MdElem),
+    Miss(MdElem),
 }
 
 /// An error that occurred during selection processing.
@@ -46,7 +46,7 @@ impl Error for SelectionError {
 pub type Result<T> = std::result::Result<T, SelectionError>;
 
 pub(crate) trait TrySelector<I: Into<MdElem>> {
-    fn try_select(&self, ctx: &MdContext, item: I) -> Result<Selection>;
+    fn try_select(&self, ctx: &MdContext, item: I) -> Result<Select>;
 }
 
 macro_rules! adapters {
@@ -76,7 +76,7 @@ macro_rules! adapters {
         }
 
         impl SelectorAdapter {
-            fn try_select_node(&self, ctx: &MdContext, node: MdElem) -> Result<Selection> {
+            fn try_select_node(&self, ctx: &MdContext, node: MdElem) -> Result<Select> {
                 match (&self, node) {
                     $(
                     (Self::$name(adapter), MdElem::$md_elem(elem)) => adapter.try_select(ctx, elem),
@@ -84,7 +84,7 @@ macro_rules! adapters {
                     $(
                     (Self::$inline(adapter), MdElem::Inline(Inline::$inline(elem))) => adapter.try_select(ctx, elem),
                     )+
-                    (_, unmatched) => Ok(Selection::NotSelected(unmatched)),
+                    (_, unmatched) => Ok(Select::Miss(unmatched)),
                 }
             }
         }
@@ -119,8 +119,8 @@ impl SelectorAdapter {
 
     fn build_output(&self, out: &mut Vec<MdElem>, ctx: &mut SearchContext, node: MdElem) -> Result<()> {
         match self.try_select_node(ctx.md_context, node)? {
-            Selection::Selected(mut found) => out.append(&mut found),
-            Selection::NotSelected(not_found) => {
+            Select::Hit(mut found) => out.append(&mut found),
+            Select::Miss(not_found) => {
                 for child in Self::find_children(ctx, not_found) {
                     self.build_output(out, ctx, child)?;
                 }

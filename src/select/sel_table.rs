@@ -1,7 +1,7 @@
 use crate::md_elem::elem::Table;
 use crate::md_elem::*;
 use crate::select::string_matcher::StringMatcher;
-use crate::select::{Result, Selection, TableMatcher, TrySelector};
+use crate::select::{Result, Select, TableMatcher, TrySelector};
 
 #[derive(Debug, PartialEq)]
 pub struct TableSelector {
@@ -10,21 +10,21 @@ pub struct TableSelector {
 }
 
 impl TrySelector<Table> for TableSelector {
-    fn try_select(&self, _: &MdContext, orig: Table) -> Result<Selection> {
+    fn try_select(&self, _: &MdContext, orig: Table) -> Result<Select> {
         let mut table = orig.clone();
 
         table.normalize();
 
         table.retain_columns_by_header(|line| self.headers_matcher.matches_inlines(line));
         if table.is_empty() {
-            return Ok(Selection::NotSelected(orig.into()));
+            return Ok(Select::Miss(orig.into()));
         }
 
         table.retain_rows(|line| self.rows_matcher.matches_inlines(line));
         if table.is_empty() {
-            return Ok(Selection::NotSelected(orig.into()));
+            return Ok(Select::Miss(orig.into()));
         }
-        Ok(Selection::Selected(vec![table.into()]))
+        Ok(Select::Hit(vec![table.into()]))
     }
 }
 
@@ -60,8 +60,8 @@ mod tests {
         }
         .try_select(&MdContext::empty(), table)
         .map(|selection| match selection {
-            Selection::Selected(elems) => get_only(elems),
-            Selection::NotSelected(_) => panic!("Expected selection to succeed"),
+            Select::Hit(elems) => get_only(elems),
+            Select::Miss(_) => panic!("Expected selection to succeed"),
         });
 
         unwrap!(maybe_selected, Ok(MdElem::Table(table)));
@@ -93,8 +93,8 @@ mod tests {
         }
         .try_select(&MdContext::empty(), table)
         .map(|selection| match selection {
-            Selection::Selected(elems) => get_only(elems),
-            Selection::NotSelected(_) => panic!("Expected selection to succeed"),
+            Select::Hit(elems) => get_only(elems),
+            Select::Miss(_) => panic!("Expected selection to succeed"),
         });
 
         unwrap!(maybe_selected, Ok(MdElem::Table(table)));
@@ -118,8 +118,8 @@ mod tests {
         }
         .try_select(&MdContext::empty(), table)
         .map(|selection| match selection {
-            Selection::Selected(elems) => get_only(elems),
-            Selection::NotSelected(_) => panic!("Expected selection to succeed"),
+            Select::Hit(elems) => get_only(elems),
+            Select::Miss(_) => panic!("Expected selection to succeed"),
         });
 
         unwrap!(maybe_selected, Ok(MdElem::Table(table)));
@@ -156,8 +156,8 @@ mod tests {
         }
         .try_select(&MdContext::empty(), table)
         .map(|selection| match selection {
-            Selection::Selected(elems) => get_only(elems),
-            Selection::NotSelected(_) => panic!("Expected selection to succeed"),
+            Select::Hit(elems) => get_only(elems),
+            Select::Miss(_) => panic!("Expected selection to succeed"),
         });
 
         unwrap!(maybe_selected, Ok(MdElem::Table(table)));
