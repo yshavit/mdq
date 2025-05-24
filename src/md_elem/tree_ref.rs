@@ -37,15 +37,15 @@ mod elem_ref {
             }
         }
 
-        pub fn retain_columns_by_header<F>(&mut self, mut f: F)
+        pub fn retain_columns_by_header<F, E>(&mut self, mut f: F) -> Result<(), E>
         where
-            F: FnMut(&TableCell) -> bool,
+            F: FnMut(&TableCell) -> Result<bool, E>,
         {
             let Some(first_row) = self.rows.first() else {
-                return;
+                return Ok(());
             };
             let mut keeper_indices = IndexKeeper::new();
-            keeper_indices.retain_when(first_row, |_, cell| f(cell));
+            keeper_indices.retain_when(first_row, |_, cell| f(cell))?;
 
             match keeper_indices.count_keeps() {
                 0 => {
@@ -58,24 +58,30 @@ mod elem_ref {
                 }
                 _ => {
                     // some columns match: retain those, and discard the rest
-                    self.alignments.retain_with_index(keeper_indices.retain_fn());
+                    self.alignments.retain_with_index(keeper_indices.retain_fn())?;
                     for row in self.rows.iter_mut() {
-                        row.retain_with_index(keeper_indices.retain_fn());
+                        row.retain_with_index(keeper_indices.retain_fn())?;
                     }
                 }
             }
+            Ok(())
         }
 
-        pub fn retain_rows<F>(&mut self, mut f: F)
+        pub fn retain_rows<F, E>(&mut self, mut f: F) -> Result<(), E>
         where
-            F: FnMut(&TableCell) -> bool,
+            F: FnMut(&TableCell) -> Result<bool, E>,
         {
             self.rows.retain_with_index(|idx, row| {
                 if idx == 0 {
-                    return true;
+                    return Ok(true);
                 }
-                row.iter().any(&mut f)
-            });
+                for cell in row {
+                    if f(cell)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            })
         }
 
         pub fn is_empty(&self) -> bool {
@@ -102,7 +108,7 @@ mod tests {
                 vec!["data 1 a", "data 1 b", "data 1 c"],
                 vec!["data 2 a", "data 2 b", "KEEPER c"],
             ]);
-            table.retain_columns_by_header(cell_matches("KEEPER"));
+            table.retain_columns_by_header(cell_matches("KEEPER")).unwrap();
 
             // note: "KEEPER" is in the last column, but not in the header; only the header gets
             // matched.
@@ -123,10 +129,12 @@ mod tests {
             table.normalize();
 
             let mut seen_lines = Vec::with_capacity(3);
-            table.retain_columns_by_header(|line| {
-                seen_lines.push(simple_to_string(line));
-                true
-            });
+            table
+                .retain_columns_by_header(|line| {
+                    seen_lines.push(simple_to_string(line));
+                    Ok::<_, ()>(true)
+                })
+                .unwrap();
 
             // normalization
             assert_eq!(
@@ -154,7 +162,7 @@ mod tests {
                 vec!["data 1 a", "data 1 b", "data 1 c"],
                 vec!["data 2 a", "KEEPER b", "data 2 c"],
             ]);
-            table.retain_rows(cell_matches("KEEPER"));
+            table.retain_rows(cell_matches("KEEPER")).unwrap();
 
             assert_eq!(
                 table.alignments,
@@ -187,10 +195,12 @@ mod tests {
             // retain only the rows with empty cells. This lets us get around the short-circuiting
             // of retain_rows (it short-circuits within each row as soon as it finds a matching
             // cell), to validate that the normalization works as expected.
-            table.retain_rows(|line| {
-                seen_lines.push(simple_to_string(line));
-                line.is_empty()
-            });
+            table
+                .retain_rows(|line| {
+                    seen_lines.push(simple_to_string(line));
+                    Ok::<_, ()>(line.is_empty())
+                })
+                .unwrap();
 
             // normalization
             assert_eq!(
@@ -219,10 +229,10 @@ mod tests {
             );
         }
 
-        fn cell_matches(substring: &str) -> impl Fn(&TableCell) -> bool + '_ {
+        fn cell_matches(substring: &str) -> impl Fn(&TableCell) -> Result<bool, ()> + '_ {
             move |line| {
                 let line_str = format!("{:?}", line);
-                line_str.contains(substring)
+                Ok(line_str.contains(substring))
             }
         }
 

@@ -1,0 +1,100 @@
+[given]
+md = '''
+# Section Title
+
+This is a paragraph with text.
+
+```language
+code content here
+```
+
+Here are some list items:
+
+- Item with **bold text** formatting
+- Item with *emphasis and **nested bold*** formatting
+- ![image alt](https://example.com/image.png) description
+- [link text](https://example.com/url) description
+'''
+
+[chained]
+needed = false
+
+[expect."search-replace section title"]
+cli_args = ['# !s/Title/Header/']
+expect_success = false
+output = ''
+output_err = '''Selection error:
+section selector does not support string replace
+'''
+
+[expect."search-replace code block language"]
+cli_args = ['``` !s/language/python/']
+expect_success = false
+output = ''
+output_err = '''Selection error:
+code block selector does not support string replace
+'''
+
+[expect."search-replace code block contents"]
+cli_args = ['``` !s/content/text/']
+expect_success = false
+output = ''
+output_err = '''Selection error:
+code block selector does not support string replace
+'''
+
+[expect."search-replace image alt text"]
+cli_args = ['![](!s/alt/description/)']
+expect_success = false
+output = ''
+output_err = '''Selection error:
+image selector does not support string replace
+'''
+
+[expect."search-replace image url"]
+cli_args = ['![](!s/image/photo/)']
+expect_success = false
+output = ''
+output_err = '''Selection error:
+image selector does not support string replace
+'''
+
+[expect."search-replace link text"]
+cli_args = ['[](!s/text/label/)']
+expect_success = false
+output = ''
+output_err = '''Selection error:
+hyperlink selector does not support string replace
+'''
+
+[expect."search-replace link url"]
+cli_args = ['[](!s/url/link/)']
+expect_success = false
+output = ''
+output_err = '''Selection error:
+hyperlink selector does not support string replace
+'''
+
+[expect."search-replace straightforward formatting"]
+cli_args = ['- !s/bold/strong/']
+expect_success = false
+output = ''
+output_err = '''Selection error:
+list item selector does not support string replace
+'''
+
+[expect."search-replace nested formatting"]
+cli_args = ['- !s/and nested/and formerly/']
+expect_success = false
+output = ''
+output_err = '''Selection error:
+list item selector does not support string replace
+'''
+
+[expect."search-replace paragraph text"]
+cli_args = ['P: !s/paragraph/text/']
+expect_success = false
+output = ''
+output_err = '''Selection error:
+paragraph selector does not support string replace
+'''
