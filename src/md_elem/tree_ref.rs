@@ -37,9 +37,9 @@ mod elem_ref {
             }
         }
 
-        pub fn retain_columns_by_header<F, X>(&mut self, mut f: F) -> Result<(), X>
+        pub fn retain_columns_by_header<F, E>(&mut self, mut f: F) -> Result<(), E>
         where
-            F: FnMut(&TableCell) -> Result<bool, X>,
+            F: FnMut(&TableCell) -> Result<bool, E>,
         {
             let Some(first_row) = self.rows.first() else {
                 return Ok(());
@@ -67,9 +67,9 @@ mod elem_ref {
             Ok(())
         }
 
-        pub fn retain_rows<F, X>(&mut self, mut f: F) -> Result<(), X>
+        pub fn retain_rows<F, E>(&mut self, mut f: F) -> Result<(), E>
         where
-            F: FnMut(&TableCell) -> Result<bool, X>,
+            F: FnMut(&TableCell) -> Result<bool, E>,
         {
             self.rows.retain_with_index(|idx, row| {
                 if idx == 0 {

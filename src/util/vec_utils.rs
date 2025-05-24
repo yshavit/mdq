@@ -11,9 +11,9 @@ impl IndexKeeper {
         }
     }
 
-    pub fn retain_when<I, F, X>(&mut self, items: &[I], mut allow_filter: F) -> Result<(), X>
+    pub fn retain_when<I, F, E>(&mut self, items: &[I], mut allow_filter: F) -> Result<(), E>
     where
-        F: FnMut(usize, &I) -> Result<bool, X>,
+        F: FnMut(usize, &I) -> Result<bool, E>,
     {
         for (idx, item) in items.iter().enumerate() {
             if allow_filter(idx, item)? {
@@ -24,7 +24,7 @@ impl IndexKeeper {
     }
 
     /// Returns an `FnMut` suitable for use in [ItemRetainer::retain_with_index].
-    pub fn retain_fn<I, X>(&self) -> impl FnMut(usize, &I) -> Result<bool, X> + '_ {
+    pub fn retain_fn<I, E>(&self) -> impl FnMut(usize, &I) -> Result<bool, E> + '_ {
         let mut next_to_keep = self.indices_to_keep.iter().peekable();
         move |target, _| {
             while let Some(&&value) = next_to_keep.peek() {
@@ -50,15 +50,15 @@ pub trait ItemRetainer<I> {
     /// `true`.
     ///
     /// This is guaranteed to iterate over items sequentially, and filters can take advantage of that fact.
-    fn retain_with_index<F, X>(&mut self, f: F) -> Result<(), X>
+    fn retain_with_index<F, E>(&mut self, f: F) -> Result<(), E>
     where
-        F: FnMut(usize, &I) -> Result<bool, X>;
+        F: FnMut(usize, &I) -> Result<bool, E>;
 }
 
 impl<I> ItemRetainer<I> for Vec<I> {
-    fn retain_with_index<F, X>(&mut self, mut f: F) -> Result<(), X>
+    fn retain_with_index<F, E>(&mut self, mut f: F) -> Result<(), E>
     where
-        F: FnMut(usize, &I) -> Result<bool, X>,
+        F: FnMut(usize, &I) -> Result<bool, E>,
     {
         // A simple algorithm, which is O(n) in both space and time.
         // I feel like there's an algorithm out there that's O(n) in time and O(1) in space, but this is good enough,
