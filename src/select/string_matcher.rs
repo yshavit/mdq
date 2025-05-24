@@ -21,7 +21,7 @@ impl StringMatchError {
     pub fn to_select_error(&self, selector_name: &str) -> SelectError {
         let message = match self {
             StringMatchError::NotSupported => format!("{selector_name} selector does not support string replace"),
-            StringMatchError::RegexError(err) => format!("regex evaluation error in {err} selector"),
+            StringMatchError::RegexError(err) => format!("regex evaluation error in {selector_name} selector: {err}"),
         };
         SelectError::new(message)
     }
