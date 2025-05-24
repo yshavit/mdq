@@ -14,9 +14,39 @@ use crate::select::sel_table::TableSelector;
 use crate::select::Selector;
 use paste::paste;
 use std::collections::HashSet;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
+
+/// Represents the result of a selection operation.
+#[derive(Debug, PartialEq)]
+pub(crate) enum Selection {
+    /// The element was successfully selected, containing the matched elements.
+    Selected(Vec<MdElem>),
+    /// The element was not selected, containing the original element.
+    NotSelected(MdElem),
+}
+
+/// An error that occurred during selection processing.
+#[derive(Debug)]
+pub struct SelectionError {
+    message: String,
+}
+
+impl Display for SelectionError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl Error for SelectionError {
+    // Default implementations are fine for now
+}
+
+/// A `Result` type alias for selection operations.
+pub type Result<T> = std::result::Result<T, SelectionError>;
 
 pub(crate) trait TrySelector<I: Into<MdElem>> {
-    fn try_select(&self, ctx: &MdContext, item: I) -> Result<Vec<MdElem>, MdElem>;
+    fn try_select(&self, ctx: &MdContext, item: I) -> Result<Selection>;
 }
 
 macro_rules! adapters {
@@ -46,7 +76,7 @@ macro_rules! adapters {
         }
 
         impl SelectorAdapter {
-            fn try_select_node(&self, ctx: &MdContext, node: MdElem) -> Result<Vec<MdElem>, MdElem> {
+            fn try_select_node(&self, ctx: &MdContext, node: MdElem) -> Result<Selection> {
                 match (&self, node) {
                     $(
                     (Self::$name(adapter), MdElem::$md_elem(elem)) => adapter.try_select(ctx, elem),
@@ -54,7 +84,7 @@ macro_rules! adapters {
                     $(
                     (Self::$inline(adapter), MdElem::Inline(Inline::$inline(elem))) => adapter.try_select(ctx, elem),
                     )+
-                    (_, unmatched) => Err(unmatched),
+                    (_, unmatched) => Ok(Selection::NotSelected(unmatched)),
                 }
             }
         }
@@ -78,24 +108,25 @@ adapters! {
 }
 
 impl SelectorAdapter {
-    pub(crate) fn find_nodes(&self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
+    pub(crate) fn find_nodes(&self, ctx: &MdContext, nodes: Vec<MdElem>) -> Result<Vec<MdElem>> {
         let mut result = Vec::with_capacity(8); // arbitrary guess
         let mut search_context = SearchContext::new(ctx);
         for node in nodes {
-            self.build_output(&mut result, &mut search_context, node);
+            self.build_output(&mut result, &mut search_context, node)?;
         }
-        result
+        Ok(result)
     }
 
-    fn build_output(&self, out: &mut Vec<MdElem>, ctx: &mut SearchContext, node: MdElem) {
-        match self.try_select_node(ctx.md_context, node) {
-            Ok(mut found) => out.append(&mut found),
-            Err(not_found) => {
+    fn build_output(&self, out: &mut Vec<MdElem>, ctx: &mut SearchContext, node: MdElem) -> Result<()> {
+        match self.try_select_node(ctx.md_context, node)? {
+            Selection::Selected(mut found) => out.append(&mut found),
+            Selection::NotSelected(not_found) => {
                 for child in Self::find_children(ctx, not_found) {
-                    self.build_output(out, ctx, child);
+                    self.build_output(out, ctx, child)?;
                 }
             }
         }
+        Ok(())
     }
 
     /// Recurse from this node to its children.

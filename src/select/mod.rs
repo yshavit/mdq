@@ -20,6 +20,7 @@ mod string_matcher;
 
 pub(crate) use api::*;
 
+pub use api::{Result, SelectionError};
 pub use crate::query::ParseError;
 pub use match_replace::*;
 pub use matcher::*;
