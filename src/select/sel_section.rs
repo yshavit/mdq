@@ -1,6 +1,6 @@
 use crate::md_elem::elem::*;
 use crate::select::match_selector::MatchSelector;
-use crate::select::string_matcher::StringMatcher;
+use crate::select::string_matcher::{StringMatcher, StringMatchError};
 use crate::select::SectionMatcher;
 
 #[derive(Debug, PartialEq)]
@@ -17,7 +17,7 @@ impl From<SectionMatcher> for SectionSelector {
 }
 
 impl MatchSelector<Section> for SectionSelector {
-    fn matches(&self, section: &Section) -> bool {
+    fn matches(&self, section: &Section) -> Result<bool, StringMatchError> {
         self.matcher.matches_inlines(&section.title)
     }
 }

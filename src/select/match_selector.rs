@@ -1,11 +1,16 @@
 use crate::md_elem::*;
 use crate::select::api::{Result, Select};
+use crate::select::string_matcher::StringMatchError;
 use crate::select::TrySelector;
 
 /// MatchSelector is a helper trait for implementing [TrySelector]. Simply provide the boolean predicate for whether a
 /// given item matches, and MatchSelector will do the rest.
 pub trait MatchSelector<I> {
-    fn matches(&self, item: &I) -> bool;
+    fn matches(&self, item: &I) -> std::result::Result<bool, StringMatchError>;
+
+    fn name() -> &'static str {
+        todo!() // will be something like "section" for SectionSelector, etc
+    }
 }
 
 impl<I, M> TrySelector<I> for M
@@ -14,7 +19,7 @@ where
     M: MatchSelector<I>,
 {
     fn try_select(&self, _: &MdContext, item: I) -> Result<Select> {
-        if self.matches(&item) {
+        if self.matches(&item).map_err(|e| e.to_select_error(M::name()))? {
             Ok(Select::Hit(vec![item.into()]))
         } else {
             Ok(Select::Miss(item.into()))

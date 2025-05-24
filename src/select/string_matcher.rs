@@ -1,7 +1,7 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
 use crate::output::inlines_to_plain_string;
-use crate::select::{MatchReplace, Matcher};
+use crate::select::{MatchReplace, Matcher, SelectError};
 use fancy_regex::Regex;
 use std::borrow::Borrow;
 
@@ -11,6 +11,22 @@ pub struct StringMatcher {
     replacement: Option<String>,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) enum StringMatchError {
+    NotSupported,
+    RegexError(fancy_regex::Error),
+}
+
+impl StringMatchError {
+    pub fn to_select_error(&self, selector_name: &str) -> SelectError {
+        let message = match self {
+            StringMatchError::NotSupported => format!("{selector_name} selector does not support string replace"),
+            StringMatchError::RegexError(err) => format!("regex evaluation error in {err} selector"),
+        };
+        SelectError::new(message)
+    }
+}
+
 impl PartialEq for StringMatcher {
     fn eq(&self, other: &Self) -> bool {
         self.re.as_str() == other.re.as_str() && self.replacement == other.replacement
@@ -18,42 +34,55 @@ impl PartialEq for StringMatcher {
 }
 
 impl StringMatcher {
-    pub fn matches(&self, haystack: &str) -> bool {
+    pub fn matches(&self, haystack: &str) -> Result<bool, StringMatchError> {
+        if self.replacement.is_some() {
+            return Err(StringMatchError::NotSupported);
+        }
         match self.re.is_match(haystack) {
-            Ok(m) => m,
-            Err(e) => {
-                panic!("failed to evaluate regular expression: {e}");
-            }
+            Ok(m) => Ok(m),
+            Err(e) => Err(StringMatchError::RegexError(e)),
         }
     }
 
-    pub fn matches_inlines<I: Borrow<Inline>>(&self, haystack: &[I]) -> bool {
+    pub fn matches_inlines<I: Borrow<Inline>>(&self, haystack: &[I]) -> Result<bool, StringMatchError> {
         self.matches(&inlines_to_plain_string(haystack))
     }
 
-    pub fn matches_any<N: Borrow<MdElem>>(&self, haystacks: &[N]) -> bool {
-        haystacks.iter().any(|node| self.matches_node(node.borrow()))
+    pub fn matches_any<N: Borrow<MdElem>>(&self, haystacks: &[N]) -> Result<bool, StringMatchError> {
+        for node in haystacks {
+            if self.matches_node(node.borrow())? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
-    fn matches_node(&self, node: &MdElem) -> bool {
+    fn matches_node(&self, node: &MdElem) -> Result<bool, StringMatchError> {
         match node {
             MdElem::Doc(elems) => self.matches_any(elems),
             MdElem::Paragraph(p) => self.matches_inlines(&p.body),
             MdElem::Table(table) => {
                 for row in &table.rows {
                     for cell in row {
-                        if self.matches_inlines(cell) {
-                            return true;
+                        if self.matches_inlines(cell)? {
+                            return Ok(true);
                         }
                     }
                 }
-                false
+                Ok(false)
             }
-            MdElem::List(list) => list.items.iter().any(|li| self.matches_any(&li.item)),
+            MdElem::List(list) => {
+                for item in &list.items {
+                    if self.matches_any(&item.item)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
             MdElem::BlockQuote(block) => self.matches_any(&block.body),
             MdElem::Section(section) => {
-                if self.matches_inlines(&section.title) {
-                    return true;
+                if self.matches_inlines(&section.title)? {
+                    return Ok(true);
                 }
                 self.matches_any(&section.body)
             }
@@ -61,7 +90,7 @@ impl StringMatcher {
             MdElem::Inline(inline) => self.matches_inlines(&[inline]),
             // Base cases: these don't recurse, so we say the StringMatcher doesn't match them. A Selector still may,
             // but that's Selector-specific logic, not StringMatcher logic.
-            MdElem::ThematicBreak | MdElem::CodeBlock(_) | MdElem::FrontMatter(_) => false,
+            MdElem::ThematicBreak | MdElem::CodeBlock(_) | MdElem::FrontMatter(_) => Ok(false),
         }
     }
 
@@ -132,17 +161,17 @@ mod test {
     #[test]
     fn bareword_anchor_start() {
         let m = parse_and_check("^ hello |after", re_insensitive("^hello"), "|after");
-        assert!(!m.matches("pre hello"));
-        assert!(m.matches("hello"));
-        assert!(m.matches("hello post"));
+        assert!(!m.matches("pre hello").unwrap());
+        assert!(m.matches("hello").unwrap());
+        assert!(m.matches("hello post").unwrap());
     }
 
     #[test]
     fn bareword_anchor_end() {
         let m = parse_and_check(" hello $ |after", re_insensitive("hello$"), "|after");
-        assert!(m.matches("pre hello"));
-        assert!(m.matches("hello"));
-        assert!(!m.matches("hello post"));
+        assert!(m.matches("pre hello").unwrap());
+        assert!(m.matches("hello").unwrap());
+        assert!(!m.matches("hello post").unwrap());
     }
 
     #[test]
@@ -160,9 +189,9 @@ mod test {
     #[test]
     fn only_both_anchors() {
         let matcher = parse_and_check("^$ |after", re("^$"), "|after");
-        assert!(matcher.matches(""));
-        assert!(!matcher.matches("x"));
-        assert!(!matcher.matches("\n"));
+        assert!(matcher.matches("").unwrap());
+        assert!(!matcher.matches("x").unwrap());
+        assert!(!matcher.matches("\n").unwrap());
 
         parse_and_check("^  $ |after", re("^$"), "|after");
     }
@@ -170,31 +199,31 @@ mod test {
     #[test]
     fn bareword_case_sensitivity() {
         let m = parse_and_check("hello", re_insensitive("hello"), "");
-        assert!(m.matches("hello"));
-        assert!(m.matches("HELLO"));
+        assert!(m.matches("hello").unwrap());
+        assert!(m.matches("HELLO").unwrap());
     }
 
     #[test]
     fn quoted_case_sensitivity() {
         let m = parse_and_check("'hello'", re("hello"), "");
-        assert!(m.matches("hello"));
-        assert!(!m.matches("HELLO"));
+        assert!(m.matches("hello").unwrap());
+        assert!(!m.matches("HELLO").unwrap());
     }
 
     #[test]
     fn quoted_anchor_start() {
         let m = parse_and_check("^'hello'", re("^hello"), "");
-        assert!(!m.matches("pre hello"));
-        assert!(m.matches("hello"));
-        assert!(m.matches("hello post"));
+        assert!(!m.matches("pre hello").unwrap());
+        assert!(m.matches("hello").unwrap());
+        assert!(m.matches("hello post").unwrap());
     }
 
     #[test]
     fn quoted_anchor_end() {
         let m = parse_and_check("'hello'$", re("hello$"), "");
-        assert!(m.matches("pre hello"));
-        assert!(m.matches("hello"));
-        assert!(!m.matches("hello post"));
+        assert!(m.matches("pre hello").unwrap());
+        assert!(m.matches("hello").unwrap());
+        assert!(!m.matches("hello post").unwrap());
     }
 
     #[test]
@@ -213,8 +242,8 @@ mod test {
     #[test]
     fn bareword_regex_char() {
         let m = parse_and_check("hello.world", re_insensitive("hello\\.world"), "");
-        assert!(m.matches("hello.world"));
-        assert!(!m.matches("hello world")); // the period is _not_ a regex any
+        assert!(m.matches("hello.world").unwrap());
+        assert!(!m.matches("hello world").unwrap()); // the period is _not_ a regex any
     }
 
     #[test]
@@ -311,7 +340,7 @@ mod test {
     #[test]
     fn any() {
         let empty_matcher = parse_and_check("| rest", StringMatcher::re_for_any(), "| rest");
-        assert!(empty_matcher.matches(""));
+        assert!(empty_matcher.matches("").unwrap());
 
         parse_and_check("| rest", StringMatcher::re_for_any(), "| rest");
         parse_and_check("*| rest", StringMatcher::re_for_any(), "| rest");
@@ -332,9 +361,9 @@ mod test {
             re: re_instance,
             replacement: None,
         };
-        assert!(matcher.matches("foobar"));
-        assert!(!matcher.matches("foo"));
-        assert!(!matcher.matches("foobaz"));
+        assert!(matcher.matches("foobar").unwrap());
+        assert!(!matcher.matches("foo").unwrap());
+        assert!(!matcher.matches("foobaz").unwrap());
     }
 
     fn parse_and_check_with(

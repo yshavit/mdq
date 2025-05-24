@@ -32,6 +32,12 @@ pub struct SelectError {
     message: String,
 }
 
+impl SelectError {
+    pub(crate) fn new(message: String) -> Self {
+        Self { message }
+    }
+}
+
 impl Display for SelectError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.message)

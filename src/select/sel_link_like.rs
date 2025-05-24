@@ -1,6 +1,6 @@
 use crate::md_elem::elem::*;
 use crate::select::match_selector::MatchSelector;
-use crate::select::string_matcher::StringMatcher;
+use crate::select::string_matcher::{StringMatcher, StringMatchError};
 use crate::select::LinklikeMatcher;
 
 #[derive(Debug, PartialEq)]
@@ -15,9 +15,9 @@ impl From<LinklikeMatcher> for LinkSelector {
 }
 
 impl MatchSelector<Link> for LinkSelector {
-    fn matches(&self, item: &Link) -> bool {
-        self.matchers.display_matcher.matches_inlines(&item.display)
-            && self.matchers.url_matcher.matches(&item.link.url)
+    fn matches(&self, item: &Link) -> Result<bool, StringMatchError> {
+        Ok(self.matchers.display_matcher.matches_inlines(&item.display)?
+            && self.matchers.url_matcher.matches(&item.link.url)?)
     }
 }
 
@@ -33,8 +33,8 @@ impl From<LinklikeMatcher> for ImageSelector {
 }
 
 impl MatchSelector<Image> for ImageSelector {
-    fn matches(&self, item: &Image) -> bool {
-        self.matchers.display_matcher.matches(&item.alt) && self.matchers.url_matcher.matches(&item.link.url)
+    fn matches(&self, item: &Image) -> Result<bool, StringMatchError> {
+        Ok(self.matchers.display_matcher.matches(&item.alt)? && self.matchers.url_matcher.matches(&item.link.url)?)
     }
 }
 

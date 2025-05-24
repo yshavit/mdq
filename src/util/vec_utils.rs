@@ -11,31 +11,32 @@ impl IndexKeeper {
         }
     }
 
-    pub fn retain_when<I, F>(&mut self, items: &[I], mut allow_filter: F)
+    pub fn retain_when<I, F, X>(&mut self, items: &[I], mut allow_filter: F) -> Result<(), X>
     where
-        F: FnMut(usize, &I) -> bool,
+        F: FnMut(usize, &I) -> Result<bool, X>,
     {
         for (idx, item) in items.iter().enumerate() {
-            if allow_filter(idx, item) {
+            if allow_filter(idx, item)? {
                 self.indices_to_keep.insert(idx);
             }
         }
+        Ok(())
     }
 
     /// Returns an `FnMut` suitable for use in [ItemRetainer::retain_with_index].
-    pub fn retain_fn<I>(&self) -> impl FnMut(usize, &I) -> bool + '_ {
+    pub fn retain_fn<I, X>(&self) -> impl FnMut(usize, &I) -> Result<bool, X> + '_ {
         let mut next_to_keep = self.indices_to_keep.iter().peekable();
         move |target, _| {
             while let Some(&&value) = next_to_keep.peek() {
                 if value == target {
                     let _ = next_to_keep.next();
-                    return true;
+                    return Ok(true);
                 }
                 if value > target {
-                    return false;
+                    return Ok(false);
                 }
             }
-            false
+            Ok(false)
         }
     }
 
@@ -49,26 +50,27 @@ pub trait ItemRetainer<I> {
     /// `true`.
     ///
     /// This is guaranteed to iterate over items sequentially, and filters can take advantage of that fact.
-    fn retain_with_index<F>(&mut self, f: F)
+    fn retain_with_index<F, X>(&mut self, f: F) -> Result<(), X>
     where
-        F: FnMut(usize, &I) -> bool;
+        F: FnMut(usize, &I) -> Result<bool, X>;
 }
 
 impl<I> ItemRetainer<I> for Vec<I> {
-    fn retain_with_index<F>(&mut self, mut f: F)
+    fn retain_with_index<F, X>(&mut self, mut f: F) -> Result<(), X>
     where
-        F: FnMut(usize, &I) -> bool,
+        F: FnMut(usize, &I) -> Result<bool, X>,
     {
         // A simple algorithm, which is O(n) in both space and time.
         // I feel like there's an algorithm out there that's O(n) in time and O(1) in space, but this is good enough,
         // and it's nice and simple.
         let mut scratch = Vec::with_capacity(self.len());
         for (idx, item) in self.drain(..).enumerate() {
-            if f(idx, &item) {
+            if f(idx, &item)? {
                 scratch.push(item);
             }
         }
         self.append(&mut scratch);
+        Ok(())
     }
 }
 
@@ -80,7 +82,7 @@ mod tests {
     fn empty_remover() {
         let mut items = vec!['a', 'b', 'c', 'd'];
         let remover: IndexKeeper = [].into();
-        items.retain_with_index(remover.retain_fn());
+        items.retain_with_index(remover.retain_fn::<_, ()>()).unwrap();
         assert_eq!(items, vec![]);
     }
 
@@ -88,7 +90,7 @@ mod tests {
     fn remover_has_bigger_indexes_than_items() {
         let mut items = vec!['a', 'b', 'c', 'd'];
         let remover: IndexKeeper = [0, 1, 2, 3, 4, 5, 6].into();
-        items.retain_with_index(remover.retain_fn());
+        items.retain_with_index(remover.retain_fn::<_, ()>()).unwrap();
         assert_eq!(items, vec!['a', 'b', 'c', 'd']);
     }
 
@@ -96,7 +98,7 @@ mod tests {
     fn keep_head() {
         let mut items = vec!['a', 'b', 'c', 'd'];
         let remover: IndexKeeper = [0].into();
-        items.retain_with_index(remover.retain_fn());
+        items.retain_with_index(remover.retain_fn::<_, ()>()).unwrap();
         assert_eq!(items, vec!['a']);
     }
 
@@ -104,7 +106,7 @@ mod tests {
     fn keep_middle() {
         let mut items = vec!['a', 'b', 'c', 'd'];
         let remover: IndexKeeper = [2].into();
-        items.retain_with_index(remover.retain_fn());
+        items.retain_with_index(remover.retain_fn::<_, ()>()).unwrap();
         assert_eq!(items, vec!['c']);
     }
 
@@ -112,7 +114,7 @@ mod tests {
     fn keep_tail() {
         let mut items = vec!['a', 'b', 'c', 'd'];
         let remover: IndexKeeper = [items.len() - 1].into();
-        items.retain_with_index(remover.retain_fn());
+        items.retain_with_index(remover.retain_fn::<_, ()>()).unwrap();
         assert_eq!(items, vec!['d']);
     }
 
