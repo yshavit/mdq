@@ -3,7 +3,7 @@ use crate::output::{MdWriter, MdWriterOptions, SerializableMd};
 use crate::query::{InnerParseError, ParseError};
 use crate::run::cli::OutputFormat;
 use crate::run::RunOptions;
-use crate::select::Selector;
+use crate::select::{SelectError, Selector};
 use crate::{md_elem, output, query};
 use pest::Span;
 use std::fmt::{Display, Formatter};
@@ -25,6 +25,9 @@ pub enum Error {
 
     /// Couldn't read an input file.
     FileReadError(Input, io::Error),
+
+    /// An error occurred during selection processing.
+    SelectionError(SelectError),
 }
 
 impl std::error::Error for Error {}
@@ -99,6 +102,10 @@ impl Display for Error {
                 } else {
                     writeln!(f, "{} while reading {file}", err.kind())
                 }
+            }
+            Error::SelectionError(err) => {
+                writeln!(f, "Selection error:")?;
+                writeln!(f, "{err}")
             }
         }
     }
@@ -187,7 +194,7 @@ fn run_or_error(cli: &RunOptions, os: &mut impl OsFacade) -> Result<bool, Error>
         }
     };
 
-    let (pipeline_nodes, ctx) = selectors.find_nodes(md_doc);
+    let (pipeline_nodes, ctx) = selectors.find_nodes(md_doc).map_err(Error::SelectionError)?;
 
     let md_options: MdWriterOptions = cli.into();
 

@@ -1,7 +1,7 @@
 use crate::md_elem::elem::FrontMatterVariant;
 use crate::md_elem::{MdContext, MdDoc, MdElem};
 use crate::query::ParseError;
-use crate::select::{MatchReplace, SelectorAdapter};
+use crate::select::{MatchReplace, Result, SelectorAdapter};
 
 /// The completion state that a [`ListItemMatcher`] looks for.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -119,13 +119,13 @@ impl Selector {
     /// This may return an empty `Vec`. That's not an error per se; it just means that none of the elements matched.
     ///
     /// The result also includes an [`MdContext`] that you can use with [`MdWriter`](crate::output::MdWriter).
-    pub fn find_nodes(self, doc: MdDoc) -> (Vec<MdElem>, MdContext) {
+    pub fn find_nodes(self, doc: MdDoc) -> Result<(Vec<MdElem>, MdContext)> {
         let MdDoc { ctx, roots } = doc;
-        let result_elems = self.find_nodes0(&ctx, vec![MdElem::Doc(roots)]);
-        (result_elems, ctx)
+        let result_elems = self.find_nodes0(&ctx, vec![MdElem::Doc(roots)])?;
+        Ok((result_elems, ctx))
     }
 
-    fn find_nodes0(self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
+    fn find_nodes0(self, ctx: &MdContext, nodes: Vec<MdElem>) -> Result<Vec<MdElem>> {
         SelectorAdapter::from(self).find_nodes(ctx, nodes)
     }
 }
@@ -133,7 +133,7 @@ impl Selector {
 impl TryFrom<&'_ str> for Selector {
     type Error = ParseError;
 
-    fn try_from(value: &'_ str) -> Result<Self, Self::Error> {
+    fn try_from(value: &'_ str) -> std::result::Result<Self, Self::Error> {
         Selector::try_parse(value).map_err(ParseError::new)
     }
 }
@@ -141,7 +141,7 @@ impl TryFrom<&'_ str> for Selector {
 impl TryFrom<&'_ String> for Selector {
     type Error = ParseError;
 
-    fn try_from(value: &'_ String) -> Result<Self, Self::Error> {
+    fn try_from(value: &'_ String) -> std::result::Result<Self, Self::Error> {
         Selector::try_from(value.as_str())
     }
 }

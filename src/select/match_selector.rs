@@ -1,4 +1,5 @@
 use crate::md_elem::*;
+use crate::select::api::{Result, Select};
 use crate::select::TrySelector;
 
 /// MatchSelector is a helper trait for implementing [TrySelector]. Simply provide the boolean predicate for whether a
@@ -12,11 +13,11 @@ where
     I: Into<MdElem>,
     M: MatchSelector<I>,
 {
-    fn try_select(&self, _: &MdContext, item: I) -> Result<Vec<MdElem>, MdElem> {
+    fn try_select(&self, _: &MdContext, item: I) -> Result<Select> {
         if self.matches(&item) {
-            Ok(vec![item.into()])
+            Ok(Select::Hit(vec![item.into()]))
         } else {
-            Err(item.into())
+            Ok(Select::Miss(item.into()))
         }
     }
 }
