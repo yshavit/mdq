@@ -17,6 +17,7 @@ pub(crate) enum StringMatchError {
     RegexError(Box<fancy_regex::Error>),
 }
 
+#[must_use]
 pub(crate) enum StringMatch<'a> {
     NoMatch(String),
     Match(String, Option<(&'a Regex, &'a str)>),
@@ -77,10 +78,7 @@ impl StringMatcher {
     pub(crate) fn match_replace(&self, haystack: String) -> Result<StringMatch, StringMatchError> {
         match self.re.is_match(&haystack) {
             Ok(is_match) => Ok(if is_match {
-                let replacement = match self.replacement {
-                    Some(ref replacement) => Some((&self.re, replacement.as_str())),
-                    None => None,
-                };
+                let replacement = self.replacement.as_ref().map(|r| (&self.re, r.as_str()));
                 StringMatch::Match(haystack, replacement)
             } else {
                 StringMatch::NoMatch(haystack)
