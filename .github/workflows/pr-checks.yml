@@ -1,11 +1,11 @@
-name: Semver
+name: PR Hygiene
 
 on:
   pull_request:
     branches: [ "main", "feature/*" ]
 
 jobs:
-  check:
+  semver:
     permissions:
       contents: read
     runs-on: ubuntu-latest
