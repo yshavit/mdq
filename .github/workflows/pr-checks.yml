@@ -62,7 +62,7 @@ jobs:
       - name: Fetch PR description
         id: pr-description
         run: |
-          pr_description="$(gh pr view ${{ github.event.number }} --json body -q '.body')"
+          pr_description="$(gh pr view ${{ github.event.number }} --repo ${{ github.repository }} --json body -q '.body')"
           delimiter="$(uuidgen | tr -d -)"
           echo "description<<$delimiter" >> "$GITHUB_OUTPUT"
           echo "$pr_description" >> "$GITHUB_OUTPUT"
