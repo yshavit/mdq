@@ -50,7 +50,7 @@
 //! let selector: mdq::select::Selector = query_text.try_into()?;
 //!
 //! // Run the selector against the parsed Markdown
-//! let (found_nodes, found_nodes_ctx) = selector.find_nodes(parsed_md);
+//! let (found_nodes, found_nodes_ctx) = selector.find_nodes(parsed_md)?;
 //!
 //! // Output. Note our use of
 //! let mut output_string = String::new();

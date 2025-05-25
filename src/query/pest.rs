@@ -88,6 +88,7 @@ impl Query {
                 Rule::regex_char => "regex character",
                 Rule::regex_escaped_slash => "_/_",
                 Rule::regex_normal_char => "regex character",
+                Rule::regex_replacement_segment => "regex_replacement_segment",
                 Rule::quoted_string => "quoted string",
                 Rule::quoted_char => "character in quoted string",
                 Rule::asterisk => "_*_",

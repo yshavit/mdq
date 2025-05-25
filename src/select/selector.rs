@@ -1,7 +1,7 @@
 use crate::md_elem::elem::FrontMatterVariant;
 use crate::md_elem::{MdContext, MdDoc, MdElem};
 use crate::query::ParseError;
-use crate::select::{Matcher, SelectorAdapter};
+use crate::select::{MatchReplace, Result, SelectorAdapter};
 
 /// The completion state that a [`ListItemMatcher`] looks for.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -25,59 +25,59 @@ pub struct ListItemMatcher {
     ///
     /// Tasks are typically unordered, but may also be ordered (`1. [ ] foo`).
     pub task: ListItemTask,
-    pub matcher: Matcher,
+    pub matcher: MatchReplace,
 }
 
 /// matcher for [`Selector::Section`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SectionMatcher {
-    pub title: Matcher,
+    pub title: MatchReplace,
 }
 
 /// matcher for both [`Selector::Link`] and [`Selector::Image`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LinklikeMatcher {
-    pub display_matcher: Matcher,
-    pub url_matcher: Matcher,
+    pub display_matcher: MatchReplace,
+    pub url_matcher: MatchReplace,
 }
 
 /// matcher for [`Selector::BlockQuote`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BlockQuoteMatcher {
-    pub text: Matcher,
+    pub text: MatchReplace,
 }
 
 /// matcher for [`Selector::Html`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HtmlMatcher {
-    pub html: Matcher,
+    pub html: MatchReplace,
 }
 
 /// matcher for [`Selector::Paragraph`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ParagraphMatcher {
-    pub text: Matcher,
+    pub text: MatchReplace,
 }
 
 /// matcher for [`Selector::CodeBlock`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CodeBlockMatcher {
-    pub language: Matcher,
-    pub contents: Matcher,
+    pub language: MatchReplace,
+    pub contents: MatchReplace,
 }
 
 /// matcher for [`Selector::FrontMatter`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FrontMatterMatcher {
     pub variant: Option<FrontMatterVariant>,
-    pub text: Matcher,
+    pub text: MatchReplace,
 }
 
 /// matcher for [`Selector::Table`]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TableMatcher {
-    pub headers: Matcher,
-    pub rows: Matcher,
+    pub headers: MatchReplace,
+    pub rows: MatchReplace,
 }
 
 /// The in-memory equivalent of mdq's selector query string.
@@ -119,21 +119,17 @@ impl Selector {
     /// This may return an empty `Vec`. That's not an error per se; it just means that none of the elements matched.
     ///
     /// The result also includes an [`MdContext`] that you can use with [`MdWriter`](crate::output::MdWriter).
-    pub fn find_nodes(self, doc: MdDoc) -> (Vec<MdElem>, MdContext) {
+    pub fn find_nodes(self, doc: MdDoc) -> Result<(Vec<MdElem>, MdContext)> {
         let MdDoc { ctx, roots } = doc;
-        let result_elems = self.find_nodes0(&ctx, vec![MdElem::Doc(roots)]);
-        (result_elems, ctx)
-    }
-
-    fn find_nodes0(self, ctx: &MdContext, nodes: Vec<MdElem>) -> Vec<MdElem> {
-        SelectorAdapter::from(self).find_nodes(ctx, nodes)
+        let result_elems = SelectorAdapter::from(self).find_nodes(&ctx, vec![MdElem::Doc(roots)])?;
+        Ok((result_elems, ctx))
     }
 }
 
 impl TryFrom<&'_ str> for Selector {
     type Error = ParseError;
 
-    fn try_from(value: &'_ str) -> Result<Self, Self::Error> {
+    fn try_from(value: &'_ str) -> std::result::Result<Self, Self::Error> {
         Selector::try_parse(value).map_err(ParseError::new)
     }
 }
@@ -141,7 +137,7 @@ impl TryFrom<&'_ str> for Selector {
 impl TryFrom<&'_ String> for Selector {
     type Error = ParseError;
 
-    fn try_from(value: &'_ String) -> Result<Self, Self::Error> {
+    fn try_from(value: &'_ String) -> std::result::Result<Self, Self::Error> {
         Selector::try_from(value.as_str())
     }
 }
