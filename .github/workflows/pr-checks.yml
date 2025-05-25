@@ -54,7 +54,6 @@ jobs:
 
   breaking-change-docs:
     needs: semver
-    if: needs.semver.outputs.has-breaking-change-label == 'true'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -73,11 +72,26 @@ jobs:
       - name: Pull mdq Docker image
         run: docker pull yshavit/mdq
 
-      - name: Check for Breaking change section
+      - name: 'Check for `# Breaking change` section'
+        id: check-breaking-section
         run: |
-          if ! <<<"$PR_DESCRIPTION" docker run --rm -i yshavit/mdq -q '# Breaking change'; then
-            echo "::error title=breaking-change-docs::PR description must contain a '# Breaking change' section when the 'breaking change' label is applied."
-            exit 1
+          if <<<"$PR_DESCRIPTION" docker run --rm -i yshavit/mdq -q '# Breaking change' >/dev/null 2>&1; then
+            echo "has-section=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-section=false" >> "$GITHUB_OUTPUT"
           fi
         env:
           PR_DESCRIPTION: ${{ steps.pr-description.outputs.description }}
+
+      - name: Check breaking change label and section consistency
+        run: |
+          has_label="${{ needs.semver.outputs.has-breaking-change-label }}"
+          has_section="${{ steps.check-breaking-section.outputs.has-section }}"
+
+          if [[ "$has_label" == "true" && "$has_section" == "false" ]]; then
+            echo "::error title=breaking-change-docs::PR has 'breaking change' label but is missing '# Breaking change' section in description."
+            exit 1
+          elif [[ "$has_label" == "false" && "$has_section" == "true" ]]; then
+            echo "::error title=breaking-change-docs::PR has '# Breaking change' section in description but is missing 'breaking change' label."
+            exit 1
+          fi
