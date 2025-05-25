@@ -1,0 +1,97 @@
+name: PR Hygiene
+
+on:
+  pull_request:
+    branches: [ "main", "feature/*" ]
+
+jobs:
+  semver:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    outputs:
+      has-breaking-change-label: ${{ steps.check-breaking-label.outputs.has-label }}
+    steps:
+
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Also fetch target branch
+        run: git fetch origin "$GITHUB_BASE_REF"
+
+      - name: Install semver-checks
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          gh release -R obi1kenobi/cargo-semver-checks download -p  cargo-semver-checks-x86_64-unknown-linux-gnu.tar.gz  -O - | tar xz
+        working-directory: ${{ env.RUNNER_TEMP }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: 'Check for "breaking change" label'
+        id: check-breaking-label
+        run: |
+          breaking_change_label_count="$(gh pr view ${{ github.event.number }} --json labels | jq '.labels | map(select(.name == "breaking change")) | length')"
+          if [[ "$breaking_change_label_count" == 1 ]]; then
+            echo "has-label=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-label=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Run semver-checks
+        run: |
+          if ! "$RUNNER_TEMP/cargo-semver-checks" semver-checks --baseline-rev "origin/$GITHUB_BASE_REF" ; then
+            # There were breaking changes. Make sure we have the appropriate label!
+            if [[ "${{ steps.check-breaking-label.outputs.has-label }}" != "true" ]]; then
+              echo "::error title=semver-checks::semver-checks found breaking changes, but the 'breaking change' label isn't applied. Please add that label."
+              exit 1
+            else
+              echo "::warning title=semver-checks::semver-checks found breaking changes. The 'breaking change' label is applied, so no action needed if this is an acceptable change."
+            fi
+          fi
+
+  breaking-change-docs:
+    needs: semver
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch PR description
+        id: pr-description
+        run: |
+          pr_description="$(gh pr view ${{ github.event.number }} --repo ${{ github.repository }} --json body -q '.body')"
+          delimiter="$(uuidgen | tr -d -)"
+          echo "description<<$delimiter" >> "$GITHUB_OUTPUT"
+          echo "$pr_description" >> "$GITHUB_OUTPUT"
+          echo "$delimiter" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Pull mdq Docker image
+        run: docker pull yshavit/mdq
+
+      - name: 'Check for `# Breaking change` section'
+        id: check-breaking-section
+        run: |
+          if <<<"$PR_DESCRIPTION" docker run --rm -i yshavit/mdq -q '# Breaking change' >/dev/null 2>&1; then
+            echo "has-section=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-section=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          PR_DESCRIPTION: ${{ steps.pr-description.outputs.description }}
+
+      - name: Check breaking change label and section consistency
+        run: |
+          has_label="${{ needs.semver.outputs.has-breaking-change-label }}"
+          has_section="${{ steps.check-breaking-section.outputs.has-section }}"
+
+          if [[ "$has_label" == "true" && "$has_section" == "false" ]]; then
+            echo "::error title=breaking-change-docs::PR has 'breaking change' label but is missing '# Breaking change' section in description."
+            exit 1
+          elif [[ "$has_label" == "false" && "$has_section" == "true" ]]; then
+            echo "::error title=breaking-change-docs::PR has '# Breaking change' section in description but is missing 'breaking change' label."
+            exit 1
+          fi
