@@ -51,6 +51,15 @@ output_err = '''Selection error:
 image selector does not support string replace
 '''
 
+[expect."search-replace image alt text with non-matching"]
+# Even though there's no match, it should still error. The error shouldn't have anything to do with the target Markdown.
+cli_args = ['![ !s/BOGUS/new/ ]()']
+expect_success = false
+output = ''
+output_err = '''Selection error:
+image selector does not support string replace
+'''
+
 [expect."search-replace image url"]
 cli_args = ['![](!s/original/new/)']
 output = '''![original image alt][1]
