@@ -1,26 +1,26 @@
 [given]
 md = '''
-# Section Title
+# Original Title
 
 This is a paragraph with text.
 
-```language
-code content here
+```original-language
+original code content here
 ```
 
 Here are some list items:
 
 - Item with **bold text** formatting
 - Item with *emphasis and **nested bold*** formatting
-- ![image alt](https://example.com/image.png) description
-- [link text](https://example.com/url) description
+- ![original image alt](https://example.com/original/image.png) description
+- [original link text](https://example.com/original/page.html) description
 '''
 
 [chained]
 needed = false
 
 [expect."search-replace section title"]
-cli_args = ['# !s/Title/Header/']
+cli_args = ['# !s/Original/New/']
 expect_success = false
 output = ''
 output_err = '''Selection error:
@@ -28,7 +28,7 @@ section selector does not support string replace
 '''
 
 [expect."search-replace code block language"]
-cli_args = ['``` !s/language/python/']
+cli_args = ['``` !s/original-.*/python/']
 expect_success = false
 output = ''
 output_err = '''Selection error:
@@ -36,7 +36,7 @@ code block selector does not support string replace
 '''
 
 [expect."search-replace code block contents"]
-cli_args = ['``` !s/content/text/']
+cli_args = ['``` !s/original/new/']
 expect_success = false
 output = ''
 output_err = '''Selection error:
@@ -44,7 +44,7 @@ code block selector does not support string replace
 '''
 
 [expect."search-replace image alt text"]
-cli_args = ['![](!s/alt/description/)']
+cli_args = ['![ !s/original/new/ ]()']
 expect_success = false
 output = ''
 output_err = '''Selection error:
@@ -52,15 +52,14 @@ image selector does not support string replace
 '''
 
 [expect."search-replace image url"]
-cli_args = ['![](!s/image/photo/)']
-expect_success = false
-output = ''
-output_err = '''Selection error:
-image selector does not support string replace
+cli_args = ['![](!s/original/new/)']
+output = '''![original image alt][1]
+
+[1]: https://example.com/new/image.png
 '''
 
 [expect."search-replace link text"]
-cli_args = ['[](!s/text/label/)']
+cli_args = ['[ !s/original/new/ ]()']
 expect_success = false
 output = ''
 output_err = '''Selection error:
@@ -68,11 +67,10 @@ hyperlink selector does not support string replace
 '''
 
 [expect."search-replace link url"]
-cli_args = ['[](!s/url/link/)']
-expect_success = false
-output = ''
-output_err = '''Selection error:
-hyperlink selector does not support string replace
+cli_args = ['[]( !s/original/new/ )']
+output = '''[original link text][1]
+
+[1]: https://example.com/new/page.html
 '''
 
 [expect."search-replace straightforward formatting"]
