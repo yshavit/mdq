@@ -44,6 +44,27 @@ impl StringMatcher {
         }
     }
 
+    pub(crate) fn has_replacement(&self) -> bool {
+        self.replacement.is_some()
+    }
+
+    pub(crate) fn match_replace(&self, haystack: &mut String) -> Result<bool, StringMatchError> {
+        match self.re.is_match(haystack) {
+            Ok(is_match) => {
+                if is_match {
+                    if let Some(replacement) = &self.replacement {
+                        let cow_result = self.re.replace_all(haystack, replacement.as_str());
+                        if cow_result.as_ref() != haystack.as_str() {
+                            *haystack = cow_result.into_owned();
+                        }
+                    }
+                }
+                Ok(is_match)
+            }
+            Err(e) => Err(StringMatchError::RegexError(Box::new(e))),
+        }
+    }
+
     pub fn matches_inlines<I: Borrow<Inline>>(&self, haystack: &[I]) -> Result<bool, StringMatchError> {
         self.matches(&inlines_to_plain_string(haystack))
     }
@@ -422,6 +443,60 @@ mod test {
             select_error.to_string(),
             "section selector does not support string replace"
         );
+    }
+
+    #[test]
+    fn match_replace_with_replacement() {
+        let matcher_with_replacement = StringMatcher::from(MatchReplace {
+            matcher: Matcher::Text {
+                case_sensitive: false,
+                anchor_start: false,
+                text: "hello".to_string(),
+                anchor_end: false,
+            },
+            replacement: Some("world".to_string()),
+        });
+
+        let mut haystack = "hello there".to_string();
+        let result = matcher_with_replacement.match_replace(&mut haystack);
+        assert_eq!(result, Ok(true));
+        assert_eq!(haystack, "world there");
+    }
+
+    #[test]
+    fn match_replace_without_replacement() {
+        let matcher_without_replacement = StringMatcher::from(MatchReplace {
+            matcher: Matcher::Text {
+                case_sensitive: false,
+                anchor_start: false,
+                text: "hello".to_string(),
+                anchor_end: false,
+            },
+            replacement: None,
+        });
+
+        let mut haystack = "hello there".to_string();
+        let result = matcher_without_replacement.match_replace(&mut haystack);
+        assert_eq!(result, Ok(true));
+        assert_eq!(haystack, "hello there"); // unchanged
+    }
+
+    #[test]
+    fn match_replace_no_match() {
+        let matcher = StringMatcher::from(MatchReplace {
+            matcher: Matcher::Text {
+                case_sensitive: false,
+                anchor_start: false,
+                text: "goodbye".to_string(),
+                anchor_end: false,
+            },
+            replacement: Some("world".to_string()),
+        });
+
+        let mut haystack = "hello there".to_string();
+        let result = matcher.match_replace(&mut haystack);
+        assert_eq!(result, Ok(false));
+        assert_eq!(haystack, "hello there"); // unchanged
     }
 
     fn parse_and_check_with(
