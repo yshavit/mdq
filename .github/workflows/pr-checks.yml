@@ -9,6 +9,8 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    outputs:
+      has-breaking-change-label: ${{ steps.check-breaking-label.outputs.has-label }}
     steps:
 
       - name: Check out repo
@@ -26,17 +28,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      - name: 'Check for "breaking change" label'
+        id: check-breaking-label
+        run: |
+          breaking_change_label_count="$(gh pr view ${{ github.event.number }} --json labels | jq '.labels | map(select(.name == "breaking change")) | length')"
+          if [[ "$breaking_change_label_count" == 1 ]]; then
+            echo "has-label=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-label=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Run semver-checks
         run: |
           if ! "$RUNNER_TEMP/cargo-semver-checks" semver-checks --baseline-rev "origin/$GITHUB_BASE_REF" ; then
             # There were breaking changes. Make sure we have the appropriate label!
-            breaking_change_label_count="$(gh pr view ${{ github.event.number }} --json labels | jq '.labels | map(select(.name == "breaking change")) | length')"
-            if [[ "$breaking_change_label_count" != 1 ]]; then
+            if [[ "${{ steps.check-breaking-label.outputs.has-label }}" != "true" ]]; then
               echo "::error title=semver-checks::semver-checks found breaking changes, but the 'breaking change' label isn't applied. Please add that label."
               exit 1
             else
               echo "::warning title=semver-checks::semver-checks found breaking changes. The 'breaking change' label is applied, so no action needed if this is an acceptable change."
             fi
           fi
-        env:
-          GH_TOKEN: ${{ github.token }}
