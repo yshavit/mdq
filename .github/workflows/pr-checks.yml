@@ -51,3 +51,33 @@ jobs:
               echo "::warning title=semver-checks::semver-checks found breaking changes. The 'breaking change' label is applied, so no action needed if this is an acceptable change."
             fi
           fi
+
+  breaking-change-docs:
+    needs: semver
+    if: needs.semver.outputs.has-breaking-change-label == 'true'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch PR description
+        id: pr-description
+        run: |
+          pr_description="$(gh pr view ${{ github.event.number }} --json body -q '.body')"
+          delimiter="$(uuidgen | tr -d -)"
+          echo "description<<$delimiter" >> "$GITHUB_OUTPUT"
+          echo "$pr_description" >> "$GITHUB_OUTPUT"
+          echo "$delimiter" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Pull mdq Docker image
+        run: docker pull yshavit/mdq
+
+      - name: Check for Breaking change section
+        run: |
+          if ! <<<"$PR_DESCRIPTION" docker run --rm -i yshavit/mdq -q '# Breaking change'; then
+            echo "::error title=breaking-change-docs::PR description must contain a '# Breaking change' section when the 'breaking change' label is applied."
+            exit 1
+          fi
+        env:
+          PR_DESCRIPTION: ${{ steps.pr-description.outputs.description }}
