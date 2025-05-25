@@ -15,7 +15,7 @@ impl From<LinklikeMatcher> for LinkSelector {
 }
 
 impl TrySelector<Link> for LinkSelector {
-    fn try_select(&self, _: &MdContext, mut item: Link) -> Result<Select> {
+    fn try_select(&self, _: &MdContext, item: Link) -> Result<Select> {
         // Check if display matcher has replacement - if so, this should fail
         if self.matchers.display_matcher.has_replacement() {
             return Err(StringMatchError::NotSupported.to_select_error("hyperlink"));
@@ -26,15 +26,31 @@ impl TrySelector<Link> for LinkSelector {
             .display_matcher
             .matches_inlines(&item.display)
             .map_err(|e| e.to_select_error("hyperlink"))?;
-        let url_matched = self
+        let url_match = self
             .matchers
             .url_matcher
-            .match_replace(&mut item.link.url)
+            .match_replace(item.link.url)
             .map_err(|e| e.to_select_error("hyperlink"))?;
 
-        if display_matched && url_matched {
+        if display_matched && url_match.is_match() {
+            let item = Link {
+                display: item.display,
+                link: LinkDefinition {
+                    url: url_match.do_replace(),
+                    title: item.link.title,
+                    reference: item.link.reference,
+                },
+            };
             Ok(Select::Hit(vec![item.into()]))
         } else {
+            let item = Link {
+                display: item.display,
+                link: LinkDefinition {
+                    url: url_match.no_replace(),
+                    title: item.link.title,
+                    reference: item.link.reference,
+                },
+            };
             Ok(Select::Miss(item.into()))
         }
     }
@@ -52,7 +68,7 @@ impl From<LinklikeMatcher> for ImageSelector {
 }
 
 impl TrySelector<Image> for ImageSelector {
-    fn try_select(&self, _: &MdContext, mut item: Image) -> Result<Select> {
+    fn try_select(&self, _: &MdContext, item: Image) -> Result<Select> {
         // Check if display matcher has replacement - if so, this should fail
         if self.matchers.display_matcher.has_replacement() {
             return Err(StringMatchError::NotSupported.to_select_error("image"));
@@ -63,15 +79,31 @@ impl TrySelector<Image> for ImageSelector {
             .display_matcher
             .matches(&item.alt)
             .map_err(|e| e.to_select_error("image"))?;
-        let url_matched = self
+        let url_match = self
             .matchers
             .url_matcher
-            .match_replace(&mut item.link.url)
+            .match_replace(item.link.url)
             .map_err(|e| e.to_select_error("image"))?;
 
-        if alt_matched && url_matched {
+        if alt_matched && url_match.is_match() {
+            let item = Image {
+                alt: item.alt,
+                link: LinkDefinition {
+                    url: url_match.do_replace(),
+                    title: item.link.title,
+                    reference: item.link.reference,
+                },
+            };
             Ok(Select::Hit(vec![item.into()]))
         } else {
+            let item = Image {
+                alt: item.alt,
+                link: LinkDefinition {
+                    url: url_match.no_replace(),
+                    title: item.link.title,
+                    reference: item.link.reference,
+                },
+            };
             Ok(Select::Miss(item.into()))
         }
     }
