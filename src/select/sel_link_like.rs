@@ -3,6 +3,39 @@ use crate::md_elem::MdContext;
 use crate::select::string_matcher::{StringMatchError, StringMatcher};
 use crate::select::{LinklikeMatcher, Result, Select, TrySelector};
 
+/// A macro for creating the result of a link-like selector.
+///
+/// This macro handles the common pattern of conditionally reconstructing a link-like item
+/// (Link or Image) based on whether both text and URL matching succeed. It
+/// handles the URL replacement logic, calling either `do_replace()` or `no_replace()` on
+/// the URL match result depending on whether this should be a Hit or Miss.
+///
+/// # Parameters
+///
+/// * `$text_matched` - A boolean expression indicating whether the display / alt text matched
+/// * `$url_match` - An identifier bound to a `StringMatch` result from URL matching
+/// * `$item_expr` - A block containing the item construction expression, where `$url_match`
+///   will be bound to the appropriate URL string value
+///
+/// # Returns
+///
+/// Returns `Result<Select>` where:
+/// - `Ok(Select::Hit(...))` if both text and URL matched (uses `do_replace()`)
+/// - `Ok(Select::Miss(...))` if either text or URL didn't match (uses `no_replace()`)
+macro_rules! make_result {
+    ($text_matched:expr, $url_match:ident, { $($item_expr:tt)* }) => {
+        if $text_matched && $url_match.is_match() {
+            let $url_match = $url_match.do_replace();
+            let item = $($item_expr)*;
+            Ok(Select::Hit(vec![item.into()]))
+        } else {
+            let $url_match = $url_match.no_replace();
+            let item = $($item_expr)*;
+            Ok(Select::Miss(item.into()))
+        }
+    };
+}
+
 #[derive(Debug, PartialEq)]
 pub struct LinkSelector {
     matchers: LinkMatchers,
@@ -32,27 +65,16 @@ impl TrySelector<Link> for LinkSelector {
             .match_replace(item.link.url)
             .map_err(|e| e.to_select_error("hyperlink"))?;
 
-        if display_matched && url_match.is_match() {
-            let item = Link {
+        make_result!(display_matched, url_match, {
+            Link {
                 display: item.display,
                 link: LinkDefinition {
-                    url: url_match.do_replace(),
+                    url: url_match,
                     title: item.link.title,
                     reference: item.link.reference,
                 },
-            };
-            Ok(Select::Hit(vec![item.into()]))
-        } else {
-            let item = Link {
-                display: item.display,
-                link: LinkDefinition {
-                    url: url_match.no_replace(),
-                    title: item.link.title,
-                    reference: item.link.reference,
-                },
-            };
-            Ok(Select::Miss(item.into()))
-        }
+            }
+        })
     }
 }
 
@@ -85,27 +107,16 @@ impl TrySelector<Image> for ImageSelector {
             .match_replace(item.link.url)
             .map_err(|e| e.to_select_error("image"))?;
 
-        if alt_matched && url_match.is_match() {
-            let item = Image {
+        make_result!(alt_matched, url_match, {
+            Image {
                 alt: item.alt,
                 link: LinkDefinition {
-                    url: url_match.do_replace(),
+                    url: url_match,
                     title: item.link.title,
                     reference: item.link.reference,
                 },
-            };
-            Ok(Select::Hit(vec![item.into()]))
-        } else {
-            let item = Image {
-                alt: item.alt,
-                link: LinkDefinition {
-                    url: url_match.no_replace(),
-                    title: item.link.title,
-                    reference: item.link.reference,
-                },
-            };
-            Ok(Select::Miss(item.into()))
-        }
+            }
+        })
     }
 }
 
