@@ -95,7 +95,7 @@ impl From<LinklikeMatcher> for LinkMatchers {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::md_elem::MdElem;
+    use crate::md_elem::{mdq_inline, MdElem};
     use crate::select::{MatchReplace, Matcher};
     use crate::util::utils_for_test::unwrap;
 
@@ -196,7 +196,7 @@ mod test {
         };
 
         let original_image = Image {
-            alt: "correct alt text".to_string(),
+            alt: "original alt text".to_string(),
             link: LinkDefinition {
                 url: "https://example.com/old-image.png".to_string(),
                 title: None,
@@ -211,5 +211,46 @@ mod test {
         unwrap!(&elem, MdElem::Inline(Inline::Image(result_image)));
 
         assert_eq!(result_image, &original_image);
+    }
+
+    #[test]
+    fn link_url_replaced_but_display_does_not_match() {
+        let link_matcher = LinklikeMatcher {
+            display_matcher: MatchReplace {
+                matcher: Matcher::Text {
+                    case_sensitive: false,
+                    anchor_start: true,
+                    text: "wrong display text".to_string(),
+                    anchor_end: true,
+                },
+                replacement: None,
+            },
+            url_matcher: MatchReplace {
+                matcher: Matcher::Text {
+                    case_sensitive: false,
+                    anchor_start: false,
+                    text: "original.com".to_string(),
+                    anchor_end: false,
+                },
+                replacement: Some("newsite.com".to_string()),
+            },
+        };
+
+        let original_link = Link {
+            display: vec![mdq_inline!("original display text")],
+            link: LinkDefinition {
+                url: "https://original.com/path".to_string(),
+                title: None,
+                reference: LinkReference::Inline,
+            },
+        };
+
+        let link_selector = LinkSelector::from(link_matcher);
+
+        let result = link_selector.try_select(&MdContext::default(), original_link.clone());
+        unwrap!(result, Ok(Select::Miss(elem)));
+        unwrap!(&elem, MdElem::Inline(Inline::Link(result_link)));
+
+        assert_eq!(result_link, &original_link);
     }
 }
