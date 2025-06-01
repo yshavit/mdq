@@ -4,7 +4,7 @@ use crate::select::string_matcher::{StringMatchError, StringMatcher};
 use crate::select::CodeBlockMatcher;
 
 #[derive(Debug, PartialEq)]
-pub struct CodeBlockSelector {
+pub(crate) struct CodeBlockSelector {
     lang_matcher: StringMatcher,
     contents_matcher: StringMatcher,
 }

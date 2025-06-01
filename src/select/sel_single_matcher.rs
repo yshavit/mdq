@@ -8,7 +8,7 @@ macro_rules! single_matcher_adapter {
     { $name:ident {$matcher_field:ident} $match_fn:ident $tree_struct_field:ident $selector_name:literal } => {
         paste! {
             #[derive(Debug, PartialEq)]
-            pub struct [<$name Selector>] {
+            pub(crate) struct [<$name Selector>] {
                 matcher: StringMatcher,
             }
 
@@ -33,7 +33,7 @@ single_matcher_adapter! { BlockQuote {text} matches_any body "block quote" }
 single_matcher_adapter! { Paragraph {text} matches_inlines body "paragraph" }
 
 #[derive(Debug, PartialEq)]
-pub struct HtmlSelector {
+pub(crate) struct HtmlSelector {
     matcher: StringMatcher,
 }
 
@@ -54,7 +54,7 @@ impl MatchSelector<BlockHtml> for HtmlSelector {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct FrontMatterSelector {
+pub(crate) struct FrontMatterSelector {
     variant: Option<FrontMatterVariant>,
     text: StringMatcher,
 }

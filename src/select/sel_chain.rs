@@ -2,7 +2,7 @@ use crate::md_elem::{MdContext, MdElem};
 use crate::select::{Result, Select, Selector, SelectorAdapter, TrySelector};
 
 #[derive(Debug)]
-pub struct ChainSelector {
+pub(crate) struct ChainSelector {
     chain: Vec<SelectorAdapter>,
 }
 

@@ -1,9 +1,9 @@
 use crate::query::pest::{Pair, Pairs, Rule};
 
-pub type OnePair<'a> = OneOf<Pair<'a>>;
+pub(crate) type OnePair<'a> = OneOf<Pair<'a>>;
 
 /// A trait for determining whether a [Pair] matches some condition.
-pub trait PairMatcher {
+pub(crate) trait PairMatcher {
     fn matches(&self, pair: &Pair) -> bool;
 
     fn find_all_in(self, pairs: Pairs) -> Vec<Pair>
@@ -18,7 +18,7 @@ pub trait PairMatcher {
 ///
 /// This lets us separate out the matching (which is typically [ByRule] or [ByTag], or some combination of them) from
 /// the storing (which may be to add to a vec, to add to [OneOf], or anything else).
-pub trait PairMatchStore<'a> {
+pub(crate) trait PairMatchStore<'a> {
     type Output;
 
     fn match_and_store(&mut self, pair: Pair<'a>) -> MatchStoreResult<'a>;
@@ -41,28 +41,28 @@ pub trait PairMatchStore<'a> {
     }
 }
 
-pub enum MatchStoreResult<'a> {
+pub(crate) enum MatchStoreResult<'a> {
     Stored,
     NotStored(Pair<'a>),
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
-pub struct Present(bool);
+pub(crate) struct Present(bool);
 
 impl Present {
-    pub fn is_present(&self) -> bool {
+    pub(crate) fn is_present(&self) -> bool {
         self.0
     }
 }
 
 impl Present {
-    pub fn store(&mut self, _pair: Pair) {
+    pub(crate) fn store(&mut self, _pair: Pair) {
         self.0 = true
     }
 }
 
 #[derive(Debug)]
-pub struct OneOf<T>(Result<Option<T>, ()>);
+pub(crate) struct OneOf<T>(Result<Option<T>, ()>);
 
 impl<T> Default for OneOf<T> {
     fn default() -> Self {
@@ -71,11 +71,11 @@ impl<T> Default for OneOf<T> {
 }
 
 impl<T> OneOf<T> {
-    pub fn take(self) -> Result<Option<T>, String> {
+    pub(crate) fn take(self) -> Result<Option<T>, String> {
         self.0.map_err(|_| "multiple items found".to_string())
     }
 
-    pub fn store(&mut self, item: T) {
+    pub(crate) fn store(&mut self, item: T) {
         self.0 = match self.0 {
             Ok(Some(_)) | Err(_) => Err(()),
             Ok(None) => Ok(Some(item)),
@@ -84,10 +84,10 @@ impl<T> OneOf<T> {
 }
 
 #[derive(Debug)]
-pub struct FindAll<'a, M>(M, Vec<Pair<'a>>);
+pub(crate) struct FindAll<'a, M>(M, Vec<Pair<'a>>);
 
 impl<M> FindAll<'_, M> {
-    pub fn new(matcher: M) -> Self {
+    pub(crate) fn new(matcher: M) -> Self {
         Self(matcher, Vec::new())
     }
 }
@@ -112,10 +112,10 @@ where
     }
 }
 #[derive(Debug)]
-pub struct ByRule(Rule);
+pub(crate) struct ByRule(Rule);
 
 impl ByRule {
-    pub fn new(rule: Rule) -> Self {
+    pub(crate) fn new(rule: Rule) -> Self {
         Self(rule)
     }
 }
@@ -127,10 +127,10 @@ impl PairMatcher for ByRule {
 }
 
 #[derive(Debug)]
-pub struct ByTag(&'static str);
+pub(crate) struct ByTag(&'static str);
 
 impl ByTag {
-    pub fn new(tag: &'static str) -> Self {
+    pub(crate) fn new(tag: &'static str) -> Self {
         Self(tag)
     }
 }

@@ -4,7 +4,7 @@ use crate::select::string_matcher::{StringMatchError, StringMatcher};
 use crate::select::SectionMatcher;
 
 #[derive(Debug, PartialEq)]
-pub struct SectionSelector {
+pub(crate) struct SectionSelector {
     matcher: StringMatcher,
 }
 

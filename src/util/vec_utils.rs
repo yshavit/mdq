@@ -1,17 +1,17 @@
 use std::collections::BTreeSet;
 
-pub struct IndexKeeper {
+pub(crate) struct IndexKeeper {
     indices_to_keep: BTreeSet<usize>,
 }
 
 impl IndexKeeper {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             indices_to_keep: BTreeSet::new(),
         }
     }
 
-    pub fn retain_when<I, F, E>(&mut self, items: &[I], mut allow_filter: F) -> Result<(), E>
+    pub(crate) fn retain_when<I, F, E>(&mut self, items: &[I], mut allow_filter: F) -> Result<(), E>
     where
         F: FnMut(usize, &I) -> Result<bool, E>,
     {
@@ -24,7 +24,7 @@ impl IndexKeeper {
     }
 
     /// Returns an `FnMut` suitable for use in [ItemRetainer::retain_with_index].
-    pub fn retain_fn<I, E>(&self) -> impl FnMut(usize, &I) -> Result<bool, E> + '_ {
+    pub(crate) fn retain_fn<I, E>(&self) -> impl FnMut(usize, &I) -> Result<bool, E> + '_ {
         let mut next_to_keep = self.indices_to_keep.iter().peekable();
         move |target, _| {
             while let Some(&&value) = next_to_keep.peek() {
@@ -40,12 +40,12 @@ impl IndexKeeper {
         }
     }
 
-    pub fn count_keeps(&self) -> usize {
+    pub(crate) fn count_keeps(&self) -> usize {
         self.indices_to_keep.len()
     }
 }
 
-pub trait ItemRetainer<I> {
+pub(crate) trait ItemRetainer<I> {
     /// Iterates over the items in order, invoking `f` on each and retaining only those elements for which it returns
     /// `true`.
     ///

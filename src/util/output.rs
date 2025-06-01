@@ -2,7 +2,7 @@ use crate::util::words_buffer::{WordBoundary, WordsBuffer};
 use std::cmp::PartialEq;
 use std::ops::Range;
 
-pub trait SimpleWrite {
+pub(crate) trait SimpleWrite {
     fn write_char(&mut self, ch: char) -> std::io::Result<()>;
     fn flush(&mut self) -> std::io::Result<()>;
 }
@@ -18,18 +18,6 @@ impl SimpleWrite for String {
     }
 }
 
-pub struct Stream<W>(pub W);
-
-impl<W: std::io::Write> SimpleWrite for Stream<W> {
-    fn write_char(&mut self, ch: char) -> std::io::Result<()> {
-        std::io::Write::write_all(&mut self.0, ch.encode_utf8(&mut [0u8; 4]).as_bytes())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.0.flush()
-    }
-}
-
 struct IndentHandler {
     /// whether the current block is in `<pre>` mode. See [Block] for an explanation as to why this
     /// exists, and isn't instead a `Block::Pre`.
@@ -39,7 +27,7 @@ struct IndentHandler {
     pending_newlines: usize,
 }
 
-pub struct Output<W: SimpleWrite> {
+pub(crate) struct Output<W: SimpleWrite> {
     stream: W,
     indenter: IndentHandler,
     words_buffer: WordsBuffer,
@@ -57,7 +45,7 @@ impl<W: SimpleWrite> SimpleWrite for Output<W> {
     }
 }
 
-pub struct PreWriter<'a, W: SimpleWrite> {
+pub(crate) struct PreWriter<'a, W: SimpleWrite> {
     output: &'a mut Output<W>,
 }
 
@@ -70,7 +58,7 @@ pub struct PreWriter<'a, W: SimpleWrite> {
 /// added via [Output::with_pre_block], which takes a [PreWriter] that only implements
 /// [SimpleWrite].
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum Block {
+pub(crate) enum Block {
     /// A plain block; just paragraph text.
     Plain,
     /// A quoted block (`> `)
@@ -99,7 +87,7 @@ enum WriteAction {
 }
 
 impl<W: SimpleWrite> Output<W> {
-    pub fn new(to: W, text_width: Option<usize>) -> Self {
+    pub(crate) fn new(to: W, text_width: Option<usize>) -> Self {
         Self {
             stream: to,
             indenter: IndentHandler::new(),
@@ -108,16 +96,16 @@ impl<W: SimpleWrite> Output<W> {
         }
     }
 
-    pub fn without_text_wrapping(to: W) -> Self {
+    pub(crate) fn without_text_wrapping(to: W) -> Self {
         Self::new(to, None)
     }
 
-    pub fn replace_underlying(&mut self, new: W) -> std::io::Result<W> {
+    pub(crate) fn replace_underlying(&mut self, new: W) -> std::io::Result<W> {
         self.stream.flush()?;
         Ok(std::mem::replace(&mut self.stream, new))
     }
 
-    pub fn with_block(&mut self, block: Block, action: impl FnOnce(&mut Self)) {
+    pub(crate) fn with_block(&mut self, block: Block, action: impl FnOnce(&mut Self)) {
         self.push_block(block);
         action(self);
         self.pop_block();
@@ -129,7 +117,7 @@ impl<W: SimpleWrite> Output<W> {
     /// Because you have to call this on `&mut self`, you can't access that `self` within the
     /// block. This is by design, since it doesn't make sense to add blocks within a `pre`. Instead,
     /// use the provided writer's `write_str` to write the literal text for this block.
-    pub fn with_pre_block(&mut self, action: impl FnOnce(&mut PreWriter<W>)) {
+    pub(crate) fn with_pre_block(&mut self, action: impl FnOnce(&mut PreWriter<W>)) {
         self.push_block(Block::Plain);
         self.indenter.pre_mode = true;
         self.without_wrapping(|me| {
@@ -140,7 +128,7 @@ impl<W: SimpleWrite> Output<W> {
         self.pop_block();
     }
 
-    pub fn without_wrapping(&mut self, action: impl FnOnce(&mut Self)) {
+    pub(crate) fn without_wrapping(&mut self, action: impl FnOnce(&mut Self)) {
         let old_boundary_mode = self.words_buffer.set_word_boundary(WordBoundary::OnlyAtNewline);
         action(self);
         old_boundary_mode.restore_to(&mut self.words_buffer)
@@ -168,11 +156,11 @@ impl<W: SimpleWrite> Output<W> {
             .ensure_newlines(self.writing_state, NewlinesRequest::Exactly(newlines));
     }
 
-    pub fn write_str(&mut self, text: &str) {
+    pub(crate) fn write_str(&mut self, text: &str) {
         text.chars().for_each(|ch| self.perform_write(WriteAction::Char(ch)));
     }
 
-    pub fn write_char(&mut self, ch: char) {
+    pub(crate) fn write_char(&mut self, ch: char) {
         self.perform_write(WriteAction::Char(ch));
     }
 
@@ -217,7 +205,7 @@ impl<W: SimpleWrite> Output<W> {
 }
 
 impl<W: SimpleWrite + Default> Output<W> {
-    pub fn take_underlying(&mut self) -> std::io::Result<W> {
+    pub(crate) fn take_underlying(&mut self) -> std::io::Result<W> {
         self.stream.flush()?;
         Ok(std::mem::take(&mut self.stream))
     }
@@ -437,11 +425,11 @@ impl IndentHandler {
 }
 
 impl<W: SimpleWrite> PreWriter<'_, W> {
-    pub fn write_str(&mut self, text: &str) {
+    pub(crate) fn write_str(&mut self, text: &str) {
         self.output.write_str(text)
     }
 
-    pub fn write_char(&mut self, ch: char) {
+    pub(crate) fn write_char(&mut self, ch: char) {
         self.output.write_char(ch);
     }
 }
@@ -1049,39 +1037,6 @@ mod tests {
             let mut out = Output::new(String::new(), Some(wrap));
             action(&mut out);
             out.take_underlying().unwrap()
-        }
-    }
-
-    mod stream_simple_write {
-        use super::*;
-
-        #[test]
-        fn single_byte_char() -> std::io::Result<()> {
-            let mut bb = Vec::new();
-            let mut stream = Stream(&mut bb);
-            SimpleWrite::write_char(&mut stream, 'a')?;
-            assert_eq!(&bb, b"a");
-            Ok(())
-        }
-
-        #[test]
-        fn multi_byte_char() -> std::io::Result<()> {
-            let mut bb = Vec::new();
-            let mut stream = Stream(&mut bb);
-            SimpleWrite::write_char(&mut stream, '☃')?;
-            let expected: &[u8] = &[0xE2, 0x98, 0x83];
-            assert_eq!(&bb, expected);
-            Ok(())
-        }
-
-        #[test]
-        fn four_byte_char() -> std::io::Result<()> {
-            let mut bb = Vec::new();
-            let mut stream = Stream(&mut bb);
-            SimpleWrite::write_char(&mut stream, '𝄞')?;
-            let expected: &[u8] = &[0xF0, 0x9D, 0x84, 0x9E];
-            assert_eq!(&bb, expected);
-            Ok(())
         }
     }
 

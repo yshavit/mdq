@@ -1,7 +1,7 @@
 #[cfg(test)]
 pub(crate) use test_utils::*;
 
-// We this file's contents from prod by putting them in a submodule guarded by cfg(test), but then "pub use" it to
+// We this file's contents from prod by putting them in a submodule guarded by cfg(test), but then "pub(crate) use" it to
 // export its contents.
 #[cfg(test)]
 mod test_utils {
@@ -11,19 +11,19 @@ mod test_utils {
     use std::fmt::Debug;
 
     impl LinkTransform {
-        pub fn default_for_tests() -> Self {
+        pub(crate) fn default_for_tests() -> Self {
             Self::Keep
         }
     }
 
     impl ReferencePlacement {
-        pub fn default_for_tests() -> Self {
+        pub(crate) fn default_for_tests() -> Self {
             Self::Section
         }
     }
 
     impl MdWriterOptions {
-        pub fn default_for_tests() -> Self {
+        pub(crate) fn default_for_tests() -> Self {
             Self {
                 link_reference_placement: ReferencePlacement::default_for_tests(),
                 footnote_reference_placement: ReferencePlacement::default_for_tests(),
@@ -36,7 +36,7 @@ mod test_utils {
             }
         }
 
-        pub fn new_with<F>(init: F) -> Self
+        pub(crate) fn new_with<F>(init: F) -> Self
         where
             F: FnOnce(&mut MdWriterOptions),
         {
@@ -46,7 +46,7 @@ mod test_utils {
         }
     }
 
-    pub fn get_only<T: Debug, C: IntoIterator<Item = T>>(col: C) -> T {
+    pub(crate) fn get_only<T: Debug, C: IntoIterator<Item = T>>(col: C) -> T {
         let mut iter = col.into_iter();
         let Some(result) = iter.next() else {
             panic!("expected an element, but was empty");
@@ -141,7 +141,7 @@ mod test_utils {
         ($name:ident = $enum_type:ty { $($variant:pat),* $(,)? } $(ignore { $($ignore_variant:pat),* $(,)? })?) => {
 
             paste::paste!{
-                pub struct [<VariantsChecker $name:lower:camel>] {
+                pub(crate) struct [<VariantsChecker $name:lower:camel>] {
                     require: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
                 }
 

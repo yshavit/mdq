@@ -36,7 +36,7 @@ pub(crate) enum LinkLabel<'md> {
 }
 
 impl<'md> LinkLabel<'md> {
-    pub fn get_sort_string(&self, ctx: &'md MdContext) -> String {
+    pub(crate) fn get_sort_string(&self, ctx: &'md MdContext) -> String {
         // There may be a way to Cow this so that we don't have to copy the ::Text string, but I can't find it.
         match self {
             LinkLabel::Text(s) => s.to_string(),
@@ -124,7 +124,7 @@ impl<'md> LinkTransformation<'md> {
 }
 
 impl LinkTransformer {
-    pub fn transform_variant(&self) -> LinkTransform {
+    pub(crate) fn transform_variant(&self) -> LinkTransform {
         match self.delegate {
             LinkTransformState::Keep => LinkTransform::Keep,
             LinkTransformState::Inline => LinkTransform::Inline,

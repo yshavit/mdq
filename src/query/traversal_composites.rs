@@ -24,16 +24,16 @@ macro_rules! composite_finder {
 
     (full: ($finder_name:ident / $result_name:ident / $match_store_name:ident) { $($elem:ident $result:ty : $finder:ident),+ }) => {
         #[derive(Debug)]
-        pub struct $finder_name {
+        pub(crate) struct $finder_name {
             $(
             $elem: $finder,
             )+
         }
 
         #[derive(Debug, Default)]
-        pub struct $result_name<'a> {
+        pub(crate) struct $result_name<'a> {
             $(
-                pub $elem: $result,
+                pub(crate) $elem: $result,
             )+
         }
 
@@ -48,7 +48,7 @@ macro_rules! composite_finder {
                 }
             }
 
-            pub fn traverse(pairs: Pairs) -> $result_name {
+            pub(crate) fn traverse(pairs: Pairs) -> $result_name {
                 $match_store_name($finder_name::new(), $result_name::default()).find_in(pairs)
             }
         }

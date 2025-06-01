@@ -1,7 +1,7 @@
 use std::cmp::min;
 use std::io::Write;
 
-pub struct NewlineCollapser<W> {
+pub(crate) struct NewlineCollapser<W> {
     max_newlines: usize,
     underlying: W,
     /// How many newlines are in this current stretch, or None if we haven't written anything yet.
@@ -12,7 +12,7 @@ impl<W> NewlineCollapser<W>
 where
     W: Write,
 {
-    pub fn new(underlying: W, max_newlines: usize) -> Self {
+    pub(crate) fn new(underlying: W, max_newlines: usize) -> Self {
         Self {
             max_newlines,
             underlying,
@@ -20,14 +20,14 @@ where
         }
     }
 
-    pub fn have_pending_newlines(&self) -> bool {
+    pub(crate) fn have_pending_newlines(&self) -> bool {
         match self.current_newline_stretch {
             None | Some(0) => false,
             Some(_) => true,
         }
     }
 
-    pub fn take_underlying(self) -> W {
+    pub(crate) fn take_underlying(self) -> W {
         self.underlying
     }
 

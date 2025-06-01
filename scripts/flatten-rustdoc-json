@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+
+import os
+import json
+import sys
+
+my_dir = os.path.dirname(os.path.realpath(__file__))
+repo_dir = os.path.abspath(os.path.join(my_dir, '..'))
+
+DOCS_JSON_PATH = 'target/doc/mdq.json'
+
+IGNORES = set([e for e in os.environ.get('IGNORE_ITEMS', '').split(',') if e])
+if IGNORES:
+    print(f'Ignoring: {IGNORES}', file=sys.stderr)
+
+with open(DOCS_JSON_PATH) as fh:
+    docs_json = json.load(fh)
+
+vis_by_item_id = {}
+path_by_item_id = {}
+kind_by_item_id = {}
+
+for item_id, item in docs_json["index"].items():
+    vis = item["visibility"] # this is the vis on the item itself, not the effective vis from mod.rs imports
+    if isinstance(vis, dict) and ('restricted' in vis):
+        vis = 'restricted'
+    vis_by_item_id[item_id] = vis
+
+for item_id, item in docs_json["paths"].items():
+    kind_by_item_id[item_id] = item["kind"]
+    path_by_item_id[item_id] = '::'.join(item["path"])
+
+lines = []
+for item_id, vis in vis_by_item_id.items():
+    if vis != 'public':
+        continue
+    item_kind = kind_by_item_id.get(item_id)
+    item_path = path_by_item_id.get(item_id)
+    if item_kind is None or item_path is None:
+        continue
+    line = f'{item_kind} {item_path}' 
+    if line in IGNORES:
+        continue
+    lines.append(line)
+
+lines.sort()
+
+for line in lines:
+    print(line)
+

@@ -1,5 +1,5 @@
 #[cfg(test)]
-pub use crate::query::pest::test_helpers::StringVariant;
+pub(crate) use crate::query::pest::test_helpers::StringVariant;
 use pest::Parser;
 use pest_derive::Parser;
 use std::fmt::{Debug, Display, Formatter};
@@ -9,7 +9,7 @@ use std::rc::Rc;
 #[grammar = "query/grammar.pest"]
 struct QueryPairs;
 
-pub struct Query {
+pub(crate) struct Query {
     _private: (),
 }
 
@@ -17,7 +17,7 @@ pub(crate) type Pair<'a> = pest::iterators::Pair<'a, Rule>;
 pub(crate) type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Error {
+pub(crate) struct Error {
     pub(crate) pest_error: Rc<pest::error::Error<Rule>>,
 }
 
@@ -51,7 +51,7 @@ impl From<pest::error::Error<Rule>> for Error {
 }
 
 impl Query {
-    pub fn parse(query_text: &str) -> Result<Pairs, Error> {
+    pub(crate) fn parse(query_text: &str) -> Result<Pairs, Error> {
         QueryPairs::parse(Rule::top, query_text).map_err(Self::format_err)
     }
 
@@ -114,7 +114,7 @@ mod test_helpers {
     use pest::Parser;
 
     #[derive(Clone, Copy, PartialEq, Eq)]
-    pub enum StringVariant {
+    pub(crate) enum StringVariant {
         Pipe,
         AngleBracket,
     }
@@ -122,7 +122,7 @@ mod test_helpers {
     impl StringVariant {
         /// Tries to parse the given string. If it succeeds, returns the parsed Pairs and the remaining, unparsed query
         /// text.
-        pub fn parse(self, query_text: &str) -> Result<(Pairs, &str), Error> {
+        pub(crate) fn parse(self, query_text: &str) -> Result<(Pairs, &str), Error> {
             let parsed = QueryPairs::parse(self.as_rule(), query_text)?;
             let remaining = match parsed.peek() {
                 None => query_text,
@@ -131,7 +131,7 @@ mod test_helpers {
             Ok((parsed, remaining))
         }
 
-        pub fn as_rule(self) -> Rule {
+        pub(crate) fn as_rule(self) -> Rule {
             match self {
                 StringVariant::AngleBracket => Rule::string_for_unit_tests__do_not_use_angle,
                 StringVariant::Pipe => Rule::string_for_unit_tests__do_not_use_pipe,

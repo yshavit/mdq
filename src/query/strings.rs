@@ -3,17 +3,17 @@ use crate::query::{DetachedSpan, InnerParseError};
 use std::fmt::{Debug, Formatter, Write};
 
 #[derive(Eq, PartialEq)]
-pub struct ParsedString {
-    pub text: String,
-    pub anchor_start: bool,
-    pub anchor_end: bool,
-    pub mode: ParsedStringMode,
-    pub explicit_wildcard: bool,
-    pub replace_string: Option<String>,
+pub(crate) struct ParsedString {
+    pub(crate) text: String,
+    pub(crate) anchor_start: bool,
+    pub(crate) anchor_end: bool,
+    pub(crate) mode: ParsedStringMode,
+    pub(crate) explicit_wildcard: bool,
+    pub(crate) replace_string: Option<String>,
 }
 
 #[derive(Eq, PartialEq, Debug)]
-pub enum ParsedStringMode {
+pub(crate) enum ParsedStringMode {
     CaseSensitive,
     CaseInsensitive,
     Regex,
@@ -21,7 +21,7 @@ pub enum ParsedStringMode {
 
 impl ParsedString {
     // Whether this instance is compatible with an `*` literal
-    pub fn is_equivalent_to_asterisk(&self) -> bool {
+    pub(crate) fn is_equivalent_to_asterisk(&self) -> bool {
         match self.mode {
             ParsedStringMode::Regex => false,
             ParsedStringMode::CaseSensitive | ParsedStringMode::CaseInsensitive => {

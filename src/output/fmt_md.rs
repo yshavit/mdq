@@ -154,7 +154,7 @@ impl<'md> MdWriterState<'_, 'md> {
         }
     }
 
-    pub fn write_one_md<W>(&mut self, out: &mut Output<W>, node_ref: &'md MdElem)
+    pub(crate) fn write_one_md<W>(&mut self, out: &mut Output<W>, node_ref: &'md MdElem)
     where
         W: SimpleWrite,
     {
@@ -528,7 +528,7 @@ enum DefinitionsToWrite {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use indoc::indoc;
 
     use super::*;
