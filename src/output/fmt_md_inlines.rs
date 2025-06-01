@@ -26,8 +26,8 @@ pub(crate) struct MdInlinesWriter<'md> {
 }
 
 struct PendingReferences<'md> {
-    pub(crate) links: HashMap<LinkLabel<'md>, UrlAndTitle<'md>>,
-    pub(crate) footnotes: HashSet<&'md FootnoteId>,
+    links: HashMap<LinkLabel<'md>, UrlAndTitle<'md>>,
+    footnotes: HashSet<&'md FootnoteId>,
 }
 
 impl PendingReferences<'_> {
@@ -41,9 +41,9 @@ impl PendingReferences<'_> {
 
 #[derive(Serialize, Debug, PartialEq, Eq, Copy, Clone, Hash)]
 pub(crate) struct UrlAndTitle<'md> {
-    pub(crate) url: &'md String,
+    pub url: &'md String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) title: &'md Option<String>,
+    pub title: &'md Option<String>,
 }
 
 #[derive(Debug, Copy, Clone)]
