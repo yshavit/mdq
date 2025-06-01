@@ -2445,9 +2445,11 @@ mod tests {
             }
         }
 
-        #[test]
-        fn autolinks() {
-            {
+        mod autolinks {
+            use super::*;
+
+            #[test]
+            fn url_in_angle_brackets() {
                 let (root, lookups) = parse("<https://example.com>");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
@@ -2459,7 +2461,9 @@ mod tests {
                     });
                 });
             }
-            {
+
+            #[test]
+            fn mailto_in_angle_brackets() {
                 let (root, lookups) = parse("<mailto:md@example.com>");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
@@ -2471,7 +2475,9 @@ mod tests {
                     });
                 });
             }
-            {
+
+            #[test]
+            fn bare_url_with_default_parsing() {
                 // in default parsing, bare URLs aren't autolink
                 let (root, lookups) = parse_with(&ParseOptions::default(), "https://example.com");
                 unwrap!(&root.children[0], Node::Paragraph(p));
@@ -2480,7 +2486,9 @@ mod tests {
                     assert_eq!(value, "https://example.com".to_string());
                 });
             }
-            {
+
+            #[test]
+            fn bare_url_with_gfm_parsing() {
                 // in GFM parsing, bare URLs *are* autolink
                 let (root, lookups) = parse_with(&ParseOptions::gfm(), "https://example.com");
                 unwrap!(&root.children[0], Node::Paragraph(p));
