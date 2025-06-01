@@ -102,7 +102,7 @@ jobs:
         run: scripts/flatten-rustdoc-json > target/items-public-only.txt
 
       - name: cargo docs (all)
-        run: cargo +nightly rustdoc --lib -- -Zunstable-options --output-format json --document-private-item
+        run: cargo +nightly rustdoc --lib -- -Zunstable-options --output-format json --document-private-items
 
       - name: flatten rustdoc json (all)
         run: IGNORE_ITEMS='enum mdq::query::pest::Rule' scripts/flatten-rustdoc-json > target/items-all.txt
