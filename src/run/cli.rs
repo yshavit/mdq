@@ -16,7 +16,7 @@ macro_rules! create_options_structs {
         #[derive(Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Parser)]
         #[command(version, about, long_about = None)]
         #[doc(hidden)]
-        pub(crate) struct CliOptions {
+        pub struct CliOptions {
             $(
             $(#[$meta])*
             #[arg$clap]
@@ -209,7 +209,7 @@ impl RunOptions {
 }
 
 impl CliOptions {
-    pub(crate) fn extra_validation(&self) -> bool {
+    pub fn extra_validation(&self) -> bool {
         match self.output {
             OutputFormat::Json => {
                 if self.wrap_width.is_some() {
