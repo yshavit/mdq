@@ -41,9 +41,9 @@ impl PendingReferences<'_> {
 
 #[derive(Serialize, Debug, PartialEq, Eq, Copy, Clone, Hash)]
 pub(crate) struct UrlAndTitle<'md> {
-    pub url: &'md String,
+    pub(crate) url: &'md String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: &'md Option<String>,
+    pub(crate) title: &'md Option<String>,
 }
 
 #[derive(Debug, Copy, Clone)]
