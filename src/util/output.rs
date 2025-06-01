@@ -18,18 +18,6 @@ impl SimpleWrite for String {
     }
 }
 
-pub(crate) struct Stream<W>(pub W);
-
-impl<W: std::io::Write> SimpleWrite for Stream<W> {
-    fn write_char(&mut self, ch: char) -> std::io::Result<()> {
-        std::io::Write::write_all(&mut self.0, ch.encode_utf8(&mut [0u8; 4]).as_bytes())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.0.flush()
-    }
-}
-
 struct IndentHandler {
     /// whether the current block is in `<pre>` mode. See [Block] for an explanation as to why this
     /// exists, and isn't instead a `Block::Pre`.
@@ -1049,39 +1037,6 @@ mod tests {
             let mut out = Output::new(String::new(), Some(wrap));
             action(&mut out);
             out.take_underlying().unwrap()
-        }
-    }
-
-    mod stream_simple_write {
-        use super::*;
-
-        #[test]
-        fn single_byte_char() -> std::io::Result<()> {
-            let mut bb = Vec::new();
-            let mut stream = Stream(&mut bb);
-            SimpleWrite::write_char(&mut stream, 'a')?;
-            assert_eq!(&bb, b"a");
-            Ok(())
-        }
-
-        #[test]
-        fn multi_byte_char() -> std::io::Result<()> {
-            let mut bb = Vec::new();
-            let mut stream = Stream(&mut bb);
-            SimpleWrite::write_char(&mut stream, '☃')?;
-            let expected: &[u8] = &[0xE2, 0x98, 0x83];
-            assert_eq!(&bb, expected);
-            Ok(())
-        }
-
-        #[test]
-        fn four_byte_char() -> std::io::Result<()> {
-            let mut bb = Vec::new();
-            let mut stream = Stream(&mut bb);
-            SimpleWrite::write_char(&mut stream, '𝄞')?;
-            let expected: &[u8] = &[0xF0, 0x9D, 0x84, 0x9E];
-            assert_eq!(&bb, expected);
-            Ok(())
         }
     }
 
