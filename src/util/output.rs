@@ -2,8 +2,7 @@ use crate::util::words_buffer::{WordBoundary, WordsBuffer};
 use std::cmp::PartialEq;
 use std::ops::Range;
 
-// TODO this really should also be pub(crate)!
-pub trait SimpleWrite {
+pub(crate) trait SimpleWrite {
     fn write_char(&mut self, ch: char) -> std::io::Result<()>;
     fn flush(&mut self) -> std::io::Result<()>;
 }
