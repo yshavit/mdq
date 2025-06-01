@@ -84,7 +84,7 @@ jobs:
       - name: cargo fmt
         run: cargo fmt --check
 
-  viz:
+  vis-keywords:
     needs: build
     runs-on: ubuntu-latest
     permissions:
