@@ -83,3 +83,30 @@ jobs:
       - uses: actions/checkout@v4
       - name: cargo fmt
         run: cargo fmt --check
+
+  viz:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: cargo docs (public only)
+        run: cargo +nightly rustdoc --lib -- -Zunstable-options --output-format json
+
+      - name: flatten rustdoc json (public only)
+        run: scripts/flatten-rustdoc-json > target/items-public-only.txt
+
+      - name: cargo docs (all)
+        run: cargo +nightly rustdoc --lib -- -Zunstable-options --output-format json --document-private-item
+
+      - name: flatten rustdoc json (all)
+        run: IGNORE_ITEMS='enum mdq::query::pest::Rule' scripts/flatten-rustdoc-json > target/items-all.txt
+
+      - name: compare
+        run: |
+          if diff -y --suppress-common-lines target/items-public-only.txt target/items-all.txt; then
+            echo "::notice title=pub-viz::all pub items are actually public"
+          else
+            echo "::error title=pub-viz::some items marked pub are not actually public"
+            exit 1
+          fi
