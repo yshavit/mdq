@@ -110,8 +110,8 @@ jobs:
       - name: compare
         run: |
           if diff -y --suppress-common-lines target/items-public-only.txt target/items-all.txt; then
-            echo "::notice title=pub-viz::all pub items are actually public"
+            echo "::notice title=pub-vis::all pub items are actually public"
           else
-            echo "::error title=pub-viz::some items marked pub are not actually public"
+            echo "::error title=pub-vis::some items marked pub are not actually public"
             exit 1
           fi

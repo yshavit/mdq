@@ -21,18 +21,18 @@ path_by_item_id = {}
 kind_by_item_id = {}
 
 for item_id, item in docs_json["index"].items():
-    viz = item["visibility"] # this is the viz on the item itself, not the effective viz from mod.rs imports
-    if isinstance(viz, dict) and ('restricted' in viz):
-        viz = 'restricted'
-    vis_by_item_id[item_id] = viz
+    vis = item["visibility"] # this is the vis on the item itself, not the effective vis from mod.rs imports
+    if isinstance(vis, dict) and ('restricted' in vis):
+        vis = 'restricted'
+    vis_by_item_id[item_id] = vis
 
 for item_id, item in docs_json["paths"].items():
     kind_by_item_id[item_id] = item["kind"]
     path_by_item_id[item_id] = '::'.join(item["path"])
 
 lines = []
-for item_id, viz in vis_by_item_id.items():
-    if viz != 'public':
+for item_id, vis in vis_by_item_id.items():
+    if vis != 'public':
         continue
     item_kind = kind_by_item_id.get(item_id)
     item_path = path_by_item_id.get(item_id)
