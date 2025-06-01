@@ -92,6 +92,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: check file
+        run: file scripts/flatten-rustdoc-json
+
       - name: cargo docs (public only)
         run: cargo +nightly rustdoc --lib -- -Zunstable-options --output-format json
 
