@@ -97,9 +97,9 @@ impl From<crate::query::Error> for InnerParseError {
 
 /// Like a [pest::Span], but without a reference to the underlying `&str`, and thus cheaply Copyable.
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq, Hash)]
-pub struct DetachedSpan {
-    pub start: usize,
-    pub end: usize,
+pub(crate) struct DetachedSpan {
+    pub(crate) start: usize,
+    pub(crate) end: usize,
 }
 
 impl From<pest::Span<'_>> for DetachedSpan {

@@ -6,7 +6,7 @@ use fancy_regex::Regex;
 use std::borrow::Borrow;
 
 #[derive(Debug)]
-pub struct StringMatcher {
+pub(crate) struct StringMatcher {
     re: Regex,
     replacement: Option<String>,
 }
@@ -45,7 +45,7 @@ impl StringMatch<'_> {
 }
 
 impl StringMatchError {
-    pub fn to_select_error(&self, selector_name: &str) -> SelectError {
+    pub(crate) fn to_select_error(&self, selector_name: &str) -> SelectError {
         let message = match self {
             StringMatchError::NotSupported => format!("{selector_name} selector does not support string replace"),
             StringMatchError::RegexError(err) => format!("regex evaluation error in {selector_name} selector: {err}"),
@@ -61,7 +61,7 @@ impl PartialEq for StringMatcher {
 }
 
 impl StringMatcher {
-    pub fn matches(&self, haystack: &str) -> Result<bool, StringMatchError> {
+    pub(crate) fn matches(&self, haystack: &str) -> Result<bool, StringMatchError> {
         if self.replacement.is_some() {
             return Err(StringMatchError::NotSupported);
         }
@@ -87,11 +87,11 @@ impl StringMatcher {
         }
     }
 
-    pub fn matches_inlines<I: Borrow<Inline>>(&self, haystack: &[I]) -> Result<bool, StringMatchError> {
+    pub(crate) fn matches_inlines<I: Borrow<Inline>>(&self, haystack: &[I]) -> Result<bool, StringMatchError> {
         self.matches(&inlines_to_plain_string(haystack))
     }
 
-    pub fn matches_any<N: Borrow<MdElem>>(&self, haystacks: &[N]) -> Result<bool, StringMatchError> {
+    pub(crate) fn matches_any<N: Borrow<MdElem>>(&self, haystacks: &[N]) -> Result<bool, StringMatchError> {
         for node in haystacks {
             if self.matches_node(node.borrow())? {
                 return Ok(true);

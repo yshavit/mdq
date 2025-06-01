@@ -1,4 +1,4 @@
-pub trait Concatenate: Sized {
+pub(crate) trait Concatenate: Sized {
     fn try_concatenate(&mut self, other: Self) -> Result<(), Self>;
 
     fn concatenate_similar(items: Vec<Self>) -> Vec<Self> {

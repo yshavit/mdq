@@ -1,7 +1,7 @@
 use crate::md_elem::elem::ColumnAlignment;
 use crate::util::output::{Output, SimpleWrite};
 
-pub fn pad_to<W>(output: &mut Output<W>, input: &str, min_width: usize, alignment: Option<ColumnAlignment>)
+pub(crate) fn pad_to<W>(output: &mut Output<W>, input: &str, min_width: usize, alignment: Option<ColumnAlignment>)
 where
     W: SimpleWrite,
 {
@@ -30,13 +30,13 @@ where
     }
 }
 
-pub struct CountingWriter<'a, W> {
+pub(crate) struct CountingWriter<'a, W> {
     underlying: &'a mut W,
     count: usize,
 }
 
 impl<'a, W: SimpleWrite> CountingWriter<'a, W> {
-    pub fn wrap(underlying: &'a mut W) -> Self {
+    pub(crate) fn wrap(underlying: &'a mut W) -> Self {
         Self { underlying, count: 0 }
     }
 
@@ -47,7 +47,7 @@ impl<'a, W: SimpleWrite> CountingWriter<'a, W> {
         Ok(())
     }
 
-    pub fn count(&self) -> usize {
+    pub(crate) fn count(&self) -> usize {
         self.count
     }
 }

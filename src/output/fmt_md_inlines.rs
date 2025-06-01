@@ -26,8 +26,8 @@ pub(crate) struct MdInlinesWriter<'md> {
 }
 
 struct PendingReferences<'md> {
-    pub links: HashMap<LinkLabel<'md>, UrlAndTitle<'md>>,
-    pub footnotes: HashSet<&'md FootnoteId>,
+    pub(crate) links: HashMap<LinkLabel<'md>, UrlAndTitle<'md>>,
+    pub(crate) footnotes: HashSet<&'md FootnoteId>,
 }
 
 impl PendingReferences<'_> {
@@ -41,9 +41,9 @@ impl PendingReferences<'_> {
 
 #[derive(Serialize, Debug, PartialEq, Eq, Copy, Clone, Hash)]
 pub(crate) struct UrlAndTitle<'md> {
-    pub url: &'md String,
+    pub(crate) url: &'md String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: &'md Option<String>,
+    pub(crate) title: &'md Option<String>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -73,7 +73,7 @@ impl<'md> LinkLike<'md> for &'md Image {
 }
 
 impl<'md> MdInlinesWriter<'md> {
-    pub fn new(ctx: &'md MdContext, options: InlineElemOptions) -> Self {
+    pub(crate) fn new(ctx: &'md MdContext, options: InlineElemOptions) -> Self {
         let pending_refs_capacity = 8; // arbitrary guess
         Self {
             ctx,
@@ -85,27 +85,27 @@ impl<'md> MdInlinesWriter<'md> {
         }
     }
 
-    pub fn has_pending_links(&self) -> bool {
+    pub(crate) fn has_pending_links(&self) -> bool {
         !self.pending_references.links.is_empty()
     }
 
-    pub fn has_pending_footnotes(&self) -> bool {
+    pub(crate) fn has_pending_footnotes(&self) -> bool {
         !self.pending_references.footnotes.is_empty()
     }
 
-    pub fn count_pending_links(&self) -> usize {
+    pub(crate) fn count_pending_links(&self) -> usize {
         self.pending_references.links.len()
     }
 
-    pub fn count_pending_footnotes(&self) -> usize {
+    pub(crate) fn count_pending_footnotes(&self) -> usize {
         self.pending_references.footnotes.len()
     }
 
-    pub fn drain_pending_links(&mut self) -> Vec<(LinkLabel<'md>, UrlAndTitle<'md>)> {
+    pub(crate) fn drain_pending_links(&mut self) -> Vec<(LinkLabel<'md>, UrlAndTitle<'md>)> {
         self.pending_references.links.drain().collect()
     }
 
-    pub fn drain_pending_footnotes(&mut self) -> Vec<(String, &'md Vec<MdElem>)> {
+    pub(crate) fn drain_pending_footnotes(&mut self) -> Vec<(String, &'md Vec<MdElem>)> {
         let mut result = Vec::with_capacity(self.pending_references.footnotes.len());
         let mut to_stringer = self.footnote_transformer.new_to_stringer();
 
@@ -118,7 +118,7 @@ impl<'md> MdInlinesWriter<'md> {
         result
     }
 
-    pub fn write_line<I, W>(&mut self, out: &mut Output<W>, elems: I)
+    pub(crate) fn write_line<I, W>(&mut self, out: &mut Output<W>, elems: I)
     where
         I: IntoIterator<Item = &'md Inline>,
         W: SimpleWrite,
@@ -128,7 +128,7 @@ impl<'md> MdInlinesWriter<'md> {
         }
     }
 
-    pub fn write_inline_element<W>(&mut self, out: &mut Output<W>, elem: &'md Inline)
+    pub(crate) fn write_inline_element<W>(&mut self, out: &mut Output<W>, elem: &'md Inline)
     where
         W: SimpleWrite,
     {
@@ -269,7 +269,7 @@ impl<'md> MdInlinesWriter<'md> {
     ///
     /// The `contents` function is what writes e.g. `an inline link` above. It's a function because it may be a recursive
     /// call into [write_line] (for links) or just simple text (for image alts).
-    pub fn write_linklike<W, L>(&mut self, out: &mut Output<W>, link_like: L)
+    pub(crate) fn write_linklike<W, L>(&mut self, out: &mut Output<W>, link_like: L)
     where
         W: SimpleWrite,
         L: LinkLike<'md> + Copy,
@@ -372,7 +372,7 @@ impl<'md> MdInlinesWriter<'md> {
         });
     }
 
-    pub fn write_url_title<W>(&mut self, out: &mut Output<W>, title: &Option<String>)
+    pub(crate) fn write_url_title<W>(&mut self, out: &mut Output<W>, title: &Option<String>)
     where
         W: SimpleWrite,
     {
@@ -415,7 +415,7 @@ enum TitleQuote {
 }
 
 impl TitleQuote {
-    pub fn find_best_strategy(text: &str) -> Self {
+    pub(crate) fn find_best_strategy(text: &str) -> Self {
         [Self::Double, Self::Single, Self::Paren]
             .into_iter()
             .find(|strategy| !strategy.has_conflicts(text))

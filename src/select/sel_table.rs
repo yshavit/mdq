@@ -4,7 +4,7 @@ use crate::select::string_matcher::StringMatcher;
 use crate::select::{Result, Select, TableMatcher, TrySelector};
 
 #[derive(Debug, PartialEq)]
-pub struct TableSelector {
+pub(crate) struct TableSelector {
     headers_matcher: StringMatcher,
     rows_matcher: StringMatcher,
 }

@@ -1,23 +1,23 @@
 use crate::util::output::{Output, SimpleWrite};
 use std::collections::HashMap;
 
-pub struct FootnoteTransformer<'md> {
+pub(crate) struct FootnoteTransformer<'md> {
     mappings: Option<HashMap<&'md str, usize>>,
 }
 
-pub struct FootnoteTransformerToString<'a, 'md> {
+pub(crate) struct FootnoteTransformerToString<'a, 'md> {
     transformer: &'a mut FootnoteTransformer<'md>,
     scratch: Output<String>,
 }
 
 impl<'md> FootnoteTransformer<'md> {
-    pub fn new(active: bool) -> Self {
+    pub(crate) fn new(active: bool) -> Self {
         Self {
             mappings: if active { Some(HashMap::default()) } else { None },
         }
     }
 
-    pub fn write<W>(&mut self, out: &mut Output<W>, label: &'md str)
+    pub(crate) fn write<W>(&mut self, out: &mut Output<W>, label: &'md str)
     where
         W: SimpleWrite,
     {
@@ -31,13 +31,13 @@ impl<'md> FootnoteTransformer<'md> {
         }
     }
 
-    pub fn new_to_stringer<'a>(&'a mut self) -> FootnoteTransformerToString<'a, 'md> {
+    pub(crate) fn new_to_stringer<'a>(&'a mut self) -> FootnoteTransformerToString<'a, 'md> {
         FootnoteTransformerToString::new(self)
     }
 }
 
 impl<'a, 'md> FootnoteTransformerToString<'a, 'md> {
-    pub fn transform(&mut self, label: &'md str) -> String {
+    pub(crate) fn transform(&mut self, label: &'md str) -> String {
         let len = self.transformed_label_len(label);
         _ = self.scratch.replace_underlying(String::with_capacity(len)).unwrap();
         self.transformer.write(&mut self.scratch, label);

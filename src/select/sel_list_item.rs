@@ -4,7 +4,7 @@ use crate::select::string_matcher::StringMatcher;
 use crate::select::{ListItemMatcher, ListItemTask, Result, Select, TrySelector};
 
 #[derive(Debug, PartialEq)]
-pub struct ListItemSelector {
+pub(crate) struct ListItemSelector {
     li_type: ListItemType,
     checkbox: ListItemTask,
     string_matcher: StringMatcher,
@@ -25,7 +25,7 @@ impl From<ListItemMatcher> for ListItemSelector {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum ListItemType {
+pub(crate) enum ListItemType {
     Ordered,
     Unordered,
 }

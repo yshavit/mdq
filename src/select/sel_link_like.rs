@@ -37,7 +37,7 @@ macro_rules! make_result {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct LinkSelector {
+pub(crate) struct LinkSelector {
     matchers: LinkMatchers,
 }
 
@@ -79,7 +79,7 @@ impl TrySelector<Link> for LinkSelector {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ImageSelector {
+pub(crate) struct ImageSelector {
     matchers: LinkMatchers,
 }
 
@@ -121,9 +121,9 @@ impl TrySelector<Image> for ImageSelector {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct LinkMatchers {
-    pub display_matcher: StringMatcher,
-    pub url_matcher: StringMatcher,
+pub(crate) struct LinkMatchers {
+    pub(crate) display_matcher: StringMatcher,
+    pub(crate) url_matcher: StringMatcher,
 }
 
 impl From<LinklikeMatcher> for LinkMatchers {

@@ -5,7 +5,7 @@ use crate::select::TrySelector;
 
 /// MatchSelector is a helper trait for implementing [TrySelector]. Simply provide the boolean predicate for whether a
 /// given item matches, and MatchSelector will do the rest.
-pub trait MatchSelector<I> {
+pub(crate) trait MatchSelector<I> {
     const NAME: &'static str;
 
     fn matches(&self, item: &I) -> std::result::Result<bool, StringMatchError>;

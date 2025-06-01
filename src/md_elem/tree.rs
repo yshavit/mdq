@@ -215,9 +215,9 @@ pub(crate) struct ReadOptions {
     /// [1]: https://example.com/one
     /// [1]: https://example.com/one
     /// ```
-    pub validate_no_conflicting_links: bool,
+    pub(crate) validate_no_conflicting_links: bool,
 
-    pub allow_unknown_markdown: bool,
+    pub(crate) allow_unknown_markdown: bool,
 }
 
 /// Various error conditions that can come from trying to parse Markdown.
@@ -1803,14 +1803,14 @@ mod tests {
     use crate::util::utils_for_test::*;
 
     impl MdContext {
-        pub fn empty() -> Self {
+        pub(crate) fn empty() -> Self {
             Self {
                 footnotes: Default::default(),
                 empty_md_elems: vec![],
             }
         }
 
-        pub fn with<S: Into<FootnoteId>>(mut self, footnote_id: S, body: Vec<MdElem>) -> Self {
+        pub(crate) fn with<S: Into<FootnoteId>>(mut self, footnote_id: S, body: Vec<MdElem>) -> Self {
             self.footnotes.insert(footnote_id.into(), body);
             self
         }
