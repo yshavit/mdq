@@ -553,14 +553,15 @@ pub(crate) mod tests {
         Inline(Inline::Text(Text{variant: TextVariant::Math, ..})),
         Inline(Inline::Text(Text{variant: TextVariant::InlineHtml, ..})),
 
-        Inline(Inline::Link(Link{link: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..})),
-        Inline(Inline::Link(Link{link: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..})),
-        Inline(Inline::Link(Link{link: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..})),
-        Inline(Inline::Link(Link{link: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..})),
-        Inline(Inline::Link(Link{link: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..})),
-        Inline(Inline::Link(Link{link: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..})),
-        Inline(Inline::Link(Link{link: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..})),
-        Inline(Inline::Link(Link{link: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..})),
+        Inline(Inline::Link(Link::Standard{link: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..})),
+        Inline(Inline::Link(Link::Standard{link: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..})),
+        Inline(Inline::Link(Link::Standard{link: LinkDefinition{title: None, reference: LinkReference::Collapsed, ..}, ..})),
+        Inline(Inline::Link(Link::Standard{link: LinkDefinition{title: None, reference: LinkReference::Shortcut, ..}, ..})),
+        Inline(Inline::Link(Link::Standard{link: LinkDefinition{title: Some(_), reference: LinkReference::Inline, ..}, ..})),
+        Inline(Inline::Link(Link::Standard{link: LinkDefinition{title: Some(_), reference: LinkReference::Full(_), ..}, ..})),
+        Inline(Inline::Link(Link::Standard{link: LinkDefinition{title: Some(_), reference: LinkReference::Collapsed, ..}, ..})),
+        Inline(Inline::Link(Link::Standard{link: LinkDefinition{title: Some(_), reference: LinkReference::Shortcut, ..}, ..})),
+        Inline(Inline::Link(Link::Autolink{..})),
 
         Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Inline, ..}, ..})),
         Inline(Inline::Image(Image{link: LinkDefinition{title: None, reference: LinkReference::Full(_), ..}, ..})),
@@ -1653,7 +1654,7 @@ pub(crate) mod tests {
 
             fn check_link_and_thematic_break(link: LinkDefinition, expect: &str) {
                 let nodes = vec![
-                    MdElem::Inline(Inline::Link(Link {
+                    MdElem::Inline(Inline::Link(Link::Standard {
                         display: vec![
                             mdq_inline!("hello "),
                             mdq_inline!(span Emphasis [mdq_inline!("world")]),
@@ -1821,7 +1822,7 @@ pub(crate) mod tests {
         #[test]
         fn single_link() {
             check_render_refs(
-                vec![link_elem(Link {
+                vec![link_elem(Link::Standard {
                     display: vec![mdq_inline!("link text")],
                     link: LinkDefinition {
                         url: "https://example.com".to_string(),
@@ -1840,7 +1841,7 @@ pub(crate) mod tests {
         fn two_links() {
             check_render_refs(
                 vec![
-                    link_elem(Link {
+                    link_elem(Link::Standard {
                         display: vec![mdq_inline!("link text one")],
                         link: LinkDefinition {
                             url: "https://example.com/1".to_string(),
@@ -1848,7 +1849,7 @@ pub(crate) mod tests {
                             reference: LinkReference::Full("1".to_string()),
                         },
                     }),
-                    link_elem(Link {
+                    link_elem(Link::Standard {
                         display: vec![mdq_inline!("link text two")],
                         link: LinkDefinition {
                             url: "https://example.com/2".to_string(),
@@ -1874,7 +1875,7 @@ pub(crate) mod tests {
         fn two_links_inline() {
             check_render_refs(
                 vec![
-                    link_elem(Link {
+                    link_elem(Link::Standard {
                         display: vec![mdq_inline!("link text one")],
                         link: LinkDefinition {
                             url: "https://example.com/1".to_string(),
@@ -1882,7 +1883,7 @@ pub(crate) mod tests {
                             reference: LinkReference::Inline,
                         },
                     }),
-                    link_elem(Link {
+                    link_elem(Link::Standard {
                         display: vec![mdq_inline!("link text two")],
                         link: LinkDefinition {
                             url: "https://example.com/2".to_string(),
@@ -1907,7 +1908,7 @@ pub(crate) mod tests {
             check_render_refs_with(
                 options,
                 vec![
-                    link_elem(Link {
+                    link_elem(Link::Standard {
                         display: vec![mdq_inline!("link text one")],
                         link: LinkDefinition {
                             url: "https://example.com/1".to_string(),
@@ -1915,7 +1916,7 @@ pub(crate) mod tests {
                             reference: LinkReference::Inline,
                         },
                     }),
-                    link_elem(Link {
+                    link_elem(Link::Standard {
                         display: vec![mdq_inline!("link text two")],
                         link: LinkDefinition {
                             url: "https://example.com/2".to_string(),
@@ -1939,7 +1940,7 @@ pub(crate) mod tests {
             check_render_refs_with(
                 options,
                 vec![
-                    link_elem(Link {
+                    link_elem(Link::Standard {
                         display: vec![mdq_inline!("link text one")],
                         link: LinkDefinition {
                             url: "https://example.com/1".to_string(),
@@ -1947,7 +1948,7 @@ pub(crate) mod tests {
                             reference: LinkReference::Inline,
                         },
                     }),
-                    link_elem(Link {
+                    link_elem(Link::Standard {
                         display: vec![mdq_inline!("link text two")],
                         link: LinkDefinition {
                             url: "https://example.com/2".to_string(),
@@ -1970,7 +1971,7 @@ pub(crate) mod tests {
         fn reference_transform_smoke_test() {
             check_render_refs_with(
                 MdWriterOptions::new_with(|mdo| mdo.inline_options.link_format = LinkTransform::Reference),
-                vec![link_elem(Link {
+                vec![link_elem(Link::Standard {
                     display: vec![mdq_inline!("link text")],
                     link: LinkDefinition {
                         url: "https://example.com".to_string(),
@@ -2164,7 +2165,7 @@ pub(crate) mod tests {
                     md_elems![Paragraph {
                         body: vec![
                             mdq_inline!("Hello, "),
-                            m_node!(Inline::Link {
+                            m_node!(Inline::Link<Standard> {
                                 display: vec![mdq_inline!("world"),],
                                 link: LinkDefinition {
                                     url: "https://example.com".to_string(),
@@ -2245,7 +2246,7 @@ pub(crate) mod tests {
                     mdo.footnote_reference_placement = ReferencePlacement::Section;
                 }),
                 md_elems![Paragraph {
-                    body: vec![m_node!(Inline::Link {
+                    body: vec![m_node!(Inline::Link<Standard> {
                         display: vec![mdq_inline!("link description")],
                         link: LinkDefinition {
                             url: "https://example.com".to_string(),
@@ -2330,7 +2331,7 @@ pub(crate) mod tests {
                         body: vec![
                             Inline::Footnote("d".into()),
                             Inline::Footnote("c".into()),
-                            m_node!(Inline::Link {
+                            m_node!(Inline::Link<Standard> {
                                 display: vec![mdq_inline!("b-text")],
                                 link: LinkDefinition {
                                     url: "https://example.com/b".to_string(),
@@ -2338,7 +2339,7 @@ pub(crate) mod tests {
                                     reference: LinkReference::Full("b".to_string()),
                                 },
                             }),
-                            m_node!(Inline::Link {
+                            m_node!(Inline::Link<Standard> {
                                 display: vec![mdq_inline!("a-text")],
                                 link: LinkDefinition {
                                     url: "https://example.com/a".to_string(),
@@ -2366,7 +2367,7 @@ pub(crate) mod tests {
                     title: vec![mdq_inline!("First section")],
                     body: md_elems![Paragraph {
                         body: vec![
-                            m_node!(Inline::Link {
+                            m_node!(Inline::Link<Standard> {
                                 display: vec![mdq_inline!("link description")],
                                 link: LinkDefinition {
                                     url: "https://example.com".to_string(),

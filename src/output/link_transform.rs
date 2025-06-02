@@ -470,13 +470,18 @@ mod tests {
         iw: &mut MdInlinesWriter<'md>,
         link: &'md Link,
     ) -> LinkReference {
-        let actual =
-            LinkTransformation::new(transformer.transform_variant(), iw, link).apply(transformer, &link.link.reference);
+        let actual = match link {
+            Link::Standard { link: link_def, .. } => LinkTransformation::new(transformer.transform_variant(), iw, link)
+                .apply(transformer, &link_def.reference),
+            Link::Autolink { .. } => {
+                todo!()
+            }
+        };
         actual
     }
 
     fn make_link(label: &str, link_ref: LinkReference) -> Link {
-        Link {
+        Link::Standard {
             display: vec![Inline::Text(Text {
                 variant: TextVariant::Plain,
                 value: label.to_string(),
@@ -511,7 +516,7 @@ mod tests {
                     renumber_footnotes: false,
                 },
             );
-            let link = Link {
+            let link = Link::Standard {
                 display: vec![label],
                 link: LinkDefinition {
                     url: "https://example.com".to_string(),

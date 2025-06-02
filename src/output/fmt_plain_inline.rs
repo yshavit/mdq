@@ -166,7 +166,8 @@ where
         Inline::Footnote(_) => Ok(()),
         Inline::Span(Span { children, .. }) => write_inlines(out, children),
         Inline::Image(Image { alt, .. }) => write!(out, "{alt}"),
-        Inline::Link(Link { display: text, .. }) => write_inlines(out, text),
+        Inline::Link(Link::Standard { display: text, .. }) => write_inlines(out, text),
+        Inline::Link(Link::Autolink { url, .. }) => write!(out, "{url}"),
         Inline::Text(Text { value, .. }) => write!(out, "{value}"),
     }
 }
@@ -501,7 +502,7 @@ mod test {
 
     #[test]
     fn link() {
-        let link = Link {
+        let link = Link::Standard {
             display: vec![mdq_inline!("display text")],
             link: LinkDefinition {
                 url: "https://example.com".to_string(),
@@ -562,7 +563,7 @@ mod test {
                 mdq_inline!("hello "),
                 mdq_inline!(span Emphasis [mdq_inline!("world")]),
                 mdq_inline!("! sponsored by "),
-                Inline::Link(Link {
+                Inline::Link(Link::Standard {
                     display: vec![mdq_inline!("Example Corp")],
                     link: LinkDefinition {
                         url: "https://example.com".to_string(),

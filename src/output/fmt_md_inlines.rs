@@ -58,7 +58,13 @@ pub(crate) trait LinkLike<'md> {
 
 impl<'md> LinkLike<'md> for &'md Link {
     fn link_info(&self) -> (LinkLikeType, LinkLabel<'md>, &'md LinkDefinition) {
-        (LinkLikeType::Link, LinkLabel::Inline(&self.display), &self.link)
+        match self {
+            Link::Standard { display, link } => (LinkLikeType::Link, LinkLabel::Inline(display), link),
+            Link::Autolink { .. } => {
+                // Autolinks should be handled specially in write_linklike, not through this trait
+                panic!("TODO")
+            }
+        }
     }
 }
 
@@ -168,7 +174,19 @@ impl<'md> MdInlinesWriter<'md> {
                 }
                 out.write_str(&surround_ch);
             }
-            Inline::Link(link) => self.write_linklike(out, link),
+            Inline::Link(link) => match link {
+                Link::Standard { .. } => self.write_linklike(out, link),
+                Link::Autolink { url, style } => match style {
+                    crate::md_elem::elem::AutolinkStyle::Explicit => {
+                        out.write_char('<');
+                        out.write_str(url);
+                        out.write_char('>');
+                    }
+                    crate::md_elem::elem::AutolinkStyle::Implicit => {
+                        out.write_str(url);
+                    }
+                },
+            },
             Inline::Image(image) => self.write_linklike(out, image),
             Inline::Footnote(footnote_id) => {
                 out.write_str("[^");
@@ -241,16 +259,21 @@ impl<'md> MdInlinesWriter<'md> {
                 Inline::Span(item) => {
                     self.find_references_in_footnote_inlines(&item.children);
                 }
-                Inline::Link(link) => {
-                    let link_label = match &link.link.reference {
-                        LinkReference::Inline => None,
-                        LinkReference::Full(reference) => Some(LinkLabel::Text(Cow::Borrowed(reference))),
-                        LinkReference::Collapsed | LinkReference::Shortcut => Some(LinkLabel::Inline(&link.display)),
-                    };
-                    if let Some(label) = link_label {
-                        self.add_link_reference(label, &link.link);
+                Inline::Link(link) => match link {
+                    Link::Standard { display, link } => {
+                        let link_label = match &link.reference {
+                            LinkReference::Inline => None,
+                            LinkReference::Full(reference) => Some(LinkLabel::Text(Cow::Borrowed(reference))),
+                            LinkReference::Collapsed | LinkReference::Shortcut => Some(LinkLabel::Inline(display)),
+                        };
+                        if let Some(label) = link_label {
+                            self.add_link_reference(label, link);
+                        }
                     }
-                }
+                    Link::Autolink { .. } => {
+                        // Autolinks don't have references to track
+                    }
+                },
                 Inline::Image(_) | Inline::Text(_) => {
                     // nothing
                 }
@@ -726,7 +749,7 @@ mod tests {
                 renumber_footnotes: false,
             },
         );
-        let link = Inline::Link(Link {
+        let link = Inline::Link(Link::Standard {
             display: vec![Inline::Text(Text {
                 variant: TextVariant::Plain,
                 value: input_description.to_string(),
