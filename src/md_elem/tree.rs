@@ -1749,9 +1749,7 @@ impl MdElem {
         if title.is_some() {
             return None;
         }
-        let Some(position) = position else {
-            return None;
-        };
+        let position = position?;
         let [Inline::Text(Text {
             variant: TextVariant::Plain,
             value: display_text,
