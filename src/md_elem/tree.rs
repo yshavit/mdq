@@ -190,7 +190,7 @@ fn parse0(text: &str, options: &ParseOptions) -> Result<MdDoc, InvalidMd> {
         validate_no_conflicting_links: false,
         allow_unknown_markdown: options.allow_unknown_markdown,
     };
-    MdDoc::read(ast, &read_options)
+    MdDoc::read(ast, &read_options, text)
 }
 
 #[derive(Default)]
@@ -1324,8 +1324,8 @@ macro_rules! m_node {
 pub(crate) use m_node;
 
 impl MdDoc {
-    fn read(node: mdast::Node, opts: &ReadOptions) -> Result<Self, InvalidMd> {
-        let lookups = Lookups::new(&node, opts)?;
+    fn read(node: mdast::Node, opts: &ReadOptions, source: &str) -> Result<Self, InvalidMd> {
+        let lookups = Lookups::new(&node, opts, source)?;
         let mut ctx = MdContext::new();
         let roots = MdElem::from_mdast_0(node, &lookups, &mut ctx)?;
         Ok(Self { roots, ctx })
@@ -1333,7 +1333,7 @@ impl MdDoc {
 }
 
 impl MdElem {
-    fn from_mdast_0(node: mdast::Node, lookups: &Lookups, ctx: &mut MdContext) -> Result<Vec<Self>, InvalidMd> {
+    fn from_mdast_0(node: mdast::Node, lookups: &Lookups<'_>, ctx: &mut MdContext) -> Result<Vec<Self>, InvalidMd> {
         let result = match node {
             mdast::Node::Root(node) => return MdElem::all(node.children, lookups, ctx),
             mdast::Node::Blockquote(node) => m_node!(MdElem::BlockQuote {
@@ -1521,7 +1521,7 @@ impl MdElem {
 
     fn all(
         children: Vec<mdast::Node>,
-        lookups: &Lookups,
+        lookups: &Lookups<'_>,
         footnotes_repo: &mut MdContext,
     ) -> Result<Vec<Self>, InvalidMd> {
         Self::all_from_iter(NodeToMdqIter {
@@ -1628,7 +1628,7 @@ impl MdElem {
 
     fn inlines(
         children: Vec<mdast::Node>,
-        lookups: &Lookups,
+        lookups: &Lookups<'_>,
         footnotes_repo: &mut MdContext,
     ) -> Result<Vec<Inline>, InvalidMd> {
         let mdq_children = Self::all(children, lookups, footnotes_repo)?;
@@ -1666,7 +1666,7 @@ where
 {
     children: I,
     pending: IntoIter<MdElem>,
-    lookups: &'a Lookups,
+    lookups: &'a Lookups<'a>,
     footnotes_repo: &'a mut MdContext,
 }
 
@@ -1695,20 +1695,22 @@ where
 }
 
 #[derive(Debug, PartialEq)]
-struct Lookups {
+struct Lookups<'a> {
     link_definitions: HashMap<String, mdast::Definition>,
     footnote_definitions: HashMap<String, mdast::FootnoteDefinition>,
     allow_unknown_markdown: bool,
+    source: &'a str,
 }
 
-impl Lookups {
-    fn new(node: &mdast::Node, read_opts: &ReadOptions) -> Result<Self, InvalidMd> {
+impl<'a> Lookups<'a> {
+    fn new(node: &mdast::Node, read_opts: &ReadOptions, source: &'a str) -> Result<Self, InvalidMd> {
         const DEFAULT_CAPACITY: usize = 8; // random guess
 
         let mut result = Self {
             link_definitions: HashMap::with_capacity(DEFAULT_CAPACITY),
             footnote_definitions: HashMap::with_capacity(DEFAULT_CAPACITY),
             allow_unknown_markdown: read_opts.allow_unknown_markdown,
+            source,
         };
 
         result.build_lookups(node, read_opts)?;
@@ -1729,7 +1731,7 @@ impl Lookups {
         identifier: String,
         label: Option<String>,
         reference_kind: mdast::ReferenceKind,
-        lookups: &Lookups,
+        lookups: &Lookups<'a>,
     ) -> Result<LinkDefinition, InvalidMd> {
         if label.is_none() {
             lookups.unknown_markdown("link label was None")?;
@@ -2948,13 +2950,13 @@ mod tests {
             });
         }
 
-        fn parse(md: &str) -> (mdast::Root, Lookups) {
+        fn parse(md: &str) -> (mdast::Root, Lookups<'_>) {
             parse_with(&ParseOptions::default(), md)
         }
 
-        fn parse_with(opts: &ParseOptions, md: &str) -> (mdast::Root, Lookups) {
+        fn parse_with<'a>(opts: &ParseOptions, md: &'a str) -> (mdast::Root, Lookups<'a>) {
             let doc = markdown::to_mdast(md, opts).unwrap();
-            let lookups = Lookups::new(&doc, &ReadOptions::default()).unwrap();
+            let lookups = Lookups::new(&doc, &ReadOptions::default(), md).unwrap();
             unwrap!(doc, Node::Root(root));
             (root, lookups)
         }
@@ -3003,6 +3005,22 @@ mod tests {
         use markdown::ParseOptions;
 
         use super::*;
+
+        #[test]
+        fn source_field_is_accessible() {
+            let md = "Hello [world][1]\n\n[1]: https://example.com";
+            let result = lookups_for(
+                &ParseOptions::gfm(),
+                ReadOptions {
+                    validate_no_conflicting_links: false,
+                    allow_unknown_markdown: false,
+                },
+                md,
+            );
+            expect_present(result, |lookups| {
+                assert_eq!(lookups.source, md);
+            });
+        }
 
         #[test]
         fn good_link_ref() {
@@ -3119,7 +3137,7 @@ mod tests {
         // See [
         #[test]
         fn link_has_conflicting_definition() {
-            fn get(validate_no_conflicting_links: bool) -> Result<Lookups, InvalidMd> {
+            fn get(validate_no_conflicting_links: bool) -> Result<Lookups<'static>, InvalidMd> {
                 lookups_for(
                     &ParseOptions::gfm(),
                     ReadOptions {
@@ -3147,14 +3165,18 @@ mod tests {
             });
         }
 
-        fn lookups_for(parse_opts: &ParseOptions, read_opts: ReadOptions, md: &str) -> Result<Lookups, InvalidMd> {
+        fn lookups_for(
+            parse_opts: &ParseOptions,
+            read_opts: ReadOptions,
+            md: &'static str,
+        ) -> Result<Lookups<'static>, InvalidMd> {
             let ast = markdown::to_mdast(md, parse_opts).unwrap();
-            Lookups::new(&ast, &read_opts)
+            Lookups::new(&ast, &read_opts, md)
         }
 
-        fn expect_present<F>(result: Result<Lookups, InvalidMd>, check: F)
+        fn expect_present<F>(result: Result<Lookups<'static>, InvalidMd>, check: F)
         where
-            F: FnOnce(Lookups),
+            F: FnOnce(Lookups<'static>),
         {
             match result {
                 Ok(lookups) => check(lookups),
@@ -3162,7 +3184,7 @@ mod tests {
             }
         }
 
-        fn expect_absent(result: Result<Lookups, InvalidMd>, expect: InvalidMd) {
+        fn expect_absent(result: Result<Lookups<'static>, InvalidMd>, expect: InvalidMd) {
             match result {
                 Ok(_) => panic!("expected {:?}, but got good Lookups", expect),
                 Err(err) => assert_eq!(err, expect),
@@ -3467,7 +3489,7 @@ mod tests {
         fn check(in_description: &str, expected: &str) {
             let md_str = format!("[{in_description}](https://example.com)");
             let nodes = markdown::to_mdast(&md_str, &ParseOptions::default()).unwrap();
-            let root_elems = MdDoc::read(nodes, &ReadOptions::default()).unwrap().roots;
+            let root_elems = MdDoc::read(nodes, &ReadOptions::default(), &md_str).unwrap().roots;
 
             assert_eq!(
                 root_elems,
