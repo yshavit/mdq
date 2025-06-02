@@ -9,6 +9,7 @@ use std::vec::IntoIter;
 
 use elem::*;
 use markdown::mdast;
+use markdown::unist::Position;
 
 /// Additional context for navigating or parsing a Markdown document.
 ///
@@ -1468,14 +1469,28 @@ impl MdElem {
                 alt: node.alt,
                 link: lookups.resolve_link(node.identifier, node.label, node.reference_kind, lookups)?,
             })),
-            mdast::Node::Link(node) => MdElem::Inline(Inline::Link(Link::Standard(StandardLink {
-                display: MdElem::inlines(node.children, lookups, ctx)?,
-                link: LinkDefinition {
-                    url: node.url,
-                    title: node.title,
-                    reference: LinkReference::Inline,
-                },
-            }))),
+            mdast::Node::Link(node) => {
+                let mdast::Link {
+                    children,
+                    url,
+                    title,
+                    position,
+                } = node;
+                let display = MdElem::inlines(children, lookups, ctx)?;
+
+                let link = match Self::autolink_style(&display, &url, &title, lookups.source, position) {
+                    None => Link::Standard(StandardLink {
+                        display,
+                        link: LinkDefinition {
+                            url,
+                            title,
+                            reference: LinkReference::Inline,
+                        },
+                    }),
+                    Some(style) => Link::Autolink(Autolink { url, style }),
+                };
+                MdElem::Inline(Inline::Link(link))
+            }
             mdast::Node::LinkReference(node) => MdElem::Inline(Inline::Link(Link::Standard(StandardLink {
                 display: MdElem::inlines(node.children, lookups, ctx)?,
                 link: lookups.resolve_link(node.identifier, node.label, node.reference_kind, lookups)?,
@@ -1726,6 +1741,55 @@ impl MdElem {
         }
         let merged = Concatenate::concatenate_similar(result);
         Ok(merged)
+    }
+
+    fn autolink_style(
+        display: &[Inline],
+        url: &str,
+        title: &Option<String>,
+        source_md: &str,
+        position: Option<Position>,
+    ) -> Option<AutolinkStyle> {
+        if title.is_some() {
+            return None;
+        }
+        let Some(position) = position else {
+            return None;
+        };
+        let [Inline::Text(Text {
+            variant: TextVariant::Plain,
+            value: display_text,
+        })] = display
+        else {
+            return None;
+        };
+
+        // For standard autolinks ("<https://example.com>"), mdast removes the angle brackets when creating the
+        // display text. We want to check for those brackets. Luckily, mdast's position offsets let us extract the
+        // actual underlying Markdown source, so we can use that to get at the angle brackets.
+        let source_md = &source_md[position.start.offset..position.end.offset];
+        let (trimmed_source_md, autolink_style) = if source_md.starts_with('<') && source_md.ends_with('>') {
+            (&source_md[1..source_md.len() - 1], AutolinkStyle::Explicit)
+        } else {
+            (source_md, AutolinkStyle::Implicit)
+        };
+        if display_text != trimmed_source_md {
+            // This shouldn't ever happen if I understand markdown parsing correctly, but let's check anyway.
+            // (We shouldn't even need the display slice at all; it's only passed to here as a sanity check of my
+            // expectations of the mdast parsing.)
+            return None;
+        }
+
+        // If the source md (with angle brackets trimmed) is the URL exactly, this is an autolink.
+        if trimmed_source_md == url {
+            return Some(autolink_style);
+        }
+        // If the URL is "mailto:" + the source md, it's also an autolink.
+        if url.starts_with("mailto:") && trimmed_source_md == &url["mailto:".len()..] {
+            return Some(autolink_style);
+        }
+        // Otherwise, it isn't.
+        None
     }
 }
 
@@ -2581,6 +2645,29 @@ mod tests {
                 check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
                     assert_eq!(autolink.url, "https://example.com");
                     assert_eq!(autolink.style, AutolinkStyle::Implicit);
+                });
+            }
+
+            /// Test of when we have an inline link, but the URL and display text are the same, so it'll look like
+            /// an autolink as far as the mdast node is concerned.
+            #[test]
+            fn not_actually_an_autolink() {
+                let (root, lookups) = parse_with(&ParseOptions::gfm(), "[https://example.com](https://example.com)");
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                assert_eq!(p.children.len(), 1);
+                check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Standard(link))) = {
+                    assert_eq!(link, StandardLink {
+                        // note: the display text, being a bare URL, _is_ an autolink!
+                        display: vec![m_node!(autolink: {
+                            url: "https://example.com".to_string(),
+                            style: AutolinkStyle::Implicit,
+                        })],
+                        link: LinkDefinition {
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    });
                 });
             }
         }
