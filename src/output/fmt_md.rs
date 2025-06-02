@@ -1820,6 +1820,28 @@ pub(crate) mod tests {
         use super::*;
 
         #[test]
+        fn normal_autolink() {
+            check_render_refs(
+                vec![link_elem(Link::Autolink {
+                    url: "https://example.com".to_string(),
+                    style: AutolinkStyle::Explicit,
+                })],
+                r#"<https://example.com>"#,
+            );
+        }
+
+        #[test]
+        fn gfm_plain_autolink() {
+            check_render_refs(
+                vec![link_elem(Link::Autolink {
+                    url: "https://example.com".to_string(),
+                    style: AutolinkStyle::Implicit,
+                })],
+                r#"https://example.com"#,
+            );
+        }
+
+        #[test]
         fn single_link() {
             check_render_refs(
                 vec![link_elem(Link::Standard {

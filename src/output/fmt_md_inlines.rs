@@ -177,12 +177,12 @@ impl<'md> MdInlinesWriter<'md> {
             Inline::Link(link) => match link {
                 Link::Standard { .. } => self.write_linklike(out, link),
                 Link::Autolink { url, style } => match style {
-                    crate::md_elem::elem::AutolinkStyle::Explicit => {
+                    AutolinkStyle::Explicit => {
                         out.write_char('<');
                         out.write_str(url);
                         out.write_char('>');
                     }
-                    crate::md_elem::elem::AutolinkStyle::Implicit => {
+                    AutolinkStyle::Implicit => {
                         out.write_str(url);
                     }
                 },
