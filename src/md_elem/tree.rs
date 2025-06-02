@@ -2502,6 +2502,11 @@ mod tests {
             use super::*;
 
             #[test]
+            fn todo_fix_me() {
+                panic!("we need to fix the tests in this module to expect autolinks!")
+            }
+
+            #[test]
             fn url_in_angle_brackets() {
                 let (root, lookups) = parse("<https://example.com>");
                 unwrap!(&root.children[0], Node::Paragraph(p));
