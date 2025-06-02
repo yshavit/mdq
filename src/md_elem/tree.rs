@@ -699,11 +699,7 @@ pub mod elem {
         /// [display text](https://example.com)
         ///  ^^^^^^^^^^^^
         /// ```
-        ///
-        /// If the link definition's reference type is [`LinkReference::Autolink`], this will be a single-element list
-        /// containing a single [`Inline::Text`] whose value is the same as the [`LinkDefinition::url`] and whose variant
-        /// is [`TextVariant::Plain`]. See [`LinkReference::Autolink`] for more.
-        pub display: Vec<crate::md_elem::tree::elem::Inline>,
+        pub display: Vec<Inline>,
 
         /// The link's destination, including reference style and optional title.
         ///
@@ -714,7 +710,7 @@ pub mod elem {
         ///               ^^^
         /// etc
         /// ```
-        pub link: crate::md_elem::tree::elem::LinkDefinition,
+        pub link: LinkDefinition,
     }
 
     /// An autolink like `<https://example.com>` or `https://example.com`.
@@ -1383,7 +1379,7 @@ macro_rules! m_node {
     };
 
     // Terminal cases for Foo{ bar: bazz } in its various configurations
-    // Also for Foo<Fizz>{bar: bazz
+    // Also for Foo<Fizz>{bar: bazz}
     ($last:ident $( < $last_variant:ident > )? { $($args:tt)* }) => {
         $last $(::$last_variant)? {
             $($args)*

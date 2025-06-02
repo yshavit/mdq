@@ -253,22 +253,17 @@ impl<'md> MdInlinesWriter<'md> {
                 Inline::Span(item) => {
                     self.find_references_in_footnote_inlines(&item.children);
                 }
-                Inline::Link(link) => match link {
-                    Link::Standard(standard_link) => {
-                        let link_label = match &standard_link.link.reference {
-                            LinkReference::Inline => None,
-                            LinkReference::Full(reference) => Some(LinkLabel::Text(Cow::Borrowed(reference))),
-                            LinkReference::Collapsed | LinkReference::Shortcut => Some(LinkLabel::Inline(&standard_link.display)),
-                        };
-                        if let Some(label) = link_label {
-                            self.add_link_reference(label, &standard_link.link);
-                        }
+                Inline::Link(Link::Standard(link)) => {
+                    let link_label = match &link.link.reference {
+                        LinkReference::Inline => None,
+                        LinkReference::Full(reference) => Some(LinkLabel::Text(Cow::Borrowed(reference))),
+                        LinkReference::Collapsed | LinkReference::Shortcut => Some(LinkLabel::Inline(&link.display)),
+                    };
+                    if let Some(label) = link_label {
+                        self.add_link_reference(label, &link.link);
                     }
-                    Link::Autolink(_) => {
-                        // Autolinks don't have references to track
-                    }
-                },
-                Inline::Image(_) | Inline::Text(_) => {
+                }
+                Inline::Image(_) | Inline::Text(_) | Inline::Link(Link::Autolink(_)) => {
                     // nothing
                 }
             }
