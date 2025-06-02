@@ -471,10 +471,12 @@ mod tests {
         link: &'md Link,
     ) -> LinkReference {
         let actual = match link {
-            Link::Standard(standard_link) => LinkTransformation::new(transformer.transform_variant(), iw, standard_link)
-                .apply(transformer, &standard_link.link.reference),
-            Link::Autolink(_) => {
-                todo!()
+            Link::Standard(standard_link) => {
+                LinkTransformation::new(transformer.transform_variant(), iw, standard_link)
+                    .apply(transformer, &standard_link.link.reference)
+            }
+            Link::Autolink(autolink) => {
+                panic!("unexpected autolink: {autolink:?}")
             }
         };
         actual
