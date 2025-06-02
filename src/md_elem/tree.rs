@@ -660,7 +660,7 @@ pub mod elem {
     /// ";
     /// let parsed = MdDoc::parse(md_text, &ParseOptions::gfm()).unwrap();
     ///
-    /// let expected_link = Link::Standard {
+    /// let expected_link = Link::Standard(StandardLink {
     ///     display: vec![Inline::Text(Text{
     ///         variant: TextVariant::Plain,
     ///         value: "the display text".to_string(),
@@ -670,7 +670,7 @@ pub mod elem {
     ///         title: None,
     ///         reference: LinkReference::Inline,
     ///     }
-    /// };
+    /// });
     ///
     /// let expected = vec![
     ///     MdElem::Paragraph(Paragraph{
@@ -683,34 +683,44 @@ pub mod elem {
     /// See [`Inline::Link`]
     #[derive(Clone, Debug, PartialEq, Eq, Hash)]
     pub enum Link {
-        Standard {
-            /// The link's display text:
-            ///
-            /// ```text
-            /// [display text](https://example.com)
-            ///  ^^^^^^^^^^^^
-            /// ```
-            ///
-            /// If the link definition's reference type is [`LinkReference::Autolink`], this will be a single-element list
-            /// containing a single [`Inline::Text`] whose value is the same as the [`LinkDefinition::url`] and whose variant
-            /// is [`TextVariant::Plain`]. See [`LinkReference::Autolink`] for more.
-            display: Vec<crate::md_elem::tree::elem::Inline>,
+        Standard(StandardLink),
+        Autolink(Autolink),
+    }
 
-            /// The link's destination, including reference style and optional title.
-            ///
-            /// ```text
-            /// [display text](https://example.com)
-            ///               ^^^^^^^^^^^^^^^^^^^^^
-            /// [display text][1]
-            ///               ^^^
-            /// etc
-            /// ```
-            link: crate::md_elem::tree::elem::LinkDefinition,
-        },
-        Autolink {
-            url: String,
-            style: AutolinkStyle,
-        },
+    /// A standard link with display text and link definition.
+    ///
+    /// This represents links like `[display text](https://example.com)` and reference-style links.
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+    pub struct StandardLink {
+        /// The link's display text:
+        ///
+        /// ```text
+        /// [display text](https://example.com)
+        ///  ^^^^^^^^^^^^
+        /// ```
+        ///
+        /// If the link definition's reference type is [`LinkReference::Autolink`], this will be a single-element list
+        /// containing a single [`Inline::Text`] whose value is the same as the [`LinkDefinition::url`] and whose variant
+        /// is [`TextVariant::Plain`]. See [`LinkReference::Autolink`] for more.
+        pub display: Vec<crate::md_elem::tree::elem::Inline>,
+
+        /// The link's destination, including reference style and optional title.
+        ///
+        /// ```text
+        /// [display text](https://example.com)
+        ///               ^^^^^^^^^^^^^^^^^^^^^
+        /// [display text][1]
+        ///               ^^^
+        /// etc
+        /// ```
+        pub link: crate::md_elem::tree::elem::LinkDefinition,
+    }
+
+    /// An autolink like `<https://example.com>` or `https://example.com`.
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+    pub struct Autolink {
+        pub url: String,
+        pub style: AutolinkStyle,
     }
 
     /// Terminal markdown inline image.
@@ -1354,6 +1364,23 @@ macro_rules! mdx_nodes {
 /// A::B(B::C(C { foo: 123 }))
 /// ```
 macro_rules! m_node {
+    // Terminal case for standard links
+    (link : { $($args:tt)* }) => {
+        Inline::Link(
+            crate::md_elem::elem::Link::Standard(StandardLink {
+                $($args)*
+            })
+        )
+    };
+    // Terminal case for autolinks
+    (autolink : { $($args:tt)* }) => {
+        Inline::Link(
+            crate::md_elem::elem::Link::Autolink(Autolink {
+                $($args)*
+            })
+        )
+    };
+
     // Terminal cases for Foo{ bar: bazz } in its various configurations
     // Also for Foo<Fizz>{bar: bazz
     ($last:ident $( < $last_variant:ident > )? { $($args:tt)* }) => {
@@ -1441,18 +1468,18 @@ impl MdElem {
                 alt: node.alt,
                 link: lookups.resolve_link(node.identifier, node.label, node.reference_kind, lookups)?,
             })),
-            mdast::Node::Link(node) => MdElem::Inline(Inline::Link(Link::Standard {
+            mdast::Node::Link(node) => MdElem::Inline(Inline::Link(Link::Standard(StandardLink {
                 display: MdElem::inlines(node.children, lookups, ctx)?,
                 link: LinkDefinition {
                     url: node.url,
                     title: node.title,
                     reference: LinkReference::Inline,
                 },
-            })),
-            mdast::Node::LinkReference(node) => MdElem::Inline(Inline::Link(Link::Standard {
+            }))),
+            mdast::Node::LinkReference(node) => MdElem::Inline(Inline::Link(Link::Standard(StandardLink {
                 display: MdElem::inlines(node.children, lookups, ctx)?,
                 link: lookups.resolve_link(node.identifier, node.label, node.reference_kind, lookups)?,
-            })),
+            }))),
             mdast::Node::FootnoteReference(node) => {
                 MdElem::Inline(Inline::Footnote(FootnoteId::new(node.identifier, node.label)))
             }
@@ -2368,7 +2395,7 @@ mod tests {
                 assert_eq!(root.children.len(), 1);
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(link) = {
-                    assert_eq!(link, Inline::Link(Link::Standard {
+                    assert_eq!(link, Inline::Link(Link::Standard(StandardLink {
                         display: vec![
                             mdq_inline!("hello "),
                             Inline::Span(Span{
@@ -2381,7 +2408,7 @@ mod tests {
                             title: None,
                             reference: LinkReference::Inline,
                         },
-                    }))
+                    })))
                 });
             }
             {
@@ -2390,7 +2417,7 @@ mod tests {
                 assert_eq!(root.children.len(), 1);
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(link) = {
-                    assert_eq!(link, Inline::Link(Link::Standard {
+                    assert_eq!(link, Inline::Link(Link::Standard(StandardLink {
                         display: vec![
                             mdq_inline!("hello "),
                             Inline::Span(Span {
@@ -2403,7 +2430,7 @@ mod tests {
                             title: Some("the title".to_string()),
                             reference: LinkReference::Inline,
                         },
-                    }))
+                    })))
                 });
             }
             {
@@ -2419,7 +2446,7 @@ mod tests {
                 assert_eq!(root.children.len(), 2);
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
-                    assert_eq!(link, Inline::Link(Link::Standard {
+                    assert_eq!(link, Inline::Link(Link::Standard(StandardLink {
                         display: vec![
                             mdq_inline!("hello "),
                             Inline::Span(Span{
@@ -2432,7 +2459,7 @@ mod tests {
                             title: None,
                             reference: LinkReference::Full("1".to_string()),
                         },
-                    }))
+                    })))
                 });
                 check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
@@ -2449,7 +2476,7 @@ mod tests {
                 assert_eq!(root.children.len(), 2);
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
-                    assert_eq!(link, Inline::Link(Link::Standard {
+                    assert_eq!(link, Inline::Link(Link::Standard(StandardLink {
                         display: vec![
                             mdq_inline!("hello "),
                             Inline::Span(Span{
@@ -2462,7 +2489,7 @@ mod tests {
                             title: Some("my title".to_string()),
                             reference: LinkReference::Collapsed,
                         },
-                    }))
+                    })))
                 });
                 check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
@@ -2479,7 +2506,7 @@ mod tests {
                 assert_eq!(root.children.len(), 2);
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
-                    assert_eq!(link, Inline::Link(Link::Standard {
+                    assert_eq!(link, Inline::Link(Link::Standard(StandardLink {
                         display: vec![
                             mdq_inline!("hello "),
                             Inline::Span(Span{
@@ -2492,7 +2519,7 @@ mod tests {
                             title: None,
                             reference: LinkReference::Shortcut,
                         },
-                    }))
+                    })))
                 });
                 check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
@@ -2502,21 +2529,13 @@ mod tests {
             use super::*;
 
             #[test]
-            fn todo_fix_me() {
-                panic!("we need to fix the tests in this module to expect autolinks!")
-            }
-
-            #[test]
             fn url_in_angle_brackets() {
                 let (root, lookups) = parse("<https://example.com>");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
-                check!(&p.children[0], Node::Link(_), lookups => m_node!(MdElem::Inline::Link<Standard>{display, link}) = {
-                    assert_eq!(display, vec![mdq_inline!("https://example.com")]);
-                    assert_eq!(link, LinkDefinition{
-                        url: "https://example.com".to_string(),
-                        title: None,reference: LinkReference::Inline,
-                    });
+                check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
+                    assert_eq!(autolink.url, "https://example.com");
+                    assert_eq!(autolink.style, AutolinkStyle::Explicit);
                 });
             }
 
@@ -2525,12 +2544,9 @@ mod tests {
                 let (root, lookups) = parse("<mailto:md@example.com>");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
-                check!(&p.children[0], Node::Link(_), lookups => m_node!(MdElem::Inline::Link<Standard>{display, link}) = {
-                    assert_eq!(display, vec![mdq_inline!("mailto:md@example.com")]);
-                    assert_eq!(link, LinkDefinition{
-                        url: "mailto:md@example.com".to_string(),
-                        title: None,reference: LinkReference::Inline,
-                    });
+                check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
+                    assert_eq!(autolink.url, "mailto:md@example.com");
+                    assert_eq!(autolink.style, AutolinkStyle::Explicit);
                 });
             }
 
@@ -2539,12 +2555,9 @@ mod tests {
                 let (root, lookups) = parse("<md@example.com>");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
-                check!(&p.children[0], Node::Link(_), lookups => m_node!(MdElem::Inline::Link<Standard>{display, link}) = {
-                    assert_eq!(display, vec![mdq_inline!("md@example.com")]);
-                    assert_eq!(link, LinkDefinition{
-                        url: "mailto:md@example.com".to_string(),
-                        title: None,reference: LinkReference::Inline,
-                    });
+                check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
+                    assert_eq!(autolink.url, "mailto:md@example.com");
+                    assert_eq!(autolink.style, AutolinkStyle::Explicit);
                 });
             }
 
@@ -2565,12 +2578,9 @@ mod tests {
                 let (root, lookups) = parse_with(&ParseOptions::gfm(), "https://example.com");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
-                check!(&p.children[0], Node::Link(_), lookups => m_node!(MdElem::Inline::Link<Standard>{display, link}) = {
-                    assert_eq!(display, vec![mdq_inline!("https://example.com")]);
-                    assert_eq!(link, LinkDefinition{
-                        url: "https://example.com".to_string(),
-                        title: None,reference: LinkReference::Inline,
-                    });
+                check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
+                    assert_eq!(autolink.url, "https://example.com");
+                    assert_eq!(autolink.style, AutolinkStyle::Implicit);
                 });
             }
         }
@@ -2668,14 +2678,14 @@ mod tests {
                     [1]: https://example.com/image.png"#});
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
-                    assert_eq!(link, Inline::Link(Link::Standard {
+                    assert_eq!(link, Inline::Link(Link::Standard(StandardLink {
                         display: vec![],
                         link: LinkDefinition {
                             url: "https://example.com/image.png".to_string(),
                             title: None,
                             reference: LinkReference::Full("1".to_string()),
                         }
-                    }))
+                    })))
                 });
                 check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
@@ -2686,14 +2696,14 @@ mod tests {
                     [1]: https://example.com/image.png "my title""#});
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
-                    assert_eq!(link, Inline::Link(Link::Standard {
+                    assert_eq!(link, Inline::Link(Link::Standard(StandardLink {
                         display: vec![],
                         link: LinkDefinition {
                             url: "https://example.com/image.png".to_string(),
                             title: Some("my title".to_string()),
                             reference: LinkReference::Full("1".to_string()),
                         }
-                    }))
+                    })))
                 });
                 check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
@@ -2707,7 +2717,7 @@ mod tests {
                 );
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
-                    assert_eq!(link, Inline::Link(Link::Standard {
+                    assert_eq!(link, Inline::Link(Link::Standard(StandardLink {
                         display: vec![
                             Inline::Span(Span{
                                 variant: SpanVariant::Emphasis,
@@ -2723,7 +2733,7 @@ mod tests {
                             title: Some("my title".to_string()),
                             reference: LinkReference::Collapsed,
                         }
-                    }))
+                    })))
                 });
                 check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
@@ -2737,7 +2747,7 @@ mod tests {
                 );
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 check!(&p.children[0], Node::LinkReference(_), lookups => MdElem::Inline(link) = {
-                    assert_eq!(link, Inline::Link(Link::Standard {
+                    assert_eq!(link, Inline::Link(Link::Standard(StandardLink {
                         display: vec![
                             Inline::Text (Text{variant: TextVariant::Plain,value: "my text".to_string()}),
                         ],
@@ -2746,7 +2756,7 @@ mod tests {
                             title: None,
                             reference: LinkReference::Shortcut,
                         }
-                    }))
+                    })))
                 });
                 check!(no_node: &root.children[1], Node::Definition(_), lookups);
             }
@@ -3564,7 +3574,7 @@ mod tests {
             assert_eq!(
                 root_elems,
                 vec![MdElem::Paragraph(Paragraph {
-                    body: vec![Inline::Link(Link::Standard {
+                    body: vec![Inline::Link(Link::Standard(StandardLink {
                         display: vec![Inline::Text(Text {
                             variant: TextVariant::Plain,
                             value: expected.to_string(),
@@ -3574,7 +3584,7 @@ mod tests {
                             title: None,
                             reference: LinkReference::Inline,
                         },
-                    })],
+                    }))],
                 })]
             );
         }

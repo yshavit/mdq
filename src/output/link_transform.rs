@@ -471,9 +471,9 @@ mod tests {
         link: &'md Link,
     ) -> LinkReference {
         let actual = match link {
-            Link::Standard { link: link_def, .. } => LinkTransformation::new(transformer.transform_variant(), iw, link)
-                .apply(transformer, &link_def.reference),
-            Link::Autolink { .. } => {
+            Link::Standard(standard_link) => LinkTransformation::new(transformer.transform_variant(), iw, standard_link)
+                .apply(transformer, &standard_link.link.reference),
+            Link::Autolink(_) => {
                 todo!()
             }
         };
@@ -481,7 +481,7 @@ mod tests {
     }
 
     fn make_link(label: &str, link_ref: LinkReference) -> Link {
-        Link::Standard {
+        Link::Standard(StandardLink {
             display: vec![Inline::Text(Text {
                 variant: TextVariant::Plain,
                 value: label.to_string(),
@@ -491,7 +491,7 @@ mod tests {
                 title: None,
                 reference: link_ref,
             },
-        }
+        })
     }
 
     struct Given {
@@ -516,14 +516,14 @@ mod tests {
                     renumber_footnotes: false,
                 },
             );
-            let link = Link::Standard {
+            let link = Link::Standard(StandardLink {
                 display: vec![label],
                 link: LinkDefinition {
                     url: "https://example.com".to_string(),
                     title: None,
                     reference: reference.clone(),
                 },
-            };
+            });
 
             let actual = self::transform(&mut transformer, &mut iw, &link);
 

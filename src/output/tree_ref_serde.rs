@@ -223,14 +223,14 @@ impl<'md> SerdeElem<'md> {
                 }
             }
             MdElem::Inline(Inline::Link(link)) => match link {
-                crate::md_elem::elem::Link::Standard { display, link } => Self::Link {
-                    display: inlines_to_string(display, inlines_writer),
-                    link: link.into(),
+                crate::md_elem::elem::Link::Standard(standard_link) => Self::Link {
+                    display: inlines_to_string(&standard_link.display, inlines_writer),
+                    link: (&standard_link.link).into(),
                 },
-                crate::md_elem::elem::Link::Autolink { url, .. } => Self::Link {
-                    display: url.clone(),
+                crate::md_elem::elem::Link::Autolink(autolink) => Self::Link {
+                    display: autolink.url.clone(),
                     link: LinkSerde {
-                        url,
+                        url: &autolink.url,
                         title: &None,
                         reference: None,
                         reference_style: None,
@@ -491,14 +491,14 @@ mod tests {
     #[test]
     fn link_with_reference() {
         check_md_ref(
-            MdElem::Inline(Inline::Link(Link::Standard {
+            MdElem::Inline(Inline::Link(Link::Standard(StandardLink {
                 display: vec![mdq_inline!("hello")],
                 link: LinkDefinition {
                     url: "https://example.com/hi.html".to_string(),
                     title: None,
                     reference: LinkReference::Collapsed,
                 },
-            })),
+            }))),
             json_str!(
                 {"items": [
                     {"link": {

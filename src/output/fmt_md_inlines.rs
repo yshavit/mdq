@@ -56,15 +56,9 @@ pub(crate) trait LinkLike<'md> {
     fn link_info(&self) -> (LinkLikeType, LinkLabel<'md>, &'md LinkDefinition);
 }
 
-impl<'md> LinkLike<'md> for &'md Link {
+impl<'md> LinkLike<'md> for &'md StandardLink {
     fn link_info(&self) -> (LinkLikeType, LinkLabel<'md>, &'md LinkDefinition) {
-        match self {
-            Link::Standard { display, link } => (LinkLikeType::Link, LinkLabel::Inline(display), link),
-            Link::Autolink { .. } => {
-                // Autolinks should be handled specially in write_linklike, not through this trait
-                panic!("TODO")
-            }
-        }
+        (LinkLikeType::Link, LinkLabel::Inline(&self.display), &self.link)
     }
 }
 
@@ -175,15 +169,15 @@ impl<'md> MdInlinesWriter<'md> {
                 out.write_str(&surround_ch);
             }
             Inline::Link(link) => match link {
-                Link::Standard { .. } => self.write_linklike(out, link),
-                Link::Autolink { url, style } => match style {
+                Link::Standard(standard_link) => self.write_linklike(out, standard_link),
+                Link::Autolink(autolink) => match autolink.style {
                     AutolinkStyle::Explicit => {
                         out.write_char('<');
-                        out.write_str(url);
+                        out.write_str(&autolink.url);
                         out.write_char('>');
                     }
                     AutolinkStyle::Implicit => {
-                        out.write_str(url);
+                        out.write_str(&autolink.url);
                     }
                 },
             },
@@ -260,17 +254,17 @@ impl<'md> MdInlinesWriter<'md> {
                     self.find_references_in_footnote_inlines(&item.children);
                 }
                 Inline::Link(link) => match link {
-                    Link::Standard { display, link } => {
-                        let link_label = match &link.reference {
+                    Link::Standard(standard_link) => {
+                        let link_label = match &standard_link.link.reference {
                             LinkReference::Inline => None,
                             LinkReference::Full(reference) => Some(LinkLabel::Text(Cow::Borrowed(reference))),
-                            LinkReference::Collapsed | LinkReference::Shortcut => Some(LinkLabel::Inline(display)),
+                            LinkReference::Collapsed | LinkReference::Shortcut => Some(LinkLabel::Inline(&standard_link.display)),
                         };
                         if let Some(label) = link_label {
-                            self.add_link_reference(label, link);
+                            self.add_link_reference(label, &standard_link.link);
                         }
                     }
-                    Link::Autolink { .. } => {
+                    Link::Autolink(_) => {
                         // Autolinks don't have references to track
                     }
                 },
@@ -749,7 +743,7 @@ mod tests {
                 renumber_footnotes: false,
             },
         );
-        let link = Inline::Link(Link::Standard {
+        let link = Inline::Link(Link::Standard(StandardLink {
             display: vec![Inline::Text(Text {
                 variant: TextVariant::Plain,
                 value: input_description.to_string(),
@@ -759,7 +753,7 @@ mod tests {
                 title: link_title,
                 reference: LinkReference::Inline,
             },
-        });
+        }));
 
         writer.write_inline_element(&mut output, &link);
 
