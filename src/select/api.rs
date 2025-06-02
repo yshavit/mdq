@@ -193,7 +193,7 @@ impl SelectorAdapter {
                     vec![MdElem::BlockHtml(value.into())]
                 }
                 Inline::Link(Link::Standard { display: text, .. }) => text.into_iter().map(MdElem::Inline).collect(),
-                Inline::Text(_) | Inline::Image(_) | Inline::Link(Link::Autolink { url, .. }) => Vec::new(),
+                Inline::Text(_) | Inline::Image(_) | Inline::Link(Link::Autolink { .. }) => Vec::new(),
             },
             MdElem::ThematicBreak | MdElem::CodeBlock(_) | MdElem::FrontMatter(_) | MdElem::BlockHtml(_) => Vec::new(),
         }
