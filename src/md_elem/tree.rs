@@ -1252,8 +1252,8 @@ pub mod elem {
         ///
         /// ```markdown
         /// <https://example.com/world>
-        /// <mailto:md@example.com>
-        /// <md@example.com>
+        /// <mailto:mdq@example.com>
+        /// <mdq@example.com>
         /// ```
         Explicit,
 
@@ -1474,7 +1474,7 @@ impl MdElem {
                 } = node;
                 let display = MdElem::inlines(children, lookups, ctx)?;
 
-                let link = match Self::autolink_style(&display, &url, &title, lookups.source, position) {
+                let link = match Self::try_autolink(&display, &url, &title, lookups.source, position) {
                     None => Link::Standard(StandardLink {
                         display,
                         link: LinkDefinition {
@@ -1483,7 +1483,7 @@ impl MdElem {
                             reference: LinkReference::Inline,
                         },
                     }),
-                    Some(style) => Link::Autolink(Autolink { url, style }),
+                    Some(autolink) => Link::Autolink(autolink),
                 };
                 MdElem::Inline(Inline::Link(link))
             }
@@ -1739,13 +1739,13 @@ impl MdElem {
         Ok(merged)
     }
 
-    fn autolink_style(
+    fn try_autolink(
         display: &[Inline],
         url: &str,
         title: &Option<String>,
         source_md: &str,
         position: Option<Position>,
-    ) -> Option<AutolinkStyle> {
+    ) -> Option<Autolink> {
         if title.is_some() {
             return None;
         }
@@ -1776,11 +1776,20 @@ impl MdElem {
 
         // If the source md (with angle brackets trimmed) is the URL exactly, this is an autolink.
         if trimmed_source_md == url {
-            return Some(autolink_style);
+            return Some(Autolink {
+                url: url.to_string(),
+                style: autolink_style,
+            });
         }
-        // If the URL is "mailto:" + the source md, it's also an autolink.
-        if url.starts_with("mailto:") && trimmed_source_md == &url["mailto:".len()..] {
-            return Some(autolink_style);
+        // If the URL is "<scheme>:" + the source md, it's also an autolink. We don't actually care about the scheme,
+        // though; all we care about is portion after it, and in particular that that's equal to the trimmed source md.
+        if let Some((_scheme, url)) = url.split_once(':') {
+            if trimmed_source_md == url {
+                return Some(Autolink {
+                    url: url.to_string(),
+                    style: autolink_style,
+                });
+            }
         }
         // Otherwise, it isn't.
         None
@@ -2592,30 +2601,36 @@ mod tests {
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
                 check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
-                    assert_eq!(autolink.url, "https://example.com");
-                    assert_eq!(autolink.style, AutolinkStyle::Explicit);
+                    assert_eq!(autolink, Autolink{
+                        url: "https://example.com".to_string(),
+                        style: AutolinkStyle::Explicit,
+                    });
                 });
             }
 
             #[test]
             fn mailto_in_angle_brackets() {
-                let (root, lookups) = parse("<mailto:md@example.com>");
+                let (root, lookups) = parse("<mailto:mdq@example.com>");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
                 check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
-                    assert_eq!(autolink.url, "mailto:md@example.com");
-                    assert_eq!(autolink.style, AutolinkStyle::Explicit);
+                    assert_eq!(autolink, Autolink{
+                        url: "mailto:mdq@example.com".to_string(),
+                        style: AutolinkStyle::Explicit,
+                    });
                 });
             }
 
             #[test]
             fn email_in_angle_brackets() {
-                let (root, lookups) = parse("<md@example.com>");
+                let (root, lookups) = parse("<mdq@example.com>");
                 unwrap!(&root.children[0], Node::Paragraph(p));
                 assert_eq!(p.children.len(), 1);
                 check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
-                    assert_eq!(autolink.url, "mailto:md@example.com");
-                    assert_eq!(autolink.style, AutolinkStyle::Explicit);
+                    assert_eq!(autolink, Autolink{
+                        url: "mdq@example.com".to_string(),
+                        style: AutolinkStyle::Explicit,
+                    });
                 });
             }
 
@@ -2639,6 +2654,34 @@ mod tests {
                 check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
                     assert_eq!(autolink.url, "https://example.com");
                     assert_eq!(autolink.style, AutolinkStyle::Implicit);
+                });
+            }
+
+            #[test]
+            fn bare_mailto_with_gfm_parsing() {
+                // in GFM parsing, bare URLs *are* autolink
+                let (root, lookups) = parse_with(&ParseOptions::gfm(), "mdq@example.com");
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                assert_eq!(p.children.len(), 1);
+                check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
+                    assert_eq!(autolink, Autolink{
+                        url: "mdq@example.com".to_string(),
+                        style: AutolinkStyle::Implicit,
+                    })
+                });
+            }
+
+            #[test]
+            fn bare_xmpp_with_gfm_parsing() {
+                // in GFM parsing, bare URLs *are* autolink
+                let (root, lookups) = parse_with(&ParseOptions::gfm(), "xmpp:mdq@example.com/txt");
+                unwrap!(&root.children[0], Node::Paragraph(p));
+                assert_eq!(p.children.len(), 1);
+                check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
+                    assert_eq!(autolink, Autolink{
+                        url: "xmpp:mdq@example.com/txt".to_string(),
+                        style: AutolinkStyle::Implicit,
+                    })
                 });
             }
 
