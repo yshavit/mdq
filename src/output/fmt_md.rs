@@ -1824,7 +1824,7 @@ pub(crate) mod tests {
             check_render_refs(
                 vec![link_elem(Link::Autolink(Autolink {
                     url: "https://example.com".to_string(),
-                    style: AutolinkStyle::Explicit,
+                    style: AutolinkStyle::Bracketed,
                 }))],
                 r#"<https://example.com>"#,
             );
@@ -1835,7 +1835,7 @@ pub(crate) mod tests {
             check_render_refs(
                 vec![link_elem(Link::Autolink(Autolink {
                     url: "https://example.com".to_string(),
-                    style: AutolinkStyle::Implicit,
+                    style: AutolinkStyle::Bare,
                 }))],
                 r#"https://example.com"#,
             );

@@ -1255,7 +1255,7 @@ pub mod elem {
         /// <mailto:mdq@example.com>
         /// <mdq@example.com>
         /// ```
-        Explicit,
+        Bracketed,
 
         /// An autolink without the surrounding `<` and `>`:
         ///
@@ -1266,7 +1266,7 @@ pub mod elem {
         /// This variant only applies with [gfm parsing]. See <https://github.github.com/gfm/#autolinks-extension->.
         ///
         /// [gfm parsing]: ParseOptions::gfm
-        Implicit,
+        Bare,
     }
 
     /// Supporting struct representing the metadata on a fenced code block.
@@ -1763,9 +1763,9 @@ impl MdElem {
         // actual underlying Markdown source, so we can use that to get at the angle brackets.
         let source_md = &source_md[position.start.offset..position.end.offset];
         let (trimmed_source_md, autolink_style) = if source_md.starts_with('<') && source_md.ends_with('>') {
-            (&source_md[1..source_md.len() - 1], AutolinkStyle::Explicit)
+            (&source_md[1..source_md.len() - 1], AutolinkStyle::Bracketed)
         } else {
-            (source_md, AutolinkStyle::Implicit)
+            (source_md, AutolinkStyle::Bare)
         };
         if display_text != trimmed_source_md {
             // This shouldn't ever happen if I understand markdown parsing correctly, but let's check anyway.
@@ -2603,7 +2603,7 @@ mod tests {
                 check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
                     assert_eq!(autolink, Autolink{
                         url: "https://example.com".to_string(),
-                        style: AutolinkStyle::Explicit,
+                        style: AutolinkStyle::Bracketed,
                     });
                 });
             }
@@ -2616,7 +2616,7 @@ mod tests {
                 check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
                     assert_eq!(autolink, Autolink{
                         url: "mailto:mdq@example.com".to_string(),
-                        style: AutolinkStyle::Explicit,
+                        style: AutolinkStyle::Bracketed,
                     });
                 });
             }
@@ -2629,7 +2629,7 @@ mod tests {
                 check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
                     assert_eq!(autolink, Autolink{
                         url: "mdq@example.com".to_string(),
-                        style: AutolinkStyle::Explicit,
+                        style: AutolinkStyle::Bracketed,
                     });
                 });
             }
@@ -2653,7 +2653,7 @@ mod tests {
                 assert_eq!(p.children.len(), 1);
                 check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
                     assert_eq!(autolink.url, "https://example.com");
-                    assert_eq!(autolink.style, AutolinkStyle::Implicit);
+                    assert_eq!(autolink.style, AutolinkStyle::Bare);
                 });
             }
 
@@ -2666,7 +2666,7 @@ mod tests {
                 check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
                     assert_eq!(autolink, Autolink{
                         url: "mdq@example.com".to_string(),
-                        style: AutolinkStyle::Implicit,
+                        style: AutolinkStyle::Bare,
                     })
                 });
             }
@@ -2680,7 +2680,7 @@ mod tests {
                 check!(&p.children[0], Node::Link(_), lookups => MdElem::Inline(Inline::Link(Link::Autolink(autolink))) = {
                     assert_eq!(autolink, Autolink{
                         url: "xmpp:mdq@example.com/txt".to_string(),
-                        style: AutolinkStyle::Implicit,
+                        style: AutolinkStyle::Bare,
                     })
                 });
             }
@@ -2697,7 +2697,7 @@ mod tests {
                         // note: the display text, being a bare URL, _is_ an autolink!
                         display: vec![m_node!(autolink: {
                             url: "https://example.com".to_string(),
-                            style: AutolinkStyle::Implicit,
+                            style: AutolinkStyle::Bare,
                         })],
                         link: LinkDefinition {
                             url: "https://example.com".to_string(),
