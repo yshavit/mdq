@@ -166,7 +166,8 @@ where
         Inline::Footnote(_) => Ok(()),
         Inline::Span(Span { children, .. }) => write_inlines(out, children),
         Inline::Image(Image { alt, .. }) => write!(out, "{alt}"),
-        Inline::Link(Link { display: text, .. }) => write_inlines(out, text),
+        Inline::Link(Link::Standard(standard_link)) => write_inlines(out, &standard_link.display),
+        Inline::Link(Link::Autolink(autolink)) => write!(out, "{}", autolink.url),
         Inline::Text(Text { value, .. }) => write!(out, "{value}"),
     }
 }
@@ -501,14 +502,14 @@ mod test {
 
     #[test]
     fn link() {
-        let link = Link {
+        let link = Link::Standard(StandardLink {
             display: vec![mdq_inline!("display text")],
             link: LinkDefinition {
                 url: "https://example.com".to_string(),
                 title: Some("the title".to_string()),
                 reference: LinkReference::Inline,
             },
-        };
+        });
         check_plain(
             MdElem::Inline(Inline::Link(link)),
             Expect {
@@ -562,14 +563,14 @@ mod test {
                 mdq_inline!("hello "),
                 mdq_inline!(span Emphasis [mdq_inline!("world")]),
                 mdq_inline!("! sponsored by "),
-                Inline::Link(Link {
+                Inline::Link(Link::Standard(StandardLink {
                     display: vec![mdq_inline!("Example Corp")],
                     link: LinkDefinition {
                         url: "https://example.com".to_string(),
                         title: None,
                         reference: LinkReference::Inline
                     }
-                }),
+                })),
                 mdq_inline!("."),
             ]
         });

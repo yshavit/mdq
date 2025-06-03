@@ -56,7 +56,7 @@ pub(crate) trait LinkLike<'md> {
     fn link_info(&self) -> (LinkLikeType, LinkLabel<'md>, &'md LinkDefinition);
 }
 
-impl<'md> LinkLike<'md> for &'md Link {
+impl<'md> LinkLike<'md> for &'md StandardLink {
     fn link_info(&self) -> (LinkLikeType, LinkLabel<'md>, &'md LinkDefinition) {
         (LinkLikeType::Link, LinkLabel::Inline(&self.display), &self.link)
     }
@@ -168,7 +168,19 @@ impl<'md> MdInlinesWriter<'md> {
                 }
                 out.write_str(&surround_ch);
             }
-            Inline::Link(link) => self.write_linklike(out, link),
+            Inline::Link(link) => match link {
+                Link::Standard(standard_link) => self.write_linklike(out, standard_link),
+                Link::Autolink(autolink) => match autolink.style {
+                    AutolinkStyle::Bracketed => {
+                        out.write_char('<');
+                        out.write_str(&autolink.url);
+                        out.write_char('>');
+                    }
+                    AutolinkStyle::Bare => {
+                        out.write_str(&autolink.url);
+                    }
+                },
+            },
             Inline::Image(image) => self.write_linklike(out, image),
             Inline::Footnote(footnote_id) => {
                 out.write_str("[^");
@@ -241,7 +253,7 @@ impl<'md> MdInlinesWriter<'md> {
                 Inline::Span(item) => {
                     self.find_references_in_footnote_inlines(&item.children);
                 }
-                Inline::Link(link) => {
+                Inline::Link(Link::Standard(link)) => {
                     let link_label = match &link.link.reference {
                         LinkReference::Inline => None,
                         LinkReference::Full(reference) => Some(LinkLabel::Text(Cow::Borrowed(reference))),
@@ -251,7 +263,7 @@ impl<'md> MdInlinesWriter<'md> {
                         self.add_link_reference(label, &link.link);
                     }
                 }
-                Inline::Image(_) | Inline::Text(_) => {
+                Inline::Image(_) | Inline::Text(_) | Inline::Link(Link::Autolink(_)) => {
                     // nothing
                 }
             }
@@ -726,7 +738,7 @@ mod tests {
                 renumber_footnotes: false,
             },
         );
-        let link = Inline::Link(Link {
+        let link = Inline::Link(Link::Standard(StandardLink {
             display: vec![Inline::Text(Text {
                 variant: TextVariant::Plain,
                 value: input_description.to_string(),
@@ -736,7 +748,7 @@ mod tests {
                 title: link_title,
                 reference: LinkReference::Inline,
             },
-        });
+        }));
 
         writer.write_inline_element(&mut output, &link);
 

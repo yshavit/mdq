@@ -470,13 +470,20 @@ mod tests {
         iw: &mut MdInlinesWriter<'md>,
         link: &'md Link,
     ) -> LinkReference {
-        let actual =
-            LinkTransformation::new(transformer.transform_variant(), iw, link).apply(transformer, &link.link.reference);
+        let actual = match link {
+            Link::Standard(standard_link) => {
+                LinkTransformation::new(transformer.transform_variant(), iw, standard_link)
+                    .apply(transformer, &standard_link.link.reference)
+            }
+            Link::Autolink(autolink) => {
+                panic!("unexpected autolink: {autolink:?}")
+            }
+        };
         actual
     }
 
     fn make_link(label: &str, link_ref: LinkReference) -> Link {
-        Link {
+        Link::Standard(StandardLink {
             display: vec![Inline::Text(Text {
                 variant: TextVariant::Plain,
                 value: label.to_string(),
@@ -486,7 +493,7 @@ mod tests {
                 title: None,
                 reference: link_ref,
             },
-        }
+        })
     }
 
     struct Given {
@@ -511,14 +518,14 @@ mod tests {
                     renumber_footnotes: false,
                 },
             );
-            let link = Link {
+            let link = Link::Standard(StandardLink {
                 display: vec![label],
                 link: LinkDefinition {
                     url: "https://example.com".to_string(),
                     title: None,
                     reference: reference.clone(),
                 },
-            };
+            });
 
             let actual = self::transform(&mut transformer, &mut iw, &link);
 

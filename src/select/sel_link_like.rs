@@ -54,27 +54,50 @@ impl TrySelector<Link> for LinkSelector {
             return Err(StringMatchError::NotSupported.to_select_error("hyperlink"));
         }
 
-        let display_matched = self
-            .matchers
-            .display_matcher
-            .matches_inlines(&item.display)
-            .map_err(|e| e.to_select_error("hyperlink"))?;
-        let url_match = self
-            .matchers
-            .url_matcher
-            .match_replace(item.link.url)
-            .map_err(|e| e.to_select_error("hyperlink"))?;
+        match item {
+            Link::Standard(standard_link) => {
+                let display_matched = self
+                    .matchers
+                    .display_matcher
+                    .matches_inlines(&standard_link.display)
+                    .map_err(|e| e.to_select_error("hyperlink"))?;
+                let url_match = self
+                    .matchers
+                    .url_matcher
+                    .match_replace(standard_link.link.url)
+                    .map_err(|e| e.to_select_error("hyperlink"))?;
 
-        make_result!(display_matched, url_match, {
-            Link {
-                display: item.display,
-                link: LinkDefinition {
-                    url: url_match,
-                    title: item.link.title,
-                    reference: item.link.reference,
-                },
+                make_result!(display_matched, url_match, {
+                    Link::Standard(StandardLink {
+                        display: standard_link.display,
+                        link: LinkDefinition {
+                            url: url_match,
+                            title: standard_link.link.title,
+                            reference: standard_link.link.reference,
+                        },
+                    })
+                })
             }
-        })
+            Link::Autolink(autolink) => {
+                let display_matched = self
+                    .matchers
+                    .display_matcher
+                    .matches(&autolink.url)
+                    .map_err(|e| e.to_select_error("hyperlink"))?;
+                let url_match = self
+                    .matchers
+                    .url_matcher
+                    .match_replace(autolink.url)
+                    .map_err(|e| e.to_select_error("hyperlink"))?;
+
+                make_result!(display_matched, url_match, {
+                    Link::Autolink(Autolink {
+                        url: url_match,
+                        style: autolink.style,
+                    })
+                })
+            }
+        }
     }
 }
 
@@ -160,14 +183,14 @@ mod test {
             },
         };
 
-        let link = Link {
+        let link = Link::Standard(StandardLink {
             display: vec![],
             link: LinkDefinition {
                 url: "https://original.com/path".to_string(),
                 title: None,
                 reference: LinkReference::Inline,
             },
-        };
+        });
 
         let link_selector = LinkSelector::from(link_matcher);
 
@@ -176,7 +199,10 @@ mod test {
 
         assert_eq!(elems.len(), 1);
         unwrap!(&elems[0], MdElem::Inline(Inline::Link(modified_link)));
-        assert_eq!(modified_link.link.url, "https://newsite.com/path");
+        match modified_link {
+            Link::Standard(standard_link) => assert_eq!(standard_link.link.url, "https://newsite.com/path"),
+            Link::Autolink(..) => panic!("Expected Standard link, got Autolink"),
+        }
     }
 
     #[test]
@@ -279,14 +305,14 @@ mod test {
             },
         };
 
-        let original_link = Link {
+        let original_link = Link::Standard(StandardLink {
             display: vec![mdq_inline!("original display text")],
             link: LinkDefinition {
                 url: "https://original.com/path".to_string(),
                 title: None,
                 reference: LinkReference::Inline,
             },
-        };
+        });
 
         let link_selector = LinkSelector::from(link_matcher);
 

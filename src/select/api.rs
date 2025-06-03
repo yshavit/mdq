@@ -192,8 +192,10 @@ impl SelectorAdapter {
                 }) => {
                     vec![MdElem::BlockHtml(value.into())]
                 }
-                Inline::Link(Link { display: text, .. }) => text.into_iter().map(MdElem::Inline).collect(),
-                Inline::Text(_) | Inline::Image(_) => Vec::new(),
+                Inline::Link(Link::Standard(standard_link)) => {
+                    standard_link.display.into_iter().map(MdElem::Inline).collect()
+                }
+                Inline::Text(_) | Inline::Image(_) | Inline::Link(Link::Autolink(_)) => Vec::new(),
             },
             MdElem::ThematicBreak | MdElem::CodeBlock(_) | MdElem::FrontMatter(_) | MdElem::BlockHtml(_) => Vec::new(),
         }
@@ -225,14 +227,14 @@ mod test {
 
         #[test]
         fn link_direct() {
-            let link = Link {
+            let link = Link::Standard(StandardLink {
                 display: vec![mdq_inline!("link text")],
                 link: LinkDefinition {
                     url: "https://example.com".to_string(),
                     title: None,
                     reference: LinkReference::Inline,
                 },
-            };
+            });
             let node_ref = MdElem::Inline(Inline::Link(link));
             let md_context = MdContext::empty();
             let mut ctx = SearchContext {

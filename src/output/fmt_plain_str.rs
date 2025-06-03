@@ -17,7 +17,8 @@ fn build_inline(out: &mut String, elem: &Inline) {
     match elem {
         Inline::Span(Span { children, .. }) => build_inlines(out, children),
         Inline::Text(Text { value, .. }) => out.push_str(value),
-        Inline::Link(Link { display: text, .. }) => build_inlines(out, text),
+        Inline::Link(Link::Standard(standard_link)) => build_inlines(out, &standard_link.display),
+        Inline::Link(Link::Autolink(autolink)) => out.push_str(&autolink.url),
         Inline::Image(Image { alt, .. }) => out.push_str(alt),
         Inline::Footnote(footnote) => {
             out.push_str("[^");
