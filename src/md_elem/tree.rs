@@ -493,8 +493,40 @@ pub mod elem {
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
     pub enum FrontMatterVariant {
+        /// ```markdown
+        /// +++
+        /// front = 'matter'
+        /// +++
+        /// ```
         Toml,
+
+        /// ```markdown
+        /// ---
+        /// front: matter
+        /// ---
+        /// ```
         Yaml,
+
+        /// ```markdown
+        /// {
+        ///   "front": "matter"
+        /// }
+        /// ```
+        ///
+        /// The [`FrontMatter::body`] for a `FrontMatter` of this variant will be the entire JSON text, including the
+        /// opening and closing braces. This means you should not print any surrounding prefix or suffix delimiter
+        /// lines when rendering front matter of this variant, unlike the other variants. The body will _not_ include
+        /// a trailing newline after the last closing brace.
+        ///
+        /// <div class="warning">
+        ///
+        /// mdq does not currently support parsing JSON front matter. This enum variant is provided for completeness
+        /// and future-proofing. API consumers should still account for it (and may create [`MdElem::FrontMatter`] nodes
+        /// with it); just be aware that [`MdDoc::parse`] will not produce any front matter nodes with this variant
+        /// as of this version.
+        ///
+        /// </div>
+        Json,
     }
 
     impl FrontMatterVariant {
@@ -510,21 +542,26 @@ pub mod elem {
             match self {
                 FrontMatterVariant::Toml => "toml",
                 FrontMatterVariant::Yaml => "yaml",
+                FrontMatterVariant::Json => "json",
             }
         }
 
-        /// Gets the separator that's used in front matter syntax to specify this variant.
+        /// Gets the separator used in front matter syntax to specify this variant.
+        ///
+        /// JSON has no such separator; see [`FrontMatterVariant::Json`].
         ///
         /// ```
         /// use mdq::md_elem::elem::FrontMatterVariant;
         ///
-        /// assert_eq!(FrontMatterVariant::Toml.separator(), "+++");
-        /// assert_eq!(FrontMatterVariant::Yaml.separator(), "---");
+        /// assert_eq!(FrontMatterVariant::Toml.separator(), Some("+++"));
+        /// assert_eq!(FrontMatterVariant::Yaml.separator(), Some("---"));
+        /// assert_eq!(FrontMatterVariant::Json.separator(), None);
         /// ```
-        pub fn separator(self) -> &'static str {
+        pub fn separator(self) -> Option<&'static str> {
             match self {
-                FrontMatterVariant::Toml => "+++",
-                FrontMatterVariant::Yaml => "---",
+                FrontMatterVariant::Toml => Some("+++"),
+                FrontMatterVariant::Yaml => Some("---"),
+                FrontMatterVariant::Json => None,
             }
         }
     }
@@ -860,7 +897,7 @@ pub mod elem {
         pub item: Vec<MdElem>,
     }
 
-    /// ~~deleted~~, _emphasized_, or **strong**; see [`Span`]
+    /// ~~deleted (strikethrough)~~, _emphasized_, or **strong**; see [`Span`]
     #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum SpanVariant {
         Delete,

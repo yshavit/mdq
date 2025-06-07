@@ -12,6 +12,7 @@ use std::io::Write;
 
 /// The run's overall possible error.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error {
     /// User provided an invalid selector string.
     ///

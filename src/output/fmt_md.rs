@@ -55,6 +55,7 @@ pub struct MdWriterOptions {
 
 /// Whether to put link definitions at the end of each section, or at the bottom of the whole document.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, ValueEnum)]
+#[non_exhaustive]
 pub enum ReferencePlacement {
     /// Show link definitions in the first section that uses the link.
     ///
@@ -402,11 +403,15 @@ impl<'md> MdWriterState<'_, 'md> {
 
     fn write_front_matter<W: SimpleWrite>(&mut self, out: &mut Output<W>, front_matter: &'md FrontMatter) {
         out.with_pre_block(|out| {
-            out.write_str(front_matter.variant.separator());
-            out.write_char('\n');
+            if let Some(sep) = front_matter.variant.separator() {
+                out.write_str(sep);
+                out.write_char('\n');
+            }
             out.write_str(&front_matter.body);
-            out.write_char('\n');
-            out.write_str(front_matter.variant.separator());
+            if let Some(sep) = front_matter.variant.separator() {
+                out.write_char('\n');
+                out.write_str(sep);
+            }
         })
     }
 
@@ -582,6 +587,7 @@ pub(crate) mod tests {
         CodeBlock(CodeBlock{variant: CodeVariant::Math{metadata: Some(_)}, ..}),
         FrontMatter(FrontMatter{variant: FrontMatterVariant::Toml, ..}),
         FrontMatter(FrontMatter{variant: FrontMatterVariant::Yaml, ..}),
+        FrontMatter(FrontMatter{variant: FrontMatterVariant::Json, ..}),
         Paragraph(_),
         BlockQuote(_),
         List(_),
@@ -1392,6 +1398,20 @@ pub(crate) mod tests {
                 one
                 two
                 +++"#},
+            );
+        }
+
+        #[test]
+        fn json() {
+            check_render(
+                md_elems![FrontMatter {
+                    variant: FrontMatterVariant::Json,
+                    body: "{\n  'one': 'two'\n}".replace('\'', "\"").to_string(),
+                }],
+                indoc! {r#"
+                {
+                  "one": "two"
+                }"#},
             );
         }
     }

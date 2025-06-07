@@ -10,6 +10,7 @@ use std::ops::Deref;
 
 /// Whether to render links as inline, reference form, or keep them as they were.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, ValueEnum)]
+#[non_exhaustive]
 pub enum LinkTransform {
     /// Keep links as they were in the original
     Keep,
