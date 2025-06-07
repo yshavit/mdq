@@ -240,6 +240,7 @@ impl CliOptions {
 
 /// Output formats, analogous to `--output` in the CLI.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
+#[non_exhaustive]
 pub enum OutputFormat {
     /// Output results as Markdown.
     Markdown,

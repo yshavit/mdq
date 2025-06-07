@@ -212,16 +212,10 @@ impl<'md> SerdeElem<'md> {
                     language,
                 }
             }
-            MdElem::FrontMatter(fm) => {
-                let variant = match fm.variant {
-                    FrontMatterVariant::Yaml => "yaml",
-                    FrontMatterVariant::Toml => "toml",
-                };
-                Self::FrontMatter {
-                    variant,
-                    body: &fm.body,
-                }
-            }
+            MdElem::FrontMatter(fm) => Self::FrontMatter {
+                variant: fm.variant.name(),
+                body: &fm.body,
+            },
             MdElem::Inline(Inline::Link(link)) => match link {
                 crate::md_elem::elem::Link::Standard(standard_link) => Self::Link {
                     display: inlines_to_string(&standard_link.display, inlines_writer),
