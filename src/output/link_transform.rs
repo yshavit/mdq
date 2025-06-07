@@ -1,3 +1,41 @@
+/// Link transformation system for converting between different link formats.
+///
+/// # Overview
+///
+/// This module provides a flexible system for transforming links between different
+/// formats (inline, reference, etc.) while maintaining proper reference numbering and avoiding
+/// conflicts. The system is designed around a delegation pattern that separates the public
+/// API from the stateful transformation logic.
+///
+/// # Architecture
+///
+/// ## Core Components
+/// - [`LinkTransform`]: Public enum defining transformation strategies
+/// - [`LinkTransformer`]: Main orchestrator that manages transformation state
+/// - [`LinkTransformerStrategy`]: Internal enum implementing the Strategy pattern
+/// - [`LinkTransformation`]: Temporary holder for preprocessing data
+/// - [`ReferenceAssigner`]: Stateful numbering system for reference links
+///
+/// ## Data Flow
+/// ```text
+/// LinkTransform (user choice)
+///       ↓
+/// LinkTransformer::from() → LinkTransformerStrategy (with ReferenceAssigner if needed)
+///       ↓
+/// For each link:
+///   LinkTransformation::new() → extract preprocessing data
+///       ↓
+///   LinkTransformation::apply() → perform transformation using strategy
+/// ```
+///
+/// The two-step process (new → apply) exists because Rust's borrowing rules prevent:
+/// ```text
+/// let result = transformer.transform(&mut self, link)
+/// //           ^^^^^^^^^^^            ^^^^
+/// //           first borrow           second borrow
+/// ```
+///
+/// By extracting data in `new()` and applying in `apply()`, we can release the borrow
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
 use crate::output::fmt_md_inlines::{InlineElemOptions, LinkLike, MdInlinesWriter};
@@ -37,17 +75,58 @@ pub enum LinkTransform {
     NeverInline,
 }
 
+/// The crate-public orchestrator for link transformations.
+///
+/// This struct coordinates the link transformation process by managing the stateful
+/// components needed for each [`LinkTransform`] variant. It acts as a facade that
+/// hides the complexity of the different transformation strategies.
+///
+/// # Architecture
+/// The transformer uses a delegation pattern where the actual transformation logic
+/// is handled by [`LinkTransformerStrategy`] variants. This allows each transformation
+/// type to maintain its own state (like [`ReferenceAssigner`] for numbering) while
+/// providing a uniform interface.
+///
+/// # Usage Flow
+/// 1. **Creation**: `LinkTransformer::from(LinkTransform::Reference)` creates the transformer
+/// 2. **Preprocessing**: For each link, call [`LinkTransformation::new()`] to extract needed data
+/// 3. **Transformation**: Call [`LinkTransformation::apply()`] to perform the actual transformation
+/// 4. **Introspection**: Use [`transform_variant()`] to get the current transform type
+///
+/// # Ownership Workaround
+/// The two-step process (new → apply) exists to work around Rust's borrowing rules.
+/// See [`LinkTransformation`] for details.
+///
+/// [`transform_variant()`]: LinkTransformer::transform_variant
 pub(crate) struct LinkTransformer {
-    delegate: LinkTransformState,
+    delegate: LinkTransformerStrategy,
 }
 
+/// Represents the display text of a link, which can be either plain text or formatted inlines.
+///
+/// This enum handles the two ways link text can be represented in the markdown AST:
+/// - Simple text strings (most common case)
+/// - Complex inline formatting like `[**bold** text](url)`
+///
+/// Used primarily by [`ReferenceAssigner`] when it needs to convert link labels to
+/// strings for reference IDs (e.g., `[text][]` → `[text][text]`).
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub(crate) enum LinkLabel<'md> {
+    /// Plain text label, potentially borrowed from the original markdown
     Text(Cow<'md, str>),
+    /// Complex label with inline formatting (emphasis, strong, etc.)
     Inline(&'md Vec<Inline>),
 }
 
 impl<'md> LinkLabel<'md> {
+    /// Converts the label to a plain string for use in reference IDs.
+    ///
+    /// For [`LinkLabel::Text`], this is straightforward string conversion.
+    /// For [`LinkLabel::Inline`], this renders the formatted inlines back to
+    /// markdown text (preserving formatting like `**bold**`).
+    ///
+    /// Used when converting collapsed/shortcut references to full references,
+    /// where the label becomes the reference ID: `[text][]` → `[text][text]`.
     pub(crate) fn get_sort_string(&self, ctx: &'md MdContext) -> String {
         // There may be a way to Cow this so that we don't have to copy the ::Text string, but I can't find it.
         match self {
@@ -67,40 +146,100 @@ impl<'md> LinkLabel<'md> {
 }
 
 impl From<LinkTransform> for LinkTransformer {
+    /// Creates a new transformer with the appropriate internal strategy for the given transform type.
+    ///
+    /// This is where the delegation pattern is established:
+    /// - [`LinkTransform::Keep`] and [`LinkTransform::Inline`] need no state
+    /// - [`LinkTransform::Reference`] and [`LinkTransform::NeverInline`] get a [`ReferenceAssigner`]
+    ///   for managing reference numbering
+    ///
+    /// The [`ReferenceAssigner`] starts with `next_index: 1` and an empty reordering map.
     fn from(value: LinkTransform) -> Self {
         let delegate = match value {
-            LinkTransform::Keep => LinkTransformState::Keep,
-            LinkTransform::Inline => LinkTransformState::Inline,
-            LinkTransform::Reference => LinkTransformState::Reference(ReferenceAssigner::new()),
-            LinkTransform::NeverInline => LinkTransformState::NeverInline(ReferenceAssigner::new()),
+            LinkTransform::Keep => LinkTransformerStrategy::Keep,
+            LinkTransform::Inline => LinkTransformerStrategy::Inline,
+            LinkTransform::Reference => LinkTransformerStrategy::Reference(ReferenceAssigner::new()),
+            LinkTransform::NeverInline => LinkTransformerStrategy::NeverInline(ReferenceAssigner::new()),
         };
         Self { delegate }
     }
 }
 
-enum LinkTransformState {
+/// Strategy implementations for different link transformation approaches.
+///
+/// This enum implements the Strategy pattern by encapsulating different algorithms
+/// for transforming links. Each variant represents a complete transformation strategy
+/// with its own behavior and any necessary state.
+///
+/// The stateless strategies ([`Keep`], [`Inline`]) require no additional data,
+/// while the stateful strategies ([`Reference`], [`NeverInline`]) contain a
+/// [`ReferenceAssigner`] to manage reference numbering.
+///
+/// This separation allows the public [`LinkTransform`] enum to remain simple
+/// while the internal implementation can maintain complex state and behavior.
+///
+/// [`Keep`]: LinkTransformerStrategy::Keep
+/// [`Inline`]: LinkTransformerStrategy::Inline
+/// [`Reference`]: LinkTransformerStrategy::Reference
+/// [`NeverInline`]: LinkTransformerStrategy::NeverInline
+enum LinkTransformerStrategy {
+    /// Keep all links unchanged - stateless strategy
     Keep,
+    /// Convert all links to inline format - stateless strategy
     Inline,
+    /// Convert all links to numbered references - stateful strategy with numbering
     Reference(ReferenceAssigner),
+    /// Convert only inline links to references - stateful strategy with numbering
     NeverInline(ReferenceAssigner),
 }
 
+/// Temporary holder for preprocessing data needed during link transformation.
+///
+/// This struct exists to work around Rust's borrowing rules by separating the
+/// data extraction phase from the transformation phase. It holds any preprocessing
+/// data that needs to be computed before the actual transformation can occur.
+///
+/// # Borrowing Workaround
+/// Without this pattern, we'd need to do:
+/// ```text
+/// let result = transformer.transform(&mut self, link)
+/// //           ^^^^^^^^^^^            ^^^^
+/// //           first borrow           second borrow (ERROR!)
+/// ```
+///
+/// Instead, we can do:
+/// ```text
+/// let transformation = LinkTransformation::new(variant, writer, link); // extract data
+/// let result = transformation.apply(&mut transformer, link_ref);       // use data
+/// ```
+///
+/// # Current Data
+/// Currently only holds `link_text` for [`LinkTransform::Reference`], which needs
+/// to extract the text from collapsed/shortcut links to use as reference IDs.
+/// Other transform types don't need preprocessing data.
 pub(crate) struct LinkTransformation<'md> {
+    /// Text extracted from collapsed/shortcut links for use as reference IDs.
+    /// Only populated for [`LinkTransform::Reference`] when processing
+    /// [`LinkReference::Collapsed`] or [`LinkReference::Shortcut`].
     link_text: Option<Cow<'md, str>>,
 }
 
-/// A temporary holder to perform link transformations.
-///
-/// We need this because ownership prohibits:
-///
-/// ```text
-/// let link_ref = self.link_transformer.transform(self, link_like)
-/// //             ^^^^^^^^^^^^^^^^^^^^^           ^^^^
-///                first borrow                    second borrow
-/// ```
-///
-/// This lets us use the `transform_variant()`'s Copy-ability to release the borrow.
 impl<'md> LinkTransformation<'md> {
+    /// Extracts preprocessing data needed for the given transformation strategy.
+    ///
+    /// This is the first phase of the two-phase transformation process. It examines
+    /// the link and transformation type to determine what data needs to be extracted
+    /// before the actual transformation can occur.
+    ///
+    /// # Current Preprocessing
+    /// - [`LinkTransform::Reference`]: Extracts text from collapsed/shortcut links
+    ///   to use as reference IDs (e.g., `[text][]` → `[text][text]`)
+    /// - Other transforms: No preprocessing needed, returns empty state
+    ///
+    /// # Parameters
+    /// - `transform`: The transformation strategy to apply
+    /// - `inline_writer`: Writer for converting complex inlines to strings
+    /// - `item`: The link-like item being processed (must implement [`LinkLike`])
     pub(crate) fn new<L>(transform: LinkTransform, inline_writer: &mut MdInlinesWriter<'md>, item: L) -> Self
     where
         L: LinkLike<'md> + Copy,
@@ -125,15 +264,36 @@ impl<'md> LinkTransformation<'md> {
         Self { link_text }
     }
 
+    /// Applies the transformation using the preprocessed data and transformer state.
+    ///
+    /// This is the second phase of the two-phase transformation process. It uses
+    /// the data extracted in [`new()`] along with the transformer's internal state
+    /// to perform the actual link transformation.
+    ///
+    /// # Transformation Logic
+    /// - [`LinkTransformerStrategy::Keep`]: Returns the original link unchanged
+    /// - [`LinkTransformerStrategy::Inline`]: Converts all links to inline format
+    /// - [`LinkTransformerStrategy::Reference`]: Uses [`ReferenceAssigner`] to convert to numbered references
+    /// - [`LinkTransformerStrategy::NeverInline`]: Converts only inline links, preserves others
+    ///
+    /// # Parameters
+    /// - `transformer`: Mutable reference to the transformer (for accessing/updating state)
+    /// - `link`: The original link reference to transform
+    ///
+    /// # Returns
+    /// The transformed [`LinkReference`]. Always returns an owned value to simplify
+    /// memory management (could be optimized to return `Cow` in the future).
+    ///
+    /// [`new()`]: LinkTransformation::new
     // We could in principle return a Cow<'md, LinkReference>, and save some clones in the assigner.
     // To do that, fmt_md_inlines.rs would need to adjust to hold Cows instead of LinkLabels directly. For now, not
     // a high priority.
     pub(crate) fn apply(self, transformer: &mut LinkTransformer, link: &'md LinkReference) -> LinkReference {
         match &mut transformer.delegate {
-            LinkTransformState::Keep => Cow::Borrowed(link),
-            LinkTransformState::Inline => Cow::Owned(LinkReference::Inline),
-            LinkTransformState::Reference(assigner) => assigner.assign(self, link),
-            LinkTransformState::NeverInline(assigner) => {
+            LinkTransformerStrategy::Keep => Cow::Borrowed(link),
+            LinkTransformerStrategy::Inline => Cow::Owned(LinkReference::Inline),
+            LinkTransformerStrategy::Reference(assigner) => assigner.assign(self, link),
+            LinkTransformerStrategy::NeverInline(assigner) => {
                 match link {
                     LinkReference::Inline => assigner.assign_new(),
                     LinkReference::Full(prev) => {
@@ -150,27 +310,66 @@ impl<'md> LinkTransformation<'md> {
 }
 
 impl LinkTransformer {
+    /// Returns the transformation variant this transformer was created with.
+    ///
+    /// This is used for introspection, particularly in the two-phase transformation
+    /// process where [`LinkTransformation::new()`] needs to know what preprocessing
+    /// to perform. Since the method takes `&self`, it can be called without
+    /// conflicting with mutable borrows needed for [`LinkTransformation::apply()`].
+    ///
+    /// The returned [`LinkTransform`] is [`Copy`], so this method releases any
+    /// borrows immediately, enabling the borrowing workaround pattern.
     pub(crate) fn transform_variant(&self) -> LinkTransform {
         match self.delegate {
-            LinkTransformState::Keep => LinkTransform::Keep,
-            LinkTransformState::Inline => LinkTransform::Inline,
-            LinkTransformState::Reference(_) => LinkTransform::Reference,
-            LinkTransformState::NeverInline(_) => LinkTransform::NeverInline,
+            LinkTransformerStrategy::Keep => LinkTransform::Keep,
+            LinkTransformerStrategy::Inline => LinkTransform::Inline,
+            LinkTransformerStrategy::Reference(_) => LinkTransform::Reference,
+            LinkTransformerStrategy::NeverInline(_) => LinkTransform::NeverInline,
         }
     }
 }
 
+/// Manages reference numbering for link transformations that need auto-assigned IDs.
+///
+/// This struct maintains the state needed to assign consistent, conflict-free
+/// reference numbers to links. It's used by both [`LinkTransform::Reference`]
+/// and [`LinkTransform::NeverInline`] strategies.
+///
+/// # Numbering Strategy
+/// - Starts assigning numbers from 1
+/// - Tracks existing numeric references to avoid conflicts
+/// - Maintains a reordering map for consistent renumbering
+/// - Advances the counter to skip over reserved numbers
+///
+/// # Usage Patterns
+/// - **Reference transform**: Calls [`assign()`] to renumber all links
+/// - **NeverInline transform**: Calls [`assign_new()`] for inline links and
+///   [`reserve_if_numeric()`] for existing references
+///
+/// [`assign()`]: ReferenceAssigner::assign
+/// [`assign_new()`]: ReferenceAssigner::assign_new
+/// [`reserve_if_numeric()`]: ReferenceAssigner::reserve_if_numeric
 struct ReferenceAssigner {
+    /// The next number to assign to a new reference.
+    ///
     /// Let's not worry about overflow. The minimum size for each link is 5 bytes (`[][1]`), so u64 of those is about
     ///  80 exabytes of markdown -- and it would be even bigger than that, since the digits get bigger. It's just not a
     /// case I'm too worried about right now.
     next_index: u64,
-    /// Mappings from old reference id to new. We store these as an Strings (not ints) so that we don't need to worry
-    /// about overflow.
+
+    /// Mappings from old numeric reference IDs to their new assigned numbers.
+    ///
+    /// This ensures that multiple references to the same ID get consistently
+    /// renumbered. We store these as Strings (not ints) so that we don't need to worry
+    /// about overflow when parsing very large numbers.
     reorderings: HashMap<String, u64>,
 }
 
 impl ReferenceAssigner {
+    /// Creates a new assigner starting with reference number 1.
+    ///
+    /// The reordering map starts empty and will be populated as numeric
+    /// references are encountered and need to be renumbered.
     fn new() -> Self {
         Self {
             next_index: 1,
@@ -178,6 +377,23 @@ impl ReferenceAssigner {
         }
     }
 
+    /// Assigns a reference ID for the given link using the Reference transform strategy.
+    ///
+    /// This method implements the full reference transformation logic:
+    /// - **Inline links**: Get a new auto-assigned number
+    /// - **Full references**: Renumber if numeric, otherwise keep as-is
+    /// - **Collapsed/Shortcut**: Use the link text as reference ID, renumbering if it's numeric
+    ///
+    /// # Parameters
+    /// - `state`: Preprocessing data from [`LinkTransformation::new()`], contains
+    ///   extracted text for collapsed/shortcut links
+    /// - `link`: The original link reference to transform
+    ///
+    /// # Reference ID Logic
+    /// For collapsed/shortcut links, the link text becomes the reference ID:
+    /// - `[example][]` → `[example][example]` (text is "example")
+    /// - `[123][]` → `[123][1]` (text is "123", gets renumbered)
+    /// - `[_123_][]` → `[_123_][_123_]` (text is "_123_", not purely numeric)
     fn assign<'md>(&mut self, state: LinkTransformation<'md>, link: &'md LinkReference) -> Cow<'md, LinkReference> {
         match &link {
             LinkReference::Inline => self.assign_new(),
@@ -192,6 +408,23 @@ impl ReferenceAssigner {
         }
     }
 
+    /// Attempts to renumber a reference ID if it's purely numeric.
+    ///
+    /// This method handles the renumbering logic for numeric reference IDs:
+    /// - If the ID is purely numeric (like "123"), it gets renumbered
+    /// - If the ID contains non-digits (like "abc" or "_123_"), it's left unchanged
+    /// - Uses the reordering map to ensure consistent renumbering of duplicate IDs
+    ///
+    /// # Parameters
+    /// - `prev`: The existing reference ID to potentially renumber
+    ///
+    /// # Returns
+    /// - `Some(new_reference)` if the ID was numeric and got renumbered
+    /// - `None` if the ID was non-numeric and should be left unchanged
+    ///
+    /// # Reordering Logic
+    /// - First encounter of "123" → maps to next available number, returns that number
+    /// - Subsequent encounters of "123" → returns the same mapped number
     fn assign_if_numeric<'md>(&mut self, prev: &str) -> Option<Cow<'md, LinkReference>> {
         if prev.chars().all(|ch| ch.is_numeric()) {
             match self.reorderings.entry(String::from(prev)) {
@@ -206,14 +439,46 @@ impl ReferenceAssigner {
         }
     }
 
+    /// Assigns a new auto-incremented reference number.
+    ///
+    /// This method provides the core auto-numbering functionality:
+    /// - Takes the current `next_index` value
+    /// - Increments `next_index` for the next assignment
+    /// - Returns a new [`LinkReference::Full`] with the assigned number
+    ///
+    /// Used for:
+    /// - Converting inline links to references
+    /// - Providing new numbers for renumbered numeric references
     fn assign_new<'md>(&mut self) -> Cow<'md, LinkReference> {
         let idx_str = self.next_index.to_string();
         self.next_index += 1;
         Cow::Owned(LinkReference::Full(idx_str))
     }
 
-    /// Reserve a numeric reference without reassigning it. This ensures that future
-    /// auto-assigned numbers won't conflict with this reference.
+    /// Reserves a numeric reference without reassigning it.
+    ///
+    /// This method is used by [`LinkTransform::NeverInline`] to ensure that
+    /// existing numeric references don't conflict with newly assigned numbers.
+    /// Unlike [`assign_if_numeric()`], this doesn't change the reference ID,
+    /// it just updates internal state to avoid future conflicts.
+    ///
+    /// # Parameters
+    /// - `reference`: The reference ID to potentially reserve
+    ///
+    /// # Reservation Logic
+    /// - If the reference is purely numeric (like "5"), parse it as a number
+    /// - If that number is >= `next_index`, advance `next_index` to `number + 1`
+    /// - This ensures future calls to [`assign_new()`] won't conflict
+    ///
+    /// # Example
+    /// ```text
+    /// next_index = 1
+    /// reserve_if_numeric("5")  // next_index becomes 6
+    /// assign_new()             // returns "6", not "1"
+    /// ```
+    ///
+    /// [`assign_if_numeric()`]: ReferenceAssigner::assign_if_numeric
+    /// [`assign_new()`]: ReferenceAssigner::assign_new
     fn reserve_if_numeric(&mut self, reference: &str) {
         if reference.chars().all(|ch| ch.is_numeric()) {
             if let Ok(num) = reference.parse::<u64>() {
@@ -226,8 +491,22 @@ impl ReferenceAssigner {
     }
 }
 
-/// Turns the inlines into a String. Unlike [crate::output::fmt_plain_str::inlines_to_plain_string], this respects formatting spans
-/// like emphasis, strong, etc.
+/// Converts a vector of inline elements back to markdown string format.
+///
+/// This function is used when we need to convert complex link labels (with formatting
+/// like `**bold**` or `_italic_`) back to strings for use as reference IDs.
+///
+/// Unlike [`crate::output::fmt_plain_str::inlines_to_plain_string`], this preserves
+/// formatting spans like emphasis, strong, etc., so `[**bold**][]` becomes `[**bold**][**bold**]`
+/// rather than `[**bold**][bold]`.
+///
+/// # Parameters
+/// - `inline_writer`: Configured writer for rendering inlines to markdown
+/// - `inlines`: The inline elements to convert to string
+///
+/// # Usage
+/// Called by [`LinkLabel::get_sort_string()`] when processing complex link labels
+/// for the Reference transformation strategy.
 fn inlines_to_string<'md>(inline_writer: &mut MdInlinesWriter<'md>, inlines: &'md Vec<Inline>) -> String {
     let mut string_writer = Output::without_text_wrapping(String::with_capacity(32)); // guess at capacity
     inline_writer.write_line(&mut string_writer, inlines);
