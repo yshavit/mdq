@@ -120,6 +120,7 @@ impl<'md> LinkTransformation<'md> {
                     }
                 }
             }
+            LinkTransform::NeverInline => None,
         };
         Self { link_text }
     }
@@ -132,6 +133,17 @@ impl<'md> LinkTransformation<'md> {
             LinkTransformState::Keep => Cow::Borrowed(link),
             LinkTransformState::Inline => Cow::Owned(LinkReference::Inline),
             LinkTransformState::Reference(assigner) => assigner.assign(self, link),
+            LinkTransformState::NeverInline(assigner) => {
+                match link {
+                    LinkReference::Inline => assigner.assign_new(),
+                    LinkReference::Full(prev) => {
+                        // For NeverInline, reserve the number but keep the original reference
+                        assigner.reserve_if_numeric(prev);
+                        Cow::Borrowed(link)
+                    }
+                    LinkReference::Collapsed | LinkReference::Shortcut => Cow::Borrowed(link),
+                }
+            }
         }
         .into_owned()
     }
@@ -143,6 +155,7 @@ impl LinkTransformer {
             LinkTransformState::Keep => LinkTransform::Keep,
             LinkTransformState::Inline => LinkTransform::Inline,
             LinkTransformState::Reference(_) => LinkTransform::Reference,
+            LinkTransformState::NeverInline(_) => LinkTransform::NeverInline,
         }
     }
 }
@@ -198,6 +211,19 @@ impl ReferenceAssigner {
         self.next_index += 1;
         Cow::Owned(LinkReference::Full(idx_str))
     }
+
+    /// Reserve a numeric reference without reassigning it. This ensures that future
+    /// auto-assigned numbers won't conflict with this reference.
+    fn reserve_if_numeric(&mut self, reference: &str) {
+        if reference.chars().all(|ch| ch.is_numeric()) {
+            if let Ok(num) = reference.parse::<u64>() {
+                // Reserve this number by advancing next_index if needed
+                if num >= self.next_index {
+                    self.next_index = num + 1;
+                }
+            }
+        }
+    }
 }
 
 /// Turns the inlines into a String. Unlike [crate::output::fmt_plain_str::inlines_to_plain_string], this respects formatting spans
@@ -234,6 +260,11 @@ mod tests {
         Of(LinkTransform::Reference, LinkReference::Full(_)),
         Of(LinkTransform::Reference, LinkReference::Inline),
         Of(LinkTransform::Reference, LinkReference::Shortcut),
+
+        Of(LinkTransform::NeverInline, LinkReference::Collapsed),
+        Of(LinkTransform::NeverInline, LinkReference::Full(_)),
+        Of(LinkTransform::NeverInline, LinkReference::Inline),
+        Of(LinkTransform::NeverInline, LinkReference::Shortcut),
     });
 
     mod keep {
@@ -422,6 +453,45 @@ mod tests {
         }
     }
 
+    mod never_inline {
+        use super::*;
+
+        #[test]
+        fn inline() {
+            // We could in principle have this return a Borrowed Cow, since the input and output are both Inline.
+            // But it's not really worth it, given that Inline is just a stateless enum variant and thus as cheap
+            // (or potentially even cheaper!) than a pointer.
+            check_never_inline(LinkReference::Inline, LinkReference::Full("1".to_string()));
+        }
+
+        #[test]
+        fn collapsed() {
+            check_never_inline(LinkReference::Collapsed, LinkReference::Collapsed);
+        }
+
+        #[test]
+        fn full() {
+            check_never_inline(
+                LinkReference::Full("5".to_string()),
+                LinkReference::Full("5".to_string()),
+            );
+        }
+
+        #[test]
+        fn shortcut() {
+            check_never_inline(LinkReference::Shortcut, LinkReference::Shortcut);
+        }
+
+        fn check_never_inline(link_ref: LinkReference, expect: LinkReference) {
+            Given {
+                transform: LinkTransform::NeverInline,
+                label: mdq_inline!("doesn't matter"),
+                orig_reference: link_ref,
+            }
+            .expect(expect);
+        }
+    }
+
     /// A smoke test basically to ensure that we increment values correctly. We won't test every transformation type,
     /// since the sibling sub-modules already do that.
     #[test]
@@ -476,6 +546,44 @@ mod tests {
         assert_eq!(
             transform(&mut transformer, &mut iw, &echo),
             LinkReference::Full("echo".to_string())
+        );
+    }
+
+    #[test]
+    fn smoke_test_multi_with_never_inline() {
+        let mut transformer = LinkTransformer::from(LinkTransform::NeverInline);
+        let ctx = MdContext::empty();
+        let mut iw = MdInlinesWriter::new(
+            &ctx,
+            InlineElemOptions {
+                link_format: LinkTransform::Keep,
+                renumber_footnotes: false,
+            },
+        );
+
+        // Start with a collapse, just for fun. It should be unchanged.
+        let alpha = make_link("alpha", LinkReference::Collapsed);
+        assert_eq!(transform(&mut transformer, &mut iw, &alpha), LinkReference::Collapsed);
+
+        // Inline should turn into [bravo][1]
+        let bravo = make_link("bravo", LinkReference::Inline);
+        assert_eq!(
+            transform(&mut transformer, &mut iw, &bravo),
+            LinkReference::Full("1".to_string())
+        );
+
+        // [charlie][2] should be unchanged, *and* take up the "2" slot
+        let charlie = make_link("charlie", LinkReference::Full("2".to_string()));
+        assert_eq!(
+            transform(&mut transformer, &mut iw, &charlie),
+            LinkReference::Full("2".to_string())
+        );
+
+        // The next inline should turn into [bravo][3] -- not [2], because the previous full ref already took that.
+        let delta = make_link("delta", LinkReference::Inline);
+        assert_eq!(
+            transform(&mut transformer, &mut iw, &delta),
+            LinkReference::Full("3".to_string())
         );
     }
 
