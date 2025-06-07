@@ -22,8 +22,19 @@ pub enum LinkTransform {
     ///
     /// Links that weren't already in reference form will be auto-assigned a reference id. Links that were in reference
     /// form will have the link number be reordered.
-    #[default]
     Reference,
+
+    #[default]
+    /// Keep [`Full`], [`Collapsed`], and [`Shortcut`] as they are, but replace links.
+    ///
+    /// The current implementation will turn them into full-style links with incrementing numbers, but this may
+    /// change in future versions.
+    ///
+    /// [`Full`]: LinkReference::Full
+    /// [`Collapsed`]: LinkReference::Collapsed
+    /// [`Shortcut`]: LinkReference::Shortcut
+    /// [`Inline`]: LinkReference::Inline
+    NeverInline,
 }
 
 pub(crate) struct LinkTransformer {
@@ -61,6 +72,7 @@ impl From<LinkTransform> for LinkTransformer {
             LinkTransform::Keep => LinkTransformState::Keep,
             LinkTransform::Inline => LinkTransformState::Inline,
             LinkTransform::Reference => LinkTransformState::Reference(ReferenceAssigner::new()),
+            LinkTransform::NeverInline => LinkTransformState::NeverInline(ReferenceAssigner::new()),
         };
         Self { delegate }
     }
@@ -70,6 +82,7 @@ enum LinkTransformState {
     Keep,
     Inline,
     Reference(ReferenceAssigner),
+    NeverInline(ReferenceAssigner),
 }
 
 pub(crate) struct LinkTransformation<'md> {
