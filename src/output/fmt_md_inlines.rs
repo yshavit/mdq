@@ -73,14 +73,14 @@ impl<'md> LinkLike<'md> for &'md Image {
 }
 
 impl<'md> MdInlinesWriter<'md> {
-    pub(crate) fn new(ctx: &'md MdContext, options: InlineElemOptions) -> Self {
+    pub(crate) fn new(ctx: &'md MdContext, options: InlineElemOptions, nodes: &'md [MdElem]) -> Self {
         let pending_refs_capacity = 8; // arbitrary guess
         Self {
             ctx,
             seen_links: HashSet::with_capacity(pending_refs_capacity),
             seen_footnotes: HashSet::with_capacity(pending_refs_capacity),
             pending_references: PendingReferences::with_capacity(pending_refs_capacity),
-            link_transformer: LinkTransformer::from(options.link_format),
+            link_transformer: LinkTransformer::new(options.link_format, nodes),
             footnote_transformer: FootnoteTransformer::new(options.renumber_footnotes),
         }
     }
@@ -681,6 +681,7 @@ mod tests {
                     link_format: LinkTransform::Keep,
                     renumber_footnotes: false,
                 },
+                &[], // don't need to care about the nodes here
             );
             let link = Inline::Image(Image {
                 alt: input_description.to_string(),
@@ -710,6 +711,7 @@ mod tests {
                 link_format: LinkTransform::Keep,
                 renumber_footnotes: false,
             },
+            &[], // don't need to care about the nodes here
         );
         writer.write_inline_element(&mut output, orig);
         let md_str = output.take_underlying().unwrap();
@@ -737,6 +739,7 @@ mod tests {
                 link_format: LinkTransform::Keep,
                 renumber_footnotes: false,
             },
+            &[], // don't need to care about the nodes here
         );
         let link = Inline::Link(Link::Standard(StandardLink {
             display: vec![Inline::Text(Text {

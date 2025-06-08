@@ -16,16 +16,15 @@ impl MdWriter {
     }
 
     /// Writes the given nodes to the given writer.
-    pub fn write<'md, I, W>(&self, ctx: &'md MdContext, nodes: I, out: &mut W)
+    pub fn write<'md, W>(&self, ctx: &'md MdContext, nodes: &'md [MdElem], out: &mut W)
     where
-        I: IntoIterator<Item = &'md MdElem>,
         W: fmt::Write,
     {
         write_md(
             self.options,
             &mut Output::new(IoAdapter(out), self.options.text_width),
             ctx,
-            nodes.into_iter(),
+            nodes,
         )
     }
 }
