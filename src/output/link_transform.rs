@@ -64,15 +64,11 @@ pub enum LinkTransform {
     Reference,
 
     #[default]
-    /// Keep [`Full`], [`Collapsed`], and [`Shortcut`] as they are, but replace links.
+    /// Keep `[full][123]`, `[collapsed][]`, and `[shortcut]` links unchanged, but replace
+    /// `[inlined](https://example.com)` links.
     ///
     /// The current implementation will turn them into full-style links with incrementing numbers, but this may
     /// change in future versions.
-    ///
-    /// [`Full`]: LinkReference::Full
-    /// [`Collapsed`]: LinkReference::Collapsed
-    /// [`Shortcut`]: LinkReference::Shortcut
-    /// [`Inline`]: LinkReference::Inline
     NeverInline,
 }
 
