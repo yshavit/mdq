@@ -137,7 +137,7 @@ create_options_structs! {
     clap(long, value_enum)
     pub footnote_pos: Option<ReferencePlacement>,
 
-    clap(long, short, value_enum, default_value_t=LinkTransform::Reference)
+    clap(long, short, value_enum, default_value_t)
     pub link_format: LinkTransform,
 
     clap(long, default_value_t = true, action = clap::ArgAction::Set)

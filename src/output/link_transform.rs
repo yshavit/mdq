@@ -11,8 +11,8 @@
 ///
 /// ## Core Components
 /// - [`LinkTransform`]: Public enum defining transformation strategies
-/// - [`LinkTransformer`]: Main orchestrator that manages transformation state
-/// - [`LinkTransformerStrategy`]: Internal enum implementing the Strategy pattern
+/// - [`LinkTransformer`]: Crate-public type for transformations; trivially delegates to [`LinkTransformerStrategy`].
+/// - [`LinkTransformerStrategy`]: Internal enum implementing the different transformation strategies
 /// - [`LinkTransformation`]: Temporary holder for preprocessing data
 /// - [`ReferenceAssigner`]: Stateful numbering system for reference links
 ///
@@ -36,6 +36,7 @@
 /// ```
 ///
 /// By extracting data in `new()` and applying in `apply()`, we can release the borrow
+///
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
 use crate::output::fmt_md_inlines::{InlineElemOptions, LinkLike, MdInlinesWriter};
@@ -76,28 +77,10 @@ pub enum LinkTransform {
 }
 
 /// The crate-public orchestrator for link transformations.
-///
-/// This struct coordinates the link transformation process by managing the stateful
-/// components needed for each [`LinkTransform`] variant. It acts as a facade that
-/// hides the complexity of the different transformation strategies.
-///
-/// # Architecture
-/// The transformer uses a delegation pattern where the actual transformation logic
-/// is handled by [`LinkTransformerStrategy`] variants. This allows each transformation
-/// type to maintain its own state (like [`ReferenceAssigner`] for numbering) while
-/// providing a uniform interface.
-///
-/// # Usage Flow
-/// 1. **Creation**: `LinkTransformer::from(LinkTransform::Reference)` creates the transformer
-/// 2. **Preprocessing**: For each link, call [`LinkTransformation::new()`] to extract needed data
-/// 3. **Transformation**: Call [`LinkTransformation::apply()`] to perform the actual transformation
-/// 4. **Introspection**: Use [`transform_variant()`] to get the current transform type
-///
-/// # Ownership Workaround
-/// The two-step process (new → apply) exists to work around Rust's borrowing rules.
-/// See [`LinkTransformation`] for details.
-///
-/// [`transform_variant()`]: LinkTransformer::transform_variant
+//
+// # Internal documentation for just this file:
+//
+// This struct just provides a crate-public interface to the real logic, which is all in LinkTransformerStrategy.
 pub(crate) struct LinkTransformer {
     delegate: LinkTransformerStrategy,
 }
@@ -246,7 +229,7 @@ impl<'md> LinkTransformation<'md> {
     {
         let link_text = match transform {
             LinkTransform::Keep | LinkTransform::Inline => None,
-            LinkTransform::Reference => {
+            LinkTransform::Reference | LinkTransform::NeverInline => {
                 let (_, label, definition) = item.link_info();
                 match &definition.reference {
                     LinkReference::Inline | LinkReference::Full(_) => None,
@@ -259,7 +242,6 @@ impl<'md> LinkTransformation<'md> {
                     }
                 }
             }
-            LinkTransform::NeverInline => None,
         };
         Self { link_text }
     }
@@ -293,17 +275,16 @@ impl<'md> LinkTransformation<'md> {
             LinkTransformerStrategy::Keep => Cow::Borrowed(link),
             LinkTransformerStrategy::Inline => Cow::Owned(LinkReference::Inline),
             LinkTransformerStrategy::Reference(assigner) => assigner.assign(self, link),
-            LinkTransformerStrategy::NeverInline(assigner) => {
-                match link {
-                    LinkReference::Inline => assigner.assign_new(),
-                    LinkReference::Full(prev) => {
-                        // For NeverInline, reserve the number but keep the original reference
-                        assigner.reserve_if_numeric(prev);
-                        Cow::Borrowed(link)
-                    }
-                    LinkReference::Collapsed | LinkReference::Shortcut => Cow::Borrowed(link),
+            LinkTransformerStrategy::NeverInline(assigner) => match &link {
+                LinkReference::Inline => assigner.assign_new(),
+                LinkReference::Full(prev) => assigner.assign_if_numeric(prev).unwrap_or(Cow::Borrowed(link)),
+                a @ LinkReference::Collapsed | a @ LinkReference::Shortcut => {
+                    let text_cow = self.link_text.unwrap();
+                    assigner
+                        .assign_if_numeric(text_cow.deref())
+                        .unwrap_or(Cow::Borrowed(*a))
                 }
-            }
+            },
         }
         .into_owned()
     }
@@ -453,41 +434,6 @@ impl ReferenceAssigner {
         let idx_str = self.next_index.to_string();
         self.next_index += 1;
         Cow::Owned(LinkReference::Full(idx_str))
-    }
-
-    /// Reserves a numeric reference without reassigning it.
-    ///
-    /// This method is used by [`LinkTransform::NeverInline`] to ensure that
-    /// existing numeric references don't conflict with newly assigned numbers.
-    /// Unlike [`assign_if_numeric()`], this doesn't change the reference ID,
-    /// it just updates internal state to avoid future conflicts.
-    ///
-    /// # Parameters
-    /// - `reference`: The reference ID to potentially reserve
-    ///
-    /// # Reservation Logic
-    /// - If the reference is purely numeric (like "5"), parse it as a number
-    /// - If that number is >= `next_index`, advance `next_index` to `number + 1`
-    /// - This ensures future calls to [`assign_new()`] won't conflict
-    ///
-    /// # Example
-    /// ```text
-    /// next_index = 1
-    /// reserve_if_numeric("5")  // next_index becomes 6
-    /// assign_new()             // returns "6", not "1"
-    /// ```
-    ///
-    /// [`assign_if_numeric()`]: ReferenceAssigner::assign_if_numeric
-    /// [`assign_new()`]: ReferenceAssigner::assign_new
-    fn reserve_if_numeric(&mut self, reference: &str) {
-        if reference.chars().all(|ch| ch.is_numeric()) {
-            if let Ok(num) = reference.parse::<u64>() {
-                // Reserve this number by advancing next_index if needed
-                if num >= self.next_index {
-                    self.next_index = num + 1;
-                }
-            }
-        }
     }
 }
 
@@ -752,7 +698,7 @@ mod tests {
         fn full() {
             check_never_inline(
                 LinkReference::Full("5".to_string()),
-                LinkReference::Full("5".to_string()),
+                LinkReference::Full("1".to_string()),
             );
         }
 
@@ -858,11 +804,32 @@ mod tests {
             LinkReference::Full("2".to_string())
         );
 
-        // The next inline should turn into [bravo][3] -- not [2], because the previous full ref already took that.
-        let delta = make_link("delta", LinkReference::Inline);
+        // [charlie][1] should be reordered to [3]
+        let delta = make_link("charlie", LinkReference::Full("1".to_string()));
         assert_eq!(
             transform(&mut transformer, &mut iw, &delta),
             LinkReference::Full("3".to_string())
+        );
+
+        // [4][] should stay as-is, but take up the "4" slot
+        let echo = make_link("4", LinkReference::Collapsed);
+        assert_eq!(
+            transform(&mut transformer, &mut iw, &echo),
+            LinkReference::Full("4".to_string())
+        );
+
+        // [3] should be renumbered to [3][5] (confusing!)
+        let foxtrot = make_link("3", LinkReference::Shortcut);
+        assert_eq!(
+            transform(&mut transformer, &mut iw, &foxtrot),
+            LinkReference::Full("5".to_string())
+        );
+
+        // The next inline should turn into [bravo][6]
+        let golf = make_link("delta", LinkReference::Inline);
+        assert_eq!(
+            transform(&mut transformer, &mut iw, &golf),
+            LinkReference::Full("6".to_string())
         );
     }
 
