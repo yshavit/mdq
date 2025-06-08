@@ -308,6 +308,9 @@ impl ReferenceAssigner {
 }
 
 /// Converts a vector of inline elements back to markdown string format.
+///
+/// Unlike [crate::output::fmt_plain_str::inlines_to_plain_string], this respects formatting spans
+/// like emphasis, strong, etc.
 fn inlines_to_string<'md>(inline_writer: &mut MdInlinesWriter<'md>, inlines: &'md Vec<Inline>) -> String {
     let mut string_writer = Output::without_text_wrapping(String::with_capacity(32)); // guess at capacity
     inline_writer.write_line(&mut string_writer, inlines);
