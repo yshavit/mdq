@@ -170,7 +170,7 @@ impl Default for RunOptions {
         Self {
             link_pos: ReferencePlacement::Section,
             footnote_pos: None,
-            link_format: LinkTransform::Reference,
+            link_format: LinkTransform::NeverInline,
             renumber_footnotes: true,
             output: OutputFormat::Markdown,
             add_breaks: None,
