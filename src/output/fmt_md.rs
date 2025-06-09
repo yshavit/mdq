@@ -97,18 +97,17 @@ pub enum ReferencePlacement {
     Doc,
 }
 
-pub(crate) fn write_md<'md, I, W>(options: MdWriterOptions, out: &mut Output<W>, ctx: &'md MdContext, nodes: I)
+pub(crate) fn write_md<'md, W>(options: MdWriterOptions, out: &mut Output<W>, ctx: &'md MdContext, nodes: &'md [MdElem])
 where
-    I: Iterator<Item = &'md MdElem>,
     W: SimpleWrite,
 {
     let mut writer_state = MdWriterState {
         ctx,
         opts: options,
         prev_was_thematic_break: false,
-        inlines_writer: &mut MdInlinesWriter::new(ctx, options.inline_options),
+        inlines_writer: &mut MdInlinesWriter::new(ctx, options.inline_options, nodes),
     };
-    let nodes_count = writer_state.write_md(out, nodes.into_iter(), true);
+    let nodes_count = writer_state.write_md(out, nodes.iter(), true);
 
     // Always write the pending definitions at the end of the doc. If there were no sections, then BottomOfSection
     // won't have been triggered, but we still want to write them. We'll add a thematic break before the links if there
@@ -2511,7 +2510,7 @@ pub(crate) mod tests {
         nodes.iter().for_each(|n| VARIANTS_CHECKER.see(n));
 
         let mut out = Output::without_text_wrapping(String::default());
-        write_md(options, &mut out, &ctx, nodes.iter());
+        write_md(options, &mut out, &ctx, &nodes);
         let actual = out.take_underlying().unwrap();
         assert_eq!(&actual, expect);
     }

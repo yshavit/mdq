@@ -150,7 +150,7 @@ pub(crate) enum CodeBlockType {
 
 impl<'md> SerializableMd<'md> {
     pub fn new(elems: &'md [MdElem], ctx: &'md MdContext, opts: InlineElemOptions) -> Self {
-        let mut inlines_writer = MdInlinesWriter::new(ctx, opts);
+        let mut inlines_writer = MdInlinesWriter::new(ctx, opts, elems);
         const DEFAULT_CAPACITY: usize = 16; // we could compute these, but it's not really worth it
         let mut result = SerializableMd {
             items: Vec::with_capacity(elems.len()),
