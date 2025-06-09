@@ -246,7 +246,7 @@ struct ReferenceAssigner {
 }
 
 impl ReferenceAssigner {
-    fn new(nodes: &[MdElem]) -> Self {
+    fn new(_nodes: &[MdElem]) -> Self {
         Self {
             next_index: 1,
             reorderings: HashMap::with_capacity(16), // arbitrary
