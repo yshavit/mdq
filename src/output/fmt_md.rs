@@ -1976,7 +1976,7 @@ pub(crate) mod tests {
         fn two_links_doc_pos_no_thematic_break() {
             let mut options = MdWriterOptions::default_for_tests();
             options.include_thematic_breaks = false;
-            options.inline_options.link_format = LinkTransform::Reference;
+            options.inline_options.link_format = LinkTransform::NeverInline;
             options.link_reference_placement = ReferencePlacement::Doc;
             check_render_refs_with(
                 options,
@@ -2011,7 +2011,7 @@ pub(crate) mod tests {
         #[test]
         fn reference_transform_smoke_test() {
             check_render_refs_with(
-                MdWriterOptions::new_with(|mdo| mdo.inline_options.link_format = LinkTransform::Reference),
+                MdWriterOptions::new_with(|mdo| mdo.inline_options.link_format = LinkTransform::NeverInline),
                 vec![link_elem(Link::Standard(StandardLink {
                     display: vec![mdq_inline!("link text")],
                     link: LinkDefinition {
@@ -2091,7 +2091,7 @@ pub(crate) mod tests {
         #[test]
         fn reference_transform_smoke_test() {
             check_render_refs_with(
-                MdWriterOptions::new_with(|mdo| mdo.inline_options.link_format = LinkTransform::Reference),
+                MdWriterOptions::new_with(|mdo| mdo.inline_options.link_format = LinkTransform::NeverInline),
                 vec![image_elem(Image {
                     alt: "alt text".to_string(),
                     link: LinkDefinition {

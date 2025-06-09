@@ -53,6 +53,14 @@ impl MdContext {
             empty_md_elems: Vec::new(),
         }
     }
+
+    /// Creates an empty context, which will not allocate.
+    pub(crate) fn zero_sized() -> Self {
+        Self {
+            footnotes: HashMap::with_capacity(0),
+            empty_md_elems: Vec::new(),
+        }
+    }
 }
 
 /// A fully parsed Markdown document.
