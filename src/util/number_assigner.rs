@@ -55,11 +55,7 @@ mod tests {
     fn check<const R: usize, const E: usize>(reserved: [u64; R], expect: [u64; E]) {
         let mut assigner = NumberAssigner::new(reserved.into());
 
-        let mut actual = [None; E];
-        for i in 0..E {
-            actual[i] = Some(assigner.next_num());
-        }
-
+        let actual = [(); E].map(|_| Some(assigner.next_num()));
         assert_eq!(actual, expect.map(Some));
     }
 }
