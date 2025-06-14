@@ -1,14 +1,13 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
 use crate::output::find_numbered_links::find_reserved_link_numbers;
-use crate::output::fmt_md_inlines::{InlineElemOptions, LinkLike, MdInlinesWriter};
+use crate::output::fmt_md_inlines::{InlineElemOptions, MdInlinesWriter};
 use crate::util::number_assigner::NumberAssigner;
 use crate::util::output::Output;
 use clap::ValueEnum;
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::ops::Deref;
 
 /// Whether to render links as inline, reference form, or keep them as they were.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, ValueEnum)]
@@ -162,8 +161,9 @@ impl ReferenceAssigner {
         match self.reorderings.entry(String::from(prev)) {
             Entry::Occupied(map_to) => Cow::Owned(LinkReference::Full(map_to.get().to_string())),
             Entry::Vacant(e) => {
-                e.insert(self.index_assigner.next_num());
-                self.assign_new()
+                let num = self.index_assigner.next_num();
+                e.insert(num);
+                Cow::Owned(LinkReference::Full(num.to_string()))
             }
         }
     }
@@ -216,12 +216,6 @@ mod tests {
         Of(LinkTransform::NeverInline, LinkReference::Inline),
         Of(LinkTransform::NeverInline, LinkReference::Shortcut),
     });
-
-    #[test]
-    fn todo_check_all() {
-        // read the LinkTransform docs and come up with tests accordingly
-        panic!("make sure to do a full check of all the tests!")
-    }
 
     mod keep {
         use super::*;
@@ -312,7 +306,7 @@ mod tests {
         fn full() {
             check_never_inline(
                 LinkReference::Full("5".to_string()),
-                LinkReference::Full("5".to_string()),
+                LinkReference::Full("1".to_string()), // renumbered
             );
         }
 
@@ -333,74 +327,64 @@ mod tests {
 
     #[test]
     fn smoke_test_multi_with_never_inline() {
-        let alpha = make_link("alpha", LinkReference::Collapsed);
-        let bravo = make_link("bravo", LinkReference::Inline);
-        let delta = make_link("charlie", LinkReference::Full("1".to_string()));
-        let charlie = make_link("charlie", LinkReference::Full("2".to_string()));
-        let echo = make_link("4", LinkReference::Collapsed);
-        let foxtrot = make_link("3", LinkReference::Shortcut);
-        let golf = make_link("delta", LinkReference::Inline);
+        let a_collapsed = make_link("alpha", LinkReference::Collapsed);
+        let b_inline = make_link("bravo", LinkReference::Inline);
+        let c_full_2 = make_link("charlie", LinkReference::Full("2".to_string()));
+        let d_full_1 = make_link("delta", LinkReference::Full("1".to_string()));
+        let e_4_collapsed = make_link("4", LinkReference::Collapsed);
+        let f_3_shortcut = make_link("3", LinkReference::Shortcut);
+        let g_inline = make_link("golf", LinkReference::Inline);
 
-        let as_md_elem: [MdElem; 7] = [&alpha, &bravo, &charlie, &delta, &echo, &foxtrot, &golf]
-            .map(Link::clone)
-            .map(Link::into);
+        let as_md_elem: [MdElem; 7] = [
+            &a_collapsed,
+            &b_inline,
+            &c_full_2,
+            &d_full_1,
+            &e_4_collapsed,
+            &f_3_shortcut,
+            &g_inline,
+        ]
+        .map(Link::clone)
+        .map(Link::into);
 
         let ctx = MdContext::empty();
         let mut transformer = LinkTransformer::new(LinkTransform::NeverInline, as_md_elem.as_slice(), &ctx);
-        let mut iw = MdInlinesWriter::new(
-            &ctx,
-            InlineElemOptions {
-                link_format: LinkTransform::Keep,
-                renumber_footnotes: false,
-            },
-            as_md_elem.as_slice(),
-        );
 
         // Start with a collapse, just for fun. It should be unchanged.
-        assert_eq!(transform(&mut transformer, &mut iw, &alpha), LinkReference::Collapsed);
+        assert_eq!(transform(&mut transformer, &a_collapsed), LinkReference::Collapsed);
 
         // Inline should turn into [bravo][1]
         assert_eq!(
-            transform(&mut transformer, &mut iw, &bravo),
+            transform(&mut transformer, &b_inline),
             LinkReference::Full("1".to_string())
         );
 
         // [charlie][2] should be unchanged, *and* take up the "2" slot
         assert_eq!(
-            transform(&mut transformer, &mut iw, &charlie),
+            transform(&mut transformer, &c_full_2),
             LinkReference::Full("2".to_string())
         );
 
-        // [delta][1] should be reordered to [3]
+        // [delta][1] should be reordered to [5], since the existing `[3]` and `[4][]` take those slots
         assert_eq!(
-            transform(&mut transformer, &mut iw, &delta),
-            LinkReference::Full("3".to_string())
-        );
-
-        // [4][] should stay as-is, but take up the "4" slot
-        assert_eq!(
-            transform(&mut transformer, &mut iw, &echo),
-            LinkReference::Full("4".to_string())
-        );
-
-        // [3] should be renumbered to [3][5] (confusing!)
-        assert_eq!(
-            transform(&mut transformer, &mut iw, &foxtrot),
+            transform(&mut transformer, &d_full_1),
             LinkReference::Full("5".to_string())
         );
 
-        // The next inline should turn into [bravo][6]
+        // [4][] should stay as-is, and take up the "4" slot
+        assert_eq!(transform(&mut transformer, &e_4_collapsed), LinkReference::Collapsed);
+
+        // [3] should stay as-is, and take up the "3" slot
+        assert_eq!(transform(&mut transformer, &f_3_shortcut), LinkReference::Shortcut);
+
+        // [golf](...) should turn into [golf][6]
         assert_eq!(
-            transform(&mut transformer, &mut iw, &golf),
+            transform(&mut transformer, &g_inline),
             LinkReference::Full("6".to_string())
         );
     }
 
-    fn transform<'md>(
-        transformer: &mut LinkTransformer,
-        iw: &mut MdInlinesWriter<'md>,
-        link: &'md Link,
-    ) -> LinkReference {
+    fn transform(transformer: &mut LinkTransformer, link: &Link) -> LinkReference {
         match link {
             Link::Standard(standard_link) => transformer.apply(&standard_link.link.reference),
             Link::Autolink(autolink) => {
@@ -450,16 +434,8 @@ mod tests {
 
             let ctx = MdContext::empty();
             let mut transformer = LinkTransformer::new(transform, &link_md_slice, &ctx);
-            let mut iw = MdInlinesWriter::new(
-                &ctx,
-                InlineElemOptions {
-                    link_format: LinkTransform::Keep,
-                    renumber_footnotes: false,
-                },
-                &link_md_slice,
-            );
 
-            let actual = self::transform(&mut transformer, &mut iw, &link);
+            let actual = self::transform(&mut transformer, &link);
 
             VARIANTS_CHECKER.see(&Combo::Of(transform, reference.clone()));
 
