@@ -60,7 +60,7 @@ impl<'md> ReservedLinkNumbers<'md> {
                 Inline::Span(span) => self.build_from_inlines(&span.children),
                 Inline::Link(link) => {
                     match link {
-                        Link::Standard(link) => self.build_from_link(&link),
+                        Link::Standard(link) => self.build_from_link(link),
                         Link::Autolink(_) => {} // autolinks are never just numeric
                     }
                 }

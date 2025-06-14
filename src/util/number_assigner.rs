@@ -15,8 +15,8 @@ impl NumberAssigner {
 
     pub(crate) fn next_num(&mut self) -> u64 {
         let mut available_number = self.next_int;
-        let mut reserved_range = self.reserved_nums.range(self.next_int..);
-        while let Some(&reserved_num) = reserved_range.next() {
+        let reserved_range = self.reserved_nums.range(self.next_int..);
+        for &reserved_num in reserved_range {
             if available_number != reserved_num {
                 break;
             }
