@@ -47,7 +47,8 @@ impl MdContext {
         self.footnotes.get(footnote_id).unwrap_or(&self.empty_md_elems)
     }
 
-    fn default() -> Self {
+    /// Creates a new MdContext with a default guess as to allocations and capacity.
+    fn new() -> Self {
         Self {
             footnotes: HashMap::with_capacity(4), // total guess
             empty_md_elems: Vec::new(),
@@ -1449,7 +1450,7 @@ pub(crate) use m_node;
 impl MdDoc {
     fn read(node: mdast::Node, opts: &ReadOptions, source: &str) -> Result<Self, InvalidMd> {
         let lookups = Lookups::new(&node, opts, source)?;
-        let mut ctx = MdContext::default();
+        let mut ctx = MdContext::new();
         let roots = MdElem::from_mdast_0(node, &lookups, &mut ctx)?;
         Ok(Self { roots, ctx })
     }
@@ -2027,7 +2028,7 @@ mod tests {
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mut ctx = MdContext::default();
+                let mut ctx = MdContext::new();
                 let mdq_err = MdElem::from_mdast_0(node_clone, &$lookups, &mut ctx).err().expect("expected no MdqNode");
                 assert_eq!(mdq_err, $err);
                 $($body)?
@@ -2038,7 +2039,7 @@ mod tests {
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mut ctx = MdContext::default();
+                let mut ctx = MdContext::new();
                 let mdqs = MdElem::from_mdast_0(node_clone, &$lookups, &mut ctx).unwrap();
                 assert_eq!(mdqs, Vec::new());
                 $(
@@ -2051,7 +2052,7 @@ mod tests {
                 NODES_CHECKER.see(&node);
                 unwrap!(node, $enum_variant);
                 let node_clone = node.clone();
-                let mut ctx = MdContext::default();
+                let mut ctx = MdContext::new();
                 let mut mdqs = MdElem::from_mdast_0(node_clone, &$lookups, &mut ctx).unwrap();
                 assert_eq!(&ctx, &MdContext::empty(), "MdContext");
                 assert_eq!(mdqs.len(), 1, "expected exactly one element, but found: {:?}", mdqs);
@@ -3084,7 +3085,7 @@ mod tests {
 
             let mdast_root = Node::Root(root); // reconstruct it, since parse_with unwrapped it
             NODES_CHECKER.see(&mdast_root);
-            let mut footnotes = MdContext::default();
+            let mut footnotes = MdContext::new();
             let mdqs = MdElem::from_mdast_0(mdast_root, &lookups, &mut footnotes).unwrap();
 
             assert_eq!(
