@@ -79,12 +79,13 @@ impl<'md> ReservedLinkNumbers<'md> {
                 // (that will prevent output like `[123][4]`, which could be confusing. Otherwise, we won't.
                 // Note that something like `[foo bar][1]` will not reserve the 1. That's because we'll be renumbering
                 // it anyway.
-                let options = InlineElemOptions {
+                static OPTIONS: InlineElemOptions = InlineElemOptions {
                     link_format: LinkTransform::Keep,
                     renumber_footnotes: false,
                 };
-                let tmp_ctx = MdContext::empty();
-                let mut writer = MdInlinesWriter::new(&tmp_ctx, options, &[]);
+                // This is slightly inefficient; we could use a lighter-weight inlines writer mechanism, in principle.
+                // But this is good enough for now.
+                let mut writer = MdInlinesWriter::new(&MdContext::empty(), OPTIONS, &[]);
                 let text = inlines_to_string(&mut writer, &link.display);
                 self.build_from_text(&text);
             }
