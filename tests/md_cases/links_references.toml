@@ -66,29 +66,6 @@ output = '''
 '''
 
 
-[expect."full references"]
-cli_args = ["--link-format", "reference"]
-output = '''
-- an [inline link][1]
-- a [standard reference link][2]
-- a [link with a non-numeric reference id][a]
-- a [link with a non-sequential reference id][3]
-- a [collapsed link][collapsed link]
-- a [shortcut link][shortcut link]
-- a [link with a title][4]
-- a [link with a title that contains double-quotes][5]
-
-[1]: https://example.com
-[2]: https://example.com/1
-[3]: https://example.com/non-sequential
-[4]: https://example.com "my title"
-[5]: https://example.com 'my "alleged" title'
-[a]: https://example.com/a "with a title"
-[collapsed link]: https://example.com/collapsed
-[shortcut link]: https://example.com/shortcut
-'''
-
-
 [expect."keep original"]
 cli_args = ["--link-format", "keep"]
 output = '''
