@@ -85,7 +85,8 @@ impl<'md> ReservedLinkNumbers<'md> {
                 };
                 // This is slightly inefficient; we could use a lighter-weight inlines writer mechanism, in principle.
                 // But this is good enough for now.
-                let mut writer = MdInlinesWriter::new(&MdContext::empty(), OPTIONS, &[]);
+                let empty_context = MdContext::empty();
+                let mut writer = MdInlinesWriter::new(&empty_context, OPTIONS, &[]);
                 let text = inlines_to_string(&mut writer, &link.display);
                 self.build_from_text(&text);
             }
