@@ -343,7 +343,6 @@ mod tests {
         let e_4_collapsed = make_link("4", LinkReference::Collapsed);
         let f_3_shortcut = make_link("3", LinkReference::Shortcut);
         let g_inline = make_link("golf", LinkReference::Inline);
-        let h_full_numeric = make_link("5", LinkReference::Full("a".to_string()));
 
         let as_md_elem: [MdElem; 7] = [
             &a_collapsed,
