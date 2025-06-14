@@ -75,7 +75,7 @@ impl<'md> ReservedLinkNumbers<'md> {
                 // inline links are never numeric
             }
             LinkReference::Full(_) | LinkReference::Collapsed | LinkReference::Shortcut => {
-                // For full links, collapsed links, and shortcuts: if the display next is numeric, we'll reserve it.
+                // For full links, collapsed links, and shortcuts: if the display text is numeric, we'll reserve it.
                 // (that will prevent output like `[123][4]`, which could be confusing. Otherwise, we won't.
                 // Note that something like `[foo bar][1]` will not reserve the 1. That's because we'll be renumbering
                 // it anyway.
