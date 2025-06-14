@@ -83,7 +83,7 @@ impl<'md> ReservedLinkNumbers<'md> {
                     link_format: LinkTransform::Keep,
                     renumber_footnotes: false,
                 };
-                let tmp_ctx = MdContext::zero_sized();
+                let tmp_ctx = MdContext::empty();
                 let mut writer = MdInlinesWriter::new(&tmp_ctx, options, &[]);
                 let text = inlines_to_string(&mut writer, &link.display);
                 self.build_from_text(&text);

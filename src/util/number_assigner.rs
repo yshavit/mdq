@@ -14,16 +14,13 @@ impl NumberAssigner {
     }
 
     pub(crate) fn next_num(&mut self) -> u64 {
-        let mut available_number = self.next_int;
-        let reserved_range = self.reserved_nums.range(self.next_int..);
-        for &reserved_num in reserved_range {
-            if available_number != reserved_num {
-                break;
-            }
-            available_number += 1;
+        let mut proposed_result = self.next_int;
+        // This isn't the most efficient algorithm possible, but it's good enough, and very simple.
+        while self.reserved_nums.contains(&proposed_result) {
+            proposed_result += 1;
         }
-        self.next_int = available_number + 1;
-        available_number
+        self.next_int = proposed_result + 1;
+        proposed_result
     }
 }
 
