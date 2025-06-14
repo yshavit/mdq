@@ -1,7 +1,7 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::*;
 use crate::output::footnote_transform::FootnoteTransformer;
-use crate::output::link_transform::{LinkLabel, LinkTransform, LinkTransformation, LinkTransformer};
+use crate::output::link_transform::{LinkLabel, LinkTransform, LinkTransformer};
 use crate::util::output::{Output, SimpleWrite};
 use derive_builder::Builder;
 use serde::Serialize;
@@ -80,7 +80,7 @@ impl<'md> MdInlinesWriter<'md> {
             seen_links: HashSet::with_capacity(pending_refs_capacity),
             seen_footnotes: HashSet::with_capacity(pending_refs_capacity),
             pending_references: PendingReferences::with_capacity(pending_refs_capacity),
-            link_transformer: LinkTransformer::new(options.link_format, nodes),
+            link_transformer: LinkTransformer::new(options.link_format, nodes, ctx),
             footnote_transformer: FootnoteTransformer::new(options.renumber_footnotes),
         }
     }
@@ -312,8 +312,7 @@ impl<'md> MdInlinesWriter<'md> {
 
             out.write_char(']');
 
-            let link_ref = LinkTransformation::new(self.link_transformer.transform_variant(), self, link_like)
-                .apply(&mut self.link_transformer, &link.reference);
+            let link_ref = self.link_transformer.apply(&link.reference);
             let reference_to_add = match link_ref {
                 LinkReference::Inline => {
                     out.write_char('(');
