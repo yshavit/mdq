@@ -47,7 +47,7 @@ impl MdContext {
         self.footnotes.get(footnote_id).unwrap_or(&self.empty_md_elems)
     }
 
-    /// Creates a new MdContext with a default guess as to allocations and capacity.
+    /// Creates a new MdContext with a default guess as to allocations and
     fn new() -> Self {
         Self {
             footnotes: HashMap::with_capacity(4), // total guess

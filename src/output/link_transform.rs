@@ -28,7 +28,6 @@ pub enum LinkTransform {
     ///    an auto-assigned number
     /// - `[collapsed][]` and `[shortcut]` links will always be unchanged
     /// - `[full][a]` links will:
-    ///    - turn into `[collapsed][]` links if the display text is numeric: `[123][a]` → `[123][]`
     ///    - otherwise, be renumbered if the link id is numeric: `[example][3]` → `[example][1]`
     ///    - otherwise, be left unchanged: `[example][a]` is unchanged
     NeverInline,
@@ -311,6 +310,16 @@ mod tests {
         }
 
         #[test]
+        fn full_with_numeric_display() {
+            Given {
+                transform: LinkTransform::NeverInline,
+                label: mdq_inline!("123"),
+                orig_reference: LinkReference::Full("a".to_string()),
+            }
+            .expect(LinkReference::Full("a".to_string()));
+        }
+
+        #[test]
         fn shortcut() {
             check_never_inline(LinkReference::Shortcut, LinkReference::Shortcut);
         }
@@ -334,6 +343,7 @@ mod tests {
         let e_4_collapsed = make_link("4", LinkReference::Collapsed);
         let f_3_shortcut = make_link("3", LinkReference::Shortcut);
         let g_inline = make_link("golf", LinkReference::Inline);
+        let h_full_numeric = make_link("5", LinkReference::Full("a".to_string()));
 
         let as_md_elem: [MdElem; 7] = [
             &a_collapsed,
@@ -365,7 +375,7 @@ mod tests {
             LinkReference::Full("2".to_string())
         );
 
-        // [delta][1] should be reordered to [5], since the existing `[3]` and `[4][]` take those slots
+        // [delta][1] should be reordered to [6], since the existing `[3]` and `[4][]`,  take those slots
         assert_eq!(
             transform(&mut transformer, &d_full_1),
             LinkReference::Full("5".to_string())
