@@ -47,9 +47,21 @@ impl MdContext {
         self.footnotes.get(footnote_id).unwrap_or(&self.empty_md_elems)
     }
 
+    /// Creates a new MdContext with a default guess as to allocations and
     fn new() -> Self {
         Self {
             footnotes: HashMap::with_capacity(4), // total guess
+            empty_md_elems: Vec::new(),
+        }
+    }
+
+    /// Creates an empty context, which will not allocate.
+    ///
+    /// This is intentionally not a `Default::default()`, because I want to make it explicit that it is a non-allocating
+    /// function.
+    pub(crate) fn empty() -> Self {
+        Self {
+            footnotes: HashMap::with_capacity(0),
             empty_md_elems: Vec::new(),
         }
     }
@@ -1987,13 +1999,6 @@ mod tests {
     use crate::util::utils_for_test::*;
 
     impl MdContext {
-        pub(crate) fn empty() -> Self {
-            Self {
-                footnotes: Default::default(),
-                empty_md_elems: vec![],
-            }
-        }
-
         pub(crate) fn with<S: Into<FootnoteId>>(mut self, footnote_id: S, body: Vec<MdElem>) -> Self {
             self.footnotes.insert(footnote_id.into(), body);
             self

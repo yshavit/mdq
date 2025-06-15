@@ -57,7 +57,7 @@ impl<W: fmt::Write> SimpleWrite for IoAdapter<W> {
     fn write_char(&mut self, ch: char) -> io::Result<()> {
         self.0
             .write_char(ch)
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("while writing char: {}", err)))
+            .map_err(|err| io::Error::other(format!("while writing char: {}", err)))
     }
 
     fn flush(&mut self) -> io::Result<()> {

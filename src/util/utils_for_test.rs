@@ -159,7 +159,7 @@ mod test_utils {
                     fn wait_for_all(&self) {
                         use std::{thread, time};
 
-                        let timeout = test_delay_ms!(500);
+                        let timeout = crate::util::utils_for_test::test_delay_ms!(500);
                         let retry_delay = time::Duration::from_millis(50);
                         let start = time::Instant::now();
                         loop {

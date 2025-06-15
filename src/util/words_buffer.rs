@@ -126,11 +126,7 @@ impl WordsBuffer {
     }
 
     fn current_line_length(&self) -> usize {
-        if self.line_length >= self.shorten_current_line_by {
-            self.line_length - self.shorten_current_line_by
-        } else {
-            0
-        }
+        self.line_length.saturating_sub(self.shorten_current_line_by)
     }
 
     pub(crate) fn has_pending_word(&self) -> bool {
