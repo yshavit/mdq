@@ -1,7 +1,7 @@
-use crate::md_elem::elem::{Inline, Link, LinkReference, StandardLink};
+use crate::md_elem::elem::{FootnoteId, Inline, Link, LinkReference, StandardLink};
 use crate::md_elem::{MdContext, MdElem};
 use crate::output::{inlines_to_string, InlineElemOptions, LinkTransform, MdInlinesWriter};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::str::FromStr;
 
 /// Find all numbers that should not be used when generating `[full links][123]`.
@@ -11,6 +11,7 @@ pub(crate) fn find_reserved_link_numbers<'md>(
 ) -> BTreeSet<u64> {
     let mut finder = ReservedLinkNumbers {
         result: BTreeSet::new(),
+        seen_footnotes: HashSet::new(),
         ctx,
     };
     finder.build_from_nodes(nodes);
@@ -19,6 +20,7 @@ pub(crate) fn find_reserved_link_numbers<'md>(
 
 struct ReservedLinkNumbers<'md> {
     result: BTreeSet<u64>,
+    seen_footnotes: HashSet<&'md FootnoteId>,
     ctx: &'md MdContext,
 }
 
@@ -55,7 +57,9 @@ impl<'md> ReservedLinkNumbers<'md> {
         for inline in inline.into_iter() {
             match inline {
                 Inline::Footnote(footnote) => {
-                    self.build_from_nodes(self.ctx.get_footnote(footnote));
+                    if self.seen_footnotes.insert(footnote) {
+                        self.build_from_nodes(self.ctx.get_footnote(footnote));
+                    }
                 }
                 Inline::Span(span) => self.build_from_inlines(&span.children),
                 Inline::Link(link) => {
