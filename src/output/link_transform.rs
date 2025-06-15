@@ -187,7 +187,7 @@ pub(crate) fn inlines_to_string<'md>(inline_writer: &mut MdInlinesWriter<'md>, i
 }
 
 fn is_numeric(text: &str) -> bool {
-    !text.is_empty() && text.as_bytes().iter().all(char::is_ascii_digit)
+    !text.is_empty() && text.as_bytes().iter().all(u8::is_ascii_digit)
 }
 
 #[cfg(test)]
