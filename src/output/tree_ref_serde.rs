@@ -78,7 +78,7 @@ pub(crate) struct LinkSerde<'md> {
     title: &'md Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    reference: Option<Cow<'md, String>>,
+    reference: Option<Cow<'md, str>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     reference_style: Option<LinkCollapseStyle>,
@@ -90,7 +90,7 @@ impl<'md> From<&'md LinkDefinition> for LinkSerde<'md> {
 
         let (reference, reference_style) = match reference {
             LinkReference::Inline => (None, None),
-            LinkReference::Full(reference) => (Some(Cow::Borrowed(reference)), None),
+            LinkReference::Full(reference) => (Some(Cow::Borrowed(reference.as_str())), None),
             LinkReference::Collapsed => (None, Some(LinkCollapseStyle::Collapsed)),
             LinkReference::Shortcut => (None, Some(LinkCollapseStyle::Shortcut)),
         };

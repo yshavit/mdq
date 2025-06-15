@@ -25,7 +25,7 @@ pub enum LinkTransform {
     /// The exact implementation is subject to change. As of this version:
     ///
     /// - `[inline](https://example.com)` links will always be turned into `[full][1]` links, with the link id being
-    ///    an auto-assigned number
+    ///   an auto-assigned number
     /// - `[collapsed][]` and `[shortcut]` links will always be unchanged
     /// - `[full][a]` links will:
     ///    - otherwise, be renumbered if the link id is numeric: `[example][3]` → `[example][1]`
@@ -405,27 +405,27 @@ mod tests {
 
         #[test]
         fn only_digits() {
-            assert_eq!(is_numeric("123"), true);
+            assert!(is_numeric("123"));
         }
 
         #[test]
         fn leading_zero() {
-            assert_eq!(is_numeric("012"), false);
+            assert!(!is_numeric("012"));
         }
 
         #[test]
         fn empty() {
-            assert_eq!(is_numeric(""), false);
+            assert!(!is_numeric(""));
         }
 
         #[test]
         fn non_digits() {
-            assert_eq!(is_numeric("hello"), false);
+            assert!(!is_numeric("hello"));
         }
 
         #[test]
         fn unicode_numerics() {
-            assert_eq!(is_numeric("\u{2174}"), false); // Roman numeral "ⅴ"
+            assert!(!is_numeric("\u{2174}")); // Roman numeral "ⅴ"
         }
     }
 
