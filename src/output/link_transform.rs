@@ -187,7 +187,14 @@ pub(crate) fn inlines_to_string<'md>(inline_writer: &mut MdInlinesWriter<'md>, i
 }
 
 fn is_numeric(text: &str) -> bool {
-    !text.is_empty() && text.as_bytes().iter().all(u8::is_ascii_digit)
+    if text.is_empty() {
+        false
+    } else if text.as_bytes()[0] == b'0' {
+        // "01" for example; don't renumber those
+        false
+    } else {
+        text.as_bytes().iter().all(u8::is_ascii_digit)
+    }
 }
 
 #[cfg(test)]
@@ -391,6 +398,35 @@ mod tests {
             transform(&mut transformer, &g_inline),
             LinkReference::Full("6".to_string())
         );
+    }
+
+    mod is_numeric {
+        use super::*;
+
+        #[test]
+        fn only_digits() {
+            assert_eq!(is_numeric("123"), true);
+        }
+
+        #[test]
+        fn leading_zero() {
+            assert_eq!(is_numeric("012"), false);
+        }
+
+        #[test]
+        fn empty() {
+            assert_eq!(is_numeric(""), false);
+        }
+
+        #[test]
+        fn non_digits() {
+            assert_eq!(is_numeric("hello"), false);
+        }
+
+        #[test]
+        fn unicode_numerics() {
+            assert_eq!(is_numeric("\u{2174}"), false); // Roman numeral "ⅴ"
+        }
     }
 
     fn transform(transformer: &mut LinkTransformer, link: &Link) -> LinkReference {
