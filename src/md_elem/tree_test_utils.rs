@@ -93,7 +93,7 @@ mod test_utils {
         };
 
         // Link (optionally followed by more content)
-        [link[$($display:tt)*] $url:literal $(, $($rest:tt)*)?] => {
+        [link[$($display:tt)*] ($url:literal) $(, $($rest:tt)*)?] => {
             {
                 #[allow(unused_mut)]
                 let mut result = vec![

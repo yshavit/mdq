@@ -141,7 +141,7 @@ mod tests {
     fn unsupported_content_error() {
         let inlines = inlines![
             "before ",
-            link["link text"] "https://example.com",
+            link["link text"] ("https://example.com"),
             " after"
         ];
 
