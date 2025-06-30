@@ -114,13 +114,45 @@ impl FlattenedText {
         let original_len = original_range.end - original_range.start;
         let size_change = replacement.len() as isize - original_len as isize;
 
-        // Update formatting events that start at or after the original range end
-        for event in &mut self.formatting_events {
-            if event.start_pos >= original_range.end {
-                // Apply the size change from this replacement
-                event.start_pos = (event.start_pos as isize + size_change) as usize;
+        // Update formatting events based on how they overlap with the replacement
+        let mut events_to_keep = Vec::new();
+
+        for event in &self.formatting_events {
+            let event_start = event.start_pos;
+            let event_end = event.start_pos + event.length;
+
+            if event_end <= original_range.start {
+                // Event is completely before the replacement - keep unchanged
+                events_to_keep.push(event.clone());
+            } else if event_start >= original_range.end {
+                // Event is completely after the replacement - shift by size change
+                let mut new_event = event.clone();
+                new_event.start_pos = (event_start as isize + size_change) as usize;
+                events_to_keep.push(new_event);
+            } else if event_start >= original_range.start && event_end <= original_range.end {
+                // Event is completely within the replacement - remove it
+                // (don't add to events_to_keep)
+            } else if event_start < original_range.start && event_end > original_range.end {
+                // Event spans the entire replacement - adjust length
+                let mut new_event = event.clone();
+                new_event.length = (event.length as isize + size_change) as usize;
+                events_to_keep.push(new_event);
+            } else if event_start < original_range.start && event_end <= original_range.end {
+                // Event starts before replacement and ends within it - truncate
+                let mut new_event = event.clone();
+                new_event.length = original_range.start - event_start;
+                events_to_keep.push(new_event);
+            } else if event_start >= original_range.start && event_end > original_range.end {
+                // Event starts within replacement and ends after it - shift and truncate
+                let mut new_event = event.clone();
+                let chars_removed_from_event = original_range.end - event_start;
+                new_event.start_pos = (original_range.start as isize + replacement.len() as isize) as usize;
+                new_event.length = event.length - chars_removed_from_event;
+                events_to_keep.push(new_event);
             }
         }
+
+        self.formatting_events = events_to_keep;
 
         // Update the cumulative offset
         self.offset += size_change;
@@ -575,8 +607,8 @@ mod tests {
             assert_eq!(flattened.text, "1 2 three");
             assert_eq!(flattened.offset, -4);
 
-            // The formatting event should have shifted by -2 from the second replacement
-            assert_eq!(flattened.formatting_events[0].start_pos, 6); // 8 - 2 = 6
+            // The formatting event should have shifted to position 5
+            assert_eq!(flattened.formatting_events[0].start_pos, 5);
         }
 
         #[test]
@@ -646,6 +678,147 @@ mod tests {
             assert_eq!(flattened.offset, 0);
             // Event at position 4 should not shift since size change is 0
             assert_eq!(flattened.formatting_events[0].start_pos, 4);
+        }
+
+        #[test]
+        fn replacement_removes_formatting() {
+            // "one _two_ three" -> "on@hree" (replace "e two t" with "@")
+            let mut flattened = FlattenedText {
+                text: "one two three".to_string(),
+                formatting_events: vec![
+                    FormattingEvent {
+                        start_pos: 4,
+                        length: 3, // "two"
+                        formatting: FormattingType::Span(SpanVariant::Emphasis),
+                    },
+                ],
+                offset: 0,
+            };
+
+            // Replace "e two t" (positions 2..9) with "@"
+            flattened.replace_range(2..9, "@").unwrap();
+
+            assert_eq!(flattened.text, "on@hree");
+            assert_eq!(flattened.offset, -6); // 7 chars -> 1 char = -6
+
+            // The formatting event should be removed since it was completely within the replaced range
+            // Events that start >= 9 would shift, but our event started at 4, so it gets removed
+            // We need to check if the event still exists and has been adjusted
+            // Since the event (4..7) was completely contained in the replacement (2..9),
+            // it should be removed or have zero length
+            assert_eq!(flattened.formatting_events.len(), 0);
+        }
+
+        #[test]
+        fn replacement_starts_midway_through_formatting() {
+            // "one _two_ three" -> "one _t@ee_" (replace "wo thr" with "@")
+            let mut flattened = FlattenedText {
+                text: "one two three".to_string(),
+                formatting_events: vec![
+                    FormattingEvent {
+                        start_pos: 4,
+                        length: 3, // "two"
+                        formatting: FormattingType::Span(SpanVariant::Emphasis),
+                    },
+                ],
+                offset: 0,
+            };
+
+            // Replace "wo thr" (positions 5..9) with "@"
+            flattened.replace_range(5..9, "@").unwrap();
+
+            assert_eq!(flattened.text, "one t@hree");
+            assert_eq!(flattened.offset, -3); // 4 chars -> 1 char = -3
+
+            // The formatting event should be truncated to only cover "t" (position 4, length 1)
+            assert_eq!(flattened.formatting_events.len(), 1);
+            assert_eq!(flattened.formatting_events[0].start_pos, 4);
+            assert_eq!(flattened.formatting_events[0].length, 1);
+        }
+
+        #[test]
+        fn replacement_ends_midway_through_formatting() {
+            // "one _two_ three" -> "on@_wo_ three" (replace "e t" with "@")
+            let mut flattened = FlattenedText {
+                text: "one two three".to_string(),
+                formatting_events: vec![
+                    FormattingEvent {
+                        start_pos: 4,
+                        length: 3, // "two"
+                        formatting: FormattingType::Span(SpanVariant::Emphasis),
+                    },
+                ],
+                offset: 0,
+            };
+
+            // Replace "e t" (positions 2..5) with "@"
+            flattened.replace_range(2..5, "@").unwrap();
+
+            assert_eq!(flattened.text, "on@wo three");
+            assert_eq!(flattened.offset, -2); // 3 chars -> 1 char = -2
+
+            // The formatting event should be adjusted to start at position 3 (after "@")
+            // and cover "wo" (length 2)
+            assert_eq!(flattened.formatting_events.len(), 1);
+            assert_eq!(flattened.formatting_events[0].start_pos, 3);
+            assert_eq!(flattened.formatting_events[0].length, 2);
+        }
+
+        #[test]
+        fn replacement_spans_multiple_formatting_events() {
+            // "one _two_ **three** four" -> "one @ four"
+            let mut flattened = FlattenedText {
+                text: "one two three four".to_string(),
+                formatting_events: vec![
+                    FormattingEvent {
+                        start_pos: 4,
+                        length: 3, // "two"
+                        formatting: FormattingType::Span(SpanVariant::Emphasis),
+                    },
+                    FormattingEvent {
+                        start_pos: 8,
+                        length: 5, // "three"
+                        formatting: FormattingType::Span(SpanVariant::Strong),
+                    },
+                ],
+                offset: 0,
+            };
+
+            // Replace "two three" (positions 4..13) with "@"
+            flattened.replace_range(4..13, "@").unwrap();
+
+            assert_eq!(flattened.text, "one @ four");
+            assert_eq!(flattened.offset, -8); // 9 chars -> 1 char = -8
+
+            // Both formatting events should be removed since they were completely within the replaced range
+            assert_eq!(flattened.formatting_events.len(), 0);
+        }
+
+        #[test]
+        fn replacement_splits_formatting_event() {
+            // "one _twelve_ three" -> "one _tw@ve_ three" (replace "el" with "@")
+            let mut flattened = FlattenedText {
+                text: "one twelve three".to_string(),
+                formatting_events: vec![
+                    FormattingEvent {
+                        start_pos: 4,
+                        length: 6, // "twelve"
+                        formatting: FormattingType::Span(SpanVariant::Emphasis),
+                    },
+                ],
+                offset: 0,
+            };
+
+            // Replace "el" (positions 6..8) with "@"
+            flattened.replace_range(6..8, "@").unwrap();
+
+            assert_eq!(flattened.text, "one tw@ve three");
+            assert_eq!(flattened.offset, -1); // 2 chars -> 1 char = -1
+
+            // The formatting event should be adjusted to cover "tw@ve" (length 5)
+            assert_eq!(flattened.formatting_events.len(), 1);
+            assert_eq!(flattened.formatting_events[0].start_pos, 4);
+            assert_eq!(flattened.formatting_events[0].length, 5);
         }
     }
 }
