@@ -37,19 +37,19 @@ pub struct FormattingEvent {
 }
 
 /// Error that occurs when trying to flatten inlines that contain non-flattenable content.
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct FlattenError {
     // TODO: Add specific error variants and details
 }
 
 /// Error that occurs during regex replacement operations.
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct RegexReplaceError {
     // TODO: Add specific error variants and details
 }
 
 /// Error that occurs during range replacement operations.
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct RangeReplacementError {
     // TODO: Add specific error variants and details
 }
@@ -585,16 +585,38 @@ mod tests {
         }
 
         #[test]
+        fn multiple_replacements_out_of_order() {
+            let mut flattened = FlattenedText {
+                //     ⁰123456789¹12
+                text: "one two three".to_string(),
+                formatting_events: vec![FormattingEvent {
+                    start_pos: 8,
+                    length: 5,
+                    formatting: FormattingType::Span(SpanVariant::Emphasis),
+                }],
+                offset: 0,
+            };
+            // Replace "two" with "2" (using original coordinates)
+            flattened.replace_range(4..7, "2").unwrap();
+            assert_eq!(flattened.text, "one 2 three");
+            assert_eq!(flattened.offset, -2);
+
+            // Replace "one" with "1". This isn't allowed, since it's replacing backwards.
+            // (This restriction is what lets us keep the simple offset, rather than an arbitrary set of location
+            // mappings.)
+            let err = flattened.replace_range(0..3, "1");
+            assert_eq!(err, Err(RangeReplacementError {}));
+        }
+
+        #[test]
         fn replacement_shortens_string() {
             let mut flattened = FlattenedText {
                 text: "one two three".to_string(),
-                formatting_events: vec![
-                    FormattingEvent {
-                        start_pos: 8,
-                        length: 5,
-                        formatting: FormattingType::Span(SpanVariant::Emphasis),
-                    },
-                ],
+                formatting_events: vec![FormattingEvent {
+                    start_pos: 8,
+                    length: 5,
+                    formatting: FormattingType::Span(SpanVariant::Emphasis),
+                }],
                 offset: 0,
             };
 
@@ -611,13 +633,11 @@ mod tests {
         fn replacement_lengthens_string() {
             let mut flattened = FlattenedText {
                 text: "one two three".to_string(),
-                formatting_events: vec![
-                    FormattingEvent {
-                        start_pos: 4,
-                        length: 3,
-                        formatting: FormattingType::Span(SpanVariant::Emphasis),
-                    },
-                ],
+                formatting_events: vec![FormattingEvent {
+                    start_pos: 4,
+                    length: 3,
+                    formatting: FormattingType::Span(SpanVariant::Emphasis),
+                }],
                 offset: 0,
             };
 
@@ -634,13 +654,11 @@ mod tests {
         fn replacement_same_length() {
             let mut flattened = FlattenedText {
                 text: "one two three".to_string(),
-                formatting_events: vec![
-                    FormattingEvent {
-                        start_pos: 4,
-                        length: 3,
-                        formatting: FormattingType::Span(SpanVariant::Emphasis),
-                    },
-                ],
+                formatting_events: vec![FormattingEvent {
+                    start_pos: 4,
+                    length: 3,
+                    formatting: FormattingType::Span(SpanVariant::Emphasis),
+                }],
                 offset: 0,
             };
 
@@ -658,13 +676,11 @@ mod tests {
             // "one _two_ three" -> "on@hree" (replace "e two t" with "@")
             let mut flattened = FlattenedText {
                 text: "one two three".to_string(),
-                formatting_events: vec![
-                    FormattingEvent {
-                        start_pos: 4,
-                        length: 3, // "two"
-                        formatting: FormattingType::Span(SpanVariant::Emphasis),
-                    },
-                ],
+                formatting_events: vec![FormattingEvent {
+                    start_pos: 4,
+                    length: 3, // "two"
+                    formatting: FormattingType::Span(SpanVariant::Emphasis),
+                }],
                 offset: 0,
             };
 
@@ -687,13 +703,11 @@ mod tests {
             // "one _two_ three" -> "one _t@ee_" (replace "wo thr" with "@")
             let mut flattened = FlattenedText {
                 text: "one two three".to_string(),
-                formatting_events: vec![
-                    FormattingEvent {
-                        start_pos: 4,
-                        length: 3, // "two"
-                        formatting: FormattingType::Span(SpanVariant::Emphasis),
-                    },
-                ],
+                formatting_events: vec![FormattingEvent {
+                    start_pos: 4,
+                    length: 3, // "two"
+                    formatting: FormattingType::Span(SpanVariant::Emphasis),
+                }],
                 offset: 0,
             };
 
@@ -714,13 +728,11 @@ mod tests {
             // "one _two_ three" -> "on@_wo_ three" (replace "e t" with "@")
             let mut flattened = FlattenedText {
                 text: "one two three".to_string(),
-                formatting_events: vec![
-                    FormattingEvent {
-                        start_pos: 4,
-                        length: 3, // "two"
-                        formatting: FormattingType::Span(SpanVariant::Emphasis),
-                    },
-                ],
+                formatting_events: vec![FormattingEvent {
+                    start_pos: 4,
+                    length: 3, // "two"
+                    formatting: FormattingType::Span(SpanVariant::Emphasis),
+                }],
                 offset: 0,
             };
 
@@ -772,13 +784,11 @@ mod tests {
             // "one _twelve_ three" -> "one _tw@ve_ three" (replace "el" with "@")
             let mut flattened = FlattenedText {
                 text: "one twelve three".to_string(),
-                formatting_events: vec![
-                    FormattingEvent {
-                        start_pos: 4,
-                        length: 6, // "twelve"
-                        formatting: FormattingType::Span(SpanVariant::Emphasis),
-                    },
-                ],
+                formatting_events: vec![FormattingEvent {
+                    start_pos: 4,
+                    length: 6, // "twelve"
+                    formatting: FormattingType::Span(SpanVariant::Emphasis),
+                }],
                 offset: 0,
             };
 
