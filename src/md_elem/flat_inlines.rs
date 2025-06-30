@@ -130,8 +130,10 @@ impl FlattenedText {
                 new_event.start_pos = (event_start as isize + size_change) as usize;
                 events_to_keep.push(new_event);
             } else if event_start >= original_range.start && event_end <= original_range.end {
-                // Event is completely within the replacement - remove it
-                // (don't add to events_to_keep)
+                // Event is completely within the replacement - adjust to cover replacement text
+                let mut new_event = event.clone();
+                new_event.length = replacement.len();
+                events_to_keep.push(new_event);
             } else if event_start < original_range.start && event_end > original_range.end {
                 // Event spans the entire replacement - adjust length
                 let mut new_event = event.clone();
