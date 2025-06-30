@@ -1,4 +1,4 @@
-use crate::md_elem::flat_inlines::{FlattenedText, FormattingType, RegexReplaceError, FlattenError};
+use crate::md_elem::flat_inlines::{FlattenError, FlattenedText, FormattingType, RegexReplaceError};
 use crate::md_elem::tree::elem::Inline;
 
 impl From<FlattenError> for RegexReplaceError {
@@ -15,13 +15,14 @@ impl From<FlattenError> for RegexReplaceError {
 pub(crate) fn regex_replace_inlines(
     inlines: &[Inline],
     pattern: &fancy_regex::Regex,
-    replacement: &str
+    replacement: &str,
 ) -> Result<Vec<Inline>, RegexReplaceError> {
     // 1. Flatten the inlines
     let mut flattened = FlattenedText::from_inlines(inlines)?;
 
     // 2. Find all regex matches and collect match info to avoid borrowing issues
-    let matches: Vec<_> = pattern.find_iter(&flattened.text)
+    let matches: Vec<_> = pattern
+        .find_iter(&flattened.text)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| RegexReplaceError {})?;
 
@@ -57,16 +58,16 @@ pub(crate) fn regex_replace_inlines(
     }
 
     // 5. Apply range replacements to update formatting events
-    // We need to apply them in reverse order to maintain correct positions
-    for (range, replacement_text) in match_info.iter().rev() {
-        flattened.replace_range(range.clone(), replacement_text)
+    for (range, replacement_text) in match_info.into_iter() {
+        flattened
+            .replace_range(range, &replacement_text)
             .map_err(|_| RegexReplaceError {})?;
     }
 
     // 6. Remove any remaining unsupported events (these weren't affected by replacements)
-    flattened.formatting_events.retain(|event| {
-        !matches!(event.formatting, FormattingType::Unsupported)
-    });
+    flattened
+        .formatting_events
+        .retain(|event| !matches!(event.formatting, FormattingType::Unsupported));
 
     // 7. Reconstruct the inlines
     flattened.unflatten()
@@ -98,29 +99,17 @@ mod tests {
 
     #[test]
     fn replacement_with_formatting() {
-        let inlines = inlines![
-            "before ",
-            em["emphasized"],
-            " after"
-        ];
+        let inlines = inlines!["before ", em["emphasized"], " after"];
         let pattern = fancy_regex::Regex::new(r"emphasized").unwrap();
         let result = regex_replace_inlines(&inlines, &pattern, "replaced").unwrap();
 
-        let expected = inlines![
-            "before ",
-            em["replaced"],
-            " after"
-        ];
+        let expected = inlines!["before ", em["replaced"], " after"];
         assert_eq!(result, expected);
     }
 
     #[test]
     fn replacement_across_formatting() {
-        let inlines = inlines![
-            "before ",
-            em["emphasized"],
-            " after"
-        ];
+        let inlines = inlines!["before ", em["emphasized"], " after"];
 
         let pattern = fancy_regex::Regex::new(r"ore emphasized af").unwrap();
         let result = regex_replace_inlines(&inlines, &pattern, "oo").unwrap();
@@ -150,8 +139,6 @@ mod tests {
 
     #[test]
     fn unsupported_content_error() {
-
-
         let inlines = inlines![
             "before ",
             link["link text"] "https://example.com",
