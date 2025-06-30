@@ -675,6 +675,7 @@ mod tests {
         fn replacement_removes_formatting() {
             // "one _two_ three" -> "on@hree" (replace "e two t" with "@")
             let mut flattened = FlattenedText {
+                //     ⁰123456789¹12
                 text: "one two three".to_string(),
                 formatting_events: vec![FormattingEvent {
                     start_pos: 4,
@@ -753,6 +754,7 @@ mod tests {
         fn replacement_spans_multiple_formatting_events() {
             // "one _two_ **three** four" -> "one @ four"
             let mut flattened = FlattenedText {
+                //     ⁰123456789¹1234567
                 text: "one two three four".to_string(),
                 formatting_events: vec![
                     FormattingEvent {
