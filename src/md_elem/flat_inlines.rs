@@ -19,6 +19,8 @@ pub struct FlattenedText {
     pub text: String,
     /// Formatting events that describe where formatting should be applied to the text
     pub formatting_events: Vec<FormattingEvent>,
+    /// Cumulative offset from range replacements (for tracking coordinate mapping)
+    offset: isize,
 }
 
 /// Describes a span of formatting that should be applied to a range of characters.
@@ -46,6 +48,12 @@ pub struct RegexReplaceError {
     // TODO: Add specific error variants and details
 }
 
+/// Error that occurs during range replacement operations.
+#[derive(Debug)]
+pub struct RangeReplacementError {
+    // TODO: Add specific error variants and details
+}
+
 impl FlattenedText {
     /// Creates a flattened representation from a slice of inline elements.
     ///
@@ -61,6 +69,7 @@ impl FlattenedText {
         Ok(FlattenedText {
             text,
             formatting_events,
+            offset: 0,
         })
     }
 
@@ -70,18 +79,53 @@ impl FlattenedText {
     /// tree structure. Events marked as `FormattingType::Unsupported` will cause
     /// a reconstruction error since we cannot recreate the original atomic elements.
     pub(crate) fn unflatten(&self) -> Result<Vec<Inline>, RegexReplaceError> {
-        // Sort events by start position, then by reverse order (later events become inner spans)
-        let mut events = self.formatting_events.clone();
-        events.sort_by_key(|event| (event.start_pos, std::cmp::Reverse(event.length)));
-
         // Check for unsupported formatting
-        for event in &events {
+        for event in &self.formatting_events {
             if matches!(event.formatting, FormattingType::Unsupported) {
                 return Err(RegexReplaceError {});
             }
         }
 
-        unflatten_recursive(&self.text, &events, 0, self.text.len())
+        unflatten_recursive(&self.text, &self.formatting_events, 0, self.text.len())
+    }
+
+    /// Replaces a range of text using original coordinates.
+    ///
+    /// The range must be non-overlapping and in increasing order relative to previous
+    /// calls to this method. This updates both the text and adjusts formatting events.
+    pub(crate) fn replace_range(
+        &mut self,
+        original_range: std::ops::Range<usize>,
+        replacement: &str,
+    ) -> Result<(), RangeReplacementError> {
+        // Map original range to current coordinates
+        let current_start = (original_range.start as isize + self.offset) as usize;
+        let current_end = (original_range.end as isize + self.offset) as usize;
+
+        // Validate range is within bounds
+        if current_end > self.text.len() {
+            return Err(RangeReplacementError {});
+        }
+
+        // Replace the text
+        self.text.replace_range(current_start..current_end, replacement);
+
+        // Calculate the size change
+        let original_len = original_range.end - original_range.start;
+        let size_change = replacement.len() as isize - original_len as isize;
+
+        // Update formatting events that start at or after the original range end
+        for event in &mut self.formatting_events {
+            if event.start_pos >= original_range.end {
+                // Apply the size change from this replacement
+                event.start_pos = (event.start_pos as isize + size_change) as usize;
+            }
+        }
+
+        // Update the cumulative offset
+        self.offset += size_change;
+
+        Ok(())
     }
 }
 
@@ -376,6 +420,7 @@ mod tests {
             let flattened = FlattenedText {
                 text: "hello world".to_string(),
                 formatting_events: vec![],
+                offset: 0,
             };
             let result = flattened.unflatten().unwrap();
 
@@ -391,6 +436,7 @@ mod tests {
                     length: 10,
                     formatting: FormattingType::Span(SpanVariant::Emphasis),
                 }],
+                offset: 0,
             };
             let result = flattened.unflatten().unwrap();
 
@@ -414,6 +460,7 @@ mod tests {
                         formatting: FormattingType::Span(SpanVariant::Strong),
                     },
                 ],
+                offset: 0,
             };
             let result = flattened.unflatten().unwrap();
 
@@ -431,6 +478,7 @@ mod tests {
                     length: 9,
                     formatting: FormattingType::Unsupported,
                 }],
+                offset: 0,
             };
 
             assert!(flattened.unflatten().is_err());
@@ -456,6 +504,148 @@ mod tests {
             let reconstructed = flattened.unflatten().unwrap();
 
             assert_eq!(original, reconstructed);
+        }
+    }
+
+    mod replace_range {
+        use super::*;
+
+        #[test]
+        fn simple_replacement() {
+            let mut flattened = FlattenedText {
+                text: "hello world".to_string(),
+                formatting_events: vec![],
+                offset: 0,
+            };
+
+            flattened.replace_range(6..11, "rust").unwrap();
+
+            assert_eq!(flattened.text, "hello rust");
+            assert_eq!(flattened.offset, -1); // "world" (5 chars) -> "rust" (4 chars)
+        }
+
+        #[test]
+        fn replacement_with_formatting_events() {
+            let mut flattened = FlattenedText {
+                text: "before emphasized after".to_string(),
+                formatting_events: vec![
+                    FormattingEvent {
+                        start_pos: 7,
+                        length: 10,
+                        formatting: FormattingType::Span(SpanVariant::Emphasis),
+                    },
+                    FormattingEvent {
+                        start_pos: 18,
+                        length: 5,
+                        formatting: FormattingType::Span(SpanVariant::Strong),
+                    },
+                ],
+                offset: 0,
+            };
+
+            // Replace "before " with "after "
+            flattened.replace_range(0..7, "after ").unwrap();
+
+            assert_eq!(flattened.text, "after emphasized after");
+            // Events should shift by -1 since "before " (7 chars) -> "after " (6 chars)
+            assert_eq!(flattened.formatting_events[0].start_pos, 6);
+            assert_eq!(flattened.formatting_events[1].start_pos, 17);
+        }
+
+        #[test]
+        fn multiple_replacements() {
+            let mut flattened = FlattenedText {
+                //     ⁰123456789¹12
+                text: "one two three".to_string(),
+                formatting_events: vec![FormattingEvent {
+                    start_pos: 8,
+                    length: 5,
+                    formatting: FormattingType::Span(SpanVariant::Emphasis),
+                }],
+                offset: 0,
+            };
+
+            // Replace "one" with "1"
+            flattened.replace_range(0..3, "1").unwrap();
+            assert_eq!(flattened.text, "1 two three");
+            assert_eq!(flattened.offset, -2);
+
+            // Replace "two" with "2" (using original coordinates)
+            flattened.replace_range(4..7, "2").unwrap();
+            assert_eq!(flattened.text, "1 2 three");
+            assert_eq!(flattened.offset, -4);
+
+            // The formatting event should have shifted by -2 from the second replacement
+            assert_eq!(flattened.formatting_events[0].start_pos, 6); // 8 - 2 = 6
+        }
+
+        #[test]
+        fn replacement_shortens_string() {
+            let mut flattened = FlattenedText {
+                text: "one two three".to_string(),
+                formatting_events: vec![
+                    FormattingEvent {
+                        start_pos: 8,
+                        length: 5,
+                        formatting: FormattingType::Span(SpanVariant::Emphasis),
+                    },
+                ],
+                offset: 0,
+            };
+
+            // Replace "one" with "1" (3 chars -> 1 char = -2)
+            flattened.replace_range(0..3, "1").unwrap();
+
+            assert_eq!(flattened.text, "1 two three");
+            assert_eq!(flattened.offset, -2);
+            // Event at position 8 should shift by -2 since replacement ends before it
+            assert_eq!(flattened.formatting_events[0].start_pos, 6);
+        }
+
+        #[test]
+        fn replacement_lengthens_string() {
+            let mut flattened = FlattenedText {
+                text: "one two three".to_string(),
+                formatting_events: vec![
+                    FormattingEvent {
+                        start_pos: 4,
+                        length: 3,
+                        formatting: FormattingType::Span(SpanVariant::Emphasis),
+                    },
+                ],
+                offset: 0,
+            };
+
+            // Replace "one" with "once" (3 chars -> 4 chars = +1)
+            flattened.replace_range(0..3, "once").unwrap();
+
+            assert_eq!(flattened.text, "once two three");
+            assert_eq!(flattened.offset, 1);
+            // Event at position 4 should shift by +1
+            assert_eq!(flattened.formatting_events[0].start_pos, 5);
+        }
+
+        #[test]
+        fn replacement_same_length() {
+            let mut flattened = FlattenedText {
+                text: "one two three".to_string(),
+                formatting_events: vec![
+                    FormattingEvent {
+                        start_pos: 4,
+                        length: 3,
+                        formatting: FormattingType::Span(SpanVariant::Emphasis),
+                    },
+                ],
+                offset: 0,
+            };
+
+            // Replace "one" with "uno" (3 chars -> 3 chars = 0)
+            flattened.replace_range(0..3, "uno").unwrap();
+
+            assert_eq!(flattened.text, "uno two three");
+            assert_eq!(flattened.offset, 0);
+            // Event at position 4 should not shift since size change is 0
+            assert_eq!(flattened.formatting_events[0].start_pos, 4);
         }
     }
 }
