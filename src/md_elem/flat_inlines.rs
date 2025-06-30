@@ -345,35 +345,15 @@ fn extract_text_content(inline: &Inline) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::md_elem::tree::elem::{Link, LinkDefinition, LinkReference, Span, StandardLink};
 
-    fn text(s: &str) -> Inline {
-        Inline::Text(Text {
-            variant: TextVariant::Plain,
-            value: s.to_string(),
-        })
-    }
-
-    fn em(children: Vec<Inline>) -> Inline {
-        Inline::Span(Span {
-            variant: SpanVariant::Emphasis,
-            children,
-        })
-    }
-
-    fn strong(children: Vec<Inline>) -> Inline {
-        Inline::Span(Span {
-            variant: SpanVariant::Strong,
-            children,
-        })
-    }
+    use crate::md_elem::tree_test_utils::inlines;
 
     mod flatten {
         use super::*;
 
         #[test]
         fn plain_text_only() {
-            let inlines = vec![text("hello world")];
+            let inlines = inlines!["hello world"];
             let result = FlattenedText::from_inlines(&inlines).unwrap();
 
             assert_eq!(result.text, "hello world");
@@ -382,7 +362,7 @@ mod tests {
 
         #[test]
         fn simple_emphasis() {
-            let inlines = vec![text("before "), em(vec![text("emphasized")]), text(" after")];
+            let inlines = inlines!["before ", em["emphasized"], " after"];
             let result = FlattenedText::from_inlines(&inlines).unwrap();
 
             assert_eq!(result.text, "before emphasized after");
@@ -399,7 +379,7 @@ mod tests {
         #[test]
         fn nested_formatting() {
             // _**text**_
-            let inlines = vec![em(vec![strong(vec![text("text")])])];
+            let inlines = inlines![em[strong["text"]]];
             let result = FlattenedText::from_inlines(&inlines).unwrap();
 
             assert_eq!(result.text, "text");
@@ -422,16 +402,7 @@ mod tests {
 
         #[test]
         fn link_as_unsupported() {
-            let link = Inline::Link(Link::Standard(StandardLink {
-                display: vec![text("link text")],
-                link: LinkDefinition {
-                    url: "https://example.com".to_string(),
-                    title: None,
-                    reference: LinkReference::Inline,
-                },
-            }));
-
-            let inlines = vec![text("before "), link, text(" after")];
+            let inlines = inlines!["before ", link["link text"] "https://example.com", " after"];
             let result = FlattenedText::from_inlines(&inlines).unwrap();
 
             assert_eq!(result.text, "before link text after");
@@ -458,7 +429,7 @@ mod tests {
             };
             let result = flattened.unflatten().unwrap();
 
-            assert_eq!(result, vec![text("hello world")]);
+            assert_eq!(result, inlines!["hello world"]);
         }
 
         #[test]
@@ -474,7 +445,7 @@ mod tests {
             };
             let result = flattened.unflatten().unwrap();
 
-            let expected = vec![text("before "), em(vec![text("emphasized")]), text(" after")];
+            let expected = inlines!["before ", em["emphasized"], " after"];
             assert_eq!(result, expected);
         }
 
@@ -499,7 +470,7 @@ mod tests {
             let result = flattened.unflatten().unwrap();
 
             // Should reconstruct as _**text**_
-            let expected = vec![em(vec![strong(vec![text("text")])])];
+            let expected = inlines![em[strong["text"]]];
             assert_eq!(result, expected);
         }
 
@@ -524,14 +495,14 @@ mod tests {
 
         #[test]
         fn identity_property() {
-            let original = vec![
-                text("before "),
-                em(vec![
-                    text("emphasis with "),
-                    strong(vec![text("nested strong")]),
-                    text(" text"),
-                ]),
-                text(" after"),
+            let original = inlines![
+                "before ",
+                em[
+                    "emphasis with ",
+                    strong["nested strong"],
+                    " text"
+                ],
+                " after"
             ];
 
             let flattened = FlattenedText::from_inlines(&original).unwrap();
