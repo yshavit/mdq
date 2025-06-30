@@ -138,8 +138,16 @@ impl FlattenedText {
                 new_event.start_pos = (event_start as isize + size_change) as usize;
                 events_to_keep.push(new_event);
             } else if event_start >= original_range.start && event_end <= original_range.end {
-                // Event is completely within the replacement - remove it
-                // (Don't add to events_to_keep)
+                // Event is completely within the replacement
+                if event_start == original_range.start && event_end == original_range.end && !replacement.is_empty() {
+                    // Event exactly matches the replacement range and replacement is not empty - preserve with new length
+                    let mut new_event = event.clone();
+                    new_event.length = replacement.len();
+                    events_to_keep.push(new_event);
+                } else {
+                    // Event is within but doesn't exactly match, or replacement is empty - remove it
+                    // (Don't add to events_to_keep)
+                }
             } else if event_start < original_range.start && event_end > original_range.end {
                 // Event spans the entire replacement - adjust length
                 let mut new_event = event.clone();
@@ -696,7 +704,7 @@ mod tests {
         //  way or another.
 
         #[test]
-        fn replacement_of_full_formatted_span() {
+        fn replacement_of_full_formatted_span_with_equal_length() {
             let mut flattened = FlattenedText {
                 //     ⁰123456789¹12
                 text: "one two three".to_string(),
@@ -716,6 +724,55 @@ mod tests {
             assert_eq!(flattened.offset, 0);
             // Event at position 4 should not shift since size change is 0
             assert_eq!(flattened.formatting_events[0].start_pos, 4);
+            assert_eq!(flattened.formatting_events[0].length, 3);
+        }
+
+        #[test]
+        fn replacement_of_full_formatted_span_with_shorter_length() {
+            let mut flattened = FlattenedText {
+                //     ⁰123456789¹12
+                text: "one two three".to_string(),
+                formatting_events: vec![FormattingEvent {
+                    start_pos: 4,
+                    length: 3,
+                    formatting: FormattingType::Span(SpanVariant::Emphasis),
+                }],
+                offset: 0,
+                last_replacement_end: 0,
+            };
+
+            // Replace "one" with "uno" (3 chars -> 3 chars = 0)
+            flattened.replace_range(4..7, "2").unwrap();
+
+            assert_eq!(flattened.text, "one 2 three");
+            assert_eq!(flattened.offset, -2);
+            // Event at position 4 should not shift since size change is 0
+            assert_eq!(flattened.formatting_events[0].start_pos, 4);
+            assert_eq!(flattened.formatting_events[0].length, 1);
+        }
+
+        #[test]
+        fn replacement_of_full_formatted_span_with_longer_length() {
+            let mut flattened = FlattenedText {
+                //     ⁰123456789¹12
+                text: "one two three".to_string(),
+                formatting_events: vec![FormattingEvent {
+                    start_pos: 4,
+                    length: 3,
+                    formatting: FormattingType::Span(SpanVariant::Emphasis),
+                }],
+                offset: 0,
+                last_replacement_end: 0,
+            };
+
+            // Replace "one" with "uno" (3 chars -> 3 chars = 0)
+            flattened.replace_range(4..7, "second").unwrap();
+
+            assert_eq!(flattened.text, "one second three");
+            assert_eq!(flattened.offset, 3);
+            // Event at position 4 should not shift since size change is 0
+            assert_eq!(flattened.formatting_events[0].start_pos, 4);
+            assert_eq!(flattened.formatting_events[0].length, 6);
         }
 
         #[test]
