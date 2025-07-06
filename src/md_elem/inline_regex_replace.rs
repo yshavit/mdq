@@ -13,7 +13,7 @@ impl From<FlattenError> for RegexReplaceError {
 /// the tree structure. Returns an error if the regex would cross formatting
 /// boundaries that cannot be represented (like links or unsupported content).
 pub(crate) fn regex_replace_inlines(
-    inlines: &[Inline],
+    inlines: impl IntoIterator<Item = Inline>,
     pattern: &fancy_regex::Regex,
     replacement: &str,
 ) -> Result<Vec<Inline>, RegexReplaceError> {
@@ -40,7 +40,7 @@ pub(crate) fn regex_replace_inlines(
         let match_end = range.end;
 
         for event in &flattened.formatting_events {
-            if matches!(event.formatting, FormattingType::Unsupported) {
+            if matches!(event.formatting, FormattingType::Unsupported(_)) {
                 let event_start = event.start_pos;
                 let event_end = event.start_pos + event.length;
 
@@ -54,7 +54,7 @@ pub(crate) fn regex_replace_inlines(
 
     // 4. If no matches found, return the original inlines unchanged
     if match_info.is_empty() {
-        return Ok(inlines.to_vec());
+        return Ok(flattened.unflatten()?);
     }
 
     // 5. Apply range replacements to update formatting events
@@ -65,9 +65,13 @@ pub(crate) fn regex_replace_inlines(
     }
 
     // 6. Remove any remaining unsupported events (these weren't affected by replacements)
-    flattened
-        .formatting_events
-        .retain(|event| !matches!(event.formatting, FormattingType::Unsupported));
+    // TODO -- wait WHAT? this doesn't seem right at all. Let's add a unit test to check that this isn't stripping links
+    //  if it doesn't need to.
+    // flattened
+    //     .formatting_events
+    //     .retain(|event| !matches!(event.formatting, FormattingType::Unsupported));
+    // TODO Okay, we need this in order to have unflatten work. But unflatten should just work for those!
+    //  The Unsupported approach is not good enough.
 
     // 7. Reconstruct the inlines
     flattened.unflatten()
@@ -83,7 +87,7 @@ mod tests {
     fn simple_replacement() {
         let inlines = inlines!["hello world"];
         let pattern = fancy_regex::Regex::new(r"world").unwrap();
-        let result = regex_replace_inlines(&inlines, &pattern, "rust").unwrap();
+        let result = regex_replace_inlines(inlines, &pattern, "rust").unwrap();
 
         assert_eq!(result, inlines!["hello rust"]);
     }
@@ -92,7 +96,7 @@ mod tests {
     fn no_match_returns_original() {
         let inlines = inlines!["hello world"];
         let pattern = fancy_regex::Regex::new(r"foo").unwrap();
-        let result = regex_replace_inlines(&inlines, &pattern, "bar").unwrap();
+        let result = regex_replace_inlines(inlines.clone(), &pattern, "bar").unwrap();
 
         assert_eq!(result, inlines);
     }
@@ -101,7 +105,7 @@ mod tests {
     fn replacement_with_formatting() {
         let inlines = inlines!["before ", em["emphasized"], " after"];
         let pattern = fancy_regex::Regex::new(r"emphasized").unwrap();
-        let result = regex_replace_inlines(&inlines, &pattern, "replaced").unwrap();
+        let result = regex_replace_inlines(inlines, &pattern, "replaced").unwrap();
 
         let expected = inlines!["before ", em["replaced"], " after"];
         assert_eq!(result, expected);
@@ -112,7 +116,7 @@ mod tests {
         let inlines = inlines!["before ", em["emphasized"], " after"];
 
         let pattern = fancy_regex::Regex::new(r"ore emphasized af").unwrap();
-        let result = regex_replace_inlines(&inlines, &pattern, "oo").unwrap();
+        let result = regex_replace_inlines(inlines, &pattern, "oo").unwrap();
 
         // When replacement spans formatting boundaries, formatting should be removed
         let expected = inlines!["befooter"];
@@ -123,7 +127,7 @@ mod tests {
     fn capture_groups() {
         let inlines = inlines!["hello world"];
         let pattern = fancy_regex::Regex::new(r"(\w+) (\w+)").unwrap();
-        let result = regex_replace_inlines(&inlines, &pattern, "$2 $1").unwrap();
+        let result = regex_replace_inlines(inlines, &pattern, "$2 $1").unwrap();
 
         assert_eq!(result, inlines!["world hello"]);
     }
@@ -132,33 +136,33 @@ mod tests {
     fn multiple_matches() {
         let inlines = inlines!["foo bar foo baz"];
         let pattern = fancy_regex::Regex::new(r"foo").unwrap();
-        let result = regex_replace_inlines(&inlines, &pattern, "qux").unwrap();
+        let result = regex_replace_inlines(inlines, &pattern, "qux").unwrap();
 
         assert_eq!(result, inlines!["qux bar qux baz"]);
     }
 
     #[test]
     fn unsupported_content_error() {
-        let inlines = inlines![
-            "before ",
-            link["link text"] ("https://example.com"),
-            " after"
-        ];
+        let inlines = inlines!["before ", link["link text"]("https://example.com"), " after"];
 
         // Debug what the flattened representation looks like
-        let flattened = FlattenedText::from_inlines(&inlines).unwrap();
+        let flattened = FlattenedText::from_inlines(inlines.clone()).unwrap();
         println!("Text: {:?}", flattened.text);
         println!("Events: {:?}", flattened.formatting_events);
 
         // This should succeed because the regex doesn't cross the link boundary
         let pattern = fancy_regex::Regex::new(r"before").unwrap();
-        let result = regex_replace_inlines(&inlines, &pattern, "after");
+        let result = regex_replace_inlines(inlines.clone(), &pattern, "pre");
         println!("Result: {:?}", result);
+        assert_eq!(
+            Ok(inlines!["pre ", link["link text"]("https://example.com"), " after",]),
+            result,
+        );
         assert!(result.is_ok());
 
         // This should fail because the regex crosses into the link
         let pattern = fancy_regex::Regex::new(r"ore link").unwrap();
-        let result = regex_replace_inlines(&inlines, &pattern, "replacement");
+        let result = regex_replace_inlines(inlines, &pattern, "replacement");
         assert!(result.is_err());
     }
 }

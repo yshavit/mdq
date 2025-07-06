@@ -1,4 +1,5 @@
 use crate::md_elem::tree::elem::{Inline, SpanVariant, Text, TextVariant};
+use crate::output::{inlines_to_plain_string};
 
 /// The type of formatting to apply to a range of text.
 #[derive(Debug, Clone, PartialEq)]
@@ -6,7 +7,7 @@ pub(crate) enum FormattingType {
     /// Standard span formatting (emphasis, strong, delete)
     Span(SpanVariant),
     /// Unsupported content that cannot be processed by regex replacement
-    Unsupported,
+    Unsupported(Inline),
 }
 
 /// A flattened representation of inline markdown that separates plain text from formatting.
@@ -62,7 +63,7 @@ impl FlattenedText {
     /// This extracts all plain text content and creates formatting events that describe
     /// where spans should be applied. Links, images, and non-plain text variants will
     /// cause a FlattenError.
-    pub(crate) fn from_inlines(inlines: &[Inline]) -> Result<Self, FlattenError> {
+    pub(crate) fn from_inlines(inlines: impl IntoIterator<Item = Inline>) -> Result<Self, FlattenError> {
         let mut text = String::new();
         let mut formatting_events = Vec::new();
 
@@ -84,7 +85,8 @@ impl FlattenedText {
     pub(crate) fn unflatten(&self) -> Result<Vec<Inline>, RegexReplaceError> {
         // Check for unsupported formatting
         for event in &self.formatting_events {
-            if matches!(event.formatting, FormattingType::Unsupported) {
+            if matches!(event.formatting, FormattingType::Unsupported(_)) {
+                // TODO this is actually fine
                 return Err(RegexReplaceError {});
             }
         }
@@ -182,7 +184,7 @@ impl FlattenedText {
 
 /// Recursively flattens inlines, building up the text and formatting events.
 fn flatten_inlines_recursive(
-    inlines: &[Inline],
+    inlines: impl IntoIterator<Item = Inline>,
     text: &mut String,
     formatting_events: &mut Vec<FormattingEvent>,
 ) -> Result<(), FlattenError> {
@@ -192,7 +194,7 @@ fn flatten_inlines_recursive(
                 variant: TextVariant::Plain,
                 value,
             }) => {
-                text.push_str(value);
+                text.push_str(&value);
             }
             Inline::Text(non_plain_text) => {
                 // Non-plain text (code, math, html) - treat as unsupported
@@ -204,7 +206,7 @@ fn flatten_inlines_recursive(
                     formatting_events.push(FormattingEvent {
                         start_pos,
                         length,
-                        formatting: FormattingType::Unsupported,
+                        formatting: FormattingType::Unsupported(Inline::Text(non_plain_text)),
                     });
                 }
             }
@@ -212,7 +214,7 @@ fn flatten_inlines_recursive(
                 let start_pos = text.len();
 
                 // Recursively process the span's children
-                flatten_inlines_recursive(&span.children, text, formatting_events)?;
+                flatten_inlines_recursive(span.children, text, formatting_events)?;
 
                 let length = text.len() - start_pos;
                 if length > 0 {
@@ -223,10 +225,13 @@ fn flatten_inlines_recursive(
                     });
                 }
             }
-            Inline::Link(_) | Inline::Image(_) | Inline::Footnote(_) => {
-                // These are atomic - extract their text content and mark as unsupported
+            inline @ Inline::Link(_) | inline @ Inline::Image(_) | inline @ Inline::Footnote(_) => {
+                // We can't do a regex replace that spans into, within, or out of these. (Doing so would be confusing,
+                // since we'd just be doing it on the display text; and the result could be empty, if the replacement
+                // range starts outside this inline). Rather than describing a complex situation to the user, we'll just
+                // prohibit them.
                 let start_pos = text.len();
-                let content = extract_text_content(inline);
+                let content = inlines_to_plain_string(&[&inline]);
                 text.push_str(&content);
                 let length = content.len();
 
@@ -234,7 +239,7 @@ fn flatten_inlines_recursive(
                     formatting_events.push(FormattingEvent {
                         start_pos,
                         length,
-                        formatting: FormattingType::Unsupported,
+                        formatting: FormattingType::Unsupported(inline),
                     });
                 }
             }
@@ -329,36 +334,6 @@ fn unflatten_recursive(
     Ok(result)
 }
 
-/// Extracts the text content from atomic inline elements (links, images, footnotes).
-fn extract_text_content(inline: &Inline) -> String {
-    // TODO do I need this? There's existing functionality for it already elsewhere
-    use crate::md_elem::tree::elem::{FootnoteId, Image, Link};
-
-    match inline {
-        Inline::Link(Link::Standard(link)) => {
-            // For standard links, extract text from display content
-            let mut text = String::new();
-            let mut events = Vec::new();
-            // We ignore errors here since we're just extracting text
-            let _ = flatten_inlines_recursive(&link.display, &mut text, &mut events);
-            text
-        }
-        Inline::Link(Link::Autolink(autolink)) => {
-            // For autolinks, the URL is the display text
-            autolink.url.clone()
-        }
-        Inline::Image(Image { alt, .. }) => {
-            // For images, use the alt text
-            alt.clone()
-        }
-        Inline::Footnote(FootnoteId { id }) => {
-            // For footnotes, use the ID (without the caret)
-            format!("[^{}]", id)
-        }
-        _ => String::new(), // Should not happen given our match pattern
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -371,7 +346,7 @@ mod tests {
         #[test]
         fn plain_text_only() {
             let inlines = inlines!["hello world"];
-            let result = FlattenedText::from_inlines(&inlines).unwrap();
+            let result = FlattenedText::from_inlines(inlines).unwrap();
 
             assert_eq!(result.text, "hello world");
             assert_eq!(result.formatting_events, vec![]);
@@ -380,7 +355,7 @@ mod tests {
         #[test]
         fn simple_emphasis() {
             let inlines = inlines!["before ", em["emphasized"], " after"];
-            let result = FlattenedText::from_inlines(&inlines).unwrap();
+            let result = FlattenedText::from_inlines(inlines).unwrap();
 
             assert_eq!(result.text, "before emphasized after");
             assert_eq!(
@@ -397,7 +372,7 @@ mod tests {
         fn nested_formatting() {
             // _**text**_
             let inlines = inlines![em[strong["text"]]];
-            let result = FlattenedText::from_inlines(&inlines).unwrap();
+            let result = FlattenedText::from_inlines(inlines).unwrap();
 
             assert_eq!(result.text, "text");
             assert_eq!(
@@ -419,8 +394,8 @@ mod tests {
 
         #[test]
         fn link_as_unsupported() {
-            let inlines = inlines!["before ", link["link text"] "https://example.com", " after"];
-            let result = FlattenedText::from_inlines(&inlines).unwrap();
+            let inlines = inlines!["before ", link["link text"]("https://example.com"), " after"];
+            let result = FlattenedText::from_inlines(inlines).unwrap();
 
             assert_eq!(result.text, "before link text after");
             assert_eq!(
@@ -428,7 +403,10 @@ mod tests {
                 vec![FormattingEvent {
                     start_pos: 7,
                     length: 9,
-                    formatting: FormattingType::Unsupported,
+                    formatting: FormattingType::Unsupported(Inline::Text(Text {
+                        variant: TextVariant::Plain,
+                        value: "TODO should actually be a link".to_string(),
+                    })),
                 }]
             );
         }
@@ -501,7 +479,10 @@ mod tests {
                 formatting_events: vec![FormattingEvent {
                     start_pos: 7,
                     length: 9,
-                    formatting: FormattingType::Unsupported,
+                    formatting: FormattingType::Unsupported(Inline::Text(Text {
+                        variant: TextVariant::Plain,
+                        value: "TODO should actually be a link".to_string(),
+                    })),
                 }],
                 offset: 0,
                 last_replacement_end: 0,
@@ -526,7 +507,7 @@ mod tests {
                 " after"
             ];
 
-            let flattened = FlattenedText::from_inlines(&original).unwrap();
+            let flattened = FlattenedText::from_inlines(original.clone()).unwrap();
             let reconstructed = flattened.unflatten().unwrap();
 
             assert_eq!(original, reconstructed);
