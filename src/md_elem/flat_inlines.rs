@@ -69,8 +69,9 @@ pub struct RegexReplaceError {
 
 /// Error that occurs during range replacement operations.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct RangeReplacementError {
-    // TODO: Add specific error variants and details
+pub enum RangeReplacementError {
+    InternalError(&'static str),
+    AtomicityViolation,
 }
 
 impl FlattenedText {
@@ -114,7 +115,7 @@ impl FlattenedText {
         // Validate that ranges are non-overlapping and in increasing order
         // by checking that the current range start is not before the end of the last replacement
         if original_range.start < self.last_replacement_end {
-            return Err(RangeReplacementError {});
+            return Err(RangeReplacementError::InternalError("range replacement went backwards"));
         }
 
         let current_start = (original_range.start as isize + self.offset) as usize;
@@ -122,7 +123,7 @@ impl FlattenedText {
 
         // Validate range is within bounds and not going backwards
         if current_end > self.text.len() || current_start > self.text.len() {
-            return Err(RangeReplacementError {});
+            return Err(RangeReplacementError::InternalError("replacement out of range"));
         }
 
         // Replace the text
@@ -594,7 +595,7 @@ mod tests {
         }
 
         #[test]
-        fn link_with_formatted_test() {
+        fn link_with_formatted_text() {
             let flattened = FlattenedText {
                 //     ₀123456789₁12
                 text: "example link".to_string(),
@@ -807,7 +808,10 @@ mod tests {
             // (This restriction is what lets us keep the simple offset, rather than an arbitrary set of location
             // mappings.)
             let err = flattened.replace_range(0..3, "1");
-            assert_eq!(err, Err(RangeReplacementError {}));
+            assert_eq!(
+                err,
+                Err(RangeReplacementError::InternalError("range replacement went backwards"))
+            );
         }
 
         #[test]
@@ -1139,7 +1143,6 @@ mod tests {
             assert!(result.is_ok());
             assert_eq!(flattened.text, "ex@le link");
             assert_eq!(flattened.formatting_events[0].length, 10); // length adjusted
-            todo!("verify this test")
         }
 
         #[test]
@@ -1168,11 +1171,8 @@ mod tests {
 
             // Replace "ore lin" (positions 3..10) which crosses from normal span into atomic span
             let result = flattened.replace_range(3..10, "@");
-
-            // This should succeed - the current implementation doesn't prevent crossing boundaries
-            assert!(result.is_ok());
-            assert_eq!(flattened.text, "bef@k text after");
-            todo!("verify this test")
+            assert_eq!(result, Err(RangeReplacementError::AtomicityViolation));
+            assert_eq!(flattened.text, "link text image alt");
         }
 
         #[test]
@@ -1201,11 +1201,8 @@ mod tests {
 
             // Replace "xt af" (positions 13..18) which crosses from atomic span into normal span
             let result = flattened.replace_range(13..18, "@");
-
-            // This should succeed - the current implementation doesn't prevent crossing boundaries
-            assert!(result.is_ok());
-            assert_eq!(flattened.text, "before link te@ter");
-            todo!("verify this test")
+            assert_eq!(result, Err(RangeReplacementError::AtomicityViolation));
+            assert_eq!(flattened.text, "link text image alt");
         }
 
         #[test]
@@ -1239,9 +1236,7 @@ mod tests {
 
             // Replace "xt image al" (positions 7..17) which crosses from one atomic span into another
             let result = flattened.replace_range(7..17, "_");
-
-            // This should succeed - the current implementation doesn't prevent crossing boundaries
-            assert_eq!(result, Err(RangeReplacementError {}));
+            assert_eq!(result, Err(RangeReplacementError::AtomicityViolation));
             assert_eq!(flattened.text, "link text image alt");
         }
     }
