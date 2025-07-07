@@ -6,8 +6,8 @@ use crate::output::inlines_to_plain_string;
 pub(crate) enum FormattingType {
     /// Standard span formatting (emphasis, strong, delete)
     Span(SpanVariant),
-    /// Unsupported content that cannot be processed by regex replacement
-    Unsupported(Inline),
+    /// Content that regexes cannot cross into or out of.
+    Atomic(Inline),
 }
 
 /// A flattened representation of inline markdown that separates plain text from formatting.
@@ -83,14 +83,6 @@ impl FlattenedText {
     /// tree structure. Events marked as `FormattingType::Unsupported` will cause
     /// a reconstruction error since we cannot recreate the original atomic elements.
     pub(crate) fn unflatten(&self) -> Result<Vec<Inline>, RegexReplaceError> {
-        // Check for unsupported formatting
-        for event in &self.formatting_events {
-            if matches!(event.formatting, FormattingType::Unsupported(_)) {
-                // TODO this is actually fine
-                return Err(RegexReplaceError {});
-            }
-        }
-
         unflatten_recursive(&self.text, &self.formatting_events, 0, self.text.len())
     }
 
@@ -202,13 +194,11 @@ fn flatten_inlines_recursive(
                 text.push_str(&non_plain_text.value);
                 let length = non_plain_text.value.len();
 
-                if length > 0 {
-                    formatting_events.push(FormattingEvent {
-                        start_pos,
-                        length,
-                        formatting: FormattingType::Unsupported(Inline::Text(non_plain_text)),
-                    });
-                }
+                formatting_events.push(FormattingEvent {
+                    start_pos,
+                    length,
+                    formatting: FormattingType::Atomic(Inline::Text(non_plain_text)),
+                });
             }
             Inline::Span(span) => {
                 let start_pos = text.len();
@@ -225,7 +215,7 @@ fn flatten_inlines_recursive(
                     });
                 }
             }
-            other => {
+            other @ (Inline::Link(_) | Inline::Image(_) | Inline::Footnote(_)) => {
                 // We can't do a regex replace that spans into, within, or out of these. (Doing so would be confusing,
                 // since we'd just be doing it on the display text; and the result could be empty, if the replacement
                 // range starts outside this inline). Rather than describing a complex situation to the user, we'll just
@@ -235,13 +225,11 @@ fn flatten_inlines_recursive(
                 text.push_str(&content);
                 let length = content.len();
 
-                if length > 0 {
-                    formatting_events.push(FormattingEvent {
-                        start_pos,
-                        length,
-                        formatting: FormattingType::Unsupported(other),
-                    });
-                }
+                formatting_events.push(FormattingEvent {
+                    start_pos,
+                    length,
+                    formatting: FormattingType::Atomic(other),
+                });
             }
         }
     }
@@ -342,6 +330,7 @@ mod tests {
 
     mod flatten {
         use super::*;
+        use crate::md_elem::elem::{Link, LinkDefinition, LinkReference, StandardLink};
 
         #[test]
         fn plain_text_only() {
@@ -403,10 +392,14 @@ mod tests {
                 vec![FormattingEvent {
                     start_pos: 7,
                     length: 9,
-                    formatting: FormattingType::Unsupported(Inline::Text(Text {
-                        variant: TextVariant::Plain,
-                        value: "TODO should actually be a link".to_string(),
-                    })),
+                    formatting: FormattingType::Atomic(Inline::Link(Link::Standard(StandardLink {
+                        display: inlines!["link text"],
+                        link: LinkDefinition {
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        },
+                    })))
                 }]
             );
         }
@@ -473,22 +466,23 @@ mod tests {
         }
 
         #[test]
-        fn unsupported_formatting_error() {
-            let flattened = FlattenedText {
-                text: "before link text after".to_string(),
-                formatting_events: vec![FormattingEvent {
-                    start_pos: 7,
-                    length: 9,
-                    formatting: FormattingType::Unsupported(Inline::Text(Text {
-                        variant: TextVariant::Plain,
-                        value: "TODO should actually be a link".to_string(),
-                    })),
-                }],
-                offset: 0,
-                last_replacement_end: 0,
-            };
+        fn link_with_plain_test() {
+            todo!("unflatten a link whose display text is a plain 'example link' and whose URL is https://example.com; it should succeed")
+        }
 
-            assert!(flattened.unflatten().is_err());
+        #[test]
+        fn link_with_formatted_test() {
+            todo!("unflatten a link whose display text is a plain 'example _link_' and whose URL is https://example.com; it should succeed")
+        }
+
+        #[test]
+        fn image() {
+            todo!("unflatten a image whose alt text is 'example link' and whose URL is https://example.com/image.png; it should succeed")
+        }
+
+        #[test]
+        fn footnote() {
+            todo!("unflatten a footnote whose text is '^1'; it should succeed")
         }
     }
 
@@ -917,6 +911,28 @@ mod tests {
             assert_eq!(flattened.formatting_events.len(), 1);
             assert_eq!(flattened.formatting_events[0].start_pos, 4);
             assert_eq!(flattened.formatting_events[0].length, 5);
+        }
+
+        #[test]
+        fn replacement_within_atomic_span() {
+            todo!("a replacement that starts and ends within a single Atomic formatting event; it should succeed")
+        }
+
+        #[test]
+        fn replacement_into_atomic_span() {
+            todo!("a replacement that starts within a normal span and crosses into an Atomic formatting span; it should fail")
+        }
+
+        #[test]
+        fn replacement_out_of_atomic_span() {
+            todo!("a replacement that starts within an atomic span and crosses into a normal formatting span; it should fail")
+        }
+
+        #[test]
+        fn replacement_across_atomic_spans() {
+            todo!(
+                "a replacement that starts within one atomic span and crosses into another atomic span; it should fail"
+            )
         }
     }
 }

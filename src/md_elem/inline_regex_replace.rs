@@ -40,7 +40,7 @@ pub(crate) fn regex_replace_inlines(
         let match_end = range.end;
 
         for event in &flattened.formatting_events {
-            if matches!(event.formatting, FormattingType::Unsupported(_)) {
+            if matches!(event.formatting, FormattingType::Atomic(_)) {
                 let event_start = event.start_pos;
                 let event_end = event.start_pos + event.length;
 
