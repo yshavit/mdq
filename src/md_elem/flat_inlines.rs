@@ -407,6 +407,7 @@ mod tests {
 
     mod unflatten {
         use super::*;
+        use crate::md_elem::tree::elem::{FootnoteId, Image, Link, LinkDefinition, LinkReference, StandardLink};
 
         #[test]
         fn plain_text_only() {
@@ -467,8 +468,6 @@ mod tests {
 
         #[test]
         fn link_with_plain_test() {
-            use crate::md_elem::tree::elem::{Link, LinkDefinition, LinkReference, StandardLink};
-
             let flattened = FlattenedText {
                 //     ⁰123456789¹12
                 text: "example link".to_string(),
@@ -496,8 +495,6 @@ mod tests {
 
         #[test]
         fn link_with_formatted_test() {
-            use crate::md_elem::tree::elem::{Link, LinkDefinition, LinkReference, StandardLink};
-
             let flattened = FlattenedText {
                 //     ⁰123456789¹12
                 text: "example link".to_string(),
@@ -532,8 +529,6 @@ mod tests {
 
         #[test]
         fn image() {
-            use crate::md_elem::tree::elem::{Image, LinkDefinition, LinkReference};
-
             let flattened = FlattenedText {
                 text: "example link".to_string(),
                 formatting_events: vec![FormattingEvent {
@@ -560,8 +555,6 @@ mod tests {
 
         #[test]
         fn footnote() {
-            use crate::md_elem::tree::elem::FootnoteId;
-
             let flattened = FlattenedText {
                 text: "1".to_string(),
                 formatting_events: vec![FormattingEvent {
@@ -604,6 +597,7 @@ mod tests {
 
     mod replace_range {
         use super::*;
+        use crate::md_elem::tree::elem::{Image, Link, LinkDefinition, LinkReference, StandardLink};
 
         #[test]
         fn simple_replacement() {
@@ -1009,8 +1003,6 @@ mod tests {
 
         #[test]
         fn replacement_within_atomic_span() {
-            use crate::md_elem::tree::elem::{Link, LinkDefinition, LinkReference, StandardLink};
-
             let mut flattened = FlattenedText {
                 text: "example link".to_string(),
                 formatting_events: vec![FormattingEvent {
@@ -1041,8 +1033,6 @@ mod tests {
 
         #[test]
         fn replacement_into_atomic_span() {
-            use crate::md_elem::tree::elem::{Link, LinkDefinition, LinkReference, StandardLink};
-
             let mut flattened = FlattenedText {
                 text: "before link text after".to_string(),
                 formatting_events: vec![
@@ -1079,8 +1069,6 @@ mod tests {
 
         #[test]
         fn replacement_out_of_atomic_span() {
-            use crate::md_elem::tree::elem::{Link, LinkDefinition, LinkReference, StandardLink};
-
             let mut flattened = FlattenedText {
                 text: "before link text after".to_string(),
                 formatting_events: vec![
@@ -1117,8 +1105,6 @@ mod tests {
 
         #[test]
         fn replacement_across_atomic_spans() {
-            use crate::md_elem::tree::elem::{Image, Link, LinkDefinition, LinkReference, StandardLink};
-
             let mut flattened = FlattenedText {
                 text: "link text image alt".to_string(),
                 formatting_events: vec![
