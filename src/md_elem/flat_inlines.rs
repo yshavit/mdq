@@ -477,7 +477,7 @@ mod tests {
             let inlines = inlines!["before ", link[""]("https://example.com"), " after"];
             let result = FlattenedText::from_inlines(inlines).unwrap();
 
-            //                       ⁰123456789¹12
+            //                       ₀123456789₁12
             assert_eq!(result.text, "before  after");
             assert_eq!(
                 result.formatting_events,
@@ -573,7 +573,7 @@ mod tests {
         #[test]
         fn link_with_plain_test() {
             let flattened = FlattenedText {
-                //     ⁰123456789¹12
+                //     ₀123456789₁12
                 text: "example link".to_string(),
                 formatting_events: vec![FormattingEvent {
                     start_pos: 0,
@@ -596,7 +596,7 @@ mod tests {
         #[test]
         fn link_with_formatted_test() {
             let flattened = FlattenedText {
-                //     ⁰123456789¹12
+                //     ₀123456789₁12
                 text: "example link".to_string(),
                 formatting_events: vec![
                     FormattingEvent {
@@ -626,7 +626,7 @@ mod tests {
         #[test]
         fn link_with_empty_display() {
             let flattened = FlattenedText {
-                //     ⁰123456789¹12
+                //     ₀123456789₁12
                 text: "before  after".to_string(),
                 formatting_events: vec![FormattingEvent {
                     start_pos: 7,
@@ -760,7 +760,7 @@ mod tests {
         #[test]
         fn multiple_replacements() {
             let mut flattened = FlattenedText {
-                //     ⁰123456789¹12
+                //     ₀123456789₁12
                 text: "one two three".to_string(),
                 formatting_events: vec![FormattingEvent {
                     start_pos: 8,
@@ -788,7 +788,7 @@ mod tests {
         #[test]
         fn multiple_replacements_out_of_order() {
             let mut flattened = FlattenedText {
-                //     ⁰123456789¹12
+                //     ₀123456789₁12
                 text: "one two three".to_string(),
                 formatting_events: vec![FormattingEvent {
                     start_pos: 8,
@@ -857,7 +857,7 @@ mod tests {
         #[test]
         fn replacement_same_length() {
             let mut flattened = FlattenedText {
-                //     ⁰123456789¹12
+                //     ₀123456789₁12
                 text: "one two three".to_string(),
                 formatting_events: vec![FormattingEvent {
                     start_pos: 4,
@@ -883,7 +883,7 @@ mod tests {
         #[test]
         fn replacement_of_full_formatted_span_with_equal_length() {
             let mut flattened = FlattenedText {
-                //     ⁰123456789¹12
+                //     ₀123456789₁12
                 text: "one two three".to_string(),
                 formatting_events: vec![FormattingEvent {
                     start_pos: 4,
@@ -907,7 +907,7 @@ mod tests {
         #[test]
         fn replacement_of_full_formatted_span_with_shorter_length() {
             let mut flattened = FlattenedText {
-                //     ⁰123456789¹12
+                //     ₀123456789₁12
                 text: "one two three".to_string(),
                 formatting_events: vec![FormattingEvent {
                     start_pos: 4,
@@ -931,7 +931,7 @@ mod tests {
         #[test]
         fn replacement_of_full_formatted_span_with_longer_length() {
             let mut flattened = FlattenedText {
-                //     ⁰123456789¹12
+                //     ₀123456789₁12
                 text: "one two three".to_string(),
                 formatting_events: vec![FormattingEvent {
                     start_pos: 4,
@@ -955,7 +955,7 @@ mod tests {
         #[test]
         fn removal_of_full_formatted_span() {
             let mut flattened = FlattenedText {
-                //     ⁰123456789¹12
+                //     ₀123456789₁12
                 text: "one two three".to_string(),
                 formatting_events: vec![FormattingEvent {
                     start_pos: 4,
@@ -979,7 +979,7 @@ mod tests {
         fn replacement_removes_formatting() {
             // "one _two_ three" -> "on@hree" (replace "e two t" with "@")
             let mut flattened = FlattenedText {
-                //     ⁰123456789¹12
+                //     ₀123456789₁12
                 text: "one two three".to_string(),
                 formatting_events: vec![FormattingEvent {
                     start_pos: 4,
@@ -1061,7 +1061,7 @@ mod tests {
         fn replacement_spans_multiple_formatting_events() {
             // "one _two_ **three** four" -> "one @ four"
             let mut flattened = FlattenedText {
-                //     ⁰123456789¹1234567
+                //     ₀123456789₁1234567
                 text: "one two three four".to_string(),
                 formatting_events: vec![
                     FormattingEvent {
