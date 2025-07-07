@@ -1,6 +1,6 @@
 use crate::md_elem::tree::elem::{Autolink, AutolinkStyle, Image, Link, StandardLink};
 use crate::md_elem::tree::elem::{FootnoteId, Inline, LinkDefinition, SpanVariant, Text, TextVariant};
-use crate::output::inlines_to_plain_string;
+use crate::output::{inlines_to_plain_string, FootnoteToString, InlineToStringOpts};
 
 /// Atomic formatting types that cannot be crossed by regex operations.
 #[derive(Debug, Clone, PartialEq)]
@@ -237,7 +237,12 @@ fn flatten_inlines_recursive(
                 // range starts outside this inline). Rather than describing a complex situation to the user, we'll just
                 // prohibit them.
                 let start_pos = text.len();
-                let content = inlines_to_plain_string(&[&other]);
+                let content = inlines_to_plain_string(
+                    &[&other],
+                    InlineToStringOpts {
+                        footnotes: FootnoteToString::OnlyFootnoteId,
+                    },
+                );
                 text.push_str(&content);
                 let length = content.len();
 
@@ -660,7 +665,7 @@ mod tests {
 
             // The unflatten function ignores atomic elements and just returns plain text
             let result = flattened.unflatten().unwrap();
-            assert_eq!(result, inlines![link["example link"]("https://example.com")]);
+            assert_eq!(result, inlines![image["example link"]("https://example.com/image.png")]);
         }
 
         #[test]

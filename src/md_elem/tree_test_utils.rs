@@ -113,6 +113,25 @@ mod test_utils {
             }
         };
 
+        // image (optionally followed by more content)
+        [image[$alt:literal] ($url:literal) $(, $($rest:tt)*)?] => {
+            {
+                #[allow(unused_mut)]
+                let mut result = vec![
+                    crate::md_elem::tree::elem::Inline::Image(crate::md_elem::tree::elem::Image{
+                        alt: $alt.to_string(),
+                        link: crate::md_elem::tree::elem::LinkDefinition {
+                            url: $url.to_string(),
+                            title: None,
+                            reference: crate::md_elem::tree::elem::LinkReference::Inline,
+                        }
+                    })
+                ];
+                $(result.extend(inlines![$($rest)*]);)?
+                result
+            }
+        };
+
         // Footnote, like `footnote["^1"]`
         [footnote[$val:literal] $(, $($rest:tt)*)?] => {
             {

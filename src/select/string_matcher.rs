@@ -88,7 +88,7 @@ impl StringMatcher {
     }
 
     pub(crate) fn matches_inlines<I: Borrow<Inline>>(&self, haystack: &[I]) -> Result<bool, StringMatchError> {
-        self.matches(&inlines_to_plain_string(haystack))
+        self.matches(&inlines_to_plain_string(haystack, Default::default()))
     }
 
     pub(crate) fn matches_any<N: Borrow<MdElem>>(&self, haystacks: &[N]) -> Result<bool, StringMatchError> {
