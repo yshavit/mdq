@@ -1,5 +1,5 @@
 use crate::md_elem::tree::elem::{Inline, SpanVariant, Text, TextVariant};
-use crate::output::{inlines_to_plain_string};
+use crate::output::inlines_to_plain_string;
 
 /// The type of formatting to apply to a range of text.
 #[derive(Debug, Clone, PartialEq)]
@@ -225,13 +225,13 @@ fn flatten_inlines_recursive(
                     });
                 }
             }
-            inline @ Inline::Link(_) | inline @ Inline::Image(_) | inline @ Inline::Footnote(_) => {
+            other => {
                 // We can't do a regex replace that spans into, within, or out of these. (Doing so would be confusing,
                 // since we'd just be doing it on the display text; and the result could be empty, if the replacement
                 // range starts outside this inline). Rather than describing a complex situation to the user, we'll just
                 // prohibit them.
                 let start_pos = text.len();
-                let content = inlines_to_plain_string(&[&inline]);
+                let content = inlines_to_plain_string(&[&other]);
                 text.push_str(&content);
                 let length = content.len();
 
@@ -239,7 +239,7 @@ fn flatten_inlines_recursive(
                     formatting_events.push(FormattingEvent {
                         start_pos,
                         length,
-                        formatting: FormattingType::Unsupported(inline),
+                        formatting: FormattingType::Unsupported(other),
                     });
                 }
             }
@@ -492,7 +492,7 @@ mod tests {
         }
     }
 
-    mod roundtrip {
+    mod round_trip {
         use super::*;
 
         #[test]
