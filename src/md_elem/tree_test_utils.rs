@@ -112,6 +112,20 @@ mod test_utils {
                 result
             }
         };
+
+        // Footnote, like `footnote["^1"]`
+        [footnote[$val:literal] $(, $($rest:tt)*)?] => {
+            {
+                #[allow(unused_mut)]
+                let mut result = vec![
+                    crate::md_elem::tree::elem::Inline::Footnote(crate::md_elem::tree::elem::FootnoteId{
+                        id: $val.to_string(),
+                    })
+                ];
+                $(result.extend(inlines![$($rest)*]);)?
+                result
+            }
+        };
     }
     pub(crate) use inlines;
 

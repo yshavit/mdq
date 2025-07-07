@@ -1,5 +1,21 @@
-use crate::md_elem::tree::elem::{Inline, SpanVariant, Text, TextVariant};
+use crate::md_elem::tree::elem::{Autolink, AutolinkStyle, Image, Link, StandardLink};
+use crate::md_elem::tree::elem::{FootnoteId, Inline, LinkDefinition, SpanVariant, Text, TextVariant};
 use crate::output::inlines_to_plain_string;
+
+/// Atomic formatting types that cannot be crossed by regex operations.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum AtomicFormatting {
+    /// Standard link with display text and link definition
+    StandardLink(LinkDefinition),
+    /// Autolink with style
+    AutoLink(AutolinkStyle),
+    /// Image with alt text and link definition
+    Image(LinkDefinition),
+    /// Footnote reference
+    Footnote,
+    /// Non-plain text (code, math, html)
+    Text(TextVariant),
+}
 
 /// The type of formatting to apply to a range of text.
 #[derive(Debug, Clone, PartialEq)]
@@ -7,7 +23,7 @@ pub(crate) enum FormattingType {
     /// Standard span formatting (emphasis, strong, delete)
     Span(SpanVariant),
     /// Content that regexes cannot cross into or out of.
-    Atomic(Inline),
+    Atomic(AtomicFormatting),
 }
 
 /// A flattened representation of inline markdown that separates plain text from formatting.
@@ -189,7 +205,7 @@ fn flatten_inlines_recursive(
                 text.push_str(&value);
             }
             Inline::Text(non_plain_text) => {
-                // Non-plain text (code, math, html) - treat as unsupported
+                // Non-plain text (code, math, html) - treat as atomic
                 let start_pos = text.len();
                 text.push_str(&non_plain_text.value);
                 let length = non_plain_text.value.len();
@@ -197,7 +213,7 @@ fn flatten_inlines_recursive(
                 formatting_events.push(FormattingEvent {
                     start_pos,
                     length,
-                    formatting: FormattingType::Atomic(Inline::Text(non_plain_text)),
+                    formatting: FormattingType::Atomic(AtomicFormatting::Text(non_plain_text.variant)),
                 });
             }
             Inline::Span(span) => {
@@ -225,10 +241,20 @@ fn flatten_inlines_recursive(
                 text.push_str(&content);
                 let length = content.len();
 
+                let atomic_formatting = match other {
+                    Inline::Link(Link::Standard(ref standard_link)) => {
+                        AtomicFormatting::StandardLink(standard_link.link.clone())
+                    }
+                    Inline::Link(Link::Autolink(ref autolink)) => AtomicFormatting::AutoLink(autolink.style),
+                    Inline::Image(ref image) => AtomicFormatting::Image(image.link.clone()),
+                    Inline::Footnote(_) => AtomicFormatting::Footnote,
+                    _ => unreachable!("other should only be Link, Image, or Footnote"),
+                };
+
                 formatting_events.push(FormattingEvent {
                     start_pos,
                     length,
-                    formatting: FormattingType::Atomic(other),
+                    formatting: FormattingType::Atomic(atomic_formatting),
                 });
             }
         }
@@ -283,26 +309,66 @@ fn unflatten_recursive(
             }
         }
 
-        // Create the span for this event
-        if let FormattingType::Span(span_variant) = event.formatting {
-            // Find child events that are completely contained within this span
-            let child_events: Vec<_> = events
-                .iter()
-                .filter(|child| {
-                    child.start_pos >= event_start && child.start_pos + child.length <= event_end && child != &event
-                    // Don't include self
-                })
-                .cloned()
-                .collect();
+        // Create the element for this event
+        match event.formatting {
+            FormattingType::Span(span_variant) => {
+                // Find child events that are completely contained within this span
+                let child_events: Vec<_> = events
+                    .iter()
+                    .filter(|child| {
+                        child.start_pos >= event_start && child.start_pos + child.length <= event_end && child != &event
+                        // Don't include self
+                    })
+                    .cloned()
+                    .collect();
 
-            // Recursively process the content inside this span
-            let children = unflatten_recursive(text, &child_events, event_start, event_end)?;
-            result.push(Inline::Span(Span {
-                variant: span_variant,
-                children,
-            }));
+                // Recursively process the content inside this span
+                let children = unflatten_recursive(text, &child_events, event_start, event_end)?;
+                result.push(Inline::Span(Span {
+                    variant: span_variant,
+                    children,
+                }));
 
-            processed_ranges.push((event_start, event_end));
+                processed_ranges.push((event_start, event_end));
+            }
+            FormattingType::Atomic(ref atomic_formatting) => {
+                // For atomic formatting, we need to reconstruct the original inline element
+                // However, we've lost some information during flattening, so we need to
+                // reconstruct what we can from the atomic formatting and the text
+                let element_text = &text[event_start..event_end];
+
+                let inline_element = match atomic_formatting {
+                    AtomicFormatting::StandardLink(link_def) => {
+                        // We can't fully reconstruct the display text structure, so we use plain text
+                        let display_inlines = vec![Inline::Text(Text {
+                            variant: TextVariant::Plain,
+                            value: element_text.to_string(),
+                        })];
+                        Inline::Link(Link::Standard(StandardLink {
+                            display: display_inlines,
+                            link: link_def.clone(),
+                        }))
+                    }
+                    AtomicFormatting::AutoLink(style) => Inline::Link(Link::Autolink(Autolink {
+                        url: element_text.to_string(),
+                        style: *style,
+                    })),
+                    AtomicFormatting::Image(link_def) => Inline::Image(Image {
+                        alt: element_text.to_string(),
+                        link: link_def.clone(),
+                    }),
+                    AtomicFormatting::Footnote => Inline::Footnote(FootnoteId {
+                        id: element_text.to_string(),
+                    }),
+                    AtomicFormatting::Text(text_variant) => Inline::Text(Text {
+                        variant: *text_variant,
+                        value: element_text.to_string(),
+                    }),
+                };
+
+                result.push(inline_element);
+                processed_ranges.push((event_start, event_end));
+            }
         }
 
         pos = event_end;
@@ -330,7 +396,7 @@ mod tests {
 
     mod flatten {
         use super::*;
-        use crate::md_elem::elem::{Link, LinkDefinition, LinkReference, StandardLink};
+        use crate::md_elem::elem::{LinkDefinition, LinkReference};
 
         #[test]
         fn plain_text_only() {
@@ -382,7 +448,7 @@ mod tests {
         }
 
         #[test]
-        fn link_as_unsupported() {
+        fn link() {
             let inlines = inlines!["before ", link["link text"]("https://example.com"), " after"];
             let result = FlattenedText::from_inlines(inlines).unwrap();
 
@@ -392,14 +458,47 @@ mod tests {
                 vec![FormattingEvent {
                     start_pos: 7,
                     length: 9,
-                    formatting: FormattingType::Atomic(Inline::Link(Link::Standard(StandardLink {
-                        display: inlines!["link text"],
-                        link: LinkDefinition {
-                            url: "https://example.com".to_string(),
-                            title: None,
-                            reference: LinkReference::Inline,
-                        },
-                    })))
+                    formatting: FormattingType::Atomic(AtomicFormatting::StandardLink(LinkDefinition {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline,
+                    }))
+                }]
+            );
+        }
+
+        #[test]
+        fn link_with_no_display_text() {
+            let inlines = inlines!["before ", link[""]("https://example.com"), " after"];
+            let result = FlattenedText::from_inlines(inlines).unwrap();
+
+            //                       ⁰123456789¹12
+            assert_eq!(result.text, "before  after");
+            assert_eq!(
+                result.formatting_events,
+                vec![FormattingEvent {
+                    start_pos: 7,
+                    length: 0,
+                    formatting: FormattingType::Atomic(AtomicFormatting::StandardLink(LinkDefinition {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline,
+                    }))
+                }]
+            );
+        }
+
+        #[test]
+        fn footnote() {
+            let inlines = inlines![footnote["1"]];
+            let result = FlattenedText::from_inlines(inlines).unwrap();
+            assert_eq!(result.text, "1");
+            assert_eq!(
+                result.formatting_events,
+                vec![FormattingEvent {
+                    start_pos: 0,
+                    length: 1,
+                    formatting: FormattingType::Atomic(AtomicFormatting::Footnote)
                 }]
             );
         }
@@ -407,7 +506,7 @@ mod tests {
 
     mod unflatten {
         use super::*;
-        use crate::md_elem::tree::elem::{FootnoteId, Image, Link, LinkDefinition, LinkReference, StandardLink};
+        use crate::md_elem::tree::elem::{LinkDefinition, LinkReference};
 
         #[test]
         fn plain_text_only() {
@@ -474,23 +573,19 @@ mod tests {
                 formatting_events: vec![FormattingEvent {
                     start_pos: 0,
                     length: 12,
-                    formatting: FormattingType::Atomic(Inline::Link(Link::Standard(StandardLink {
-                        display: inlines!["example link"],
-                        link: LinkDefinition {
-                            url: "https://example.com".to_string(),
-                            title: None,
-                            reference: LinkReference::Inline,
-                        },
-                    }))),
+                    formatting: FormattingType::Atomic(AtomicFormatting::StandardLink(LinkDefinition {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline,
+                    })),
                 }],
                 offset: 0,
                 last_replacement_end: 0,
             };
 
             // The unflatten function ignores atomic elements and just returns plain text
-            let result = flattened.unflatten();
-            assert_eq!(result, Ok(inlines![link["example link"]("https://example.com")]));
-            todo!("verify this test")
+            let result = flattened.unflatten().unwrap();
+            assert_eq!(result, inlines![link["example link"]("https://example.com")]);
         }
 
         #[test]
@@ -502,14 +597,11 @@ mod tests {
                     FormattingEvent {
                         start_pos: 0,
                         length: 12,
-                        formatting: FormattingType::Atomic(Inline::Link(Link::Standard(StandardLink {
-                            display: inlines![link["example ", em["link"]]("https://example.com")],
-                            link: LinkDefinition {
-                                url: "https://example.com".to_string(),
-                                title: None,
-                                reference: LinkReference::Inline,
-                            },
-                        }))),
+                        formatting: FormattingType::Atomic(AtomicFormatting::StandardLink(LinkDefinition {
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        })),
                     },
                     FormattingEvent {
                         start_pos: 8,
@@ -523,8 +615,30 @@ mod tests {
 
             // The unflatten function ignores atomic elements and just returns plain text
             let result = flattened.unflatten().unwrap();
-            assert_eq!(result, inlines!["example link"]);
-            todo!("verify this test")
+            assert_eq!(result, inlines![link["example ", em["link"]]("https://example.com")]);
+        }
+
+        #[test]
+        fn link_with_empty_display() {
+            let flattened = FlattenedText {
+                //     ⁰123456789¹12
+                text: "before  after".to_string(),
+                formatting_events: vec![FormattingEvent {
+                    start_pos: 7,
+                    length: 0,
+                    formatting: FormattingType::Atomic(AtomicFormatting::StandardLink(LinkDefinition {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline,
+                    })),
+                }],
+                offset: 0,
+                last_replacement_end: 0,
+            };
+
+            // The unflatten function ignores atomic elements and just returns plain text
+            let result = flattened.unflatten().unwrap();
+            assert_eq!(result, inlines!["before ", link[""]("https://example.com"), " after"]);
         }
 
         #[test]
@@ -534,13 +648,10 @@ mod tests {
                 formatting_events: vec![FormattingEvent {
                     start_pos: 0,
                     length: 12,
-                    formatting: FormattingType::Atomic(Inline::Image(Image {
-                        alt: "example link".to_string(),
-                        link: LinkDefinition {
-                            url: "https://example.com/image.png".to_string(),
-                            title: None,
-                            reference: LinkReference::Inline,
-                        },
+                    formatting: FormattingType::Atomic(AtomicFormatting::Image(LinkDefinition {
+                        url: "https://example.com/image.png".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline,
                     })),
                 }],
                 offset: 0,
@@ -549,8 +660,7 @@ mod tests {
 
             // The unflatten function ignores atomic elements and just returns plain text
             let result = flattened.unflatten().unwrap();
-            assert_eq!(result, inlines!["example link"]);
-            todo!("verify this test")
+            assert_eq!(result, inlines![link["example link"]("https://example.com")]);
         }
 
         #[test]
@@ -560,7 +670,7 @@ mod tests {
                 formatting_events: vec![FormattingEvent {
                     start_pos: 0,
                     length: 1,
-                    formatting: FormattingType::Atomic(Inline::Footnote(FootnoteId { id: "1".to_string() })),
+                    formatting: FormattingType::Atomic(AtomicFormatting::Footnote),
                 }],
                 offset: 0,
                 last_replacement_end: 0,
@@ -568,8 +678,7 @@ mod tests {
 
             // The unflatten function ignores atomic elements and just returns plain text
             let result = flattened.unflatten().unwrap();
-            assert_eq!(result, inlines!["1"]);
-            todo!("verify this test")
+            assert_eq!(result, inlines![footnote["1"]]);
         }
     }
 
@@ -597,7 +706,7 @@ mod tests {
 
     mod replace_range {
         use super::*;
-        use crate::md_elem::tree::elem::{Image, Link, LinkDefinition, LinkReference, StandardLink};
+        use crate::md_elem::tree::elem::{LinkDefinition, LinkReference};
 
         #[test]
         fn simple_replacement() {
@@ -1008,14 +1117,11 @@ mod tests {
                 formatting_events: vec![FormattingEvent {
                     start_pos: 0,
                     length: 12,
-                    formatting: FormattingType::Atomic(Inline::Link(Link::Standard(StandardLink {
-                        display: inlines!["example link"],
-                        link: LinkDefinition {
-                            url: "https://example.com".to_string(),
-                            title: None,
-                            reference: LinkReference::Inline,
-                        },
-                    }))),
+                    formatting: FormattingType::Atomic(AtomicFormatting::StandardLink(LinkDefinition {
+                        url: "https://example.com".to_string(),
+                        title: None,
+                        reference: LinkReference::Inline,
+                    })),
                 }],
                 offset: 0,
                 last_replacement_end: 0,
@@ -1044,14 +1150,11 @@ mod tests {
                     FormattingEvent {
                         start_pos: 7,
                         length: 9,
-                        formatting: FormattingType::Atomic(Inline::Link(Link::Standard(StandardLink {
-                            display: inlines!["link text"],
-                            link: LinkDefinition {
-                                url: "https://example.com".to_string(),
-                                title: None,
-                                reference: LinkReference::Inline,
-                            },
-                        }))),
+                        formatting: FormattingType::Atomic(AtomicFormatting::StandardLink(LinkDefinition {
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        })),
                     },
                 ],
                 offset: 0,
@@ -1075,14 +1178,11 @@ mod tests {
                     FormattingEvent {
                         start_pos: 7,
                         length: 9,
-                        formatting: FormattingType::Atomic(Inline::Link(Link::Standard(StandardLink {
-                            display: inlines!["link text"],
-                            link: LinkDefinition {
-                                url: "https://example.com".to_string(),
-                                title: None,
-                                reference: LinkReference::Inline,
-                            },
-                        }))),
+                        formatting: FormattingType::Atomic(AtomicFormatting::StandardLink(LinkDefinition {
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        })),
                     },
                     FormattingEvent {
                         start_pos: 17,
@@ -1111,25 +1211,19 @@ mod tests {
                     FormattingEvent {
                         start_pos: 0,
                         length: 9,
-                        formatting: FormattingType::Atomic(Inline::Link(Link::Standard(StandardLink {
-                            display: inlines!["link text"],
-                            link: LinkDefinition {
-                                url: "https://example.com".to_string(),
-                                title: None,
-                                reference: LinkReference::Inline,
-                            },
-                        }))),
+                        formatting: FormattingType::Atomic(AtomicFormatting::StandardLink(LinkDefinition {
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        })),
                     },
                     FormattingEvent {
                         start_pos: 10,
                         length: 9,
-                        formatting: FormattingType::Atomic(Inline::Image(Image {
-                            alt: "image alt".to_string(),
-                            link: LinkDefinition {
-                                url: "https://example.com/image.png".to_string(),
-                                title: None,
-                                reference: LinkReference::Inline,
-                            },
+                        formatting: FormattingType::Atomic(AtomicFormatting::Image(LinkDefinition {
+                            url: "https://example.com/image.png".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
                         })),
                     },
                 ],
