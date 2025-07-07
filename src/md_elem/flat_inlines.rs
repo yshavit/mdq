@@ -1211,6 +1211,7 @@ mod tests {
         #[test]
         fn replacement_across_atomic_spans() {
             let mut flattened = FlattenedText {
+                //     ₀123456789₁12456789
                 text: "link text image alt".to_string(),
                 formatting_events: vec![
                     FormattingEvent {
@@ -1237,12 +1238,11 @@ mod tests {
             };
 
             // Replace "xt image al" (positions 7..17) which crosses from one atomic span into another
-            let result = flattened.replace_range(7..17, "@");
+            let result = flattened.replace_range(7..17, "_");
 
             // This should succeed - the current implementation doesn't prevent crossing boundaries
-            assert!(result.is_ok());
-            assert_eq!(flattened.text, "link te@t");
-            todo!("verify this test")
+            assert_eq!(result, Err(RangeReplacementError {}));
+            assert_eq!(flattened.text, "link text image alt");
         }
     }
 }
