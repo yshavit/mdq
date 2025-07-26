@@ -1,6 +1,8 @@
+use crate::md_elem::tree::elem::Span;
 use crate::md_elem::tree::elem::{Autolink, AutolinkStyle, Image, Link, StandardLink};
 use crate::md_elem::tree::elem::{FootnoteId, Inline, LinkDefinition, SpanVariant, Text, TextVariant};
 use crate::output::{inlines_to_plain_string, FootnoteToString, InlineToStringOpts};
+use std::iter::Peekable;
 
 /// Atomic formatting types that cannot be crossed by regex operations.
 #[derive(Debug, Clone, PartialEq)]
@@ -82,9 +84,8 @@ impl FlattenedText {
     /// cause a FlattenError.
     pub(crate) fn from_inlines(inlines: impl IntoIterator<Item = Inline>) -> Result<Self, FlattenError> {
         let mut text = String::new();
-        let mut formatting_events = Vec::new();
 
-        flatten_inlines_recursive(inlines, &mut text, &mut formatting_events)?;
+        let formatting_events = flatten_inlines(inlines, &mut text)?;
 
         Ok(FlattenedText {
             text,
@@ -99,8 +100,95 @@ impl FlattenedText {
     /// This applies the formatting events to the text to rebuild the original
     /// tree structure. Events marked as `FormattingType::Unsupported` will cause
     /// a reconstruction error since we cannot recreate the original atomic elements.
-    pub(crate) fn unflatten(&self) -> Result<Vec<Inline>, RegexReplaceError> {
-        unflatten_recursive(&self.text, &self.formatting_events, 0, self.text.len())
+    pub(crate) fn unflatten(self) -> Result<Vec<Inline>, RegexReplaceError> {
+        // unflatten_recursive(&self.text, &self.formatting_events, 0, self.text.len())
+        let mut events = self.formatting_events.into_iter().peekable();
+        let inlines = Self::unflatten_rec_0(&self.text, 0, &mut events);
+        if events.peek().is_some() {
+            Err(RegexReplaceError {}) // TODO message
+        } else {
+            Ok(inlines)
+        }
+    }
+
+    pub fn unflatten_rec_0<E>(mut text: &str, mut text_offset: usize, events: &mut Peekable<E>) -> Vec<Inline>
+    where
+        E: Iterator<Item = FormattingEvent>,
+    {
+        // We're going to basically fold the text up. Given text and events:
+        //
+        //         /--em---\
+        // "hello, world and all"
+        //
+        // We'll turn "hello, " into a plain text span, and then for the em span we'll recurse down, with "world and"
+        // as the string.
+
+        let mut inlines = Vec::new();
+
+        while let Some(peeked_event) = events.peek() {
+            let peeked_event_local_offset = peeked_event.start_pos - text_offset;
+            if peeked_event_local_offset > 0 {
+                // Prefix plain text
+                let (plain, tail) = text.split_at(peeked_event_local_offset);
+                text = tail;
+                text_offset += plain.len();
+                inlines.push(Inline::Text(Text {
+                    variant: TextVariant::Plain,
+                    value: plain.to_string(),
+                }));
+            } else if peeked_event_local_offset >= text.len() {
+                // Events are past this text's range, so pass back up to the caller
+                return inlines;
+            } else {
+                // advance the iterator to discard this event
+                let event = events.next().unwrap();
+                let (within_span, tail) = text.split_at(event.length);
+                text = tail;
+                let inline = match event.formatting {
+                    FormattingType::Span(variant) => Inline::Span(Span {
+                        variant,
+                        children: Self::unflatten_rec_0(within_span, text_offset, events),
+                    }),
+                    FormattingType::Atomic(AtomicFormatting::StandardLink(link)) => {
+                        Inline::Link(Link::Standard(StandardLink {
+                            display: Self::unflatten_rec_0(
+                                within_span,
+                                text_offset + peeked_event_local_offset,
+                                events,
+                            ),
+                            link,
+                        }))
+                    }
+                    FormattingType::Atomic(AtomicFormatting::AutoLink(style)) => {
+                        Inline::Link(Link::Autolink(Autolink {
+                            url: within_span.to_string(),
+                            style,
+                        }))
+                    }
+                    FormattingType::Atomic(AtomicFormatting::Image(link)) => Inline::Image(Image {
+                        alt: within_span.to_string(),
+                        link,
+                    }),
+                    FormattingType::Atomic(AtomicFormatting::Footnote) => Inline::Footnote(FootnoteId {
+                        id: within_span.to_string(),
+                    }),
+                    FormattingType::Atomic(AtomicFormatting::Text(variant)) => Inline::Text(Text {
+                        variant,
+                        value: within_span.to_string(),
+                    }),
+                };
+                text_offset += within_span.len();
+                inlines.push(inline);
+            }
+        }
+
+        // The remaining text is plain
+        inlines.push(Inline::Text(Text {
+            variant: TextVariant::Plain,
+            value: text.to_string(),
+        }));
+
+        inlines
     }
 
     /// Replaces a range of text using original coordinates.
@@ -192,11 +280,11 @@ impl FlattenedText {
 }
 
 /// Recursively flattens inlines, building up the text and formatting events.
-fn flatten_inlines_recursive(
+fn flatten_inlines(
     inlines: impl IntoIterator<Item = Inline>,
     text: &mut String,
-    formatting_events: &mut Vec<FormattingEvent>,
-) -> Result<(), FlattenError> {
+) -> Result<Vec<FormattingEvent>, FlattenError> {
+    let mut formatting_events = Vec::new();
     for inline in inlines {
         match inline {
             Inline::Text(Text {
@@ -220,19 +308,34 @@ fn flatten_inlines_recursive(
             Inline::Span(span) => {
                 let start_pos = text.len();
 
-                // Recursively process the span's children
-                flatten_inlines_recursive(span.children, text, formatting_events)?;
-
+                // Recursively process the span's children, and get the new length
+                let mut child_events = flatten_inlines(span.children, text)?;
                 let length = text.len() - start_pos;
-                if length > 0 {
-                    formatting_events.push(FormattingEvent {
-                        start_pos,
-                        length,
-                        formatting: FormattingType::Span(span.variant),
-                    });
-                }
+
+                // append the events
+                formatting_events.push(FormattingEvent {
+                    start_pos,
+                    length,
+                    formatting: FormattingType::Span(span.variant),
+                });
+                formatting_events.append(&mut child_events)
             }
-            other @ (Inline::Link(_) | Inline::Image(_) | Inline::Footnote(_)) => {
+            Inline::Link(Link::Standard(link)) => {
+                let start_pos = text.len();
+
+                // Recursively process the span's children, and get the new length
+                let mut child_events = flatten_inlines(link.display, text)?;
+                let length = text.len() - start_pos;
+
+                // append the events
+                formatting_events.push(FormattingEvent {
+                    start_pos,
+                    length,
+                    formatting: FormattingType::Atomic(AtomicFormatting::StandardLink(link.link)),
+                });
+                formatting_events.append(&mut child_events)
+            }
+            other @ (Inline::Link(Link::Autolink(_)) | Inline::Image(_) | Inline::Footnote(_)) => {
                 // We can't do a regex replace that spans into, within, or out of these. (Doing so would be confusing,
                 // since we'd just be doing it on the display text; and the result could be empty, if the replacement
                 // range starts outside this inline). Rather than describing a complex situation to the user, we'll just
@@ -266,7 +369,7 @@ fn flatten_inlines_recursive(
         }
     }
 
-    Ok(())
+    Ok(formatting_events)
 }
 
 /// Recursively reconstructs inline elements from flattened text and formatting events.
@@ -276,8 +379,6 @@ fn unflatten_recursive(
     start: usize,
     end: usize,
 ) -> Result<Vec<Inline>, RegexReplaceError> {
-    use crate::md_elem::tree::elem::Span;
-
     let mut result = Vec::new();
     let mut pos = start;
 
@@ -442,12 +543,12 @@ mod tests {
                     FormattingEvent {
                         start_pos: 0,
                         length: 4,
-                        formatting: FormattingType::Span(SpanVariant::Strong),
+                        formatting: FormattingType::Span(SpanVariant::Emphasis),
                     },
                     FormattingEvent {
                         start_pos: 0,
                         length: 4,
-                        formatting: FormattingType::Span(SpanVariant::Emphasis),
+                        formatting: FormattingType::Span(SpanVariant::Strong),
                     }
                 ]
             );
@@ -694,12 +795,17 @@ mod tests {
         #[test]
         fn identity_property() {
             let original = inlines![
+            //   ₀123456
                 "before ",
                 em[
+            //       ₀123456789₁123
                     "emphasis with ",
+            //              ₀123456789₁12
                     strong["nested strong"],
+            //       ₀1234
                     " text"
                 ],
+            //   ₀12345
                 " after"
             ];
 
