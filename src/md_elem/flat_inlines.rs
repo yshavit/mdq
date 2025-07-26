@@ -183,10 +183,12 @@ impl FlattenedText {
         }
 
         // The remaining text is plain
-        inlines.push(Inline::Text(Text {
-            variant: TextVariant::Plain,
-            value: text.to_string(),
-        }));
+        if !text.is_empty() {
+            inlines.push(Inline::Text(Text {
+                variant: TextVariant::Plain,
+                value: text.to_string(),
+            }));
+        }
 
         inlines
     }
