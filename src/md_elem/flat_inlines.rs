@@ -58,12 +58,6 @@ pub struct FormattingEvent {
     pub formatting: FormattingType,
 }
 
-/// Error that occurs when trying to flatten inlines that contain non-flattenable content.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct FlattenError {
-    // TODO: Add specific error variants and details
-}
-
 /// Error that occurs during regex replacement operations.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct RegexReplaceError {
@@ -81,19 +75,18 @@ impl FlattenedText {
     /// Creates a flattened representation from a slice of inline elements.
     ///
     /// This extracts all plain text content and creates formatting events that describe
-    /// where spans should be applied. Links, images, and non-plain text variants will
-    /// cause a FlattenError.
-    pub(crate) fn from_inlines(inlines: impl IntoIterator<Item = Inline>) -> Result<Self, FlattenError> {
+    /// where spans should be applied.
+    pub(crate) fn from_inlines(inlines: impl IntoIterator<Item = Inline>) -> Self {
         let mut text = String::new();
 
-        let formatting_events = flatten_inlines(inlines, &mut text)?;
+        let formatting_events = flatten_inlines(inlines, &mut text);
 
-        Ok(FlattenedText {
+        FlattenedText {
             text,
             formatting_events,
             offset: 0,
             last_replacement_end: 0,
-        })
+        }
     }
 
     /// Reconstructs inline elements from the flattened representation.
@@ -311,10 +304,7 @@ impl FlattenedText {
 }
 
 /// Recursively flattens inlines, building up the text and formatting events.
-fn flatten_inlines(
-    inlines: impl IntoIterator<Item = Inline>,
-    text: &mut String,
-) -> Result<Vec<FormattingEvent>, FlattenError> {
+fn flatten_inlines(inlines: impl IntoIterator<Item = Inline>, text: &mut String) -> Vec<FormattingEvent> {
     let mut formatting_events = Vec::new();
     for inline in inlines {
         match inline {
@@ -340,7 +330,7 @@ fn flatten_inlines(
                 let start_pos = text.len();
 
                 // Recursively process the span's children, and get the new length
-                let mut child_events = flatten_inlines(span.children, text)?;
+                let mut child_events = flatten_inlines(span.children, text);
                 let length = text.len() - start_pos;
 
                 // append the events
@@ -355,7 +345,7 @@ fn flatten_inlines(
                 let start_pos = text.len();
 
                 // Recursively process the span's children, and get the new length
-                let mut child_events = flatten_inlines(link.display, text)?;
+                let mut child_events = flatten_inlines(link.display, text);
                 let length = text.len() - start_pos;
 
                 // append the events
@@ -400,7 +390,7 @@ fn flatten_inlines(
         }
     }
 
-    Ok(formatting_events)
+    formatting_events
 }
 
 #[cfg(test)]
@@ -416,7 +406,7 @@ mod tests {
         #[test]
         fn plain_text_only() {
             let inlines = inlines!["hello world"];
-            let result = FlattenedText::from_inlines(inlines).unwrap();
+            let result = FlattenedText::from_inlines(inlines);
 
             assert_eq!(result.text, "hello world");
             assert_eq!(result.formatting_events, vec![]);
@@ -425,7 +415,7 @@ mod tests {
         #[test]
         fn simple_emphasis() {
             let inlines = inlines!["before ", em["emphasized"], " after"];
-            let result = FlattenedText::from_inlines(inlines).unwrap();
+            let result = FlattenedText::from_inlines(inlines);
 
             assert_eq!(result.text, "before emphasized after");
             assert_eq!(
@@ -442,7 +432,7 @@ mod tests {
         fn nested_formatting() {
             // _**text**_
             let inlines = inlines![em[strong["text"]]];
-            let result = FlattenedText::from_inlines(inlines).unwrap();
+            let result = FlattenedText::from_inlines(inlines);
 
             assert_eq!(result.text, "text");
             assert_eq!(
@@ -465,7 +455,7 @@ mod tests {
         #[test]
         fn link() {
             let inlines = inlines!["before ", link["link text"]("https://example.com"), " after"];
-            let result = FlattenedText::from_inlines(inlines).unwrap();
+            let result = FlattenedText::from_inlines(inlines);
 
             assert_eq!(result.text, "before link text after");
             assert_eq!(
@@ -485,7 +475,7 @@ mod tests {
         #[test]
         fn link_with_no_display_text() {
             let inlines = inlines!["before ", link[""]("https://example.com"), " after"];
-            let result = FlattenedText::from_inlines(inlines).unwrap();
+            let result = FlattenedText::from_inlines(inlines);
 
             //                       ₀123456789₁12
             assert_eq!(result.text, "before  after");
@@ -506,7 +496,7 @@ mod tests {
         #[test]
         fn footnote() {
             let inlines = inlines![footnote["1"]];
-            let result = FlattenedText::from_inlines(inlines).unwrap();
+            let result = FlattenedText::from_inlines(inlines);
             assert_eq!(result.text, "1");
             assert_eq!(
                 result.formatting_events,
@@ -717,7 +707,7 @@ mod tests {
                 " after"
             ];
 
-            let flattened = FlattenedText::from_inlines(original.clone()).unwrap();
+            let flattened = FlattenedText::from_inlines(original.clone());
             let reconstructed = flattened.unflatten().unwrap();
 
             assert_eq!(original, reconstructed);

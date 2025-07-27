@@ -1,11 +1,5 @@
-use crate::md_elem::flat_inlines::{FlattenError, FlattenedText, FormattingType, RegexReplaceError};
+use crate::md_elem::flat_inlines::{FlattenedText, FormattingType, RegexReplaceError};
 use crate::md_elem::tree::elem::Inline;
-
-impl From<FlattenError> for RegexReplaceError {
-    fn from(_: FlattenError) -> Self {
-        RegexReplaceError {}
-    }
-}
 
 /// Applies regex search and replace to a vector of inline elements.
 ///
@@ -18,7 +12,7 @@ pub(crate) fn regex_replace_inlines(
     replacement: &str,
 ) -> Result<Vec<Inline>, RegexReplaceError> {
     // 1. Flatten the inlines
-    let mut flattened = FlattenedText::from_inlines(inlines)?;
+    let mut flattened = FlattenedText::from_inlines(inlines);
 
     // 2. Find all regex matches and collect match info to avoid borrowing issues
     let matches: Vec<_> = pattern
@@ -146,7 +140,7 @@ mod tests {
         let inlines = inlines!["before ", link["link text"]("https://example.com"), " after"];
 
         // Debug what the flattened representation looks like
-        let flattened = FlattenedText::from_inlines(inlines.clone()).unwrap();
+        let flattened = FlattenedText::from_inlines(inlines.clone());
         println!("Text: {:?}", flattened.text);
         println!("Events: {:?}", flattened.formatting_events);
 
