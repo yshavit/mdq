@@ -189,13 +189,6 @@ impl FlattenedText {
         inlines
     }
 
-    fn events_at(&self, range: Range<usize>) -> impl Iterator<Item = &FormattingEvent> {
-        self.formatting_events.iter().filter(move |event| {
-            let event_end_pos = event.start_pos + event.length;
-            event.start_pos < range.end && event_end_pos >= range.start
-        })
-    }
-
     /// Replaces a range of text using original coordinates.
     ///
     /// The range must be non-overlapping and in increasing order relative to previous
@@ -220,19 +213,29 @@ impl FlattenedText {
         }
 
         // Check that we don't cross any atomic events.
-        // TODO need to document this
-        let mut relevant_atomic_events = self
-            .events_at(original_range.clone())
-            .filter(|e| matches!(e.formatting, FormattingType::Atomic(_)));
+        // First, find all atomic events that touch this range.
+        let mut relevant_atomic_events = self.formatting_events.iter().filter(|event| {
+            let event_end_pos = event.start_pos + event.length;
+            let event_pos_overlap = event.start_pos < original_range.end && event_end_pos >= original_range.start;
+            event_pos_overlap && matches!(event.formatting, FormattingType::Atomic(_))
+        });
         let atomicity_violation = match relevant_atomic_events.next() {
-            None => false,
+            None => {
+                // There are no atomic events, so no atomicity violation.
+                false
+            }
             Some(first_atomic_event) => {
+                // The event overlaps with the replacement range in some way, so make sure that:
+                // (a) the replacement range doesn't start before the atomic event
+                // (b) the replacement range doesn't end after the atomic event
+                // (c) there aren't any other atomic events (since the replacement range would have started before them)
                 let atomic_event_end_pos = first_atomic_event.start_pos + first_atomic_event.length;
-                if first_atomic_event.start_pos + 1 >= original_range.start {
-                    true
-                } else if atomic_event_end_pos + 1 < original_range.end {
-                    true
+                if original_range.start < first_atomic_event.start_pos {
+                    true // case (a)
+                } else if original_range.end > atomic_event_end_pos {
+                    true // case(b)
                 } else {
+                    // case (c)
                     relevant_atomic_events.any(|e| matches!(e.formatting, FormattingType::Atomic(_)))
                 }
             }
@@ -870,6 +873,28 @@ mod tests {
         }
 
         #[test]
+        fn replacement_lengthens_string_from_zero_length_slice() {
+            let mut flattened = FlattenedText {
+                text: "one two three".to_string(),
+                formatting_events: vec![FormattingEvent {
+                    start_pos: 4,
+                    length: 3,
+                    formatting: FormattingType::Span(SpanVariant::Emphasis),
+                }],
+                offset: 0,
+                last_replacement_end: 0,
+            };
+
+            // Replace "one" with "once" (3 chars -> 4 chars = +1)
+            flattened.replace_range(0..0, "!").unwrap();
+
+            assert_eq!(flattened.text, "!one two three");
+            assert_eq!(flattened.offset, 1);
+            // Event at position 4 should shift by +1
+            assert_eq!(flattened.formatting_events[0].start_pos, 5);
+        }
+
+        #[test]
         fn replacement_same_length() {
             let mut flattened = FlattenedText {
                 //     ₀123456789₁12
@@ -1250,6 +1275,107 @@ mod tests {
             let result = flattened.replace_range(7..17, "_");
             assert_eq!(result, Err(RangeReplacementError::AtomicityViolation));
             assert_eq!(flattened.text, "link text image alt");
+        }
+
+        /// Checks the atomic spans restrictions, specifically focusing on fence post conditions.
+        mod atomicity_fencepost_checks {
+            use super::*;
+            use crate::md_elem::elem::{LinkDefinition, LinkReference};
+
+            #[test]
+            fn goes_until_right_before() {
+                let result = test_data(Tc {
+                    //    "₀1234567"
+                    text: "a LINK b",
+                    atomic_start: 2,
+                    atomic_len: 4,
+                })
+                .replace_range(0..2, "");
+                assert_eq!(result, Ok(()))
+            }
+
+            #[test]
+            fn goes_until_right_into() {
+                let result = test_data(Tc {
+                    //    "₀1234567"
+                    text: "a LINK b",
+                    atomic_start: 2,
+                    atomic_len: 4,
+                })
+                .replace_range(0..3, "");
+                assert_eq!(result, Err(RangeReplacementError::AtomicityViolation))
+            }
+
+            #[test]
+            fn starts_right_before_goes_to_mid() {
+                let result = test_data(Tc {
+                    //    "₀1234567"
+                    text: "a LINK b",
+                    atomic_start: 2,
+                    atomic_len: 4,
+                })
+                .replace_range(1..5, "");
+                assert_eq!(result, Err(RangeReplacementError::AtomicityViolation))
+            }
+
+            #[test]
+            fn starts_right_at_goes_to_mid() {
+                let result = test_data(Tc {
+                    //    "₀1234567"
+                    text: "a LINK b",
+                    atomic_start: 2,
+                    atomic_len: 4,
+                })
+                .replace_range(2..5, "");
+                assert_eq!(result, Ok(()))
+            }
+
+            #[test]
+            fn starts_mid_goes_to_end() {
+                let result = test_data(Tc {
+                    //    "₀1234567"
+                    text: "a LINK b",
+                    atomic_start: 2,
+                    atomic_len: 4,
+                })
+                .replace_range(4..6, "");
+                assert_eq!(result, Ok(()))
+            }
+
+            #[test]
+            fn starts_mid_goes_to_right_after() {
+                let result = test_data(Tc {
+                    //    "₀1234567"
+                    text: "a LINK b",
+                    atomic_start: 2,
+                    atomic_len: 4,
+                })
+                .replace_range(4..7, "");
+                assert_eq!(result, Err(RangeReplacementError::AtomicityViolation))
+            }
+
+            struct Tc {
+                text: &'static str,
+                atomic_start: usize,
+                atomic_len: usize,
+            }
+
+            fn test_data(tc: Tc) -> FlattenedText {
+                FlattenedText {
+                    text: tc.text.to_string(),
+                    formatting_events: vec![FormattingEvent {
+                        start_pos: tc.atomic_start,
+                        length: tc.atomic_len,
+                        formatting: FormattingType::Atomic(AtomicFormatting::StandardLink(LinkDefinition {
+                            url: "https://example.com".to_string(),
+                            title: None,
+                            reference: LinkReference::Inline,
+                        })),
+                    }],
+                    offset: 0,
+                    last_replacement_end: 0,
+                }
+            }
         }
     }
 }
