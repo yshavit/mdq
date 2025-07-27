@@ -1,5 +1,29 @@
-use crate::md_elem::flat_inlines::{FlattenedText, FormattingType, RegexReplaceError};
+use crate::md_elem::flat_inlines::{FlattenedText, RangeReplacementError};
 use crate::md_elem::tree::elem::Inline;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
+
+#[derive(Debug)]
+pub(crate) enum RegexReplaceError {
+    InvalidRegex { pattern: String, error: String },
+    ReplacementError(RangeReplacementError),
+}
+
+impl Display for RegexReplaceError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RegexReplaceError::InvalidRegex { pattern, error } => write!(f, "invalid regex {pattern:?}: {error}"),
+            RegexReplaceError::ReplacementError(RangeReplacementError::InternalError(e)) => {
+                write!(f, "internal error: {e}")
+            }
+            RegexReplaceError::ReplacementError(RangeReplacementError::AtomicityViolation) => {
+                write!(f, "illegal replacement")
+            }
+        }
+    }
+}
+
+impl Error for RegexReplaceError {}
 
 /// Applies regex search and replace to a vector of inline elements.
 ///
@@ -11,64 +35,27 @@ pub(crate) fn regex_replace_inlines(
     pattern: &fancy_regex::Regex,
     replacement: &str,
 ) -> Result<Vec<Inline>, RegexReplaceError> {
-    // 1. Flatten the inlines
     let mut flattened = FlattenedText::from_inlines(inlines);
 
-    // 2. Find all regex matches and collect match info to avoid borrowing issues
-    let matches: Vec<_> = pattern
-        .find_iter(&flattened.text)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| RegexReplaceError {})?;
-
-    // Collect match ranges and replacement texts before modifying flattened
-    let mut match_info: Vec<(std::ops::Range<usize>, String)> = Vec::new();
-    for mat in &matches {
-        let match_text = &flattened.text[mat.start()..mat.end()];
-        let replacement_text = pattern.replace(match_text, replacement).into_owned();
-        match_info.push((mat.start()..mat.end(), replacement_text));
-    }
-
-    // 3. Check if any matches cross unsupported formatting boundaries
-    for (range, _) in &match_info {
-        let match_start = range.start;
-        let match_end = range.end;
-
-        for event in &flattened.formatting_events {
-            if matches!(event.formatting, FormattingType::Atomic(_)) {
-                let event_start = event.start_pos;
-                let event_end = event.start_pos + event.length;
-
-                // Check if the match overlaps with this unsupported event
-                if match_start < event_end && match_end > event_start {
-                    return Err(RegexReplaceError {});
-                }
-            }
-        }
-    }
-
-    // 4. If no matches found, return the original inlines unchanged
-    if match_info.is_empty() {
-        return Ok(flattened.unflatten()?);
-    }
-
-    // 5. Apply range replacements to update formatting events
-    for (range, replacement_text) in match_info.into_iter() {
+    let mut replaced_string = String::new();
+    let flattened_text = flattened.text.to_string();
+    for capture in pattern.captures_iter(&flattened_text) {
+        let capture = capture.map_err(|e| RegexReplaceError::InvalidRegex {
+            pattern: pattern.as_str().to_string(),
+            error: format!("{e}"),
+        })?;
+        let capture_match = capture.get(0).expect("unwrap of capture's 0-group");
+        replaced_string.clear();
+        capture.expand(replacement, &mut replaced_string);
+        let capture_range = capture_match.start()..capture_match.end();
         flattened
-            .replace_range(range, &replacement_text)
-            .map_err(|_| RegexReplaceError {})?;
+            .replace_range(capture_range, &replaced_string)
+            .map_err(RegexReplaceError::ReplacementError)?;
     }
-
-    // 6. Remove any remaining unsupported events (these weren't affected by replacements)
-    // TODO -- wait WHAT? this doesn't seem right at all. Let's add a unit test to check that this isn't stripping links
-    //  if it doesn't need to.
-    // flattened
-    //     .formatting_events
-    //     .retain(|event| !matches!(event.formatting, FormattingType::Unsupported));
-    // TODO Okay, we need this in order to have unflatten work. But unflatten should just work for those!
-    //  The Unsupported approach is not good enough.
 
     // 7. Reconstruct the inlines
-    flattened.unflatten()
+    let unflattened = flattened.unflatten().map_err(RegexReplaceError::ReplacementError)?;
+    Ok(unflattened)
 }
 
 #[cfg(test)]
@@ -146,13 +133,12 @@ mod tests {
 
         // This should succeed because the regex doesn't cross the link boundary
         let pattern = fancy_regex::Regex::new(r"before").unwrap();
-        let result = regex_replace_inlines(inlines.clone(), &pattern, "pre");
+        let result = regex_replace_inlines(inlines.clone(), &pattern, "pre").unwrap();
         println!("Result: {:?}", result);
         assert_eq!(
-            Ok(inlines!["pre ", link["link text"]("https://example.com"), " after",]),
+            inlines!["pre ", link["link text"]("https://example.com"), " after",],
             result,
         );
-        assert!(result.is_ok());
 
         // This should fail because the regex crosses into the link
         let pattern = fancy_regex::Regex::new(r"ore link").unwrap();

@@ -58,12 +58,6 @@ pub struct FormattingEvent {
     pub formatting: FormattingType,
 }
 
-/// Error that occurs during regex replacement operations.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct RegexReplaceError {
-    // TODO: Add specific error variants and details
-}
-
 /// Error that occurs during range replacement operations.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum RangeReplacementError {
@@ -94,12 +88,12 @@ impl FlattenedText {
     /// This applies the formatting events to the text to rebuild the original
     /// tree structure. Events marked as `FormattingType::Unsupported` will cause
     /// a reconstruction error since we cannot recreate the original atomic elements.
-    pub(crate) fn unflatten(self) -> Result<Vec<Inline>, RegexReplaceError> {
+    pub(crate) fn unflatten(self) -> Result<Vec<Inline>, RangeReplacementError> {
         // unflatten_recursive(&self.text, &self.formatting_events, 0, self.text.len())
         let mut events = self.formatting_events.into_iter().peekable();
         let inlines = Self::unflatten_rec_0(&self.text, 0, &mut events);
         if events.peek().is_some() {
-            Err(RegexReplaceError {}) // TODO message
+            Err(RangeReplacementError::InternalError("some events failed to unflatten"))
         } else {
             Ok(inlines)
         }
