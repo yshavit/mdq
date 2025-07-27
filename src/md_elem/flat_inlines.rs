@@ -3,6 +3,7 @@ use crate::md_elem::tree::elem::{Autolink, AutolinkStyle, Image, Link, StandardL
 use crate::md_elem::tree::elem::{FootnoteId, Inline, LinkDefinition, SpanVariant, Text, TextVariant};
 use crate::output::{inlines_to_plain_string, FootnoteToString, InlineToStringOpts};
 use std::iter::Peekable;
+use std::ops::Range;
 
 /// Atomic formatting types that cannot be crossed by regex operations.
 #[derive(Debug, Clone, PartialEq)]
@@ -111,7 +112,7 @@ impl FlattenedText {
         }
     }
 
-    pub fn unflatten_rec_0<E>(mut text: &str, mut text_offset: usize, events: &mut Peekable<E>) -> Vec<Inline>
+    pub(crate) fn unflatten_rec_0<E>(mut text: &str, mut text_offset: usize, events: &mut Peekable<E>) -> Vec<Inline>
     where
         E: Iterator<Item = FormattingEvent>,
     {
@@ -188,13 +189,20 @@ impl FlattenedText {
         inlines
     }
 
+    fn events_at(&self, range: Range<usize>) -> impl Iterator<Item = &FormattingEvent> {
+        self.formatting_events.iter().filter(move |event| {
+            let event_end_pos = event.start_pos + event.length;
+            event.start_pos < range.end && event_end_pos >= range.start
+        })
+    }
+
     /// Replaces a range of text using original coordinates.
     ///
     /// The range must be non-overlapping and in increasing order relative to previous
     /// calls to this method. This updates both the text and adjusts formatting events.
     pub(crate) fn replace_range(
         &mut self,
-        original_range: std::ops::Range<usize>,
+        original_range: Range<usize>,
         replacement: &str,
     ) -> Result<(), RangeReplacementError> {
         // Validate that ranges are non-overlapping and in increasing order
@@ -209,6 +217,29 @@ impl FlattenedText {
         // Validate range is within bounds and not going backwards
         if current_end > self.text.len() || current_start > self.text.len() {
             return Err(RangeReplacementError::InternalError("replacement out of range"));
+        }
+
+        // Check that we don't cross any atomic events.
+        // TODO need to document this
+        let mut relevant_atomic_events = self
+            .events_at(original_range.clone())
+            .filter(|e| matches!(e.formatting, FormattingType::Atomic(_)));
+        let atomicity_violation = match relevant_atomic_events.next() {
+            None => false,
+            Some(first_atomic_event) => {
+                let atomic_event_end_pos = first_atomic_event.start_pos + first_atomic_event.length;
+                if first_atomic_event.start_pos + 1 >= original_range.start {
+                    true
+                } else if atomic_event_end_pos + 1 < original_range.end {
+                    true
+                } else {
+                    relevant_atomic_events.any(|e| matches!(e.formatting, FormattingType::Atomic(_)))
+                }
+            }
+        };
+        drop(relevant_atomic_events);
+        if atomicity_violation {
+            return Err(RangeReplacementError::AtomicityViolation);
         }
 
         // Replace the text
@@ -1128,6 +1159,7 @@ mod tests {
         #[test]
         fn replacement_into_atomic_span() {
             let mut flattened = FlattenedText {
+                //     ₀123456789₁123456789₂1
                 text: "before link text after".to_string(),
                 formatting_events: vec![
                     FormattingEvent {
@@ -1152,7 +1184,7 @@ mod tests {
             // Replace "ore lin" (positions 3..10) which crosses from normal span into atomic span
             let result = flattened.replace_range(3..10, "@");
             assert_eq!(result, Err(RangeReplacementError::AtomicityViolation));
-            assert_eq!(flattened.text, "link text image alt");
+            assert_eq!(flattened.text, "before link text after");
         }
 
         #[test]
@@ -1182,7 +1214,7 @@ mod tests {
             // Replace "xt af" (positions 13..18) which crosses from atomic span into normal span
             let result = flattened.replace_range(13..18, "@");
             assert_eq!(result, Err(RangeReplacementError::AtomicityViolation));
-            assert_eq!(flattened.text, "link text image alt");
+            assert_eq!(flattened.text, "before link text after");
         }
 
         #[test]
