@@ -901,9 +901,6 @@ mod tests {
             assert_eq!(flattened.formatting_events[0].start_pos, 4);
         }
 
-        // TODO: need to test 0-length formatting, I think? Like "__". Or maybe those can't happen. I should check one
-        //  way or another.
-
         #[test]
         fn replacement_of_full_formatted_span_with_equal_length() {
             let mut flattened = FlattenedText {
