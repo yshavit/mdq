@@ -150,14 +150,9 @@ impl FlattenedText {
                         children: Self::unflatten_rec_0(within_span, text_offset, events),
                     }),
                     FormattingType::Atomic(AtomicFormatting::StandardLink(link)) => {
-                        Inline::Link(Link::Standard(StandardLink {
-                            display: Self::unflatten_rec_0(
-                                within_span,
-                                text_offset + peeked_event_local_offset,
-                                events,
-                            ),
-                            link,
-                        }))
+                        let display =
+                            Self::unflatten_rec_0(within_span, text_offset + peeked_event_local_offset, events);
+                        Inline::Link(Link::Standard(StandardLink { display, link }))
                     }
                     FormattingType::Atomic(AtomicFormatting::AutoLink(style)) => {
                         Inline::Link(Link::Autolink(Autolink {
@@ -372,129 +367,6 @@ fn flatten_inlines(
     }
 
     Ok(formatting_events)
-}
-
-/// Recursively reconstructs inline elements from flattened text and formatting events.
-fn unflatten_recursive(
-    text: &str,
-    events: &[FormattingEvent],
-    start: usize,
-    end: usize,
-) -> Result<Vec<Inline>, RegexReplaceError> {
-    let mut result = Vec::new();
-    let mut pos = start;
-
-    // Find events that start at our current position and fit within our range
-    let mut applicable_events: Vec<_> = events
-        .iter()
-        .filter(|event| event.start_pos >= start && event.start_pos < end && event.start_pos + event.length <= end)
-        .collect();
-
-    // Sort by start position, then by length (longer spans first for proper nesting)
-    applicable_events.sort_by_key(|event| (event.start_pos, std::cmp::Reverse(event.length)));
-
-    let mut processed_ranges = Vec::new();
-
-    for event in applicable_events {
-        let event_start = event.start_pos;
-        let event_end = event.start_pos + event.length;
-
-        // Skip if this range has already been processed by a parent span
-        if processed_ranges
-            .iter()
-            .any(|(start, end)| event_start >= *start && event_end <= *end)
-        {
-            continue;
-        }
-
-        // Add any plain text before this event
-        if pos < event_start {
-            let plain_text = &text[pos..event_start];
-            if !plain_text.is_empty() {
-                result.push(Inline::Text(Text {
-                    variant: TextVariant::Plain,
-                    value: plain_text.to_string(),
-                }));
-            }
-        }
-
-        // Create the element for this event
-        match event.formatting {
-            FormattingType::Span(span_variant) => {
-                // Find child events that are completely contained within this span
-                let child_events: Vec<_> = events
-                    .iter()
-                    .filter(|child| {
-                        child.start_pos >= event_start && child.start_pos + child.length <= event_end && child != &event
-                        // Don't include self
-                    })
-                    .cloned()
-                    .collect();
-
-                // Recursively process the content inside this span
-                let children = unflatten_recursive(text, &child_events, event_start, event_end)?;
-                result.push(Inline::Span(Span {
-                    variant: span_variant,
-                    children,
-                }));
-
-                processed_ranges.push((event_start, event_end));
-            }
-            FormattingType::Atomic(ref atomic_formatting) => {
-                // For atomic formatting, we need to reconstruct the original inline element
-                // However, we've lost some information during flattening, so we need to
-                // reconstruct what we can from the atomic formatting and the text
-                let element_text = &text[event_start..event_end];
-
-                let inline_element = match atomic_formatting {
-                    AtomicFormatting::StandardLink(link_def) => {
-                        // We can't fully reconstruct the display text structure, so we use plain text
-                        let display_inlines = vec![Inline::Text(Text {
-                            variant: TextVariant::Plain,
-                            value: element_text.to_string(),
-                        })];
-                        Inline::Link(Link::Standard(StandardLink {
-                            display: display_inlines,
-                            link: link_def.clone(),
-                        }))
-                    }
-                    AtomicFormatting::AutoLink(style) => Inline::Link(Link::Autolink(Autolink {
-                        url: element_text.to_string(),
-                        style: *style,
-                    })),
-                    AtomicFormatting::Image(link_def) => Inline::Image(Image {
-                        alt: element_text.to_string(),
-                        link: link_def.clone(),
-                    }),
-                    AtomicFormatting::Footnote => Inline::Footnote(FootnoteId {
-                        id: element_text.to_string(),
-                    }),
-                    AtomicFormatting::Text(text_variant) => Inline::Text(Text {
-                        variant: *text_variant,
-                        value: element_text.to_string(),
-                    }),
-                };
-
-                result.push(inline_element);
-                processed_ranges.push((event_start, event_end));
-            }
-        }
-
-        pos = event_end;
-    }
-
-    // Add any remaining plain text
-    if pos < end {
-        let plain_text = &text[pos..end];
-        if !plain_text.is_empty() {
-            result.push(Inline::Text(Text {
-                variant: TextVariant::Plain,
-                value: plain_text.to_string(),
-            }));
-        }
-    }
-
-    Ok(result)
 }
 
 #[cfg(test)]
@@ -747,7 +619,7 @@ mod tests {
 
             // The unflatten function ignores atomic elements and just returns plain text
             let result = flattened.unflatten().unwrap();
-            assert_eq!(result, inlines!["before ", link[""]("https://example.com"), " after"]);
+            assert_eq!(result, inlines!["before ", link[]("https://example.com"), " after"]);
         }
 
         #[test]
