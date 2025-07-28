@@ -60,7 +60,7 @@ pub struct FormattingEvent {
 
 /// Error that occurs during range replacement operations.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum RangeReplacementError {
+pub(crate) enum RangeReplacementError {
     InternalError(&'static str),
     AtomicityViolation,
 }
@@ -89,7 +89,7 @@ impl FlattenedText {
     /// tree structure. Events marked as `FormattingType::Unsupported` will cause
     /// a reconstruction error since we cannot recreate the original atomic elements.
     pub(crate) fn unflatten(self) -> Result<Vec<Inline>, RangeReplacementError> {
-        // unflatten_recursive(&self.text, &self.formatting_events, 0, self.text.len())
+        // TODO this should only return the Vec, not a Result. If there are trailing events, that should be a panic.
         let mut events = self.formatting_events.into_iter().peekable();
         let inlines = Self::unflatten_rec_0(&self.text, 0, &mut events);
         if events.peek().is_some() {
@@ -99,7 +99,7 @@ impl FlattenedText {
         }
     }
 
-    pub(crate) fn unflatten_rec_0<E>(mut text: &str, mut text_offset: usize, events: &mut Peekable<E>) -> Vec<Inline>
+    fn unflatten_rec_0<E>(mut text: &str, mut text_offset: usize, events: &mut Peekable<E>) -> Vec<Inline>
     where
         E: Iterator<Item = FormattingEvent>,
     {
@@ -178,8 +178,8 @@ impl FlattenedText {
 
     /// Replaces a range of text using original coordinates.
     ///
-    /// The range must be non-overlapping and in increasing order relative to previous
-    /// calls to this method. This updates both the text and adjusts formatting events.
+    /// The range must be non-overlapping and in increasing order relative to previous calls to this method. This
+    /// updates both the text and adjusts formatting events.
     pub(crate) fn replace_range(
         &mut self,
         original_range: Range<usize>,

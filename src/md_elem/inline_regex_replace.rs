@@ -3,7 +3,7 @@ use crate::md_elem::tree::elem::Inline;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum RegexReplaceError {
     InvalidRegex { pattern: String, error: String },
     ReplacementError(RangeReplacementError),
@@ -17,13 +17,19 @@ impl Display for RegexReplaceError {
                 write!(f, "internal error: {e}")
             }
             RegexReplaceError::ReplacementError(RangeReplacementError::AtomicityViolation) => {
-                write!(f, "illegal replacement")
+                write!(f, "replacement crosses atomic boundary")
             }
         }
     }
 }
 
 impl Error for RegexReplaceError {}
+
+#[derive(Debug)]
+pub(crate) struct InlineReplacements {
+    pub(crate) inlines: Vec<Inline>,
+    pub(crate) matched_any: bool,
+}
 
 /// Applies regex search and replace to a vector of inline elements.
 ///
@@ -34,12 +40,16 @@ pub(crate) fn regex_replace_inlines(
     inlines: impl IntoIterator<Item = Inline>,
     pattern: &fancy_regex::Regex,
     replacement: &str,
-) -> Result<Vec<Inline>, RegexReplaceError> {
+) -> Result<InlineReplacements, RegexReplaceError> {
+    // TODO should I have this take an owned Vec<Inline>? If I do, then if there are no matches I can just return the
+    //  original inlines, and thus save on the unflatten step.
     let mut flattened = FlattenedText::from_inlines(inlines);
 
     let mut replaced_string = String::new();
     let flattened_text = flattened.text.to_string();
+    let mut matched_any = false;
     for capture in pattern.captures_iter(&flattened_text) {
+        matched_any = true;
         let capture = capture.map_err(|e| RegexReplaceError::InvalidRegex {
             pattern: pattern.as_str().to_string(),
             error: format!("{e}"),
@@ -55,7 +65,10 @@ pub(crate) fn regex_replace_inlines(
 
     // 7. Reconstruct the inlines
     let unflattened = flattened.unflatten().map_err(RegexReplaceError::ReplacementError)?;
-    Ok(unflattened)
+    Ok(InlineReplacements {
+        matched_any,
+        inlines: unflattened,
+    })
 }
 
 #[cfg(test)]
@@ -70,7 +83,18 @@ mod tests {
         let pattern = fancy_regex::Regex::new(r"world").unwrap();
         let result = regex_replace_inlines(inlines, &pattern, "rust").unwrap();
 
-        assert_eq!(result, inlines!["hello rust"]);
+        assert_eq!(result.inlines, inlines!["hello rust"]);
+        assert!(result.matched_any);
+    }
+
+    #[test]
+    fn simple_replacement_to_same() {
+        let inlines = inlines!["hello world"];
+        let pattern = fancy_regex::Regex::new(r"world").unwrap();
+        let result = regex_replace_inlines(inlines, &pattern, "world").unwrap();
+
+        assert_eq!(result.inlines, inlines!["hello world"]); // same as original
+        assert!(result.matched_any);
     }
 
     #[test]
@@ -79,7 +103,8 @@ mod tests {
         let pattern = fancy_regex::Regex::new(r"foo").unwrap();
         let result = regex_replace_inlines(inlines.clone(), &pattern, "bar").unwrap();
 
-        assert_eq!(result, inlines);
+        assert_eq!(result.inlines, inlines);
+        assert!(!result.matched_any);
     }
 
     #[test]
@@ -89,7 +114,7 @@ mod tests {
         let result = regex_replace_inlines(inlines, &pattern, "replaced").unwrap();
 
         let expected = inlines!["before ", em["replaced"], " after"];
-        assert_eq!(result, expected);
+        assert_eq!(result.inlines, expected);
     }
 
     #[test]
@@ -101,7 +126,7 @@ mod tests {
 
         // When replacement spans formatting boundaries, formatting should be removed
         let expected = inlines!["befooter"];
-        assert_eq!(result, expected);
+        assert_eq!(result.inlines, expected);
     }
 
     #[test]
@@ -110,7 +135,7 @@ mod tests {
         let pattern = fancy_regex::Regex::new(r"(\w+) (\w+)").unwrap();
         let result = regex_replace_inlines(inlines, &pattern, "$2 $1").unwrap();
 
-        assert_eq!(result, inlines!["world hello"]);
+        assert_eq!(result.inlines, inlines!["world hello"]);
     }
 
     #[test]
@@ -119,25 +144,20 @@ mod tests {
         let pattern = fancy_regex::Regex::new(r"foo").unwrap();
         let result = regex_replace_inlines(inlines, &pattern, "qux").unwrap();
 
-        assert_eq!(result, inlines!["qux bar qux baz"]);
+        assert_eq!(result.inlines, inlines!["qux bar qux baz"]);
+        assert!(result.matched_any);
     }
 
     #[test]
     fn unsupported_content_error() {
         let inlines = inlines!["before ", link["link text"]("https://example.com"), " after"];
 
-        // Debug what the flattened representation looks like
-        let flattened = FlattenedText::from_inlines(inlines.clone());
-        println!("Text: {:?}", flattened.text);
-        println!("Events: {:?}", flattened.formatting_events);
-
         // This should succeed because the regex doesn't cross the link boundary
         let pattern = fancy_regex::Regex::new(r"before").unwrap();
         let result = regex_replace_inlines(inlines.clone(), &pattern, "pre").unwrap();
-        println!("Result: {:?}", result);
         assert_eq!(
+            result.inlines,
             inlines!["pre ", link["link text"]("https://example.com"), " after",],
-            result,
         );
 
         // This should fail because the regex crosses into the link

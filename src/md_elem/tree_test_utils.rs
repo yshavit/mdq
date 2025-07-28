@@ -44,7 +44,7 @@ mod test_utils {
     macro_rules! inlines {
         // Empty case
         [] => {
-            Vec::<crate::md_elem::tree::elem::Inline>::new()
+            Vec::<crate::md_elem::elem::Inline>::new()
         };
 
         // String literal (optionally followed by more content)
@@ -52,8 +52,8 @@ mod test_utils {
             {
                 #[allow(unused_mut)]
                 let mut result = vec![
-                    crate::md_elem::tree::elem::Inline::Text(crate::md_elem::tree::elem::Text {
-                        variant: crate::md_elem::tree::elem::TextVariant::Plain,
+                    crate::md_elem::elem::Inline::Text(crate::md_elem::elem::Text {
+                        variant: crate::md_elem::elem::TextVariant::Plain,
                         value: $text.to_string(),
                     })
                 ];
@@ -67,8 +67,8 @@ mod test_utils {
             {
                 #[allow(unused_mut)]
                 let mut result = vec![
-                    crate::md_elem::tree::elem::Inline::Span(crate::md_elem::tree::elem::Span {
-                        variant: crate::md_elem::tree::elem::SpanVariant::Emphasis,
+                    crate::md_elem::elem::Inline::Span(crate::md_elem::elem::Span {
+                        variant: crate::md_elem::elem::SpanVariant::Emphasis,
                         children: inlines![$($content)*],
                     })
                 ];
@@ -82,8 +82,8 @@ mod test_utils {
             {
                 #[allow(unused_mut)]
                 let mut result = vec![
-                    crate::md_elem::tree::elem::Inline::Span(crate::md_elem::tree::elem::Span {
-                        variant: crate::md_elem::tree::elem::SpanVariant::Strong,
+                    crate::md_elem::elem::Inline::Span(crate::md_elem::elem::Span {
+                        variant: crate::md_elem::elem::SpanVariant::Strong,
                         children: inlines![$($content)*],
                     })
                 ];
@@ -97,13 +97,13 @@ mod test_utils {
             {
                 #[allow(unused_mut)]
                 let mut result = vec![
-                    crate::md_elem::tree::elem::Inline::Link(crate::md_elem::tree::elem::Link::Standard(
-                        crate::md_elem::tree::elem::StandardLink {
+                    crate::md_elem::elem::Inline::Link(crate::md_elem::elem::Link::Standard(
+                        crate::md_elem::elem::StandardLink {
                             display: inlines![$($display)*],
-                            link: crate::md_elem::tree::elem::LinkDefinition {
+                            link: crate::md_elem::elem::LinkDefinition {
                                 url: $url.to_string(),
                                 title: None,
-                                reference: crate::md_elem::tree::elem::LinkReference::Inline,
+                                reference: crate::md_elem::elem::LinkReference::Inline,
                             },
                         }
                     ))
@@ -118,12 +118,12 @@ mod test_utils {
             {
                 #[allow(unused_mut)]
                 let mut result = vec![
-                    crate::md_elem::tree::elem::Inline::Image(crate::md_elem::tree::elem::Image{
+                    crate::md_elem::elem::Inline::Image(crate::md_elem::elem::Image{
                         alt: $alt.to_string(),
-                        link: crate::md_elem::tree::elem::LinkDefinition {
+                        link: crate::md_elem::elem::LinkDefinition {
                             url: $url.to_string(),
                             title: None,
-                            reference: crate::md_elem::tree::elem::LinkReference::Inline,
+                            reference: crate::md_elem::elem::LinkReference::Inline,
                         }
                     })
                 ];
@@ -137,7 +137,7 @@ mod test_utils {
             {
                 #[allow(unused_mut)]
                 let mut result = vec![
-                    crate::md_elem::tree::elem::Inline::Footnote(crate::md_elem::tree::elem::FootnoteId{
+                    crate::md_elem::elem::Inline::Footnote(crate::md_elem::elem::FootnoteId{
                         id: $val.to_string(),
                     })
                 ];

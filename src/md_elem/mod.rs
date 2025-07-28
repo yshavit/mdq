@@ -8,7 +8,7 @@ pub use tree::*;
 
 mod concatenate;
 mod flat_inlines;
-mod inline_regex_replace;
+pub(crate) mod inline_regex_replace;
 #[cfg(test)]
 pub(crate) mod tree_test_utils;
 

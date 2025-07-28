@@ -1,4 +1,5 @@
 use crate::md_elem::elem::*;
+use crate::md_elem::inline_regex_replace::{regex_replace_inlines, InlineReplacements, RegexReplaceError};
 use crate::md_elem::*;
 use crate::output::inlines_to_plain_string;
 use crate::select::{MatchReplace, Matcher, SelectError};
@@ -15,6 +16,7 @@ pub(crate) struct StringMatcher {
 pub(crate) enum StringMatchError {
     NotSupported,
     RegexError(Box<fancy_regex::Error>),
+    ReplaceError(RegexReplaceError),
 }
 
 #[must_use]
@@ -49,6 +51,9 @@ impl StringMatchError {
         let message = match self {
             StringMatchError::NotSupported => format!("{selector_name} selector does not support string replace"),
             StringMatchError::RegexError(err) => format!("regex evaluation error in {selector_name} selector: {err}"),
+            StringMatchError::ReplaceError(err) => {
+                format!("regex replacement error in {selector_name} selector: {err}")
+            }
         };
         SelectError::new(message)
     }
@@ -84,6 +89,21 @@ impl StringMatcher {
                 StringMatch::NoMatch(haystack)
             }),
             Err(e) => Err(StringMatchError::RegexError(Box::new(e))),
+        }
+    }
+
+    pub(crate) fn match_replace_inlines(&self, haystack: Vec<Inline>) -> Result<InlineReplacements, StringMatchError> {
+        match &self.replacement {
+            None => {
+                let matched_any = self.matches_inlines(&haystack)?;
+                let inlines = haystack;
+                Ok(InlineReplacements { inlines, matched_any })
+            }
+            Some(replacement) => {
+                let inline_replacements =
+                    regex_replace_inlines(haystack, &self.re, &replacement).map_err(StringMatchError::ReplaceError)?;
+                Ok(inline_replacements)
+            }
         }
     }
 
