@@ -44,7 +44,7 @@ mod test {
     use crate::select::{MatchReplace, Matcher, SelectError};
 
     #[test]
-    fn section_selector_matches_on_title() {
+    fn section_replacement_matches_on_title() {
         use crate::md_elem::MdContext;
         use crate::select::TrySelector;
 
@@ -80,10 +80,7 @@ mod test {
     }
 
     #[test]
-    fn section_selector_misses_on_title() {
-        use crate::md_elem::MdContext;
-        use crate::select::TrySelector;
-
+    fn section_replacement_misses_on_title() {
         let section_matcher = SectionMatcher {
             title: MatchReplace {
                 matcher: Matcher::Text {
@@ -116,10 +113,7 @@ mod test {
     }
 
     #[test]
-    fn section_selector_invalid_on_title() {
-        use crate::md_elem::MdContext;
-        use crate::select::TrySelector;
-
+    fn section_replacement_invalid_on_title() {
         let section_matcher = SectionMatcher {
             title: MatchReplace {
                 matcher: Matcher::Text {
@@ -146,6 +140,72 @@ mod test {
             Err(SelectError::new(
                 "regex replacement error in section selector: replacement crosses atomic boundary"
             ))
+        );
+    }
+
+    #[test]
+    fn section_regex_matches() {
+        let section_matcher = SectionMatcher {
+            title: MatchReplace {
+                matcher: Matcher::Text {
+                    case_sensitive: false,
+                    anchor_start: false,
+                    text: "Great".to_string(),
+                    anchor_end: false,
+                },
+                replacement: None,
+            },
+        };
+
+        let section = Section {
+            depth: 1,
+            title: inlines!["Great title, Great section!"],
+            body: vec![],
+        };
+
+        let section_selector = SectionSelector::from(section_matcher);
+        let replaced = section_selector.try_select(&MdContext::default(), section).unwrap();
+
+        assert_eq!(
+            replaced,
+            Select::Hit(vec![MdElem::Section(Section {
+                depth: 1,
+                title: inlines!["Great title, Great section!"],
+                body: vec![],
+            })]),
+        );
+    }
+
+    #[test]
+    fn section_regex_doesnt_match() {
+        let section_matcher = SectionMatcher {
+            title: MatchReplace {
+                matcher: Matcher::Text {
+                    case_sensitive: false,
+                    anchor_start: false,
+                    text: "Awesome".to_string(),
+                    anchor_end: false,
+                },
+                replacement: None,
+            },
+        };
+
+        let section = Section {
+            depth: 1,
+            title: inlines!["Great title, Great section!"],
+            body: vec![],
+        };
+
+        let section_selector = SectionSelector::from(section_matcher);
+        let replaced = section_selector.try_select(&MdContext::default(), section).unwrap();
+
+        assert_eq!(
+            replaced,
+            Select::Miss(MdElem::Section(Section {
+                depth: 1,
+                title: inlines!["Great title, Great section!"],
+                body: vec![],
+            })),
         );
     }
 }

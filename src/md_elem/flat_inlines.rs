@@ -324,6 +324,9 @@ fn flatten_inlines(inlines: impl IntoIterator<Item = Inline>, text: &mut String)
                 let start_pos = text.len();
 
                 // Recursively process the span's children, and get the new length
+                // TODO if I record text.len() before I recurse, I can just recurse-and-append atomically, meaning
+                //  that I don't even need to create a new Vec and return it; I can just pass in the &mut Vec, as I do
+                //  for the text. That'll be a bit more efficient.
                 let mut child_events = flatten_inlines(span.children, text);
                 let length = text.len() - start_pos;
 

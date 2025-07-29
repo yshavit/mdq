@@ -39,7 +39,7 @@ pub(crate) struct InlineReplacements {
 pub(crate) fn regex_replace_inlines(
     inlines: impl IntoIterator<Item = Inline>,
     pattern: &fancy_regex::Regex,
-    replacement: &str,
+    replacement: &str, // TODO maybe I should have this be an Option<&str>, and if it's None then this becomes just a match (not replace)
 ) -> Result<InlineReplacements, RegexReplaceError> {
     // TODO should I have this take an owned Vec<Inline>? If I do, then if there are no matches I can just return the
     //  original inlines, and thus save on the unflatten step.
