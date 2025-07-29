@@ -49,6 +49,11 @@ mod test_utils {
 
         // String literal (optionally followed by more content)
         [$text:literal $(, $($rest:tt)*)?] => {
+            crate::md_elem::inlines!(text[$text] $(, $($rest)*)?)
+        };
+
+        // Plain text (optionally followed by more content)
+        [text[$text:expr] $(, $($rest:tt)*)?] => {
             {
                 #[allow(unused_mut)]
                 let mut result = vec![
@@ -114,7 +119,7 @@ mod test_utils {
         };
 
         // image (optionally followed by more content)
-        [image[$alt:literal] ($url:literal) $(, $($rest:tt)*)?] => {
+        [image[$alt:expr] ($url:expr) $(, $($rest:tt)*)?] => {
             {
                 #[allow(unused_mut)]
                 let mut result = vec![
@@ -133,7 +138,7 @@ mod test_utils {
         };
 
         // Footnote, like `footnote["^1"]`
-        [footnote[$val:literal] $(, $($rest:tt)*)?] => {
+        [footnote[$val:expr] $(, $($rest:tt)*)?] => {
             {
                 #[allow(unused_mut)]
                 let mut result = vec![

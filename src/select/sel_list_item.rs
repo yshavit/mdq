@@ -88,3 +88,73 @@ impl ListItemType {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::md_elem::elem::{ListItem, Paragraph};
+    use crate::md_elem::{inlines, md_elem};
+    use crate::select::{MatchReplace, Matcher, Regex};
+
+    #[test]
+    fn regex_match_matches() {
+        let original = list("hello, world");
+        let result = li_selector("hello", None)
+            .try_select(&MdContext::empty(), original)
+            .unwrap();
+        assert_eq!(result, Select::Hit(vec![MdElem::List(list("hello, world"))]));
+    }
+
+    #[test]
+    fn regex_match_no_match() {
+        let original = list("hello, world");
+        let result = li_selector("goodbye", None)
+            .try_select(&MdContext::empty(), original)
+            .unwrap();
+        assert_eq!(result, Select::Miss(MdElem::List(list("hello, world"))));
+    }
+
+    #[test]
+    fn regex_replace_matches() {
+        let original = list("hello, world");
+        let result = li_selector("hello", Some("Hi there"))
+            .try_select(&MdContext::empty(), original)
+            .unwrap();
+        assert_eq!(result, Select::Hit(vec![MdElem::List(list("Hi there, world"))]));
+    }
+
+    #[test]
+    fn regex_replace_no_match() {
+        let original = list("hello, world");
+        let result = li_selector("goodbye", Some("Hi there"))
+            .try_select(&MdContext::empty(), original)
+            .unwrap();
+        assert_eq!(result, Select::Miss(MdElem::List(list("hello, world"))));
+    }
+
+    fn list(contents: &str) -> List {
+        List {
+            starting_index: None,
+            items: vec![ListItem {
+                checked: None,
+                item: vec![md_elem!(Paragraph {
+                    body: inlines!(text[contents])
+                })],
+            }],
+        }
+    }
+
+    fn li_selector(pattern: &str, replacement: Option<&str>) -> ListItemSelector {
+        let matcher = ListItemMatcher {
+            ordered: false,
+            task: ListItemTask::None,
+            matcher: MatchReplace {
+                matcher: Matcher::Regex(Regex {
+                    re: fancy_regex::Regex::new(pattern).unwrap(),
+                }),
+                replacement: replacement.map(String::from),
+            },
+        };
+        ListItemSelector::from(matcher)
+    }
+}

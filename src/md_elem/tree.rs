@@ -1442,7 +1442,7 @@ macro_rules! m_node {
 
     // Recursive case: A::B<tail> -> A::B(B<tail>)
     ($head:ident :: $next:ident $(:: $($tail:ident)::*)? $( $( <$last_variant:ident> )? { $($args:tt)* })? ) => {
-        $head::$next( m_node!($next $(:: $($tail)::*)? $( $( <$last_variant> )? { $($args)* })?) )
+        $head::$next( crate::md_elem::m_node!($next $(:: $($tail)::*)? $( $( <$last_variant> )? { $($args)* })?) )
     };
 }
 pub(crate) use m_node;
