@@ -21,7 +21,7 @@ impl TrySelector<Section> for SectionSelector {
         match self.matcher.match_replace_inlines(item.title) {
             Ok(replacements) => {
                 let result = Section {
-                    title: replacements.inlines,
+                    title: replacements.item,
                     depth: item.depth,
                     body: item.body,
                 };

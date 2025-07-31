@@ -46,15 +46,23 @@ impl TrySelector<List> for ListItemSelector {
         // - Otherwise, never match, but return an MdElem::Doc of the list items, each as its own list.
         //   That way, the find_children code in api.rs will recurse back into this method for each of those items, but
         //   as a single-item list for the base case.
-        let List { starting_index, items } = item;
-        match items.as_slice() {
+        let List {
+            starting_index,
+            mut items,
+        } = item;
+        match items.as_mut_slice() {
             [li] => {
-                let matched = self.li_type.matches(&starting_index)
-                    && task_matches(self.checkbox, li.checked)
-                    && self
-                        .string_matcher
-                        .matches_any(&li.item)
-                        .map_err(|e| e.to_select_error("list item"))?;
+                let (matched, items) =
+                    if !(self.li_type.matches(&starting_index) && task_matches(self.checkbox, li.checked)) {
+                        (false, items)
+                    } else {
+                        let mut replacement = self
+                            .string_matcher
+                            .match_replace_any(std::mem::take(&mut li.item))
+                            .map_err(|e| e.to_select_error("list item"))?;
+                        std::mem::swap(&mut replacement.item, &mut li.item);
+                        (replacement.matched_any, items)
+                    };
                 let list = MdElem::List(List { starting_index, items });
                 if matched {
                     Ok(Select::Hit(vec![list]))

@@ -1,10 +1,10 @@
 use crate::md_elem::elem::*;
-use crate::md_elem::inline_regex_replace::{regex_replace_inlines, InlineReplacements, RegexReplaceError};
+use crate::md_elem::inline_regex_replace::{regex_replace_inlines, RegexReplaceError, Replaced};
 use crate::md_elem::*;
 use crate::output::inlines_to_plain_string;
 use crate::select::{MatchReplace, Matcher, SelectError};
 use fancy_regex::Regex;
-use std::borrow::Borrow;
+use std::borrow::{Borrow, Cow};
 
 #[derive(Debug)]
 pub(crate) struct StringMatcher {
@@ -92,12 +92,42 @@ impl StringMatcher {
         }
     }
 
-    pub(crate) fn match_replace_inlines(&self, haystack: Vec<Inline>) -> Result<InlineReplacements, StringMatchError> {
+    pub(crate) fn match_replace_string(&self, haystack: String) -> Result<Replaced<String>, StringMatchError> {
+        let ok = match self.match_replace(haystack)? {
+            StringMatch::NoMatch(orig) => Replaced {
+                item: orig,
+                matched_any: false,
+            },
+            StringMatch::Match(orig, None) => Replaced {
+                item: orig,
+                matched_any: true,
+            },
+            StringMatch::Match(orig, Some((pattern, replace_str))) => {
+                let replaced_str = match pattern.replace_all(&orig, replace_str) {
+                    Cow::Borrowed(_) => orig, // the borrowed value must be the orig, so no need to clone it
+                    Cow::Owned(s) => s,
+                };
+                Replaced {
+                    item: replaced_str,
+                    matched_any: true,
+                }
+            }
+        };
+        Ok(ok)
+    }
+
+    pub(crate) fn match_replace_inlines(
+        &self,
+        haystack: Vec<Inline>,
+    ) -> Result<Replaced<Vec<Inline>>, StringMatchError> {
         match &self.replacement {
             None => {
                 let matched_any = self.matches_inlines(&haystack)?;
                 let inlines = haystack;
-                Ok(InlineReplacements { inlines, matched_any })
+                Ok(Replaced {
+                    item: inlines,
+                    matched_any,
+                })
             }
             Some(replacement) => {
                 let inline_replacements =
@@ -111,6 +141,25 @@ impl StringMatcher {
         self.matches(&inlines_to_plain_string(haystack, Default::default()))
     }
 
+    pub(crate) fn match_replace_any(
+        &self,
+        mut haystack: Vec<MdElem>,
+    ) -> Result<Replaced<Vec<MdElem>>, StringMatchError> {
+        let mut matched_any = false;
+
+        for item in &mut haystack {
+            let blank_elem = MdElem::Doc(Vec::new());
+            let item_to_replace = std::mem::replace(item, blank_elem);
+            let replaced = self.match_replace_node(item_to_replace)?;
+            matched_any |= replaced.matched_any;
+            let _ = std::mem::replace(item, replaced.item);
+        }
+        Ok(Replaced {
+            item: haystack,
+            matched_any,
+        })
+    }
+
     pub(crate) fn matches_any<N: Borrow<MdElem>>(&self, haystacks: &[N]) -> Result<bool, StringMatchError> {
         for node in haystacks {
             if self.matches_node(node.borrow())? {
@@ -120,6 +169,104 @@ impl StringMatcher {
         Ok(false)
     }
 
+    fn match_replace_node(&self, node: MdElem) -> Result<Replaced<MdElem>, StringMatchError> {
+        match node {
+            MdElem::Doc(elems) => {
+                let replaced = self.match_replace_any(elems)?;
+                Ok(Replaced {
+                    item: MdElem::Doc(replaced.item),
+                    matched_any: replaced.matched_any,
+                })
+            }
+            MdElem::BlockQuote(block) => {
+                let replaced = self.match_replace_any(block.body)?;
+                Ok(Replaced {
+                    item: MdElem::BlockQuote(BlockQuote { body: replaced.item }),
+                    matched_any: replaced.matched_any,
+                })
+            }
+            MdElem::List(mut list) => {
+                let mut matched_any = false;
+                for item in &mut list.items {
+                    let contents = std::mem::take(&mut item.item);
+                    let replaced = self.match_replace_any(contents)?;
+                    matched_any |= replaced.matched_any;
+                    item.item = replaced.item;
+                }
+                Ok(Replaced {
+                    item: MdElem::List(list),
+                    matched_any,
+                })
+            }
+            MdElem::Section(section) => {
+                let replaced_title = self.match_replace_inlines(section.title)?;
+                let replaced_body = self.match_replace_any(section.body)?;
+                Ok(Replaced {
+                    item: MdElem::Section(Section {
+                        title: replaced_title.item,
+                        body: replaced_body.item,
+                        depth: section.depth,
+                    }),
+                    matched_any: replaced_title.matched_any || replaced_body.matched_any,
+                })
+            }
+            MdElem::Paragraph(p) => {
+                let replaced = self.match_replace_inlines(p.body)?;
+                Ok(Replaced {
+                    item: MdElem::Paragraph(Paragraph { body: replaced.item }),
+                    matched_any: replaced.matched_any,
+                })
+            }
+            MdElem::Table(mut table) => {
+                let mut matched_any = false;
+
+                for row in &mut table.rows {
+                    for cell in row {
+                        let mut replaced = self.match_replace_inlines(std::mem::take(cell))?;
+                        matched_any |= replaced.matched_any;
+                        std::mem::swap(cell, &mut replaced.item);
+                        // TODO -- optimization: if the replacement is None, we can break out of both loops early
+                    }
+                }
+                Ok(Replaced {
+                    item: MdElem::Table(table),
+                    matched_any,
+                })
+            }
+            MdElem::Inline(inline) => {
+                let mut replaced = self.match_replace_inlines(vec![inline])?;
+                let replaced_inline = replaced
+                    .item
+                    .pop()
+                    .expect("while taking first element from replacement");
+                assert!(
+                    replaced.item.is_empty(),
+                    "unexpected extra element(s) after replacing inlines: {:?}",
+                    replaced.item
+                );
+                Ok(Replaced {
+                    item: MdElem::Inline(replaced_inline),
+                    matched_any: replaced.matched_any,
+                })
+            }
+            MdElem::BlockHtml(html) => {
+                let replaced = self.match_replace_string(html.value)?;
+                Ok(Replaced {
+                    item: MdElem::BlockHtml(BlockHtml { value: replaced.item }),
+                    matched_any: replaced.matched_any,
+                })
+            }
+
+            // Base cases: these don't recurse, so we say the StringMatcher doesn't match them. A Selector still may,
+            // but that's Selector-specific logic, not StringMatcher logic.
+            MdElem::ThematicBreak | MdElem::CodeBlock(_) | MdElem::FrontMatter(_) => Ok(Replaced {
+                item: node,
+                matched_any: false,
+            }),
+        }
+    }
+
+    // TODO remove this and its caller
     fn matches_node(&self, node: &MdElem) -> Result<bool, StringMatchError> {
         match node {
             MdElem::Doc(elems) => self.matches_any(elems),
