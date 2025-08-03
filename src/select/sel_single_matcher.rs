@@ -87,42 +87,96 @@ mod test {
         elem::{BlockHtml, BlockQuote, FrontMatter, FrontMatterVariant, Inline, Paragraph, Text, TextVariant},
         MdContext, MdElem,
     };
-    use crate::select::{MatchReplace, TrySelector};
+    use crate::select::{MatchReplace, Select, TrySelector};
 
     mod block_quote {
         use super::*;
 
         #[test]
-        fn block_quote_selector_match_error() {
-            let block_quote = BlockQuote {
-                body: vec![MdElem::Paragraph(Paragraph {
-                    body: vec![Inline::Text(Text {
-                        variant: TextVariant::Plain,
-                        value: "test content".to_string(),
-                    })],
-                })],
-            };
+        fn block_quote_find_matches() {
+            let block_quote = new_block_quote("test content");
+
+            let block_quote_selector = BlockQuoteSelector::from(BlockQuoteMatcher {
+                text: MatchReplace::build(|b| b.match_regex("test")),
+            });
+
+            let selected = block_quote_selector
+                .try_select(&MdContext::default(), block_quote)
+                .unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Hit(vec![MdElem::BlockQuote(new_block_quote("test content"))])
+            );
+        }
+
+        #[test]
+        fn block_quote_replacement_matches() {
+            let block_quote = new_block_quote("test content");
 
             let block_quote_selector = BlockQuoteSelector::from(BlockQuoteMatcher {
                 text: MatchReplace::build(|b| b.match_regex("test").replacement("replacement")),
             });
 
-            assert_eq!(
-                block_quote_selector.matches(&block_quote),
-                Err(StringMatchError::NotSupported)
-            );
+            let selected = block_quote_selector
+                .try_select(&MdContext::default(), block_quote)
+                .unwrap();
 
             assert_eq!(
-                block_quote_selector
-                    .try_select(&MdContext::default(), block_quote)
-                    .unwrap_err()
-                    .to_string(),
-                "block quote selector does not support string replace"
+                selected,
+                Select::Hit(vec![MdElem::BlockQuote(new_block_quote("replacement content"))])
             );
+        }
+
+        #[test]
+        fn block_quote_find_misses() {
+            let block_quote = new_block_quote("test content");
+
+            let block_quote_selector = BlockQuoteSelector::from(BlockQuoteMatcher {
+                text: MatchReplace::build(|b| b.match_regex("other")),
+            });
+
+            let selected = block_quote_selector
+                .try_select(&MdContext::default(), block_quote)
+                .unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Miss(MdElem::BlockQuote(new_block_quote("test content")))
+            );
+        }
+
+        #[test]
+        fn block_quote_replace_misses() {
+            let block_quote = new_block_quote("test content");
+
+            let block_quote_selector = BlockQuoteSelector::from(BlockQuoteMatcher {
+                text: MatchReplace::build(|b| b.match_regex("other").replacement("replacement")),
+            });
+
+            let selected = block_quote_selector
+                .try_select(&MdContext::default(), block_quote)
+                .unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Miss(MdElem::BlockQuote(new_block_quote("test content")))
+            );
+        }
+
+        fn new_block_quote(content: &str) -> BlockQuote {
+            BlockQuote {
+                body: vec![MdElem::Paragraph(Paragraph {
+                    body: vec![Inline::Text(Text {
+                        variant: TextVariant::Plain,
+                        value: content.to_string(),
+                    })],
+                })],
+            }
         }
     }
 
-    mod paragraph {
+    mod others {
         use super::*;
 
         #[test]
@@ -146,10 +200,6 @@ mod test {
                 "paragraph selector does not support string replace"
             );
         }
-    }
-
-    mod html {
-        use super::*;
 
         #[test]
         fn html_selector_match_error() {
@@ -171,10 +221,6 @@ mod test {
                 "html selector does not support string replace"
             );
         }
-    }
-
-    mod front_matter {
-        use super::*;
 
         #[test]
         fn front_matter_selector_match_error() {
