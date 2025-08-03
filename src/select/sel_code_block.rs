@@ -1,5 +1,6 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::MdContext;
+use crate::select::match_selector::make_select_result;
 use crate::select::string_matcher::StringMatcher;
 use crate::select::{CodeBlockMatcher, Select, TrySelector};
 
@@ -51,12 +52,7 @@ impl TrySelector<CodeBlock> for CodeBlockSelector {
             variant: CodeVariant::Code(selected_code_opts),
             value: content_sel.item,
         };
-        let selection = if item_is_match {
-            Select::Hit(vec![selected_block.into()])
-        } else {
-            Select::Miss(selected_block.into())
-        };
-        Ok(selection)
+        Ok(make_select_result(selected_block, item_is_match))
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::MdContext;
+use crate::select::match_selector::make_select_result;
 use crate::select::string_matcher::StringMatcher;
 use crate::select::{SectionMatcher, Select, TrySelector};
 
@@ -25,12 +26,7 @@ impl TrySelector<Section> for SectionSelector {
                     depth: item.depth,
                     body: item.body,
                 };
-                let result = if replacements.matched_any {
-                    Select::Hit(vec![result.into()])
-                } else {
-                    Select::Miss(result.into())
-                };
-                Ok(result)
+                Ok(make_select_result(result, replacements.matched_any))
             }
             Err(err) => Err(err.to_select_error("section")),
         }

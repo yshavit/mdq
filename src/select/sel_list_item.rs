@@ -1,5 +1,6 @@
 use crate::md_elem::elem::List;
 use crate::md_elem::{MdContext, MdElem};
+use crate::select::match_selector::make_select_result;
 use crate::select::string_matcher::StringMatcher;
 use crate::select::{ListItemMatcher, ListItemTask, Result, Select, TrySelector};
 
@@ -64,11 +65,7 @@ impl TrySelector<List> for ListItemSelector {
                         (replacement.matched_any, items)
                     };
                 let list = MdElem::List(List { starting_index, items });
-                if matched {
-                    Ok(Select::Hit(vec![list]))
-                } else {
-                    Ok(Select::Miss(list))
-                }
+                Ok(make_select_result(list, matched))
             }
             _ => {
                 let mut idx = starting_index;
