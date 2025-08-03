@@ -160,15 +160,6 @@ impl StringMatcher {
         })
     }
 
-    pub(crate) fn matches_any<N: Borrow<MdElem>>(&self, haystacks: &[N]) -> Result<bool, StringMatchError> {
-        for node in haystacks {
-            if self.matches_node(node.borrow())? {
-                return Ok(true);
-            }
-        }
-        Ok(false)
-    }
-
     fn match_replace_node(&self, node: MdElem) -> Result<Replaced<MdElem>, StringMatchError> {
         match node {
             MdElem::Doc(elems) => {
@@ -263,44 +254,6 @@ impl StringMatcher {
                 item: node,
                 matched_any: false,
             }),
-        }
-    }
-
-    // TODO remove this and its caller
-    fn matches_node(&self, node: &MdElem) -> Result<bool, StringMatchError> {
-        match node {
-            MdElem::Doc(elems) => self.matches_any(elems),
-            MdElem::Paragraph(p) => self.matches_inlines(&p.body),
-            MdElem::Table(table) => {
-                for row in &table.rows {
-                    for cell in row {
-                        if self.matches_inlines(cell)? {
-                            return Ok(true);
-                        }
-                    }
-                }
-                Ok(false)
-            }
-            MdElem::List(list) => {
-                for item in &list.items {
-                    if self.matches_any(&item.item)? {
-                        return Ok(true);
-                    }
-                }
-                Ok(false)
-            }
-            MdElem::BlockQuote(block) => self.matches_any(&block.body),
-            MdElem::Section(section) => {
-                if self.matches_inlines(&section.title)? {
-                    return Ok(true);
-                }
-                self.matches_any(&section.body)
-            }
-            MdElem::BlockHtml(html) => self.matches(&html.value),
-            MdElem::Inline(inline) => self.matches_inlines(&[inline]),
-            // Base cases: these don't recurse, so we say the StringMatcher doesn't match them. A Selector still may,
-            // but that's Selector-specific logic, not StringMatcher logic.
-            MdElem::ThematicBreak | MdElem::CodeBlock(_) | MdElem::FrontMatter(_) => Ok(false),
         }
     }
 

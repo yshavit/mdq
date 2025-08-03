@@ -24,3 +24,11 @@ where
         }
     }
 }
+
+pub(crate) fn make_select_result<T: Into<MdElem>>(item: T, matched_any: bool) -> Select {
+    if matched_any {
+        Select::Hit(vec![item.into()])
+    } else {
+        Select::Miss(item.into())
+    }
+}

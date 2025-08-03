@@ -1,23 +1,17 @@
 use crate::md_elem::elem::*;
-use crate::select::match_selector::MatchSelector;
-use crate::select::string_matcher::{StringMatchError, StringMatcher};
-use crate::select::{BlockQuoteMatcher, FrontMatterMatcher, HtmlMatcher, ParagraphMatcher};
+use crate::md_elem::MdContext;
+use crate::select::string_matcher::StringMatcher;
+use crate::select::{
+    match_selector, BlockQuoteMatcher, FrontMatterMatcher, HtmlMatcher, ParagraphMatcher, Result, Select, TrySelector,
+};
 use paste::paste;
 
-macro_rules! single_matcher_adapter {
-    { $name:ident {$matcher_field:ident} $match_fn:ident $tree_struct_field:ident $selector_name:literal } => {
+macro_rules! single_matcher_struct {
+    { $name:ident {$matcher_field:ident} } => {
         paste! {
             #[derive(Debug, PartialEq)]
             pub(crate) struct [<$name Selector>] {
                 matcher: StringMatcher,
-            }
-
-            impl MatchSelector<$name> for [<$name Selector>] {
-                const NAME: &'static str = $selector_name;
-
-                fn matches(&self, matcher: &$name) -> Result<bool, StringMatchError> {
-                    self.matcher.$match_fn(&matcher.$tree_struct_field)
-                }
             }
 
             impl From< [<$name Matcher>] > for [<$name Selector>] {
@@ -29,27 +23,43 @@ macro_rules! single_matcher_adapter {
     };
 }
 
-single_matcher_adapter! { BlockQuote {text} matches_any body "block quote" }
-single_matcher_adapter! { Paragraph {text} matches_inlines body "paragraph" }
+single_matcher_struct! { BlockQuote {text} }
+single_matcher_struct! { Paragraph {text} }
+single_matcher_struct! { Html {html} }
 
-#[derive(Debug, PartialEq)]
-pub(crate) struct HtmlSelector {
-    matcher: StringMatcher,
-}
+impl TrySelector<BlockQuote> for BlockQuoteSelector {
+    fn try_select(&self, _: &MdContext, item: BlockQuote) -> Result<Select> {
+        let replaced = self
+            .matcher
+            .match_replace_any(item.body)
+            .map_err(|e| e.to_select_error("block quote"))?;
 
-impl From<HtmlMatcher> for HtmlSelector {
-    fn from(value: HtmlMatcher) -> Self {
-        Self {
-            matcher: value.html.into(),
-        }
+        let result = BlockQuote { body: replaced.item };
+        Ok(match_selector::make_select_result(result, replaced.matched_any))
     }
 }
 
-impl MatchSelector<BlockHtml> for HtmlSelector {
-    const NAME: &'static str = "html";
+impl TrySelector<Paragraph> for ParagraphSelector {
+    fn try_select(&self, _: &MdContext, item: Paragraph) -> Result<Select> {
+        let replaced = self
+            .matcher
+            .match_replace_inlines(item.body)
+            .map_err(|e| e.to_select_error("paragraph"))?;
 
-    fn matches(&self, html: &BlockHtml) -> Result<bool, StringMatchError> {
-        self.matcher.matches(&html.value)
+        let result = Paragraph { body: replaced.item };
+        Ok(match_selector::make_select_result(result, replaced.matched_any))
+    }
+}
+
+impl TrySelector<BlockHtml> for HtmlSelector {
+    fn try_select(&self, _: &MdContext, item: BlockHtml) -> Result<Select> {
+        let replaced = self
+            .matcher
+            .match_replace_string(item.value)
+            .map_err(|e| e.to_select_error("html"))?;
+
+        let result = BlockHtml { value: replaced.item };
+        Ok(match_selector::make_select_result(result, replaced.matched_any))
     }
 }
 
@@ -68,15 +78,26 @@ impl From<FrontMatterMatcher> for FrontMatterSelector {
     }
 }
 
-impl MatchSelector<FrontMatter> for FrontMatterSelector {
-    const NAME: &'static str = "front matter";
+impl TrySelector<FrontMatter> for FrontMatterSelector {
+    fn try_select(&self, _: &MdContext, item: FrontMatter) -> Result<Select> {
+        // Check if variant matches (if specified)
+        let variant_selected = self.variant.map(|selected| selected == item.variant).unwrap_or(true);
 
-    fn matches(&self, front_matter: &FrontMatter) -> Result<bool, StringMatchError> {
-        let variant_selected = self
-            .variant
-            .map(|selected| selected == front_matter.variant)
-            .unwrap_or(true);
-        Ok(variant_selected && self.text.matches(&front_matter.body)?)
+        if !variant_selected {
+            return Ok(Select::Miss(item.into()));
+        }
+
+        // Check and potentially replace the text
+        let replaced = self
+            .text
+            .match_replace_string(item.body)
+            .map_err(|e| e.to_select_error("front matter"))?;
+
+        let result = FrontMatter {
+            variant: item.variant,
+            body: replaced.item,
+        };
+        Ok(match_selector::make_select_result(result, replaced.matched_any))
     }
 }
 
