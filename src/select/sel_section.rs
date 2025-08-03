@@ -41,23 +41,12 @@ impl TrySelector<Section> for SectionSelector {
 mod test {
     use super::*;
     use crate::md_elem::{inlines, MdElem};
-    use crate::select::{MatchReplace, Matcher, SelectError};
+    use crate::select::{MatchReplace, SelectError};
 
     #[test]
     fn section_replacement_matches_on_title() {
-        use crate::md_elem::MdContext;
-        use crate::select::TrySelector;
-
         let section_matcher = SectionMatcher {
-            title: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: false,
-                    text: "Some".to_string(),
-                    anchor_end: false,
-                },
-                replacement: Some("Great".to_string()),
-            },
+            title: MatchReplace::build(|b| b.match_regex("Some").replacement("Great")),
         };
 
         let section = Section {
@@ -82,15 +71,7 @@ mod test {
     #[test]
     fn section_replacement_misses_on_title() {
         let section_matcher = SectionMatcher {
-            title: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: false,
-                    text: "Unmatched".to_string(),
-                    anchor_end: false,
-                },
-                replacement: Some("Great".to_string()),
-            },
+            title: MatchReplace::build(|b| b.match_regex("Unmatched").replacement("Great")),
         };
 
         let section = Section {
@@ -115,15 +96,7 @@ mod test {
     #[test]
     fn section_replacement_invalid_on_title() {
         let section_matcher = SectionMatcher {
-            title: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: false,
-                    text: "crosses boundary".to_string(),
-                    anchor_end: false,
-                },
-                replacement: Some("Broken".to_string()),
-            },
+            title: MatchReplace::build(|b| b.match_regex("crosses boundary").replacement("Broken")),
         };
 
         let section = Section {
@@ -146,15 +119,7 @@ mod test {
     #[test]
     fn section_regex_matches() {
         let section_matcher = SectionMatcher {
-            title: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: false,
-                    text: "Great".to_string(),
-                    anchor_end: false,
-                },
-                replacement: None,
-            },
+            title: MatchReplace::build(|b| b.match_regex("Great")),
         };
 
         let section = Section {
@@ -179,15 +144,7 @@ mod test {
     #[test]
     fn section_regex_doesnt_match() {
         let section_matcher = SectionMatcher {
-            title: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: false,
-                    text: "Awesome".to_string(),
-                    anchor_end: false,
-                },
-                replacement: None,
-            },
+            title: MatchReplace::build(|b| b.match_regex("Awesome")),
         };
 
         let section = Section {
