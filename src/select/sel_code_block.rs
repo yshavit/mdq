@@ -1,7 +1,7 @@
 use crate::md_elem::elem::*;
-use crate::select::match_selector::MatchSelector;
-use crate::select::string_matcher::{StringMatchError, StringMatcher};
-use crate::select::CodeBlockMatcher;
+use crate::md_elem::MdContext;
+use crate::select::string_matcher::StringMatcher;
+use crate::select::{CodeBlockMatcher, Select, TrySelector};
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct CodeBlockSelector {
@@ -18,21 +18,45 @@ impl From<CodeBlockMatcher> for CodeBlockSelector {
     }
 }
 
-impl MatchSelector<CodeBlock> for CodeBlockSelector {
-    const NAME: &'static str = "code block";
-
-    fn matches(&self, code_block: &CodeBlock) -> Result<bool, StringMatchError> {
-        let lang_matches = match &code_block.variant {
-            CodeVariant::Code(code_opts) => {
-                let actual_lang = match code_opts {
-                    Some(co) => &co.language,
-                    None => "",
-                };
-                self.lang_matcher.matches(actual_lang)?
+impl TrySelector<CodeBlock> for CodeBlockSelector {
+    fn try_select(&self, _: &MdContext, item: CodeBlock) -> crate::select::Result<Select> {
+        let (has_code_opts, language, metadata) = match item.variant {
+            CodeVariant::Code(None) => (false, String::new(), None),
+            CodeVariant::Code(Some(CodeOpts { language, metadata })) => (true, language, metadata),
+            CodeVariant::Math { .. } => {
+                return Ok(Select::Miss(item.into()));
             }
-            CodeVariant::Math { .. } => false,
         };
-        Ok(lang_matches && self.contents_matcher.matches(&code_block.value)?)
+        let lang_sel = self
+            .lang_matcher
+            .match_replace_string(language)
+            .map_err(|e| e.to_select_error("code block"))?;
+        let content_sel = self
+            .contents_matcher
+            .match_replace_string(item.value)
+            .map_err(|e| e.to_select_error("code block"))?;
+
+        let item_is_match = lang_sel.matched_any && content_sel.matched_any;
+
+        let selected_code_opts = if has_code_opts {
+            Some(CodeOpts {
+                language: lang_sel.item,
+                metadata,
+            })
+        } else {
+            None
+        };
+
+        let selected_block = CodeBlock {
+            variant: CodeVariant::Code(selected_code_opts),
+            value: content_sel.item,
+        };
+        let selection = if item_is_match {
+            Select::Hit(vec![selected_block.into()])
+        } else {
+            Select::Miss(selected_block.into())
+        };
+        Ok(selection)
     }
 }
 
@@ -125,7 +149,7 @@ mod test {
 
         assert_eq!(
             result,
-            Select::Miss(MdElem::CodeBlock(new_code_block("def main", Some("py"))))
+            Select::Hit(vec![MdElem::CodeBlock(new_code_block("def main", Some("py")))])
         );
     }
 
@@ -156,7 +180,7 @@ mod test {
 
         assert_eq!(
             result,
-            Select::Miss(MdElem::CodeBlock(new_code_block("start()", Some("rust"))))
+            Select::Hit(vec![MdElem::CodeBlock(new_code_block("start()", Some("rust")))])
         );
     }
 
@@ -187,8 +211,22 @@ mod test {
 
         assert_eq!(
             result,
-            Select::Miss(MdElem::CodeBlock(new_code_block("main()", Some("py"))))
+            Select::Hit(vec![MdElem::CodeBlock(new_code_block("main()", Some("py")))])
         );
+    }
+
+    #[test]
+    fn code_language_is_explicitly_empty() {
+        let code_block = new_code_block("text", Some(""));
+
+        let result = CodeBlockSelector::from(CodeBlockMatcher {
+            language: MatchReplace::match_any(),
+            contents: MatchReplace::match_any(),
+        })
+        .try_select(&MdContext::default(), code_block.clone())
+        .unwrap();
+
+        assert_eq!(result, Select::Hit(vec![MdElem::CodeBlock(code_block)]));
     }
 
     #[test]
