@@ -87,25 +87,13 @@ mod test {
         elem::{BlockHtml, BlockQuote, FrontMatter, FrontMatterVariant, Inline, Paragraph, Text, TextVariant},
         MdContext, MdElem,
     };
-    use crate::select::{MatchReplace, Matcher, TrySelector};
+    use crate::select::{MatchReplace, TrySelector};
 
     mod block_quote {
         use super::*;
 
         #[test]
         fn block_quote_selector_match_error() {
-            let block_quote_matcher = BlockQuoteMatcher {
-                text: MatchReplace {
-                    matcher: Matcher::Text {
-                        case_sensitive: false,
-                        anchor_start: false,
-                        text: "test".to_string(),
-                        anchor_end: false,
-                    },
-                    replacement: Some("replacement".to_string()),
-                },
-            };
-
             let block_quote = BlockQuote {
                 body: vec![MdElem::Paragraph(Paragraph {
                     body: vec![Inline::Text(Text {
@@ -115,7 +103,9 @@ mod test {
                 })],
             };
 
-            let block_quote_selector = BlockQuoteSelector::from(block_quote_matcher);
+            let block_quote_selector = BlockQuoteSelector::from(BlockQuoteMatcher {
+                text: MatchReplace::build(|b| b.match_regex("test").replacement("replacement")),
+            });
 
             assert_eq!(
                 block_quote_selector.matches(&block_quote),
@@ -137,21 +127,11 @@ mod test {
 
         #[test]
         fn paragraph_selector_match_error() {
-            let paragraph_matcher = ParagraphMatcher {
-                text: MatchReplace {
-                    matcher: Matcher::Text {
-                        case_sensitive: false,
-                        anchor_start: false,
-                        text: "test".to_string(),
-                        anchor_end: false,
-                    },
-                    replacement: Some("replacement".to_string()),
-                },
-            };
-
             let paragraph = Paragraph { body: vec![] };
 
-            let paragraph_selector = ParagraphSelector::from(paragraph_matcher);
+            let paragraph_selector = ParagraphSelector::from(ParagraphMatcher {
+                text: MatchReplace::build(|b| b.match_regex("test").replacement("replacement")),
+            });
 
             assert_eq!(
                 paragraph_selector.matches(&paragraph),
@@ -173,23 +153,13 @@ mod test {
 
         #[test]
         fn html_selector_match_error() {
-            let html_matcher = HtmlMatcher {
-                html: MatchReplace {
-                    matcher: Matcher::Text {
-                        case_sensitive: false,
-                        anchor_start: false,
-                        text: "div".to_string(),
-                        anchor_end: false,
-                    },
-                    replacement: Some("replacement".to_string()),
-                },
-            };
-
             let block_html = BlockHtml {
                 value: "<div>content</div>".to_string(),
             };
 
-            let html_selector = HtmlSelector::from(html_matcher);
+            let html_selector = HtmlSelector::from(HtmlMatcher {
+                html: MatchReplace::build(|b| b.match_regex("div").replacement("replacement")),
+            });
 
             assert_eq!(html_selector.matches(&block_html), Err(StringMatchError::NotSupported));
 
@@ -208,25 +178,15 @@ mod test {
 
         #[test]
         fn front_matter_selector_match_error() {
-            let front_matter_matcher = FrontMatterMatcher {
-                variant: None,
-                text: MatchReplace {
-                    matcher: Matcher::Text {
-                        case_sensitive: false,
-                        anchor_start: false,
-                        text: "title".to_string(),
-                        anchor_end: false,
-                    },
-                    replacement: Some("replacement".to_string()),
-                },
-            };
-
             let front_matter = FrontMatter {
                 variant: FrontMatterVariant::Yaml,
                 body: "title: test".to_string(),
             };
 
-            let front_matter_selector = FrontMatterSelector::from(front_matter_matcher);
+            let front_matter_selector = FrontMatterSelector::from(FrontMatterMatcher {
+                variant: None,
+                text: MatchReplace::build(|b| b.match_regex("title").replacement("replacement")),
+            });
 
             assert_eq!(
                 front_matter_selector.matches(&front_matter),
