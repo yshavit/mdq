@@ -219,7 +219,7 @@ impl<W: SimpleWrite> Drop for Output<W> {
         }
         if let Err(e) = self.stream.flush() {
             if WritingState::Error != self.writing_state {
-                eprintln!("error while writing output: {}", e);
+                eprintln!("error while writing output: {e}");
                 self.writing_state = WritingState::Error;
             }
         }
@@ -469,7 +469,7 @@ impl WritingState {
             return;
         }
         if let Err(e) = out.write_char(ch) {
-            eprintln!("error while writing output: {}", e);
+            eprintln!("error while writing output: {e}");
             *self = WritingState::Error;
         }
         if matches!(*self, WritingState::HaveNotWrittenAnything) {

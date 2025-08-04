@@ -231,7 +231,7 @@ mod tests {
 
         fn cell_matches(substring: &str) -> impl Fn(&TableCell) -> Result<bool, ()> + '_ {
             move |line| {
-                let line_str = format!("{:?}", line);
+                let line_str = format!("{line:?}");
                 Ok(line_str.contains(substring))
             }
         }
