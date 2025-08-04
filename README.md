@@ -213,6 +213,12 @@ cat oncall.md | mdq ':-: * :-: 2024-01-15'
 
 # Development
 
+## Using mdq in your library
+
+mdq is available as a Rust library at https://crates.io/crates/mdq. Its docs are available at https://docs.rs/mdq/latest/mdq/.
+
+## Working on mdq itself
+
 Requires rustc >= 1.78.0
 
 ```bash
