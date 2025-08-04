@@ -76,10 +76,6 @@ impl StringMatcher {
         }
     }
 
-    pub(crate) fn has_replacement(&self) -> bool {
-        self.replacement.is_some()
-    }
-
     pub(crate) fn match_replace(&self, haystack: String) -> Result<StringMatch, StringMatchError> {
         match self.re.is_match(&haystack) {
             Ok(is_match) => Ok(if is_match {

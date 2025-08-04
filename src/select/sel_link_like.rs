@@ -1,40 +1,8 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::MdContext;
-use crate::select::string_matcher::{StringMatchError, StringMatcher};
+use crate::select::match_selector::make_select_result;
+use crate::select::string_matcher::StringMatcher;
 use crate::select::{LinklikeMatcher, Result, Select, TrySelector};
-
-/// A macro for creating the result of a link-like selector.
-///
-/// This macro handles the common pattern of conditionally reconstructing a link-like item
-/// (Link or Image) based on whether both text and URL matching succeed. It
-/// handles the URL replacement logic, calling either `do_replace()` or `no_replace()` on
-/// the URL match result depending on whether this should be a Hit or Miss.
-///
-/// # Parameters
-///
-/// * `$text_matched` - A boolean expression indicating whether the display / alt text matched
-/// * `$url_match` - An identifier bound to a `StringMatch` result from URL matching
-/// * `$item_expr` - A block containing the item construction expression, where `$url_match`
-///   will be bound to the appropriate URL string value
-///
-/// # Returns
-///
-/// Returns `Result<Select>` where:
-/// - `Ok(Select::Hit(...))` if both text and URL matched (uses `do_replace()`)
-/// - `Ok(Select::Miss(...))` if either text or URL didn't match (uses `no_replace()`)
-macro_rules! make_result {
-    ($text_matched:expr, $url_match:ident, { $($item_expr:tt)* }) => {
-        if $text_matched && $url_match.is_match() {
-            let $url_match = $url_match.do_replace();
-            let item = $($item_expr)*;
-            Ok(Select::Hit(vec![item.into()]))
-        } else {
-            let $url_match = $url_match.no_replace();
-            let item = $($item_expr)*;
-            Ok(Select::Miss(item.into()))
-        }
-    };
-}
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct LinkSelector {
@@ -49,53 +17,66 @@ impl From<LinklikeMatcher> for LinkSelector {
 
 impl TrySelector<Link> for LinkSelector {
     fn try_select(&self, _: &MdContext, item: Link) -> Result<Select> {
-        // Check if display matcher has replacement - if so, this should fail
-        if self.matchers.display_matcher.has_replacement() {
-            return Err(StringMatchError::NotSupported.to_select_error("hyperlink"));
-        }
-
         match item {
             Link::Standard(standard_link) => {
-                let display_matched = self
+                let original_link = Link::Standard(standard_link.clone());
+
+                let display_replaced = self
                     .matchers
                     .display_matcher
-                    .matches_inlines(&standard_link.display)
+                    .match_replace_inlines(standard_link.display)
                     .map_err(|e| e.to_select_error("hyperlink"))?;
-                let url_match = self
+                let url_replaced = self
                     .matchers
                     .url_matcher
-                    .match_replace(standard_link.link.url)
+                    .match_replace_string(standard_link.link.url)
                     .map_err(|e| e.to_select_error("hyperlink"))?;
 
-                make_result!(display_matched, url_match, {
-                    Link::Standard(StandardLink {
-                        display: standard_link.display,
+                // Both matchers must match for this to be a Hit
+                let both_matched = display_replaced.matched_any && url_replaced.matched_any;
+
+                if both_matched {
+                    // Apply replacements
+                    let result = Link::Standard(StandardLink {
+                        display: display_replaced.item,
                         link: LinkDefinition {
-                            url: url_match,
+                            url: url_replaced.item,
                             title: standard_link.link.title,
                             reference: standard_link.link.reference,
                         },
-                    })
-                })
+                    });
+                    Ok(Select::Hit(vec![result.into()]))
+                } else {
+                    // Return original unchanged
+                    Ok(Select::Miss(original_link.into()))
+                }
             }
             Link::Autolink(autolink) => {
-                let display_matched = self
+                let original_link = Link::Autolink(autolink.clone());
+
+                let display_replaced = self
                     .matchers
                     .display_matcher
-                    .matches(&autolink.url)
+                    .match_replace_string(autolink.url.clone())
                     .map_err(|e| e.to_select_error("hyperlink"))?;
-                let url_match = self
+                let url_replaced = self
                     .matchers
                     .url_matcher
-                    .match_replace(autolink.url)
+                    .match_replace_string(autolink.url)
                     .map_err(|e| e.to_select_error("hyperlink"))?;
 
-                make_result!(display_matched, url_match, {
+                // Both matchers must match for this to be a Hit
+                let both_matched = display_replaced.matched_any && url_replaced.matched_any;
+
+                let result = if both_matched {
                     Link::Autolink(Autolink {
-                        url: url_match,
+                        url: url_replaced.item,
                         style: autolink.style,
                     })
-                })
+                } else {
+                    original_link
+                };
+                Ok(make_select_result(result, both_matched))
             }
         }
     }
@@ -114,32 +95,35 @@ impl From<LinklikeMatcher> for ImageSelector {
 
 impl TrySelector<Image> for ImageSelector {
     fn try_select(&self, _: &MdContext, item: Image) -> Result<Select> {
-        // Check if display matcher has replacement - if so, this should fail
-        if self.matchers.display_matcher.has_replacement() {
-            return Err(StringMatchError::NotSupported.to_select_error("image"));
-        }
+        let original_image = item.clone();
 
-        let alt_matched = self
+        let alt_replaced = self
             .matchers
             .display_matcher
-            .matches(&item.alt)
+            .match_replace_string(item.alt)
             .map_err(|e| e.to_select_error("image"))?;
-        let url_match = self
+        let url_replaced = self
             .matchers
             .url_matcher
-            .match_replace(item.link.url)
+            .match_replace_string(item.link.url)
             .map_err(|e| e.to_select_error("image"))?;
 
-        make_result!(alt_matched, url_match, {
-            Image {
-                alt: item.alt,
+        let both_matched = alt_replaced.matched_any && url_replaced.matched_any;
+
+        let result = if both_matched {
+            let result = Image {
+                alt: alt_replaced.item,
                 link: LinkDefinition {
-                    url: url_match,
+                    url: url_replaced.item,
                     title: item.link.title,
                     reference: item.link.reference,
                 },
-            }
-        })
+            };
+            result
+        } else {
+            original_image
+        };
+        Ok(make_select_result(result, both_matched))
     }
 }
 
