@@ -32,7 +32,7 @@ impl<const N: usize> mdq::run::OsFacade for CaseRunner<'_, N> {
                 return Ok(content.to_string());
             }
         }
-        Err(io::Error::new(ErrorKind::NotFound, format!("File not found: {}", path)))
+        Err(io::Error::new(ErrorKind::NotFound, format!("File not found: {path}")))
     }
 
     fn stdout(&mut self) -> impl io::Write {
