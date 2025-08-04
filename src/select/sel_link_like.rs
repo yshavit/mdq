@@ -162,25 +162,14 @@ impl From<LinklikeMatcher> for LinkMatchers {
 mod test {
     use super::*;
     use crate::md_elem::{mdq_inline, MdElem};
-    use crate::select::{MatchReplace, Matcher};
+    use crate::select::MatchReplace;
     use crate::util::utils_for_test::unwrap;
 
     #[test]
     fn link_selector_url_replacement() {
         let link_matcher = LinklikeMatcher {
-            display_matcher: MatchReplace {
-                matcher: Matcher::Any { explicit: false },
-                replacement: None,
-            },
-            url_matcher: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: false,
-                    text: "original.com".to_string(),
-                    anchor_end: false,
-                },
-                replacement: Some("newsite.com".to_string()),
-            },
+            display_matcher: MatchReplace::match_any(),
+            url_matcher: MatchReplace::build(|b| b.match_regex("original.com").replacement("newsite.com")),
         };
 
         let link = Link::Standard(StandardLink {
@@ -208,19 +197,8 @@ mod test {
     #[test]
     fn image_selector_url_replacement() {
         let image_matcher = LinklikeMatcher {
-            display_matcher: MatchReplace {
-                matcher: Matcher::Any { explicit: false },
-                replacement: None,
-            },
-            url_matcher: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: false,
-                    text: "old-image.png".to_string(),
-                    anchor_end: false,
-                },
-                replacement: Some("new-image.png".to_string()),
-            },
+            display_matcher: MatchReplace::match_any(),
+            url_matcher: MatchReplace::build(|b| b.match_regex("old-image.png").replacement("new-image.png")),
         };
 
         let image = Image {
@@ -244,24 +222,8 @@ mod test {
     #[test]
     fn image_url_replaced_but_alt_does_not_match() {
         let image_matcher = LinklikeMatcher {
-            display_matcher: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: true,
-                    text: "wrong alt text".to_string(),
-                    anchor_end: true,
-                },
-                replacement: None,
-            },
-            url_matcher: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: false,
-                    text: "old-image.png".to_string(),
-                    anchor_end: false,
-                },
-                replacement: Some("new-image.png".to_string()),
-            },
+            display_matcher: MatchReplace::build(|b| b.match_regex("^wrong alt text$")),
+            url_matcher: MatchReplace::build(|b| b.match_regex("old-image.png").replacement("new-image.png")),
         };
 
         let original_image = Image {
@@ -285,24 +247,8 @@ mod test {
     #[test]
     fn link_url_replaced_but_display_does_not_match() {
         let link_matcher = LinklikeMatcher {
-            display_matcher: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: true,
-                    text: "wrong display text".to_string(),
-                    anchor_end: true,
-                },
-                replacement: None,
-            },
-            url_matcher: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: false,
-                    text: "original.com".to_string(),
-                    anchor_end: false,
-                },
-                replacement: Some("newsite.com".to_string()),
-            },
+            display_matcher: MatchReplace::build(|b| b.match_regex("^wrong display text$")),
+            url_matcher: MatchReplace::build(|b| b.match_regex("original.com").replacement("newsite.com")),
         };
 
         let original_link = Link::Standard(StandardLink {
