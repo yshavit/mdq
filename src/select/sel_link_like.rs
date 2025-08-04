@@ -268,4 +268,57 @@ mod test {
 
         assert_eq!(result_link, &original_link);
     }
+
+    #[test]
+    fn link_display_text_replacement() {
+        let link_matcher = LinklikeMatcher {
+            display_matcher: MatchReplace::build(|b| b.match_regex("old text").replacement("new text")),
+            url_matcher: MatchReplace::match_any(),
+        };
+
+        let link = Link::Standard(StandardLink {
+            display: vec![mdq_inline!("old text here")],
+            link: LinkDefinition {
+                url: "https://example.com".to_string(),
+                title: None,
+                reference: LinkReference::Inline,
+            },
+        });
+
+        let link_selector = LinkSelector::from(link_matcher);
+
+        let result = link_selector.try_select(&MdContext::default(), link);
+        unwrap!(result, Ok(Select::Hit(elems)));
+
+        assert_eq!(elems.len(), 1);
+        unwrap!(&elems[0], MdElem::Inline(Inline::Link(Link::Standard(standard_link))));
+        assert_eq!(standard_link.display, vec![mdq_inline!("new text here")]);
+        assert_eq!(standard_link.link.url, "https://example.com");
+    }
+
+    #[test]
+    fn image_alt_text_replacement() {
+        let image_matcher = LinklikeMatcher {
+            display_matcher: MatchReplace::build(|b| b.match_regex("old alt").replacement("new alt")),
+            url_matcher: MatchReplace::match_any(),
+        };
+
+        let image = Image {
+            alt: "old alt text".to_string(),
+            link: LinkDefinition {
+                url: "https://example.com/image.png".to_string(),
+                title: None,
+                reference: LinkReference::Inline,
+            },
+        };
+
+        let image_selector = ImageSelector::from(image_matcher);
+
+        let result = image_selector.try_select(&MdContext::default(), image);
+        unwrap!(result, Ok(Select::Hit(elems)));
+        assert_eq!(elems.len(), 1);
+        unwrap!(&elems[0], MdElem::Inline(Inline::Image(modified_image)));
+        assert_eq!(modified_image.alt, "new alt text");
+        assert_eq!(modified_image.link.url, "https://example.com/image.png");
+    }
 }
