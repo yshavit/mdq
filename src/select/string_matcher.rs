@@ -66,16 +66,6 @@ impl PartialEq for StringMatcher {
 }
 
 impl StringMatcher {
-    pub(crate) fn matches(&self, haystack: &str) -> Result<bool, StringMatchError> {
-        if self.replacement.is_some() {
-            return Err(StringMatchError::NotSupported);
-        }
-        match self.re.is_match(haystack) {
-            Ok(m) => Ok(m),
-            Err(e) => Err(StringMatchError::RegexError(Box::new(e))),
-        }
-    }
-
     pub(crate) fn match_replace(&self, haystack: String) -> Result<StringMatch, StringMatchError> {
         match self.re.is_match(&haystack) {
             Ok(is_match) => Ok(if is_match {
@@ -131,10 +121,6 @@ impl StringMatcher {
                 Ok(inline_replacements)
             }
         }
-    }
-
-    pub(crate) fn matches_inlines<I: Borrow<Inline>>(&self, haystack: &[I]) -> Result<bool, StringMatchError> {
-        self.matches(&inlines_to_plain_string(haystack, Default::default()))
     }
 
     pub(crate) fn match_replace_any(
@@ -709,6 +695,22 @@ mod test {
                 re: Regex::from_str(value).unwrap(),
                 replacement: None,
             }
+        }
+    }
+
+    impl StringMatcher {
+        pub(crate) fn matches(&self, haystack: &str) -> Result<bool, StringMatchError> {
+            if self.replacement.is_some() {
+                return Err(StringMatchError::NotSupported);
+            }
+            match self.re.is_match(haystack) {
+                Ok(m) => Ok(m),
+                Err(e) => Err(StringMatchError::RegexError(Box::new(e))),
+            }
+        }
+
+        pub(crate) fn matches_inlines<I: Borrow<Inline>>(&self, haystack: &[I]) -> Result<bool, StringMatchError> {
+            self.matches(&inlines_to_plain_string(haystack, Default::default()))
         }
     }
 }
