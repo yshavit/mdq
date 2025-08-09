@@ -51,7 +51,7 @@ mod tests {
     use crate::util::utils_for_test::*;
 
     #[test]
-    fn select_all_on_normalized_table() {
+    fn regex_matches_all_on_normalized_table() {
         let table: Table = Table {
             alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
             rows: vec![
@@ -84,7 +84,7 @@ mod tests {
     }
 
     #[test]
-    fn select_columns_on_normalized_table() {
+    fn regex_matches_columns_on_normalized_table() {
         let table: Table = Table {
             alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
             rows: vec![
@@ -108,7 +108,7 @@ mod tests {
     }
 
     #[test]
-    fn select_rows_on_normalized_table() {
+    fn regex_matches_rows_on_normalized_table() {
         let table: Table = Table {
             alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
             rows: vec![
