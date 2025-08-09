@@ -176,6 +176,50 @@ mod tests {
         );
     }
 
+    #[test]
+    fn matcher_matches_no_columns() {
+        let table: Table = Table {
+            alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
+            rows: vec![
+                vec![cell("header a"), cell("header b")],
+                vec![cell("data 1 a"), cell("data 1 b")],
+                vec![cell("data 2 a"), cell("data 2 b")],
+            ],
+        };
+        let selection = TableSelector {
+            headers_matcher: "NOMATCH".into(), // This won't match any headers
+            rows_matcher: ".*".into(),
+        }
+        .try_select(&MdContext::empty(), table.clone())
+        .unwrap();
+
+        unwrap!(selection, Select::Miss(MdElem::Table(returned_table)));
+        // Should return the original table unchanged
+        assert_eq!(returned_table, table);
+    }
+
+    #[test]
+    fn matcher_matches_no_rows() {
+        let table: Table = Table {
+            alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
+            rows: vec![
+                vec![cell("header a"), cell("header b")],
+                vec![cell("data 1 a"), cell("data 1 b")],
+                vec![cell("data 2 a"), cell("data 2 b")],
+            ],
+        };
+        let selection = TableSelector {
+            headers_matcher: ".*".into(),   // This matches all headers
+            rows_matcher: "NOMATCH".into(), // This won't match any data rows
+        }
+        .try_select(&MdContext::empty(), table.clone())
+        .unwrap();
+
+        unwrap!(selection, Select::Miss(MdElem::Table(returned_table)));
+        // Should return the original table unchanged
+        assert_eq!(returned_table, table);
+    }
+
     fn cell(cell_str: &str) -> TableCell {
         vec![Inline::Text(Text {
             variant: TextVariant::Plain,
