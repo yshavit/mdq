@@ -37,6 +37,7 @@ mod elem_ref {
             }
         }
 
+        // TODO need to remove this and the row equivalent
         pub fn retain_columns_by_header<F, E>(&mut self, mut f: F) -> Result<(), E>
         where
             F: FnMut(&TableCell) -> Result<bool, E>,
