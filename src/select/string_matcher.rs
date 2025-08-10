@@ -1,10 +1,9 @@
 use crate::md_elem::elem::*;
 use crate::md_elem::inline_regex_replace::{regex_replace_inlines, RegexReplaceError, Replaced};
 use crate::md_elem::*;
-use crate::output::inlines_to_plain_string;
 use crate::select::{MatchReplace, Matcher, SelectError};
 use fancy_regex::Regex;
-use std::borrow::{Borrow, Cow};
+use std::borrow::Cow;
 
 #[derive(Debug)]
 pub(crate) struct StringMatcher {
@@ -14,7 +13,6 @@ pub(crate) struct StringMatcher {
 
 #[derive(Clone, Debug)]
 pub(crate) enum StringMatchError {
-    NotSupported,
     RegexError(Box<fancy_regex::Error>),
     ReplaceError(RegexReplaceError),
 }
@@ -25,31 +23,9 @@ pub(crate) enum StringMatch<'a> {
     Match(String, Option<(&'a Regex, &'a str)>),
 }
 
-impl StringMatch<'_> {
-    pub(crate) fn is_match(&self) -> bool {
-        matches!(self, StringMatch::Match(..))
-    }
-
-    pub(crate) fn do_replace(self) -> String {
-        match self {
-            StringMatch::NoMatch(s) => s,
-            StringMatch::Match(s, None) => s,
-            StringMatch::Match(s, Some((re, replacement))) => re.replace_all(&s, replacement).to_string(),
-        }
-    }
-
-    pub(crate) fn no_replace(self) -> String {
-        match self {
-            StringMatch::NoMatch(s) => s,
-            StringMatch::Match(s, _) => s,
-        }
-    }
-}
-
 impl StringMatchError {
     pub(crate) fn to_select_error(&self, selector_name: &str) -> SelectError {
         let message = match self {
-            StringMatchError::NotSupported => format!("{selector_name} selector does not support string replace"),
             StringMatchError::RegexError(err) => format!("regex evaluation error in {selector_name} selector: {err}"),
             StringMatchError::ReplaceError(err) => {
                 format!("regex replacement error in {selector_name} selector: {err}")
@@ -106,21 +82,9 @@ impl StringMatcher {
         &self,
         haystack: Vec<Inline>,
     ) -> Result<Replaced<Vec<Inline>>, StringMatchError> {
-        match &self.replacement {
-            None => {
-                let matched_any = self.matches_inlines(&haystack)?;
-                let inlines = haystack;
-                Ok(Replaced {
-                    item: inlines,
-                    matched_any,
-                })
-            }
-            Some(replacement) => {
-                let inline_replacements =
-                    regex_replace_inlines(haystack, &self.re, &replacement).map_err(StringMatchError::ReplaceError)?;
-                Ok(inline_replacements)
-            }
-        }
+        let inline_replacements = regex_replace_inlines(haystack, &self.re, self.replacement.as_deref())
+            .map_err(StringMatchError::ReplaceError)?;
+        Ok(inline_replacements)
     }
 
     pub(crate) fn match_replace_any(
@@ -293,12 +257,12 @@ mod test {
     impl PartialEq for StringMatchError {
         fn eq(&self, other: &Self) -> bool {
             match (self, other) {
-                (StringMatchError::NotSupported, StringMatchError::NotSupported) => true,
                 (StringMatchError::RegexError(_), StringMatchError::RegexError(_)) => {
                     // We can't compare fancy_regex::Error instances, so we'll consider them equal
                     // if they're both RegexError variants. This is sufficient for our testing needs.
                     true
                 }
+                (StringMatchError::ReplaceError(left), StringMatchError::ReplaceError(right)) => left == right,
                 _ => false,
             }
         }
@@ -567,78 +531,6 @@ mod test {
             select_error.to_string(),
             "section selector does not support string replace"
         );
-    }
-
-    #[test]
-    fn match_replace_matches_with_replacement() {
-        let matcher_with_replacement = StringMatcher::from(MatchReplace {
-            matcher: Matcher::Text {
-                case_sensitive: false,
-                anchor_start: false,
-                text: "hello".to_string(),
-                anchor_end: false,
-            },
-            replacement: Some("world".to_string()),
-        });
-
-        let haystack = "hello there".to_string();
-        let result = matcher_with_replacement.match_replace(haystack).unwrap();
-        assert!(result.is_match());
-        assert_eq!(result.do_replace(), "world there");
-    }
-
-    #[test]
-    fn match_replace_matches_without_replacement() {
-        let matcher_with_replacement = StringMatcher::from(MatchReplace {
-            matcher: Matcher::Text {
-                case_sensitive: false,
-                anchor_start: false,
-                text: "hello".to_string(),
-                anchor_end: false,
-            },
-            replacement: Some("world".to_string()),
-        });
-
-        let haystack = "hello there".to_string();
-        let result = matcher_with_replacement.match_replace(haystack).unwrap();
-        assert!(result.is_match());
-        assert_eq!(result.no_replace(), "hello there");
-    }
-
-    #[test]
-    fn match_replace_without_replacement() {
-        let matcher_without_replacement = StringMatcher::from(MatchReplace {
-            matcher: Matcher::Text {
-                case_sensitive: false,
-                anchor_start: false,
-                text: "hello".to_string(),
-                anchor_end: false,
-            },
-            replacement: None,
-        });
-
-        let haystack = "hello there".to_string();
-        let result = matcher_without_replacement.match_replace(haystack).unwrap();
-        assert!(result.is_match());
-        assert_eq!(result.no_replace(), "hello there"); // unchanged
-    }
-
-    #[test]
-    fn match_replace_no_match() {
-        let matcher = StringMatcher::from(MatchReplace {
-            matcher: Matcher::Text {
-                case_sensitive: false,
-                anchor_start: false,
-                text: "goodbye".to_string(),
-                anchor_end: false,
-            },
-            replacement: Some("world".to_string()),
-        });
-
-        let haystack = "hello there".to_string();
-        let result = matcher.match_replace(haystack).unwrap();
-        assert!(!result.is_match());
-        assert_eq!(result.no_replace(), "hello there"); // unchanged
     }
 
     fn parse_and_check_with(

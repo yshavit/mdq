@@ -3,7 +3,7 @@ use crate::md_elem::tree::elem::Inline;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum RegexReplaceError {
     InvalidRegex { pattern: String, error: String },
     ReplacementError(RangeReplacementError),
@@ -39,7 +39,7 @@ pub(crate) struct Replaced<T> {
 pub(crate) fn regex_replace_inlines(
     inlines: impl IntoIterator<Item = Inline>,
     pattern: &fancy_regex::Regex,
-    replacement: &str, // TODO maybe I should have this be an Option<&str>, and if it's None then this becomes just a match (not replace)
+    replacement: Option<&str>,
 ) -> Result<Replaced<Vec<Inline>>, RegexReplaceError> {
     // TODO should I have this take an owned Vec<Inline>? If I do, then if there are no matches I can just return the
     //  original inlines, and thus save on the unflatten step.
@@ -47,28 +47,39 @@ pub(crate) fn regex_replace_inlines(
 
     let mut replaced_string = String::new();
     let flattened_text = flattened.text.to_string();
-    let mut matched_any = false;
-    for capture in pattern.captures_iter(&flattened_text) {
-        matched_any = true;
-        let capture = capture.map_err(|e| RegexReplaceError::InvalidRegex {
-            pattern: pattern.as_str().to_string(),
-            error: format!("{e}"),
-        })?;
-        let capture_match = capture.get(0).expect("unwrap of capture's 0-group");
-        replaced_string.clear();
-        capture.expand(replacement, &mut replaced_string);
-        let capture_range = capture_match.start()..capture_match.end();
-        flattened
-            .replace_range(capture_range, &replaced_string)
-            .map_err(RegexReplaceError::ReplacementError)?;
-    }
+    let matched_any = match replacement {
+        None => pattern
+            .is_match(&flattened_text)
+            .map_err(|e| map_re_error(e, pattern))?,
+        Some(replacement) => {
+            let mut matched_any = false;
+            for capture in pattern.captures_iter(&flattened_text) {
+                matched_any = true;
+                let capture = capture.map_err(|e| map_re_error(e, pattern))?;
+                let capture_match = capture.get(0).expect("unwrap of capture's 0-group");
+                replaced_string.clear();
+                capture.expand(replacement, &mut replaced_string);
+                let capture_range = capture_match.start()..capture_match.end();
+                flattened
+                    .replace_range(capture_range, &replaced_string)
+                    .map_err(RegexReplaceError::ReplacementError)?;
+            }
+            matched_any
+        }
+    };
 
-    // 7. Reconstruct the inlines
     let unflattened = flattened.unflatten().map_err(RegexReplaceError::ReplacementError)?;
     Ok(Replaced {
         matched_any,
         item: unflattened,
     })
+}
+
+fn map_re_error(e: fancy_regex::Error, pattern: &fancy_regex::Regex) -> RegexReplaceError {
+    RegexReplaceError::InvalidRegex {
+        pattern: pattern.as_str().to_string(),
+        error: format!("{e}"),
+    }
 }
 
 #[cfg(test)]
