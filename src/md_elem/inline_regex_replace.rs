@@ -92,7 +92,7 @@ mod tests {
     fn simple_replacement() {
         let inlines = inlines!["hello world"];
         let pattern = fancy_regex::Regex::new(r"world").unwrap();
-        let result = regex_replace_inlines(inlines, &pattern, "rust").unwrap();
+        let result = regex_replace_inlines(inlines, &pattern, Some("rust")).unwrap();
 
         assert_eq!(result.item, inlines!["hello rust"]);
         assert!(result.matched_any);
@@ -102,7 +102,7 @@ mod tests {
     fn simple_replacement_to_same() {
         let inlines = inlines!["hello world"];
         let pattern = fancy_regex::Regex::new(r"world").unwrap();
-        let result = regex_replace_inlines(inlines, &pattern, "world").unwrap();
+        let result = regex_replace_inlines(inlines, &pattern, Some("world")).unwrap();
 
         assert_eq!(result.item, inlines!["hello world"]); // same as original
         assert!(result.matched_any);
@@ -112,7 +112,7 @@ mod tests {
     fn no_match_returns_original() {
         let inlines = inlines!["hello world"];
         let pattern = fancy_regex::Regex::new(r"foo").unwrap();
-        let result = regex_replace_inlines(inlines.clone(), &pattern, "bar").unwrap();
+        let result = regex_replace_inlines(inlines.clone(), &pattern, Some("bar")).unwrap();
 
         assert_eq!(result.item, inlines);
         assert!(!result.matched_any);
@@ -122,9 +122,19 @@ mod tests {
     fn replacement_with_formatting() {
         let inlines = inlines!["before ", em["emphasized"], " after"];
         let pattern = fancy_regex::Regex::new(r"emphasized").unwrap();
-        let result = regex_replace_inlines(inlines, &pattern, "replaced").unwrap();
+        let result = regex_replace_inlines(inlines, &pattern, Some("replaced")).unwrap();
 
         let expected = inlines!["before ", em["replaced"], " after"];
+        assert_eq!(result.item, expected);
+    }
+
+    #[test]
+    fn partial_replacement_with_formatting() {
+        let inlines = inlines!["before ", em["emphasized and"], " after"];
+        let pattern = fancy_regex::Regex::new(r"emphasized").unwrap();
+        let result = regex_replace_inlines(inlines, &pattern, Some("replaced")).unwrap();
+
+        let expected = inlines!["before ", em["replaced and"], " after"];
         assert_eq!(result.item, expected);
     }
 
@@ -133,7 +143,7 @@ mod tests {
         let inlines = inlines!["before ", em["emphasized"], " after"];
 
         let pattern = fancy_regex::Regex::new(r"ore emphasized af").unwrap();
-        let result = regex_replace_inlines(inlines, &pattern, "oo").unwrap();
+        let result = regex_replace_inlines(inlines, &pattern, Some("oo")).unwrap();
 
         // When replacement spans formatting boundaries, formatting should be removed
         let expected = inlines!["befooter"];
@@ -144,7 +154,7 @@ mod tests {
     fn capture_groups() {
         let inlines = inlines!["hello world"];
         let pattern = fancy_regex::Regex::new(r"(\w+) (\w+)").unwrap();
-        let result = regex_replace_inlines(inlines, &pattern, "$2 $1").unwrap();
+        let result = regex_replace_inlines(inlines, &pattern, Some("$2 $1")).unwrap();
 
         assert_eq!(result.item, inlines!["world hello"]);
     }
@@ -153,7 +163,7 @@ mod tests {
     fn multiple_matches() {
         let inlines = inlines!["foo bar foo baz"];
         let pattern = fancy_regex::Regex::new(r"foo").unwrap();
-        let result = regex_replace_inlines(inlines, &pattern, "qux").unwrap();
+        let result = regex_replace_inlines(inlines, &pattern, Some("qux")).unwrap();
 
         assert_eq!(result.item, inlines!["qux bar qux baz"]);
         assert!(result.matched_any);
@@ -165,7 +175,7 @@ mod tests {
 
         // This should succeed because the regex doesn't cross the link boundary
         let pattern = fancy_regex::Regex::new(r"before").unwrap();
-        let result = regex_replace_inlines(inlines.clone(), &pattern, "pre").unwrap();
+        let result = regex_replace_inlines(inlines.clone(), &pattern, Some("pre")).unwrap();
         assert_eq!(
             result.item,
             inlines!["pre ", link["link text"]("https://example.com"), " after",],
@@ -173,7 +183,7 @@ mod tests {
 
         // This should fail because the regex crosses into the link
         let pattern = fancy_regex::Regex::new(r"ore link").unwrap();
-        let result = regex_replace_inlines(inlines, &pattern, "replacement");
+        let result = regex_replace_inlines(inlines, &pattern, Some("replacement"));
         assert!(result.is_err());
     }
 }

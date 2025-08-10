@@ -250,7 +250,6 @@ impl From<MatchReplace> for StringMatcher {
 mod test {
     use super::*;
     use crate::query::{ParseError, StringVariant};
-    use std::borrow::Borrow;
     use std::str::FromStr;
 
     /// PartialEq implementation for StringMatchError. This is only available in tests, so that we don't expose the
@@ -552,10 +551,6 @@ mod test {
     impl StringMatcher {
         pub(crate) fn matches(&self, haystack: &str) -> Result<bool, StringMatchError> {
             Ok(self.match_replace_string(haystack.to_string())?.matched_any)
-        }
-
-        pub(crate) fn matches_inlines<I: Borrow<Inline>>(&self, haystack: &[I]) -> Result<bool, StringMatchError> {
-            Ok(self.match_replace_inlines(haystack.into())?.matched_any)
         }
     }
 }
