@@ -313,17 +313,27 @@ impl FlattenedText {
                 let mut new_event = event.clone();
                 new_event.length = (event.length as isize + size_change) as usize;
                 events_to_keep.push(new_event);
-            } else if event_start < original_range.start && event_end <= original_range.end {
+            } else if event_start < original_range.start && event_end < original_range.end {
                 // Event starts before replacement and ends within it - truncate
                 let mut new_event = event.clone();
                 new_event.length = original_range.start - event_start;
                 events_to_keep.push(new_event);
-            } else if event_start >= original_range.start && event_end > original_range.end {
+            } else if event_start < original_range.start && event_end == original_range.end {
+                // Event starts before replacement and ends exactly at replacement end - adjust length
+                let mut new_event = event.clone();
+                new_event.length = (event.length as isize + size_change) as usize;
+                events_to_keep.push(new_event);
+            } else if event_start > original_range.start && event_end > original_range.end {
                 // Event starts within replacement and ends after it - shift and truncate
                 let mut new_event = event.clone();
                 let chars_removed_from_event = original_range.end - event_start;
                 new_event.start_pos = (original_range.start as isize + replacement.len() as isize) as usize;
                 new_event.length = event.length - chars_removed_from_event;
+                events_to_keep.push(new_event);
+            } else if event_start == original_range.start && event_end > original_range.end {
+                // Event starts exactly at replacement start and ends after it - adjust length and keep start
+                let mut new_event = event.clone();
+                new_event.length = (event.length as isize + size_change) as usize;
                 events_to_keep.push(new_event);
             }
         }
@@ -1411,6 +1421,99 @@ mod tests {
                     }],
                     offset: 0,
                     last_replacement_end: 0,
+                }
+            }
+
+            /// Tests for boundary conditions when replacements start or end exactly at event borders
+            mod boundary_conditions {
+                use super::*;
+
+                #[test]
+                fn replacement_starts_at_event_start() {
+                    // Test case: "**bold text**" -> replace "bold" with "strong"
+                    // This should result in "**strong text**", not "strong** text**"
+                    let mut flattened = FlattenedText {
+                        //     ₀123456789
+                        text: "bold text".to_string(),
+                        formatting_events: vec![FormattingEvent {
+                            start_pos: 0,
+                            length: 9, // covers "bold text"
+                            formatting: FormattingType::Span(SpanVariant::Strong),
+                        }],
+                        offset: 0,
+                        last_replacement_end: 0,
+                    };
+
+                    // Replace "bold" (positions 0..4) with "strong"
+                    flattened.replace_range(0..4, "strong").unwrap();
+
+                    assert_eq!(flattened.text, "strong text");
+                    assert_eq!(flattened.formatting_events.len(), 1);
+                    assert_eq!(flattened.formatting_events[0].start_pos, 0);
+                    assert_eq!(flattened.formatting_events[0].length, 11); // "strong text"
+                }
+
+                #[test]
+                fn replacement_ends_at_event_end() {
+                    // Test case: "**text bold**" -> replace "bold" with "strong"
+                    // This should result in "**text strong**", not "**text **strong"
+                    let mut flattened = FlattenedText {
+                        //     ₀123456789
+                        text: "text bold".to_string(),
+                        formatting_events: vec![FormattingEvent {
+                            start_pos: 0,
+                            length: 9, // covers "text bold"
+                            formatting: FormattingType::Span(SpanVariant::Strong),
+                        }],
+                        offset: 0,
+                        last_replacement_end: 0,
+                    };
+
+                    // Replace "bold" (positions 5..9) with "strong"
+                    flattened.replace_range(5..9, "strong").unwrap();
+
+                    assert_eq!(flattened.text, "text strong");
+                    assert_eq!(flattened.formatting_events.len(), 1);
+                    assert_eq!(flattened.formatting_events[0].start_pos, 0);
+                    assert_eq!(flattened.formatting_events[0].length, 11); // "text strong"
+                }
+
+                #[test]
+                fn replacement_starts_at_event_start_with_nested_formatting() {
+                    // Test case: "_emphasis and **nested bold**_" -> replace "nested" with "formerly"
+                    // This should preserve the nested structure correctly
+                    let mut flattened = FlattenedText {
+                        //     ₀123456789₁123456789₂123456789₃
+                        text: "emphasis and nested bold".to_string(),
+                        formatting_events: vec![
+                            FormattingEvent {
+                                start_pos: 0,
+                                length: 24, // covers entire text
+                                formatting: FormattingType::Span(SpanVariant::Emphasis),
+                            },
+                            FormattingEvent {
+                                start_pos: 13,
+                                length: 11, // covers "nested bold"
+                                formatting: FormattingType::Span(SpanVariant::Strong),
+                            },
+                        ],
+                        offset: 0,
+                        last_replacement_end: 0,
+                    };
+
+                    // Replace "nested" (positions 13..19) with "formerly"
+                    flattened.replace_range(13..19, "formerly").unwrap();
+
+                    assert_eq!(flattened.text, "emphasis and formerly bold");
+                    assert_eq!(flattened.formatting_events.len(), 2);
+
+                    // Outer emphasis should cover the entire new text
+                    assert_eq!(flattened.formatting_events[0].start_pos, 0);
+                    assert_eq!(flattened.formatting_events[0].length, 26); // "emphasis and formerly bold"
+
+                    // Inner strong should start at same position but have adjusted length
+                    assert_eq!(flattened.formatting_events[1].start_pos, 13);
+                    assert_eq!(flattened.formatting_events[1].length, 13); // "formerly bold"
                 }
             }
         }
