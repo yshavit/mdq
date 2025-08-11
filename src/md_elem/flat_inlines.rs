@@ -65,6 +65,31 @@ pub(crate) enum RangeReplacementError {
     AtomicityViolation,
 }
 
+/// Represents how a position relates to a boundary point
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BoundaryPosition {
+    /// Position is before the boundary
+    Before,
+    /// Position is exactly at the boundary
+    At,
+    /// Position is after the boundary
+    After,
+}
+
+impl BoundaryPosition {
+    fn classify(position: usize, boundary: usize) -> Self {
+        use BoundaryPosition::*;
+
+        if position < boundary {
+            Before
+        } else if position == boundary {
+            At
+        } else {
+            After
+        }
+    }
+}
+
 impl FlattenedText {
     /// Creates a flattened representation from a slice of inline elements.
     ///
@@ -225,17 +250,17 @@ impl FlattenedText {
     /// updates both the text and adjusts formatting events.
     pub(crate) fn replace_range(
         &mut self,
-        original_range: Range<usize>,
+        replacement_range: Range<usize>,
         replacement: &str,
     ) -> Result<(), RangeReplacementError> {
         // Validate that ranges are non-overlapping and in increasing order
         // by checking that the current range start is not before the end of the last replacement
-        if original_range.start < self.last_replacement_end {
+        if replacement_range.start < self.last_replacement_end {
             return Err(RangeReplacementError::InternalError("range replacement went backwards"));
         }
 
-        let current_start = (original_range.start as isize + self.offset) as usize;
-        let current_end = (original_range.end as isize + self.offset) as usize;
+        let current_start = (replacement_range.start as isize + self.offset) as usize;
+        let current_end = (replacement_range.end as isize + self.offset) as usize;
 
         // Validate range is within bounds and not going backwards
         if current_end > self.text.len() || current_start > self.text.len() {
@@ -246,7 +271,7 @@ impl FlattenedText {
         // First, find all atomic events that touch this range.
         let mut relevant_atomic_events = self.formatting_events.iter().filter(|event| {
             let event_end_pos = event.start_pos + event.length;
-            let event_pos_overlap = event.start_pos < original_range.end && event_end_pos >= original_range.start;
+            let event_pos_overlap = event.start_pos < replacement_range.end && event_end_pos >= replacement_range.start;
             event_pos_overlap && matches!(event.formatting, FormattingType::Atomic(_))
         });
         let atomicity_violation = match relevant_atomic_events.next() {
@@ -260,9 +285,9 @@ impl FlattenedText {
                 // (b) the replacement range doesn't end after the atomic event
                 // (c) there aren't any other atomic events (since the replacement range would have started before them)
                 let atomic_event_end_pos = first_atomic_event.start_pos + first_atomic_event.length;
-                if original_range.start < first_atomic_event.start_pos {
+                if replacement_range.start < first_atomic_event.start_pos {
                     true // case (a)
-                } else if original_range.end > atomic_event_end_pos {
+                } else if replacement_range.end > atomic_event_end_pos {
                     true // case(b)
                 } else {
                     // case (c)
@@ -279,62 +304,99 @@ impl FlattenedText {
         self.text.replace_range(current_start..current_end, replacement);
 
         // Calculate the size change
-        let original_len = original_range.end - original_range.start;
+        let original_len = replacement_range.end - replacement_range.start;
         let size_change = replacement.len() as isize - original_len as isize;
 
         // Update formatting events based on how they overlap with the replacement
         let mut events_to_keep = Vec::new();
 
-        for event in &self.formatting_events {
+        for mut event in self.formatting_events.drain(..) {
             let event_start = event.start_pos;
             let event_end = event.start_pos + event.length;
 
-            if event_end <= original_range.start {
-                // Event is completely before the replacement - keep unchanged
-                events_to_keep.push(event.clone());
-            } else if event_start >= original_range.end {
-                // Event is completely after the replacement - shift by size change
-                let mut new_event = event.clone();
-                new_event.start_pos = (event_start as isize + size_change) as usize;
-                events_to_keep.push(new_event);
-            } else if event_start >= original_range.start && event_end <= original_range.end {
-                // Event is completely within the replacement
-                if event_start == original_range.start && event_end == original_range.end && !replacement.is_empty() {
-                    // Event exactly matches the replacement range and replacement is not empty - preserve with new length
-                    let mut new_event = event.clone();
-                    new_event.length = replacement.len();
-                    events_to_keep.push(new_event);
-                } else {
-                    // Event is within but doesn't exactly match, or replacement is empty - remove it
-                    // (Don't add to events_to_keep)
+            // Now we need to adjust the events to account for the replacement range being snipped out and replaced with
+            // the new text.
+            // The general semantics are that the new text should have the formatting of the start of the range.
+            // Formatting before or after the replacement range should be trimmed to avoid the replacement range.
+            // We accomplish this with a series of matches.
+            use BoundaryPosition::*;
+            match BoundaryPosition::classify(event_start, replacement_range.start) {
+                Before => {
+                    // The event starts before the replacement range.
+                    match BoundaryPosition::classify(event_end, replacement_range.start) {
+                        Before | At => {
+                            // The event is entirely before the replacement, so we can just keep it as-is.
+                            events_to_keep.push(event);
+                        }
+                        After => {
+                            // The event started before the replacement but crosses into the replacement. Does it go all
+                            // the way across it?
+                            event.length = match BoundaryPosition::classify(event_end, replacement_range.end) {
+                                Before => {
+                                    // Event ends before the replacement does, so we just need to adjust its length such
+                                    // that it now ends where the replacement_range starts.
+                                    replacement_range.start - event_start
+                                }
+                                At | After => {
+                                    // Event spans all the way across the replacement, so we just need to shorten its
+                                    // length by the replacement delta.
+                                    (event.length as isize + size_change) as usize
+                                }
+                            };
+                            events_to_keep.push(event);
+                        }
+                    }
                 }
-            } else if event_start < original_range.start && event_end > original_range.end {
-                // Event spans the entire replacement - adjust length
-                let mut new_event = event.clone();
-                new_event.length = (event.length as isize + size_change) as usize;
-                events_to_keep.push(new_event);
-            } else if event_start < original_range.start && event_end < original_range.end {
-                // Event starts before replacement and ends within it - truncate
-                let mut new_event = event.clone();
-                new_event.length = original_range.start - event_start;
-                events_to_keep.push(new_event);
-            } else if event_start < original_range.start && event_end == original_range.end {
-                // Event starts before replacement and ends exactly at replacement end - adjust length
-                let mut new_event = event.clone();
-                new_event.length = (event.length as isize + size_change) as usize;
-                events_to_keep.push(new_event);
-            } else if event_start > original_range.start && event_end > original_range.end {
-                // Event starts within replacement and ends after it - shift and truncate
-                let mut new_event = event.clone();
-                let chars_removed_from_event = original_range.end - event_start;
-                new_event.start_pos = (original_range.start as isize + replacement.len() as isize) as usize;
-                new_event.length = event.length - chars_removed_from_event;
-                events_to_keep.push(new_event);
-            } else if event_start == original_range.start && event_end > original_range.end {
-                // Event starts exactly at replacement start and ends after it - adjust length and keep start
-                let mut new_event = event.clone();
-                new_event.length = (event.length as isize + size_change) as usize;
-                events_to_keep.push(new_event);
+                At => {
+                    // Event starts exactly at replacement start
+                    match BoundaryPosition::classify(event_end, replacement_range.end) {
+                        At | Before => {
+                            // If the replacement is empty, we can just discard this formatting event. Otherwise, the
+                            // event's new length is just the replacement text's length.
+                            if !replacement.is_empty() {
+                                // Preserve with new length
+                                event.length = replacement.len();
+                                events_to_keep.push(event);
+                            }
+                        }
+                        After => {
+                            // Event starts at replacement start, ends after. We can keep it, we just need to adjust
+                            // its length to account for the replacement range changing in length.
+                            event.length = (event.length as isize + size_change) as usize;
+                            events_to_keep.push(event);
+                        }
+                    }
+                }
+                After => {
+                    // Event starts after replacement start
+                    match BoundaryPosition::classify(event_start, replacement_range.end) {
+                        Before => {
+                            // Event starts within replacement. When does it end?
+                            match BoundaryPosition::classify(event_end, replacement_range.end) {
+                                At | Before => {
+                                    // Event completely within replacement. We want all the text within the replacement
+                                    // to be the format of the replacement's start, so this inner formatting can just
+                                    // go away.
+                                }
+                                After => {
+                                    // Event starts within, ends after replacement. We basically want to remove the
+                                    // first part of the event, such that the event now starts after the replacement.
+                                    let chars_removed_from_event = replacement_range.end - event_start;
+                                    event.start_pos =
+                                        (replacement_range.start as isize + replacement.len() as isize) as usize;
+                                    event.length = event.length - chars_removed_from_event;
+                                    events_to_keep.push(event);
+                                }
+                            }
+                        }
+                        At | After => {
+                            // Event is entirely after the replacement; just adjust its start_pos offset to account for
+                            // the replacement range resizing.
+                            event.start_pos = (event_start as isize + size_change) as usize;
+                            events_to_keep.push(event);
+                        }
+                    }
+                }
             }
         }
 
@@ -344,7 +406,7 @@ impl FlattenedText {
         self.offset += size_change;
 
         // Update the last replacement end position
-        self.last_replacement_end = original_range.end;
+        self.last_replacement_end = replacement_range.end;
 
         Ok(())
     }
@@ -1172,8 +1234,16 @@ mod tests {
             assert_eq!(flattened.text, "one @ four");
             assert_eq!(flattened.offset, -8); // 9 chars -> 1 char = -8
 
-            // Both formatting events should be removed since they were completely within the replaced range
-            assert_eq!(flattened.formatting_events.len(), 0);
+            // The em should remain
+            assert_eq!(flattened.formatting_events.len(), 1);
+            assert_eq!(
+                flattened.formatting_events[0],
+                FormattingEvent {
+                    start_pos: 4,
+                    length: 1,
+                    formatting: FormattingType::Span(SpanVariant::Emphasis),
+                }
+            )
         }
 
         #[test]
