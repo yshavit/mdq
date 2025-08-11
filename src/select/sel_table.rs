@@ -35,7 +35,7 @@ impl ReplacementRow {
         self.row.iter().any(|cell| cell.matched_any)
     }
 
-    fn to_row(self, allowed_cells: &[bool]) -> TableRow {
+    fn into_row(self, allowed_cells: &[bool]) -> TableRow {
         self.row
             .into_iter()
             .enumerate()
@@ -69,7 +69,7 @@ impl TableSelector {
         let mut rows = Vec::with_capacity(row_count);
 
         let indexes_to_keep: Vec<_> = header_replacement.row.iter().map(|item| item.matched_any).collect();
-        rows.push(header_replacement.to_row(&indexes_to_keep));
+        rows.push(header_replacement.into_row(&indexes_to_keep));
 
         let alignments = table
             .alignments
@@ -88,10 +88,10 @@ impl TableSelector {
             // No content rows, so just return a hit of the header rows. We don't expect this to happen, though.
             return Ok(Some(Table { alignments, rows }));
         }
-        while let Some(row) = rows_iter.next() {
+        for row in rows_iter {
             let replaced_row = Self::replace_row(&self.rows_matcher, row)?;
             if replaced_row.any_cell_matched() {
-                let replaced_row = replaced_row.to_row(&indexes_to_keep);
+                let replaced_row = replaced_row.into_row(&indexes_to_keep);
                 rows.push(replaced_row);
             }
         }

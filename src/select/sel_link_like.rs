@@ -111,15 +111,14 @@ impl TrySelector<Image> for ImageSelector {
         let both_matched = alt_replaced.matched_any && url_replaced.matched_any;
 
         let result = if both_matched {
-            let result = Image {
+            Image {
                 alt: alt_replaced.item,
                 link: LinkDefinition {
                     url: url_replaced.item,
                     title: item.link.title,
                     reference: item.link.reference,
                 },
-            };
-            result
+            }
         } else {
             original_image
         };

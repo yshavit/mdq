@@ -285,6 +285,7 @@ impl FlattenedText {
                 // (b) the replacement range doesn't end after the atomic event
                 // (c) there aren't any other atomic events (since the replacement range would have started before them)
                 let atomic_event_end_pos = first_atomic_event.start_pos + first_atomic_event.length;
+                #[allow(clippy::if_same_then_else)]
                 if replacement_range.start < first_atomic_event.start_pos {
                     true // case (a)
                 } else if replacement_range.end > atomic_event_end_pos {
@@ -384,7 +385,7 @@ impl FlattenedText {
                                     let chars_removed_from_event = replacement_range.end - event_start;
                                     event.start_pos =
                                         (replacement_range.start as isize + replacement.len() as isize) as usize;
-                                    event.length = event.length - chars_removed_from_event;
+                                    event.length -= chars_removed_from_event;
                                     events_to_keep.push(event);
                                 }
                             }
