@@ -131,10 +131,12 @@ In any of the above, the text may be:
 - an `unquoted string` that starts with a letter; this is case-insensitive
 - a `"quoted string"` (either single or double quotes); this is case-sensitive
 - a string (quoted or unquoted) anchored by `^` or `$` (for start and end of string, respectively)
-- a `/regex/`
+- a `/regex/` match or `!s/regex/replace/` (see the user manual for [caveats about replacements])
 - omitted or `*`, to mean "any"
 
 See the [tutorial] for a bit more detail, and [user manual] for the full picture.
+
+[caveats about replacements]: https://github.com/yshavit/mdq/wiki/Full-User-Manual#regex-replacements
 
 [tutorial]: https://github.com/yshavit/mdq/wiki/Tutorial
 
@@ -212,6 +214,12 @@ cat oncall.md | mdq ':-: * :-: 2024-01-15'
 ```
 
 # Development
+
+## Using mdq in your library
+
+mdq is available as a Rust library at https://crates.io/crates/mdq. Its docs are available at https://docs.rs/mdq/latest/mdq/.
+
+## Working on mdq itself
 
 Requires rustc >= 1.78.0
 

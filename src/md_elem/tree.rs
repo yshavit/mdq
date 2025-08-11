@@ -302,29 +302,29 @@ impl Display for InvalidMd {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             InvalidMd::Unsupported(node) => {
-                write!(f, "unsupported node: {:?}", node)
+                write!(f, "unsupported node: {node:?}")
             }
             InvalidMd::NonListItemDirectlyUnderList(node) => {
-                write!(f, "expected a list item, but found: {:?}", node)
+                write!(f, "expected a list item, but found: {node:?}")
             }
             InvalidMd::NonRowDirectlyUnderTable(node) => {
-                write!(f, "expected a row, but found: {:?}", node)
+                write!(f, "expected a row, but found: {node:?}")
             }
             InvalidMd::NonInlineWhereInlineExpected(node) => {
-                write!(f, "expected an inline element, but found: {:?}", node)
+                write!(f, "expected an inline element, but found: {node:?}")
             }
             InvalidMd::MissingReferenceDefinition(id) => {
-                write!(f, "couldn't find definition for link/image/footnote: {}", id)
+                write!(f, "couldn't find definition for link/image/footnote: {id}")
             }
             InvalidMd::ConflictingReferenceDefinition(id) => {
-                write!(f, "found multiple definitions for link/image/footnote: {}", id)
+                write!(f, "found multiple definitions for link/image/footnote: {id}")
             }
             InvalidMd::InternalError(err) => {
                 f.write_str("internal error\n")?;
                 std::fmt::Display::fmt(&err.backtrace, f)
             }
             InvalidMd::UnknownMarkdown(description) => {
-                write!(f, "encountered unknown markdown: {}\n\n", description)?;
+                write!(f, "encountered unknown markdown: {description}\n\n")?;
                 f.write_str("* Please consider reporting this at https://github.com/yshavit/mdq/issues\n")?;
                 f.write_str("* You can suppress this error by using --allow-unknown-markdown.")
             }
@@ -1948,7 +1948,7 @@ impl<'a> Lookups<'a> {
     }
 
     fn build_lookups(&mut self, node: &mdast::Node, read_opts: &ReadOptions) -> Result<(), InvalidMd> {
-        let x = format!("{:?}", node);
+        let x = format!("{node:?}");
         let _ = x;
         match node {
             mdast::Node::FootnoteDefinition(def) => {
@@ -3426,13 +3426,13 @@ mod tests {
         {
             match result {
                 Ok(lookups) => check(lookups),
-                Err(err) => panic!("expected good Lookups, but got: {:?}", err),
+                Err(err) => panic!("expected good Lookups, but got: {err:?}"),
             }
         }
 
         fn expect_absent(result: Result<Lookups<'static>, InvalidMd>, expect: InvalidMd) {
             match result {
-                Ok(_) => panic!("expected {:?}, but got good Lookups", expect),
+                Ok(_) => panic!("expected {expect:?}, but got good Lookups"),
                 Err(err) => assert_eq!(err, expect),
             }
         }
@@ -3870,14 +3870,14 @@ mod tests {
                 _ => ("", ""),
             };
             if !tag.is_empty() {
-                out.push_str(&format!("<{}>", tag))
+                out.push_str(&format!("<{tag}>"))
             }
             out.push_str(text);
             if let Some(children) = node.children() {
                 children.iter().for_each(|c| build(out, c));
             }
             if !tag.is_empty() {
-                out.push_str(&format!("</{}>", tag))
+                out.push_str(&format!("</{tag}>"))
             }
         }
         let mut s = String::with_capacity(32);

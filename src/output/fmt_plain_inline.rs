@@ -84,7 +84,7 @@ where
         MdElem::BlockQuote(block) => write_plain_result(out, block.body.iter()),
         MdElem::CodeBlock(CodeBlock { value: body, .. }) | MdElem::FrontMatter(FrontMatter { body, .. }) => {
             if !body.is_empty() {
-                writeln!(out, "{}", body)?;
+                writeln!(out, "{body}")?;
                 writeln!(out)?;
             }
             Ok(())

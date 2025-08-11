@@ -52,7 +52,7 @@ fn generate_integ_test_cases(out_dir: &String) -> Result<(), String> {
             if let Some(files) = &spec_file_parsed.given.files {
                 out.with_indent(|out| {
                     for (file_name, file_content) in files {
-                        out.writeln(&format!("({:?}, {:?}),", file_name, file_content));
+                        out.writeln(&format!("({file_name:?}, {file_content:?}),"));
                     }
                 });
             }
