@@ -154,7 +154,7 @@ impl FlattenedText {
             }
 
             // Calculate where this event starts within our current text slice
-            let event_start_in_slice = peeked_event.start_pos.saturating_sub(text_start_offset);
+            let event_start_in_slice = peeked_event.start_pos - text_start_offset;
 
             // Add any plain text before this event
             if event_start_in_slice > current_pos {
@@ -170,7 +170,7 @@ impl FlattenedText {
 
             // Process the event
             let event = events.next().unwrap();
-            let event_end_in_slice = (event.start_pos + event.length).saturating_sub(text_start_offset);
+            let event_end_in_slice = (event.start_pos + event.length) - text_start_offset;
             let event_end_in_slice = event_end_in_slice.min(text.len());
 
             if event_end_in_slice >= current_pos {
