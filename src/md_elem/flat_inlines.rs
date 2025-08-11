@@ -99,77 +99,120 @@ impl FlattenedText {
         }
     }
 
-    fn unflatten_rec_0<E>(mut text: &str, mut text_offset: usize, events: &mut Peekable<E>) -> Vec<Inline>
+    /// Reconstructs inline elements by recursively processing text slices and formatting events.
+    ///
+    /// ## The Core Problem: Global Events vs Local Text Slices
+    ///
+    /// Formatting events always have coordinates relative to the ORIGINAL flattened text.
+    /// But during recursion, we work with text SLICES that are substrings of the original.
+    /// The `text_start_offset` parameter bridges this gap by telling us where our current
+    /// text slice starts in the original global coordinate space.
+    ///
+    /// ## Example: Why We Need text_start_offset
+    ///
+    /// Original text: `"hello _world_ end"`
+    /// Flattened: `text="hello world end", events=[{start_pos: 6, length: 5, formatting: Emphasis}]`
+    ///
+    /// 1. Initial call: `unflatten_rec_0("hello world end", text_start_offset=0)`
+    ///    - Event at global pos 6 means "split at position 6 in the original text"
+    ///    - Since text_start_offset=0, local position = 6-0 = 6 ✓
+    ///    - Extract slice "world" and recursively process it
+    ///
+    /// 2. Recursive call: `unflatten_rec_0("world", text_start_offset=6)`
+    ///    - The text slice is just "world" (5 chars)
+    ///    - But events still reference the ORIGINAL coordinates!
+    ///    - If we see an event at global pos 8, local position = 8-6 = 2 ✓
+    ///    - Without text_start_offset, we'd think pos 8 means "split at char 8 of 'world'" → PANIC!
+    ///
+    /// ## How Recursion Works
+    ///
+    /// Each recursive call processes a text slice that corresponds to the content inside
+    /// a formatting span. The text_start_offset ensures that global event coordinates
+    /// are correctly translated to local positions within each text slice.
+    ///
+    /// This prevents the "byte index X is out of bounds" panics that occurred when
+    /// the original algorithm lost track of the coordinate mapping between global
+    /// event positions and local text slice boundaries.
+    fn unflatten_rec_0<E>(text: &str, text_start_offset: usize, events: &mut Peekable<E>) -> Vec<Inline>
     where
         E: Iterator<Item = FormattingEvent>,
     {
-        // We're going to basically fold the text up. Given text and events:
-        //
-        //         /--em---\
-        // "hello, world and all"
-        //
-        // We'll turn "hello, " into a plain text span, and then for the em span we'll recurse down, with "world and"
-        // as the string.
-
         let mut inlines = Vec::new();
+        let mut current_pos = 0; // Position within the current text slice
+        let text_end_offset = text_start_offset + text.len();
 
         while let Some(peeked_event) = events.peek() {
-            let peeked_event_local_offset = peeked_event.start_pos - text_offset;
-            if peeked_event_local_offset > 0 {
-                // Prefix plain text
-                let (plain, tail) = text.split_at(peeked_event_local_offset);
-                text = tail;
-                text_offset += plain.len();
-                inlines.push(Inline::Text(Text {
-                    variant: TextVariant::Plain,
-                    value: plain.to_string(),
-                }));
-            } else if peeked_event_local_offset >= text.len() {
-                // Events are past this text's range, so pass back up to the caller
-                return inlines;
-            } else {
-                // advance the iterator to discard this event
-                let event = events.next().unwrap();
-                let (within_span, tail) = text.split_at(event.length);
-                text = tail;
+            // Skip events that are completely before our text range
+            if peeked_event.start_pos + peeked_event.length <= text_start_offset {
+                events.next();
+                continue;
+            }
+
+            // Stop processing if event starts after our text range
+            if peeked_event.start_pos >= text_end_offset {
+                break;
+            }
+
+            // Calculate where this event starts within our current text slice
+            let event_start_in_slice = peeked_event.start_pos.saturating_sub(text_start_offset);
+
+            // Add any plain text before this event
+            if event_start_in_slice > current_pos {
+                let plain_text = &text[current_pos..event_start_in_slice];
+                if !plain_text.is_empty() {
+                    inlines.push(Inline::Text(Text {
+                        variant: TextVariant::Plain,
+                        value: plain_text.to_string(),
+                    }));
+                }
+                current_pos = event_start_in_slice;
+            }
+
+            // Process the event
+            let event = events.next().unwrap();
+            let event_end_in_slice = (event.start_pos + event.length).saturating_sub(text_start_offset);
+            let event_end_in_slice = event_end_in_slice.min(text.len());
+
+            if event_end_in_slice >= current_pos {
+                let event_text = &text[current_pos..event_end_in_slice];
                 let inline = match event.formatting {
                     FormattingType::Span(variant) => Inline::Span(Span {
                         variant,
-                        children: Self::unflatten_rec_0(within_span, text_offset, events),
+                        children: Self::unflatten_rec_0(event_text, text_start_offset + current_pos, events),
                     }),
                     FormattingType::Atomic(AtomicFormatting::StandardLink(link)) => {
-                        let display =
-                            Self::unflatten_rec_0(within_span, text_offset + peeked_event_local_offset, events);
+                        let display = Self::unflatten_rec_0(event_text, text_start_offset + current_pos, events);
                         Inline::Link(Link::Standard(StandardLink { display, link }))
                     }
                     FormattingType::Atomic(AtomicFormatting::AutoLink(style)) => {
                         Inline::Link(Link::Autolink(Autolink {
-                            url: within_span.to_string(),
+                            url: event_text.to_string(),
                             style,
                         }))
                     }
                     FormattingType::Atomic(AtomicFormatting::Image(link)) => Inline::Image(Image {
-                        alt: within_span.to_string(),
+                        alt: event_text.to_string(),
                         link,
                     }),
                     FormattingType::Atomic(AtomicFormatting::Footnote) => Inline::Footnote(FootnoteId {
-                        id: within_span.to_string(),
+                        id: event_text.to_string(),
                     }),
                     FormattingType::Atomic(AtomicFormatting::Text(variant)) => Inline::Text(Text {
                         variant,
-                        value: within_span.to_string(),
+                        value: event_text.to_string(),
                     }),
                 };
-                text_offset += within_span.len();
                 inlines.push(inline);
+                current_pos = event_end_in_slice;
             }
         }
 
-        // The remaining text is plain
-        if !text.is_empty() {
+        // Add any remaining plain text
+        if current_pos < text.len() {
+            let remaining_text = &text[current_pos..];
             inlines.push(Inline::Text(Text {
                 variant: TextVariant::Plain,
-                value: text.to_string(),
+                value: remaining_text.to_string(),
             }));
         }
 
@@ -708,6 +751,16 @@ mod tests {
             let reconstructed = flattened.unflatten().unwrap();
 
             assert_eq!(original, reconstructed);
+        }
+
+        #[test]
+        fn multiple_format_spans_with_space_between_them() {
+            let original = inlines![em["hello"], " ", em["world"]];
+
+            let flattened = FlattenedText::from_inlines(original.clone());
+            let reconstructed = flattened.unflatten().unwrap();
+
+            assert_eq!(reconstructed, original);
         }
     }
 
