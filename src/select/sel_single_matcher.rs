@@ -1,23 +1,17 @@
 use crate::md_elem::elem::*;
-use crate::select::match_selector::MatchSelector;
-use crate::select::string_matcher::{StringMatchError, StringMatcher};
-use crate::select::{BlockQuoteMatcher, FrontMatterMatcher, HtmlMatcher, ParagraphMatcher};
+use crate::md_elem::MdContext;
+use crate::select::string_matcher::StringMatcher;
+use crate::select::{
+    match_selector, BlockQuoteMatcher, FrontMatterMatcher, HtmlMatcher, ParagraphMatcher, Result, Select, TrySelector,
+};
 use paste::paste;
 
-macro_rules! single_matcher_adapter {
-    { $name:ident {$matcher_field:ident} $match_fn:ident $tree_struct_field:ident $selector_name:literal } => {
+macro_rules! single_matcher_struct {
+    { $name:ident {$matcher_field:ident} } => {
         paste! {
             #[derive(Debug, PartialEq)]
             pub(crate) struct [<$name Selector>] {
                 matcher: StringMatcher,
-            }
-
-            impl MatchSelector<$name> for [<$name Selector>] {
-                const NAME: &'static str = $selector_name;
-
-                fn matches(&self, matcher: &$name) -> Result<bool, StringMatchError> {
-                    self.matcher.$match_fn(&matcher.$tree_struct_field)
-                }
             }
 
             impl From< [<$name Matcher>] > for [<$name Selector>] {
@@ -29,27 +23,43 @@ macro_rules! single_matcher_adapter {
     };
 }
 
-single_matcher_adapter! { BlockQuote {text} matches_any body "block quote" }
-single_matcher_adapter! { Paragraph {text} matches_inlines body "paragraph" }
+single_matcher_struct! { BlockQuote {text} }
+single_matcher_struct! { Paragraph {text} }
+single_matcher_struct! { Html {html} }
 
-#[derive(Debug, PartialEq)]
-pub(crate) struct HtmlSelector {
-    matcher: StringMatcher,
-}
+impl TrySelector<BlockQuote> for BlockQuoteSelector {
+    fn try_select(&self, _: &MdContext, item: BlockQuote) -> Result<Select> {
+        let replaced = self
+            .matcher
+            .match_replace_any(item.body)
+            .map_err(|e| e.to_select_error("block quote"))?;
 
-impl From<HtmlMatcher> for HtmlSelector {
-    fn from(value: HtmlMatcher) -> Self {
-        Self {
-            matcher: value.html.into(),
-        }
+        let result = BlockQuote { body: replaced.item };
+        Ok(match_selector::make_select_result(result, replaced.matched_any))
     }
 }
 
-impl MatchSelector<BlockHtml> for HtmlSelector {
-    const NAME: &'static str = "html";
+impl TrySelector<Paragraph> for ParagraphSelector {
+    fn try_select(&self, _: &MdContext, item: Paragraph) -> Result<Select> {
+        let replaced = self
+            .matcher
+            .match_replace_inlines(item.body)
+            .map_err(|e| e.to_select_error("paragraph"))?;
 
-    fn matches(&self, html: &BlockHtml) -> Result<bool, StringMatchError> {
-        self.matcher.matches(&html.value)
+        let result = Paragraph { body: replaced.item };
+        Ok(match_selector::make_select_result(result, replaced.matched_any))
+    }
+}
+
+impl TrySelector<BlockHtml> for HtmlSelector {
+    fn try_select(&self, _: &MdContext, item: BlockHtml) -> Result<Select> {
+        let replaced = self
+            .matcher
+            .match_replace_string(item.value)
+            .map_err(|e| e.to_select_error("html"))?;
+
+        let result = BlockHtml { value: replaced.item };
+        Ok(match_selector::make_select_result(result, replaced.matched_any))
     }
 }
 
@@ -68,15 +78,26 @@ impl From<FrontMatterMatcher> for FrontMatterSelector {
     }
 }
 
-impl MatchSelector<FrontMatter> for FrontMatterSelector {
-    const NAME: &'static str = "front matter";
+impl TrySelector<FrontMatter> for FrontMatterSelector {
+    fn try_select(&self, _: &MdContext, item: FrontMatter) -> Result<Select> {
+        // Check if variant matches (if specified)
+        let variant_selected = self.variant.map(|selected| selected == item.variant).unwrap_or(true);
 
-    fn matches(&self, front_matter: &FrontMatter) -> Result<bool, StringMatchError> {
-        let variant_selected = self
-            .variant
-            .map(|selected| selected == front_matter.variant)
-            .unwrap_or(true);
-        Ok(variant_selected && self.text.matches(&front_matter.body)?)
+        if !variant_selected {
+            return Ok(Select::Miss(item.into()));
+        }
+
+        // Check and potentially replace the text
+        let replaced = self
+            .text
+            .match_replace_string(item.body)
+            .map_err(|e| e.to_select_error("front matter"))?;
+
+        let result = FrontMatter {
+            variant: item.variant,
+            body: replaced.item,
+        };
+        Ok(match_selector::make_select_result(result, replaced.matched_any))
     }
 }
 
@@ -87,143 +108,326 @@ mod test {
         elem::{BlockHtml, BlockQuote, FrontMatter, FrontMatterVariant, Inline, Paragraph, Text, TextVariant},
         MdContext, MdElem,
     };
-    use crate::select::{MatchReplace, Matcher, TrySelector};
+    use crate::select::{MatchReplace, Select, TrySelector};
 
-    #[test]
-    fn block_quote_selector_match_error() {
-        let block_quote_matcher = BlockQuoteMatcher {
-            text: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: false,
-                    text: "test".to_string(),
-                    anchor_end: false,
-                },
-                replacement: Some("replacement".to_string()),
-            },
-        };
+    mod block_quote {
+        use super::*;
 
-        let block_quote = BlockQuote {
-            body: vec![MdElem::Paragraph(Paragraph {
+        #[test]
+        fn block_quote_find_matches() {
+            let block_quote = new_block_quote("test content");
+
+            let block_quote_selector = BlockQuoteSelector::from(BlockQuoteMatcher {
+                text: MatchReplace::build(|b| b.match_regex("test")),
+            });
+
+            let selected = block_quote_selector
+                .try_select(&MdContext::default(), block_quote)
+                .unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Hit(vec![MdElem::BlockQuote(new_block_quote("test content"))])
+            );
+        }
+
+        #[test]
+        fn block_quote_replacement_matches() {
+            let block_quote = new_block_quote("test content");
+
+            let block_quote_selector = BlockQuoteSelector::from(BlockQuoteMatcher {
+                text: MatchReplace::build(|b| b.match_regex("test").replacement("replacement")),
+            });
+
+            let selected = block_quote_selector
+                .try_select(&MdContext::default(), block_quote)
+                .unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Hit(vec![MdElem::BlockQuote(new_block_quote("replacement content"))])
+            );
+        }
+
+        #[test]
+        fn block_quote_find_misses() {
+            let block_quote = new_block_quote("test content");
+
+            let block_quote_selector = BlockQuoteSelector::from(BlockQuoteMatcher {
+                text: MatchReplace::build(|b| b.match_regex("other")),
+            });
+
+            let selected = block_quote_selector
+                .try_select(&MdContext::default(), block_quote)
+                .unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Miss(MdElem::BlockQuote(new_block_quote("test content")))
+            );
+        }
+
+        #[test]
+        fn block_quote_replace_misses() {
+            let block_quote = new_block_quote("test content");
+
+            let block_quote_selector = BlockQuoteSelector::from(BlockQuoteMatcher {
+                text: MatchReplace::build(|b| b.match_regex("other").replacement("replacement")),
+            });
+
+            let selected = block_quote_selector
+                .try_select(&MdContext::default(), block_quote)
+                .unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Miss(MdElem::BlockQuote(new_block_quote("test content")))
+            );
+        }
+
+        fn new_block_quote(content: &str) -> BlockQuote {
+            BlockQuote {
+                body: vec![MdElem::Paragraph(Paragraph {
+                    body: vec![Inline::Text(Text {
+                        variant: TextVariant::Plain,
+                        value: content.to_string(),
+                    })],
+                })],
+            }
+        }
+    }
+
+    mod paragraph {
+        use super::*;
+
+        #[test]
+        fn paragraph_find_matches() {
+            let paragraph = new_paragraph("test content");
+
+            let paragraph_selector = ParagraphSelector::from(ParagraphMatcher {
+                text: MatchReplace::build(|b| b.match_regex("test")),
+            });
+
+            let selected = paragraph_selector.try_select(&MdContext::default(), paragraph).unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Hit(vec![MdElem::Paragraph(new_paragraph("test content"))])
+            );
+        }
+
+        #[test]
+        fn paragraph_replacement_matches() {
+            let paragraph = new_paragraph("test content");
+
+            let paragraph_selector = ParagraphSelector::from(ParagraphMatcher {
+                text: MatchReplace::build(|b| b.match_regex("test").replacement("replacement")),
+            });
+
+            let selected = paragraph_selector.try_select(&MdContext::default(), paragraph).unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Hit(vec![MdElem::Paragraph(new_paragraph("replacement content"))])
+            );
+        }
+
+        #[test]
+        fn paragraph_find_misses() {
+            let paragraph = new_paragraph("test content");
+
+            let paragraph_selector = ParagraphSelector::from(ParagraphMatcher {
+                text: MatchReplace::build(|b| b.match_regex("other")),
+            });
+
+            let selected = paragraph_selector.try_select(&MdContext::default(), paragraph).unwrap();
+
+            assert_eq!(selected, Select::Miss(MdElem::Paragraph(new_paragraph("test content"))));
+        }
+
+        #[test]
+        fn paragraph_replace_misses() {
+            let paragraph = new_paragraph("test content");
+
+            let paragraph_selector = ParagraphSelector::from(ParagraphMatcher {
+                text: MatchReplace::build(|b| b.match_regex("other").replacement("replacement")),
+            });
+
+            let selected = paragraph_selector.try_select(&MdContext::default(), paragraph).unwrap();
+
+            assert_eq!(selected, Select::Miss(MdElem::Paragraph(new_paragraph("test content"))));
+        }
+
+        fn new_paragraph(content: &str) -> Paragraph {
+            Paragraph {
                 body: vec![Inline::Text(Text {
                     variant: TextVariant::Plain,
-                    value: "test content".to_string(),
+                    value: content.to_string(),
                 })],
-            })],
-        };
-
-        let block_quote_selector = BlockQuoteSelector::from(block_quote_matcher);
-
-        assert_eq!(
-            block_quote_selector.matches(&block_quote),
-            Err(StringMatchError::NotSupported)
-        );
-
-        assert_eq!(
-            block_quote_selector
-                .try_select(&MdContext::default(), block_quote)
-                .unwrap_err()
-                .to_string(),
-            "block quote selector does not support string replace"
-        );
+            }
+        }
     }
 
-    #[test]
-    fn paragraph_selector_match_error() {
-        let paragraph_matcher = ParagraphMatcher {
-            text: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: false,
-                    text: "test".to_string(),
-                    anchor_end: false,
-                },
-                replacement: Some("replacement".to_string()),
-            },
-        };
+    mod html {
+        use super::*;
 
-        let paragraph = Paragraph { body: vec![] };
+        #[test]
+        fn html_find_matches() {
+            let html = new_html("<div>test content</div>");
 
-        let paragraph_selector = ParagraphSelector::from(paragraph_matcher);
+            let html_selector = HtmlSelector::from(HtmlMatcher {
+                html: MatchReplace::build(|b| b.match_regex("test")),
+            });
 
-        assert_eq!(
-            paragraph_selector.matches(&paragraph),
-            Err(StringMatchError::NotSupported)
-        );
+            let selected = html_selector.try_select(&MdContext::default(), html).unwrap();
 
-        assert_eq!(
-            paragraph_selector
-                .try_select(&MdContext::default(), paragraph)
-                .unwrap_err()
-                .to_string(),
-            "paragraph selector does not support string replace"
-        );
+            assert_eq!(
+                selected,
+                Select::Hit(vec![MdElem::BlockHtml(new_html("<div>test content</div>"))])
+            );
+        }
+
+        #[test]
+        fn html_replacement_matches() {
+            let html = new_html("<div>test content</div>");
+
+            let html_selector = HtmlSelector::from(HtmlMatcher {
+                html: MatchReplace::build(|b| b.match_regex("test").replacement("replacement")),
+            });
+
+            let selected = html_selector.try_select(&MdContext::default(), html).unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Hit(vec![MdElem::BlockHtml(new_html("<div>replacement content</div>"))])
+            );
+        }
+
+        #[test]
+        fn html_find_misses() {
+            let html = new_html("<div>test content</div>");
+
+            let html_selector = HtmlSelector::from(HtmlMatcher {
+                html: MatchReplace::build(|b| b.match_regex("other")),
+            });
+
+            let selected = html_selector.try_select(&MdContext::default(), html).unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Miss(MdElem::BlockHtml(new_html("<div>test content</div>")))
+            );
+        }
+
+        #[test]
+        fn html_replace_misses() {
+            let html = new_html("<div>test content</div>");
+
+            let html_selector = HtmlSelector::from(HtmlMatcher {
+                html: MatchReplace::build(|b| b.match_regex("other").replacement("replacement")),
+            });
+
+            let selected = html_selector.try_select(&MdContext::default(), html).unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Miss(MdElem::BlockHtml(new_html("<div>test content</div>")))
+            );
+        }
+
+        fn new_html(content: &str) -> BlockHtml {
+            BlockHtml {
+                value: content.to_string(),
+            }
+        }
     }
 
-    #[test]
-    fn html_selector_match_error() {
-        let html_matcher = HtmlMatcher {
-            html: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: false,
-                    text: "div".to_string(),
-                    anchor_end: false,
-                },
-                replacement: Some("replacement".to_string()),
-            },
-        };
+    mod front_matter {
+        use super::*;
 
-        let block_html = BlockHtml {
-            value: "<div>content</div>".to_string(),
-        };
+        #[test]
+        fn front_matter_find_matches() {
+            let front_matter = new_front_matter("title: test content");
 
-        let html_selector = HtmlSelector::from(html_matcher);
+            let front_matter_selector = FrontMatterSelector::from(FrontMatterMatcher {
+                variant: None,
+                text: MatchReplace::build(|b| b.match_regex("test")),
+            });
 
-        assert_eq!(html_selector.matches(&block_html), Err(StringMatchError::NotSupported));
-
-        assert_eq!(
-            html_selector
-                .try_select(&MdContext::default(), block_html)
-                .unwrap_err()
-                .to_string(),
-            "html selector does not support string replace"
-        );
-    }
-
-    #[test]
-    fn front_matter_selector_match_error() {
-        let front_matter_matcher = FrontMatterMatcher {
-            variant: None,
-            text: MatchReplace {
-                matcher: Matcher::Text {
-                    case_sensitive: false,
-                    anchor_start: false,
-                    text: "title".to_string(),
-                    anchor_end: false,
-                },
-                replacement: Some("replacement".to_string()),
-            },
-        };
-
-        let front_matter = FrontMatter {
-            variant: FrontMatterVariant::Yaml,
-            body: "title: test".to_string(),
-        };
-
-        let front_matter_selector = FrontMatterSelector::from(front_matter_matcher);
-
-        assert_eq!(
-            front_matter_selector.matches(&front_matter),
-            Err(StringMatchError::NotSupported)
-        );
-
-        assert_eq!(
-            front_matter_selector
+            let selected = front_matter_selector
                 .try_select(&MdContext::default(), front_matter)
-                .unwrap_err()
-                .to_string(),
-            "front matter selector does not support string replace"
-        );
+                .unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Hit(vec![MdElem::FrontMatter(new_front_matter("title: test content"))])
+            );
+        }
+
+        #[test]
+        fn front_matter_replacement_matches() {
+            let front_matter = new_front_matter("title: test content");
+
+            let front_matter_selector = FrontMatterSelector::from(FrontMatterMatcher {
+                variant: None,
+                text: MatchReplace::build(|b| b.match_regex("test").replacement("replacement")),
+            });
+
+            let selected = front_matter_selector
+                .try_select(&MdContext::default(), front_matter)
+                .unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Hit(vec![MdElem::FrontMatter(new_front_matter(
+                    "title: replacement content"
+                ))])
+            );
+        }
+
+        #[test]
+        fn front_matter_find_misses() {
+            let front_matter = new_front_matter("title: test content");
+
+            let front_matter_selector = FrontMatterSelector::from(FrontMatterMatcher {
+                variant: None,
+                text: MatchReplace::build(|b| b.match_regex("other")),
+            });
+
+            let selected = front_matter_selector
+                .try_select(&MdContext::default(), front_matter)
+                .unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Miss(MdElem::FrontMatter(new_front_matter("title: test content")))
+            );
+        }
+
+        #[test]
+        fn front_matter_replace_misses() {
+            let front_matter = new_front_matter("title: test content");
+
+            let front_matter_selector = FrontMatterSelector::from(FrontMatterMatcher {
+                variant: None,
+                text: MatchReplace::build(|b| b.match_regex("other").replacement("replacement")),
+            });
+
+            let selected = front_matter_selector
+                .try_select(&MdContext::default(), front_matter)
+                .unwrap();
+
+            assert_eq!(
+                selected,
+                Select::Miss(MdElem::FrontMatter(new_front_matter("title: test content")))
+            );
+        }
+
+        fn new_front_matter(content: &str) -> FrontMatter {
+            FrontMatter {
+                variant: FrontMatterVariant::Yaml,
+                body: content.to_string(),
+            }
+        }
     }
 }
