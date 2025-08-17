@@ -51,7 +51,7 @@ impl From<pest::error::Error<Rule>> for Error {
 }
 
 impl Query {
-    pub(crate) fn parse(query_text: &str) -> Result<Pairs, Error> {
+    pub(crate) fn parse(query_text: &str) -> Result<Pairs<'_>, Error> {
         QueryPairs::parse(Rule::top, query_text).map_err(Self::format_err)
     }
 
@@ -122,7 +122,7 @@ mod test_helpers {
     impl StringVariant {
         /// Tries to parse the given string. If it succeeds, returns the parsed Pairs and the remaining, unparsed query
         /// text.
-        pub(crate) fn parse(self, query_text: &str) -> Result<(Pairs, &str), Error> {
+        pub(crate) fn parse(self, query_text: &str) -> Result<(Pairs<'_>, &str), Error> {
             let parsed = QueryPairs::parse(self.as_rule(), query_text)?;
             let remaining = match parsed.peek() {
                 None => query_text,

@@ -30,3 +30,6 @@ lazy_static = "1.4.0"
 indoc = "2"
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
+
+[lints.rust]
+dead_code = "allow" # TODO remove this; it's a temporary crutch for the phased commits of #376
