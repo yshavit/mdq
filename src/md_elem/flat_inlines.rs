@@ -3,7 +3,6 @@ use crate::md_elem::tree::elem::{Autolink, AutolinkStyle, Image, Link, StandardL
 use crate::md_elem::tree::elem::{FootnoteId, Inline, LinkDefinition, SpanVariant, Text, TextVariant};
 use crate::output::{inlines_to_plain_string, FootnoteToString, InlineToStringOpts};
 use std::cmp::Ordering;
-use crate::output::{inlines_to_plain_string, FootnoteToString, InlineToStringOpts};
 use std::iter::Peekable;
 use std::ops::Range;
 
