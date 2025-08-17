@@ -1,7 +1,6 @@
 use crate::md_elem::tree::elem::Span;
 use crate::md_elem::tree::elem::{Autolink, AutolinkStyle, Image, Link, StandardLink};
 use crate::md_elem::tree::elem::{FootnoteId, Inline, LinkDefinition, SpanVariant, Text, TextVariant};
-use crate::output::{inlines_to_plain_string, FootnoteToString, InlineToStringOpts};
 use std::iter::Peekable;
 use std::ops::Range;
 
@@ -475,12 +474,7 @@ fn flatten_inlines(inlines: impl IntoIterator<Item = Inline>, text: &mut String)
                 // range starts outside this inline). Rather than describing a complex situation to the user, we'll just
                 // prohibit them.
                 let start_pos = text.len();
-                let content = inlines_to_plain_string(
-                    &[&other],
-                    InlineToStringOpts {
-                        footnotes: FootnoteToString::OnlyFootnoteId,
-                    },
-                );
+                let content: &'static str = "1"; // TODO
                 text.push_str(&content);
                 let length = content.len();
 
