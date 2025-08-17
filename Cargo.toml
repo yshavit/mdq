@@ -30,3 +30,7 @@ lazy_static = "1.4.0"
 indoc = "2"
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
+
+[profile.release]
+codegen-units = 1
+lto = true
