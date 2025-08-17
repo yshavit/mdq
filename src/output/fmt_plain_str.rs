@@ -1,29 +1,48 @@
 use crate::md_elem::elem::*;
 use std::borrow::Borrow;
 
-pub(crate) fn inlines_to_plain_string<N: Borrow<Inline>>(inlines: &[N]) -> String {
+#[derive(Default, Copy, Clone)]
+pub(crate) struct InlineToStringOpts {
+    pub(crate) footnotes: FootnoteToString,
+}
+
+#[derive(Default, Copy, Clone)]
+pub(crate) enum FootnoteToString {
+    /// Includes all the surrounding Markdown. If the footnote id is `"1"`, this will render as `[^1]`.
+    #[default]
+    IncludeMarkdown,
+
+    /// Includes only the footnote id. If the footnote id is `"1"`, this will render as `1`.
+    OnlyFootnoteId,
+}
+
+pub(crate) fn inlines_to_plain_string<N: Borrow<Inline>>(inlines: &[N], opts: InlineToStringOpts) -> String {
     let mut result = String::with_capacity(inlines.len() * 5); // random guess
-    build_inlines(&mut result, inlines);
+    build_inlines(&mut result, inlines, opts);
     result
 }
 
-fn build_inlines<N: Borrow<Inline>>(out: &mut String, inlines: &[N]) {
+fn build_inlines<N: Borrow<Inline>>(out: &mut String, inlines: &[N], opts: InlineToStringOpts) {
     for inline in inlines {
-        build_inline(out, inline.borrow());
+        build_inline(out, inline.borrow(), opts);
     }
 }
 
-fn build_inline(out: &mut String, elem: &Inline) {
+fn build_inline(out: &mut String, elem: &Inline, opts: InlineToStringOpts) {
     match elem {
-        Inline::Span(Span { children, .. }) => build_inlines(out, children),
+        Inline::Span(Span { children, .. }) => build_inlines(out, children, opts),
         Inline::Text(Text { value, .. }) => out.push_str(value),
-        Inline::Link(Link::Standard(standard_link)) => build_inlines(out, &standard_link.display),
+        Inline::Link(Link::Standard(standard_link)) => build_inlines(out, &standard_link.display, opts),
         Inline::Link(Link::Autolink(autolink)) => out.push_str(&autolink.url),
         Inline::Image(Image { alt, .. }) => out.push_str(alt),
         Inline::Footnote(footnote) => {
-            out.push_str("[^");
+            if matches!(opts.footnotes, FootnoteToString::IncludeMarkdown) {
+                out.push_str("[^");
+            }
             out.push_str(footnote.as_str());
-            out.push(']');
+            if matches!(opts.footnotes, FootnoteToString::IncludeMarkdown) {
+                out.push(']');
+            }
         }
     }
 }
@@ -70,7 +89,7 @@ mod tests {
         unwrap!(&md_elems[0], MdElem::Paragraph(contents));
         unwrap!(&contents.body[1], inline @ Inline::Text(_));
         VARIANTS_CHECKER.see(inline);
-        let actual = inlines_to_plain_string(&contents.body);
+        let actual = inlines_to_plain_string(&contents.body, Default::default());
         assert_eq!(&actual, "Hello <foo> world");
     }
 
@@ -119,7 +138,7 @@ mod tests {
         let md_elems = MdDoc::parse(md, &options).unwrap().roots;
         unwrap!(&md_elems[0], MdElem::Paragraph(p));
         p.body.iter().for_each(|inline| VARIANTS_CHECKER.see(inline));
-        let actual = inlines_to_plain_string(&p.body);
+        let actual = inlines_to_plain_string(&p.body, Default::default());
         assert_eq!(&actual, expect);
     }
 }

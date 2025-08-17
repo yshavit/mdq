@@ -1,9 +1,9 @@
 use crate::md_elem::elem::*;
+use crate::md_elem::inline_regex_replace::{regex_replace_inlines, RegexReplaceError, Replaced};
 use crate::md_elem::*;
-use crate::output::inlines_to_plain_string;
 use crate::select::{MatchReplace, Matcher, SelectError};
 use fancy_regex::Regex;
-use std::borrow::Borrow;
+use std::borrow::Cow;
 
 #[derive(Debug)]
 pub(crate) struct StringMatcher {
@@ -13,8 +13,8 @@ pub(crate) struct StringMatcher {
 
 #[derive(Clone, Debug)]
 pub(crate) enum StringMatchError {
-    NotSupported,
     RegexError(Box<fancy_regex::Error>),
+    ReplaceError(RegexReplaceError),
 }
 
 #[must_use]
@@ -23,32 +23,13 @@ pub(crate) enum StringMatch<'a> {
     Match(String, Option<(&'a Regex, &'a str)>),
 }
 
-impl StringMatch<'_> {
-    pub(crate) fn is_match(&self) -> bool {
-        matches!(self, StringMatch::Match(..))
-    }
-
-    pub(crate) fn do_replace(self) -> String {
-        match self {
-            StringMatch::NoMatch(s) => s,
-            StringMatch::Match(s, None) => s,
-            StringMatch::Match(s, Some((re, replacement))) => re.replace_all(&s, replacement).to_string(),
-        }
-    }
-
-    pub(crate) fn no_replace(self) -> String {
-        match self {
-            StringMatch::NoMatch(s) => s,
-            StringMatch::Match(s, _) => s,
-        }
-    }
-}
-
 impl StringMatchError {
     pub(crate) fn to_select_error(&self, selector_name: &str) -> SelectError {
         let message = match self {
-            StringMatchError::NotSupported => format!("{selector_name} selector does not support string replace"),
             StringMatchError::RegexError(err) => format!("regex evaluation error in {selector_name} selector: {err}"),
+            StringMatchError::ReplaceError(err) => {
+                format!("regex replacement error in {selector_name} selector: {err}")
+            }
         };
         SelectError::new(message)
     }
@@ -61,20 +42,6 @@ impl PartialEq for StringMatcher {
 }
 
 impl StringMatcher {
-    pub(crate) fn matches(&self, haystack: &str) -> Result<bool, StringMatchError> {
-        if self.replacement.is_some() {
-            return Err(StringMatchError::NotSupported);
-        }
-        match self.re.is_match(haystack) {
-            Ok(m) => Ok(m),
-            Err(e) => Err(StringMatchError::RegexError(Box::new(e))),
-        }
-    }
-
-    pub(crate) fn has_replacement(&self) -> bool {
-        self.replacement.is_some()
-    }
-
     pub(crate) fn match_replace(&self, haystack: String) -> Result<StringMatch<'_>, StringMatchError> {
         match self.re.is_match(&haystack) {
             Ok(is_match) => Ok(if is_match {
@@ -87,53 +54,152 @@ impl StringMatcher {
         }
     }
 
-    pub(crate) fn matches_inlines<I: Borrow<Inline>>(&self, haystack: &[I]) -> Result<bool, StringMatchError> {
-        self.matches(&inlines_to_plain_string(haystack))
+    pub(crate) fn match_replace_string(&self, haystack: String) -> Result<Replaced<String>, StringMatchError> {
+        let ok = match self.match_replace(haystack)? {
+            StringMatch::NoMatch(orig) => Replaced {
+                item: orig,
+                matched_any: false,
+            },
+            StringMatch::Match(orig, None) => Replaced {
+                item: orig,
+                matched_any: true,
+            },
+            StringMatch::Match(orig, Some((pattern, replace_str))) => {
+                let replaced_str = match pattern.replace_all(&orig, replace_str) {
+                    Cow::Borrowed(_) => orig, // the borrowed value must be the orig, so no need to clone it
+                    Cow::Owned(s) => s,
+                };
+                Replaced {
+                    item: replaced_str,
+                    matched_any: true,
+                }
+            }
+        };
+        Ok(ok)
     }
 
-    pub(crate) fn matches_any<N: Borrow<MdElem>>(&self, haystacks: &[N]) -> Result<bool, StringMatchError> {
-        for node in haystacks {
-            if self.matches_node(node.borrow())? {
-                return Ok(true);
-            }
+    pub(crate) fn match_replace_inlines(
+        &self,
+        haystack: Vec<Inline>,
+    ) -> Result<Replaced<Vec<Inline>>, StringMatchError> {
+        let inline_replacements = regex_replace_inlines(haystack, &self.re, self.replacement.as_deref())
+            .map_err(StringMatchError::ReplaceError)?;
+        Ok(inline_replacements)
+    }
+
+    pub(crate) fn match_replace_any(
+        &self,
+        mut haystack: Vec<MdElem>,
+    ) -> Result<Replaced<Vec<MdElem>>, StringMatchError> {
+        let mut matched_any = false;
+
+        for item in &mut haystack {
+            let blank_elem = MdElem::Doc(Vec::new());
+            let item_to_replace = std::mem::replace(item, blank_elem);
+            let replaced = self.match_replace_node(item_to_replace)?;
+            matched_any |= replaced.matched_any;
+            let _ = std::mem::replace(item, replaced.item);
         }
-        Ok(false)
+        Ok(Replaced {
+            item: haystack,
+            matched_any,
+        })
     }
 
-    fn matches_node(&self, node: &MdElem) -> Result<bool, StringMatchError> {
+    fn match_replace_node(&self, node: MdElem) -> Result<Replaced<MdElem>, StringMatchError> {
         match node {
-            MdElem::Doc(elems) => self.matches_any(elems),
-            MdElem::Paragraph(p) => self.matches_inlines(&p.body),
-            MdElem::Table(table) => {
-                for row in &table.rows {
-                    for cell in row {
-                        if self.matches_inlines(cell)? {
-                            return Ok(true);
-                        }
-                    }
-                }
-                Ok(false)
+            MdElem::Doc(elems) => {
+                let replaced = self.match_replace_any(elems)?;
+                Ok(Replaced {
+                    item: MdElem::Doc(replaced.item),
+                    matched_any: replaced.matched_any,
+                })
             }
-            MdElem::List(list) => {
-                for item in &list.items {
-                    if self.matches_any(&item.item)? {
-                        return Ok(true);
-                    }
-                }
-                Ok(false)
+            MdElem::BlockQuote(block) => {
+                let replaced = self.match_replace_any(block.body)?;
+                Ok(Replaced {
+                    item: MdElem::BlockQuote(BlockQuote { body: replaced.item }),
+                    matched_any: replaced.matched_any,
+                })
             }
-            MdElem::BlockQuote(block) => self.matches_any(&block.body),
+            MdElem::List(mut list) => {
+                let mut matched_any = false;
+                for item in &mut list.items {
+                    let contents = std::mem::take(&mut item.item);
+                    let replaced = self.match_replace_any(contents)?;
+                    matched_any |= replaced.matched_any;
+                    item.item = replaced.item;
+                }
+                Ok(Replaced {
+                    item: MdElem::List(list),
+                    matched_any,
+                })
+            }
             MdElem::Section(section) => {
-                if self.matches_inlines(&section.title)? {
-                    return Ok(true);
-                }
-                self.matches_any(&section.body)
+                let replaced_title = self.match_replace_inlines(section.title)?;
+                let replaced_body = self.match_replace_any(section.body)?;
+                Ok(Replaced {
+                    item: MdElem::Section(Section {
+                        title: replaced_title.item,
+                        body: replaced_body.item,
+                        depth: section.depth,
+                    }),
+                    matched_any: replaced_title.matched_any || replaced_body.matched_any,
+                })
             }
-            MdElem::BlockHtml(html) => self.matches(&html.value),
-            MdElem::Inline(inline) => self.matches_inlines(&[inline]),
+            MdElem::Paragraph(p) => {
+                let replaced = self.match_replace_inlines(p.body)?;
+                Ok(Replaced {
+                    item: MdElem::Paragraph(Paragraph { body: replaced.item }),
+                    matched_any: replaced.matched_any,
+                })
+            }
+            MdElem::Table(mut table) => {
+                let mut matched_any = false;
+
+                for row in &mut table.rows {
+                    for cell in row {
+                        let mut replaced = self.match_replace_inlines(std::mem::take(cell))?;
+                        matched_any |= replaced.matched_any;
+                        std::mem::swap(cell, &mut replaced.item);
+                        // TODO -- optimization: if the replacement is None, we can break out of both loops early
+                    }
+                }
+                Ok(Replaced {
+                    item: MdElem::Table(table),
+                    matched_any,
+                })
+            }
+            MdElem::Inline(inline) => {
+                let mut replaced = self.match_replace_inlines(vec![inline])?;
+                let replaced_inline = replaced
+                    .item
+                    .pop()
+                    .expect("while taking first element from replacement");
+                assert!(
+                    replaced.item.is_empty(),
+                    "unexpected extra element(s) after replacing inlines: {:?}",
+                    replaced.item
+                );
+                Ok(Replaced {
+                    item: MdElem::Inline(replaced_inline),
+                    matched_any: replaced.matched_any,
+                })
+            }
+            MdElem::BlockHtml(html) => {
+                let replaced = self.match_replace_string(html.value)?;
+                Ok(Replaced {
+                    item: MdElem::BlockHtml(BlockHtml { value: replaced.item }),
+                    matched_any: replaced.matched_any,
+                })
+            }
+
             // Base cases: these don't recurse, so we say the StringMatcher doesn't match them. A Selector still may,
             // but that's Selector-specific logic, not StringMatcher logic.
-            MdElem::ThematicBreak | MdElem::CodeBlock(_) | MdElem::FrontMatter(_) => Ok(false),
+            MdElem::ThematicBreak | MdElem::CodeBlock(_) | MdElem::FrontMatter(_) => Ok(Replaced {
+                item: node,
+                matched_any: false,
+            }),
         }
     }
 
@@ -191,12 +257,12 @@ mod test {
     impl PartialEq for StringMatchError {
         fn eq(&self, other: &Self) -> bool {
             match (self, other) {
-                (StringMatchError::NotSupported, StringMatchError::NotSupported) => true,
                 (StringMatchError::RegexError(_), StringMatchError::RegexError(_)) => {
                     // We can't compare fancy_regex::Error instances, so we'll consider them equal
                     // if they're both RegexError variants. This is sufficient for our testing needs.
                     true
                 }
+                (StringMatchError::ReplaceError(left), StringMatchError::ReplaceError(right)) => left == right,
                 _ => false,
             }
         }
@@ -425,120 +491,6 @@ mod test {
         assert!(!matcher.matches("foobaz").unwrap());
     }
 
-    #[test]
-    fn matches_with_replacement_returns_not_supported_error() {
-        let matcher_with_replacement = StringMatcher::from(MatchReplace {
-            matcher: Matcher::Text {
-                case_sensitive: false,
-                anchor_start: false,
-                text: "hello".to_string(),
-                anchor_end: false,
-            },
-            replacement: Some("world".to_string()),
-        });
-
-        assert_eq!(
-            matcher_with_replacement.matches("hello"),
-            Err(StringMatchError::NotSupported)
-        );
-    }
-
-    #[test]
-    fn matches_inlines_with_replacement_returns_not_supported_error() {
-        let matcher_with_replacement = StringMatcher::from(MatchReplace {
-            matcher: Matcher::Any { explicit: false },
-            replacement: Some("replacement".to_string()),
-        });
-
-        let inlines: Vec<Inline> = vec![]; // empty inlines for simplicity
-        assert_eq!(
-            matcher_with_replacement.matches_inlines(&inlines),
-            Err(StringMatchError::NotSupported)
-        );
-    }
-
-    #[test]
-    fn string_match_error_to_select_error_formatting() {
-        let not_supported_error = StringMatchError::NotSupported;
-        let select_error = not_supported_error.to_select_error("section");
-        assert_eq!(
-            select_error.to_string(),
-            "section selector does not support string replace"
-        );
-    }
-
-    #[test]
-    fn match_replace_matches_with_replacement() {
-        let matcher_with_replacement = StringMatcher::from(MatchReplace {
-            matcher: Matcher::Text {
-                case_sensitive: false,
-                anchor_start: false,
-                text: "hello".to_string(),
-                anchor_end: false,
-            },
-            replacement: Some("world".to_string()),
-        });
-
-        let haystack = "hello there".to_string();
-        let result = matcher_with_replacement.match_replace(haystack).unwrap();
-        assert!(result.is_match());
-        assert_eq!(result.do_replace(), "world there");
-    }
-
-    #[test]
-    fn match_replace_matches_without_replacement() {
-        let matcher_with_replacement = StringMatcher::from(MatchReplace {
-            matcher: Matcher::Text {
-                case_sensitive: false,
-                anchor_start: false,
-                text: "hello".to_string(),
-                anchor_end: false,
-            },
-            replacement: Some("world".to_string()),
-        });
-
-        let haystack = "hello there".to_string();
-        let result = matcher_with_replacement.match_replace(haystack).unwrap();
-        assert!(result.is_match());
-        assert_eq!(result.no_replace(), "hello there");
-    }
-
-    #[test]
-    fn match_replace_without_replacement() {
-        let matcher_without_replacement = StringMatcher::from(MatchReplace {
-            matcher: Matcher::Text {
-                case_sensitive: false,
-                anchor_start: false,
-                text: "hello".to_string(),
-                anchor_end: false,
-            },
-            replacement: None,
-        });
-
-        let haystack = "hello there".to_string();
-        let result = matcher_without_replacement.match_replace(haystack).unwrap();
-        assert!(result.is_match());
-        assert_eq!(result.no_replace(), "hello there"); // unchanged
-    }
-
-    #[test]
-    fn match_replace_no_match() {
-        let matcher = StringMatcher::from(MatchReplace {
-            matcher: Matcher::Text {
-                case_sensitive: false,
-                anchor_start: false,
-                text: "goodbye".to_string(),
-                anchor_end: false,
-            },
-            replacement: Some("world".to_string()),
-        });
-
-        let haystack = "hello there".to_string();
-        let result = matcher.match_replace(haystack).unwrap();
-        assert!(!result.is_match());
-        assert_eq!(result.no_replace(), "hello there"); // unchanged
-    }
-
     fn parse_and_check_with(
         string_variant: StringVariant,
         text: &str,
@@ -593,6 +545,12 @@ mod test {
                 re: Regex::from_str(value).unwrap(),
                 replacement: None,
             }
+        }
+    }
+
+    impl StringMatcher {
+        pub(crate) fn matches(&self, haystack: &str) -> Result<bool, StringMatchError> {
+            Ok(self.match_replace_string(haystack.to_string())?.matched_any)
         }
     }
 }

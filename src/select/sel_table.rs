@@ -1,4 +1,5 @@
-use crate::md_elem::elem::Table;
+use crate::md_elem::elem::{Table, TableCell, TableRow};
+use crate::md_elem::inline_regex_replace::Replaced;
 use crate::md_elem::*;
 use crate::select::string_matcher::StringMatcher;
 use crate::select::{Result, Select, TableMatcher, TrySelector};
@@ -15,21 +16,101 @@ impl TrySelector<Table> for TableSelector {
 
         table.normalize();
 
-        table
-            .retain_columns_by_header(|line| self.headers_matcher.matches_inlines(line))
-            .map_err(|e| e.to_select_error("table"))?;
-        if table.is_empty() {
-            return Ok(Select::Miss(orig.into()));
+        let selected = match self.replace_table(table)? {
+            None => Select::Miss(orig.into()),
+            Some(replaced) => Select::Hit(vec![replaced.into()]),
+        };
+        Ok(selected)
+    }
+}
+
+type ReplacementCell = Replaced<TableCell>;
+
+struct ReplacementRow {
+    row: Vec<ReplacementCell>,
+}
+
+impl ReplacementRow {
+    fn any_cell_matched(&self) -> bool {
+        self.row.iter().any(|cell| cell.matched_any)
+    }
+
+    fn into_row(self, allowed_cells: &[bool]) -> TableRow {
+        self.row
+            .into_iter()
+            .enumerate()
+            .filter_map(|(idx, cell)| {
+                if allowed_cells.get(idx).copied().unwrap_or(false) {
+                    Some(cell.item)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+}
+
+impl TableSelector {
+    fn replace_table(&self, table: Table) -> Result<Option<Table>> {
+        let row_count = table.rows.len();
+        let mut rows_iter = table.rows.into_iter();
+
+        let Some(header_row) = rows_iter.next() else {
+            return Ok(Some(Table {
+                alignments: table.alignments,
+                rows: vec![],
+            }));
+        };
+        let header_replacement = Self::replace_row(&self.headers_matcher, header_row)?;
+        if !header_replacement.any_cell_matched() {
+            return Ok(None);
         }
 
-        table
-            .retain_rows(|line| self.rows_matcher.matches_inlines(line))
-            .map_err(|e| e.to_select_error("table"))?;
-        if table.is_empty() {
-            return Ok(Select::Miss(orig.into()));
+        let mut rows = Vec::with_capacity(row_count);
+
+        let indexes_to_keep: Vec<_> = header_replacement.row.iter().map(|item| item.matched_any).collect();
+        rows.push(header_replacement.into_row(&indexes_to_keep));
+
+        let alignments = table
+            .alignments
+            .into_iter()
+            .enumerate()
+            .filter_map(|(idx, item)| {
+                if indexes_to_keep.get(idx).copied().unwrap_or(false) {
+                    Some(item)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if rows_iter.len() == 0 {
+            // No content rows, so just return a hit of the header rows. We don't expect this to happen, though.
+            return Ok(Some(Table { alignments, rows }));
+        }
+        for row in rows_iter {
+            let replaced_row = Self::replace_row(&self.rows_matcher, row)?;
+            if replaced_row.any_cell_matched() {
+                let replaced_row = replaced_row.into_row(&indexes_to_keep);
+                rows.push(replaced_row);
+            }
         }
 
-        Ok(Select::Hit(vec![table.into()]))
+        if rows.len() == 1 {
+            // header always matches, but do we have any content rows?
+            return Ok(None);
+        }
+
+        Ok(Some(Table { alignments, rows }))
+    }
+
+    fn replace_row(matcher: &StringMatcher, row: TableRow) -> Result<ReplacementRow> {
+        let replacement_cells: Vec<ReplacementCell> = row
+            .into_iter()
+            .map(|cell| matcher.match_replace_inlines(cell))
+            .collect::<core::result::Result<Vec<_>, _>>()
+            .map_err(|e| e.to_select_error("table"))?;
+        Ok(ReplacementRow { row: replacement_cells })
     }
 }
 
@@ -47,11 +128,11 @@ mod tests {
     use super::*;
 
     use crate::md_elem::elem::*;
-    use crate::select::TrySelector;
+    use crate::select::{MatchReplace, TrySelector};
     use crate::util::utils_for_test::*;
 
     #[test]
-    fn select_all_on_normalized_table() {
+    fn regex_matches_all_on_normalized_table() {
         let table: Table = Table {
             alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
             rows: vec![
@@ -84,7 +165,7 @@ mod tests {
     }
 
     #[test]
-    fn select_columns_on_normalized_table() {
+    fn regex_matches_columns_on_normalized_table() {
         let table: Table = Table {
             alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
             rows: vec![
@@ -108,7 +189,7 @@ mod tests {
     }
 
     #[test]
-    fn select_rows_on_normalized_table() {
+    fn regex_matches_rows_on_normalized_table() {
         let table: Table = Table {
             alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
             rows: vec![
@@ -174,6 +255,190 @@ mod tests {
                 vec![cell("data 1 a"), cell("data 1 b"), Vec::new()],
             ]
         );
+    }
+
+    #[test]
+    fn matcher_matches_no_columns() {
+        let table: Table = Table {
+            alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
+            rows: vec![
+                vec![cell("header a"), cell("header b")],
+                vec![cell("data 1 a"), cell("data 1 b")],
+                vec![cell("data 2 a"), cell("data 2 b")],
+            ],
+        };
+        let selection = TableSelector {
+            headers_matcher: "NOMATCH".into(), // This won't match any headers
+            rows_matcher: ".*".into(),
+        }
+        .try_select(&MdContext::empty(), table.clone())
+        .unwrap();
+
+        unwrap!(selection, Select::Miss(MdElem::Table(returned_table)));
+        // Should return the original table unchanged
+        assert_eq!(returned_table, table);
+    }
+
+    #[test]
+    fn matcher_matches_no_rows() {
+        let table: Table = Table {
+            alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
+            rows: vec![
+                vec![cell("header a"), cell("header b")],
+                vec![cell("data 1 a"), cell("data 1 b")],
+                vec![cell("data 2 a"), cell("data 2 b")],
+            ],
+        };
+        let selection = TableSelector {
+            headers_matcher: ".*".into(),   // This matches all headers
+            rows_matcher: "NOMATCH".into(), // This won't match any data rows
+        }
+        .try_select(&MdContext::empty(), table.clone())
+        .unwrap();
+
+        unwrap!(selection, Select::Miss(MdElem::Table(returned_table)));
+        // Should return the original table unchanged
+        assert_eq!(returned_table, table);
+    }
+
+    #[test]
+    fn regex_replace_on_column_header() {
+        let table: Table = Table {
+            alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
+            rows: vec![
+                vec![cell("header a"), cell("header b")],
+                vec![cell("data 1 a"), cell("data 1 b")],
+                vec![cell("data 2 a"), cell("data 2 b")],
+            ],
+        };
+        let selection = TableSelector::from(TableMatcher {
+            headers: MatchReplace::build(|b| b.match_regex(" *header *").replacement("")),
+            rows: MatchReplace::match_any(),
+        })
+        .try_select(&MdContext::empty(), table)
+        .unwrap();
+
+        unwrap!(selection, Select::Hit(elems));
+        let table_elem = get_only(elems);
+        unwrap!(table_elem, MdElem::Table(result_table));
+
+        // Should replace "old header" with "new header"
+        assert_eq!(
+            result_table.rows(),
+            &vec![
+                vec![cell("a"), cell("b")],
+                vec![cell("data 1 a"), cell("data 1 b")],
+                vec![cell("data 2 a"), cell("data 2 b")],
+            ]
+        );
+    }
+
+    #[test]
+    fn regex_replace_on_row() {
+        let table: Table = Table {
+            alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
+            rows: vec![
+                vec![cell("header a"), cell("header b")],
+                vec![cell("old data"), cell("data 1 b")],
+                vec![cell("data 2 a"), cell("old data")],
+            ],
+        };
+        let selection = TableSelector::from(TableMatcher {
+            headers: MatchReplace::match_any(),
+            rows: MatchReplace::build(|b| b.match_regex("old").replacement("new")),
+        })
+        .try_select(&MdContext::empty(), table)
+        .unwrap();
+
+        unwrap!(selection, Select::Hit(elems));
+        let table_elem = get_only(elems);
+        unwrap!(table_elem, MdElem::Table(result_table));
+
+        // Should replace "old data" with "new data" in rows
+        assert_eq!(
+            result_table.rows(),
+            &vec![
+                vec![cell("header a"), cell("header b")],
+                vec![cell("new data"), cell("data 1 b")],
+                vec![cell("data 2 a"), cell("new data")],
+            ]
+        );
+    }
+
+    #[test]
+    fn regex_replace_on_both_header_and_row() {
+        let table: Table = Table {
+            alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
+            rows: vec![
+                vec![cell("header a"), cell("header b")],
+                vec![cell("old data"), cell("data 1 b")],
+                vec![cell("data 2 a"), cell("old data")],
+            ],
+        };
+        let selection = TableSelector::from(TableMatcher {
+            headers: MatchReplace::build(|b| b.match_regex("header (.*)").replacement(">$1<")),
+            rows: MatchReplace::build(|b| b.match_regex("old").replacement("new")),
+        })
+        .try_select(&MdContext::empty(), table)
+        .unwrap();
+
+        unwrap!(selection, Select::Hit(elems));
+        let table_elem = get_only(elems);
+        unwrap!(table_elem, MdElem::Table(result_table));
+
+        // Should replace "old" with "NEW" in headers and "new" in rows
+        assert_eq!(
+            result_table.rows(),
+            &vec![
+                vec![cell(">a<"), cell(">b<")],
+                vec![cell("new data"), cell("data 1 b")],
+                vec![cell("data 2 a"), cell("new data")],
+            ]
+        );
+    }
+
+    #[test]
+    fn regex_replace_on_column_header_no_matches() {
+        let table: Table = Table {
+            alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
+            rows: vec![
+                vec![cell("header a"), cell("header b")],
+                vec![cell("data 1 a"), cell("data 1 b")],
+                vec![cell("data 2 a"), cell("data 2 b")],
+            ],
+        };
+        let selection = TableSelector::from(TableMatcher {
+            headers: MatchReplace::build(|b| b.match_regex("NOMATCH").replacement("replacement")),
+            rows: MatchReplace::match_any(),
+        })
+        .try_select(&MdContext::empty(), table.clone())
+        .unwrap();
+
+        // Should return Miss since no headers match the pattern
+        unwrap!(selection, Select::Miss(MdElem::Table(returned_table)));
+        assert_eq!(returned_table, table);
+    }
+
+    #[test]
+    fn regex_replace_on_row_no_matches() {
+        let table: Table = Table {
+            alignments: vec![Some(ColumnAlignment::Left), Some(ColumnAlignment::Right)],
+            rows: vec![
+                vec![cell("header a"), cell("header b")],
+                vec![cell("data 1 a"), cell("data 1 b")],
+                vec![cell("data 2 a"), cell("data 2 b")],
+            ],
+        };
+        let selection = TableSelector::from(TableMatcher {
+            headers: MatchReplace::match_any(),
+            rows: MatchReplace::build(|b| b.match_regex("NOMATCH").replacement("replacement")),
+        })
+        .try_select(&MdContext::empty(), table.clone())
+        .unwrap();
+
+        // Should return Miss since no rows match the pattern
+        unwrap!(selection, Select::Miss(MdElem::Table(returned_table)));
+        assert_eq!(returned_table, table);
     }
 
     fn cell(cell_str: &str) -> TableCell {
