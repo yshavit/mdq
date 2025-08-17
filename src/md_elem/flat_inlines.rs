@@ -59,9 +59,9 @@ pub(crate) struct FormattingEvent {
 }
 
 /// Error that occurs during range replacement operations.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum RangeReplacementError {
-    InternalError(&'static str),
+    InternalError(String),
     AtomicityViolation,
 }
 
@@ -114,7 +114,11 @@ impl FlattenedText {
         let mut events = self.formatting_events.into_iter().peekable();
         let inlines = Self::unflatten_rec_0(&self.text, 0, &mut events);
         if events.peek().is_some() {
-            Err(RangeReplacementError::InternalError("some events failed to unflatten"))
+            let remaining_count = events.count();
+            Err(RangeReplacementError::InternalError(format!(
+                "failed to unflatten: {} events remaining",
+                remaining_count
+            )))
         } else {
             Ok(inlines)
         }
@@ -252,7 +256,10 @@ impl FlattenedText {
         // Validate that ranges are non-overlapping and in increasing order
         // by checking that the current range start is not before the end of the last replacement
         if replacement_range.start < self.last_replacement_end {
-            return Err(RangeReplacementError::InternalError("range replacement went backwards"));
+            return Err(RangeReplacementError::InternalError(format!(
+                "range replacement went backwards: new start {} < last end {}",
+                replacement_range.start, self.last_replacement_end
+            )));
         }
 
         let current_start = (replacement_range.start as isize + self.offset) as usize;
@@ -260,7 +267,12 @@ impl FlattenedText {
 
         // Validate range is within bounds and not going backwards
         if current_end > self.text.len() || current_start > self.text.len() {
-            return Err(RangeReplacementError::InternalError("replacement out of range"));
+            return Err(RangeReplacementError::InternalError(format!(
+                "replacement range {}..{} exceeds text length {}",
+                current_start,
+                current_end,
+                self.text.len()
+            )));
         }
 
         // Check that we don't cross any atomic events.
@@ -316,25 +328,24 @@ impl FlattenedText {
             // The general semantics are that the new text should have the formatting of the start of the range.
             // Formatting before or after the replacement range should be trimmed to avoid the replacement range.
             // We accomplish this with a series of matches.
-            use BoundaryPosition::*;
             match BoundaryPosition::classify(event_start, replacement_range.start) {
-                Before => {
+                BoundaryPosition::Before => {
                     // The event starts before the replacement range.
                     match BoundaryPosition::classify(event_end, replacement_range.start) {
-                        Before | At => {
+                        BoundaryPosition::Before | BoundaryPosition::At => {
                             // The event is entirely before the replacement, so we can just keep it as-is.
                             events_to_keep.push(event);
                         }
-                        After => {
+                        BoundaryPosition::After => {
                             // The event started before the replacement but crosses into the replacement. Does it go all
                             // the way across it?
                             event.length = match BoundaryPosition::classify(event_end, replacement_range.end) {
-                                Before => {
+                                BoundaryPosition::Before => {
                                     // Event ends before the replacement does, so we just need to adjust its length such
                                     // that it now ends where the replacement_range starts.
                                     replacement_range.start - event_start
                                 }
-                                At | After => {
+                                BoundaryPosition::At | BoundaryPosition::After => {
                                     // Event spans all the way across the replacement, so we just need to shorten its
                                     // length by the replacement delta.
                                     (event.length as isize + size_change) as usize
@@ -344,10 +355,10 @@ impl FlattenedText {
                         }
                     }
                 }
-                At => {
+                BoundaryPosition::At => {
                     // Event starts exactly at replacement start
                     match BoundaryPosition::classify(event_end, replacement_range.end) {
-                        At | Before => {
+                        BoundaryPosition::At | BoundaryPosition::Before => {
                             // If the replacement is empty, we can just discard this formatting event. Otherwise, the
                             // event's new length is just the replacement text's length.
                             if !replacement.is_empty() {
@@ -356,7 +367,7 @@ impl FlattenedText {
                                 events_to_keep.push(event);
                             }
                         }
-                        After => {
+                        BoundaryPosition::After => {
                             // Event starts at replacement start, ends after. We can keep it, we just need to adjust
                             // its length to account for the replacement range changing in length.
                             event.length = (event.length as isize + size_change) as usize;
@@ -364,18 +375,18 @@ impl FlattenedText {
                         }
                     }
                 }
-                After => {
+                BoundaryPosition::After => {
                     // Event starts after replacement start
                     match BoundaryPosition::classify(event_start, replacement_range.end) {
-                        Before => {
+                        BoundaryPosition::Before => {
                             // Event starts within replacement. When does it end?
                             match BoundaryPosition::classify(event_end, replacement_range.end) {
-                                At | Before => {
+                                BoundaryPosition::At | BoundaryPosition::Before => {
                                     // Event completely within replacement. We want all the text within the replacement
                                     // to be the format of the replacement's start, so this inner formatting can just
                                     // go away.
                                 }
-                                After => {
+                                BoundaryPosition::After => {
                                     // Event starts within, ends after replacement. We basically want to remove the
                                     // first part of the event, such that the event now starts after the replacement.
                                     let chars_removed_from_event = replacement_range.end - event_start;
@@ -386,7 +397,7 @@ impl FlattenedText {
                                 }
                             }
                         }
-                        At | After => {
+                        BoundaryPosition::At | BoundaryPosition::After => {
                             // Event is entirely after the replacement; just adjust its start_pos offset to account for
                             // the replacement range resizing.
                             event.start_pos = (event_start as isize + size_change) as usize;
@@ -928,7 +939,10 @@ mod tests {
             let err = flattened.replace_range(0..3, "1");
             assert_eq!(
                 err,
-                Err(RangeReplacementError::InternalError("range replacement went backwards"))
+                Err(RangeReplacementError::InternalError(format!(
+                    "range replacement went backwards: new start {} < last end {}",
+                    0, 7
+                )))
             );
         }
 
