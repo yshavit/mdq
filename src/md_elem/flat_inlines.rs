@@ -1,6 +1,7 @@
 use crate::md_elem::tree::elem::Span;
 use crate::md_elem::tree::elem::{Autolink, AutolinkStyle, Image, Link, StandardLink};
 use crate::md_elem::tree::elem::{FootnoteId, Inline, LinkDefinition, SpanVariant, Text, TextVariant};
+use std::cmp::Ordering;
 use std::iter::Peekable;
 use std::ops::Range;
 
@@ -77,14 +78,10 @@ enum BoundaryPosition {
 
 impl BoundaryPosition {
     fn classify(position: usize, boundary: usize) -> Self {
-        use BoundaryPosition::*;
-
-        if position < boundary {
-            Before
-        } else if position == boundary {
-            At
-        } else {
-            After
+        match position.cmp(&boundary) {
+            Ordering::Less => Self::Before,
+            Ordering::Equal => Self::At,
+            Ordering::Greater => Self::After,
         }
     }
 }
