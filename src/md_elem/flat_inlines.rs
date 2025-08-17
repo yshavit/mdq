@@ -483,12 +483,7 @@ fn flatten_inlines(inlines: impl IntoIterator<Item = Inline>, text: &mut String)
                 // range starts outside this inline). Rather than describing a complex situation to the user, we'll just
                 // prohibit them.
                 let start_pos = text.len();
-                let content = inlines_to_plain_string(
-                    &[&other],
-                    InlineToStringOpts {
-                        footnotes: FootnoteToString::OnlyFootnoteId,
-                    },
-                );
+                let content: &'static str = "1"; // TODO
                 text.push_str(&content);
                 let length = content.len();
 
