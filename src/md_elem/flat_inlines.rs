@@ -33,7 +33,7 @@ pub(crate) enum FormattingType {
 /// This allows regex operations to work on the plain text while preserving formatting
 /// information that can be reapplied after the text transformation.
 #[derive(Debug, Clone, PartialEq)]
-pub struct FlattenedText {
+pub(crate) struct FlattenedText {
     /// The plain text content with all formatting removed
     pub text: String,
     /// Formatting events that describe where formatting should be applied to the text
@@ -48,7 +48,7 @@ pub struct FlattenedText {
 ///
 /// Events are applied in order, so earlier events become outer spans in nested formatting.
 #[derive(Debug, Clone, PartialEq)]
-pub struct FormattingEvent {
+pub(crate) struct FormattingEvent {
     /// Starting character position in the flattened text (inclusive)
     pub start_pos: usize,
     /// The number of characters this formatting applies to
