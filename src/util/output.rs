@@ -349,8 +349,6 @@ impl IndentHandler {
     }
 
     fn get_indentation_info(&mut self, ch: Option<char>, state: WritingState) -> IndentInfo<'_> {
-        // #199: I have a number of branches here. Can I nest some of them, so that in the happy path of a non-newline
-        //       char, I just have a single check?
         let mut indent_builder = StaticIndentInfo::new(state);
 
         // If we have any pending blocks, handle those first. We need to add a paragraph break, unless the first block
@@ -383,7 +381,6 @@ impl IndentHandler {
 
         // Append the new blocks, and then write the indent if we need it.
         // When we write that indent, though, only write it until the first new Indent (exclusive).
-        // (#199 that doesn't seem to actually how this code is organized. See the #199 comment above.)
         let range = if need_full_indent {
             let indent_end_idx = self.blocks.len()
                 + self
