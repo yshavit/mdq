@@ -17,7 +17,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Also fetch target branch
-        run: git fetch origin "$GITHUB_BASE_REF"
+        run: |
+          git fetch origin "$GITHUB_BASE_REF"
+          echo "GITHUB_BASE_REF: $GITHUB_BASE_REF => $(git rev-parse origin/$GITHUB_BASE_REF)"
 
       - name: Install semver-checks
         run: |
@@ -42,7 +44,7 @@ jobs:
 
       - name: Run semver-checks
         run: |
-          if ! "$RUNNER_TEMP/cargo-semver-checks" semver-checks --baseline-rev "origin/$GITHUB_BASE_REF" ; then
+          if ! "$RUNNER_TEMP/cargo-semver-checks" semver-checks --baseline-rev "origin/$GITHUB_BASE_REF" --release-type patch ; then
             # There were breaking changes. Make sure we have the appropriate label!
             if [[ "${{ steps.check-breaking-label.outputs.has-label }}" != "true" ]]; then
               echo "::error title=semver-checks::semver-checks found breaking changes, but the 'breaking change' label isn't applied. Please add that label."
