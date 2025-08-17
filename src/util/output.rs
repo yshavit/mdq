@@ -325,7 +325,7 @@ impl StaticIndentInfo {
         }
     }
 
-    fn build(self, blocks: &[Block]) -> IndentInfo {
+    fn build(self, blocks: &[Block]) -> IndentInfo<'_> {
         IndentInfo {
             blocks,
             static_info: self,
@@ -348,7 +348,7 @@ impl IndentHandler {
         }
     }
 
-    fn get_indentation_info(&mut self, ch: Option<char>, state: WritingState) -> IndentInfo {
+    fn get_indentation_info(&mut self, ch: Option<char>, state: WritingState) -> IndentInfo<'_> {
         // #199: I have a number of branches here. Can I nest some of them, so that in the happy path of a non-newline
         //       char, I just have a single check?
         let mut indent_builder = StaticIndentInfo::new(state);
