@@ -81,7 +81,7 @@ To install mdq locally, any of these will work:
 1. ```shell
    cargo install --git https://github.com/yshavit/mdq
    ```
-   Requires rustc >= 1.78.0
+   Requires rustc >= 1.80.1
 
 [Docker Hub]: https://hub.docker.com/r/yshavit/mdq/tags
 
@@ -221,7 +221,7 @@ mdq is available as a Rust library at https://crates.io/crates/mdq. Its docs are
 
 ## Working on mdq itself
 
-Requires rustc >= 1.78.0
+Requires rustc >= 1.80.1
 
 ```bash
 cargo build

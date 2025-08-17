@@ -8,7 +8,7 @@ description = "Select and render specific elements in a Markdown document"
 repository = "https://github.com/yshavit/mdq"
 keywords = ["markdown", "parsing"]
 categories = ["command-line-utilities", "text-editors"]
-rust-version = "1.78.0"
+rust-version = "1.80.1"
 
 [dependencies]
 clap = { version = "4.5.7", features = ["derive"] }
