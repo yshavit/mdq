@@ -3,7 +3,9 @@ use crate::output::{LinkTransform, ReferencePlacement};
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, ValueEnum};
 use derive_builder::Builder;
+use paste::paste;
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 
 macro_rules! create_options_structs {
     (
@@ -65,6 +67,28 @@ macro_rules! create_options_structs {
             $(#[$md_file_paths_meta])*
             #[arg()]
             pub(crate) markdown_file_paths: Vec<String>,
+        }
+
+        paste! {
+            #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+            pub enum RunOption {
+                $(
+                $(#[$meta])*
+                [<$name:camel>],
+                )*
+                AddBreaks,
+                Selectors,
+            }
+
+            /// An internal, strum-enhanced version of [`RunOption`]. [`RunOption`] exposes the strum functionality
+            /// via thin wrappers, thus hiding the detail of the strum usage.
+            #[derive(strum::EnumIter, strum::EnumString, strum::Display)]
+            #[strum(serialize_all = "snake_case")]
+            enum RunOptionInternal {
+                $([<$name:camel>],)*
+                AddBreaks,
+                Selectors,
+            }
         }
 
         /// Options analogous to the mdq CLI's switches.
@@ -186,6 +210,35 @@ create_options_structs! {
         /// processed in the order you provide them. If you provide the same file twice, mdq will process it twice, unless
         /// that file is "-"; all but the first "-" paths are ignored.
         markdown_file_paths,
+    }
+}
+
+impl RunOption {
+    fn to_strum(self) -> RunOptionInternal {
+        unsafe { std::mem::transmute(self) }
+    }
+
+    fn from_strum(internal: RunOptionInternal) -> Self {
+        unsafe { std::mem::transmute(internal) }
+    }
+
+    pub fn iter() -> impl Iterator<Item = Self> {
+        use strum::IntoEnumIterator;
+        RunOptionInternal::iter().map(Self::from_strum)
+    }
+}
+
+impl Display for RunOption {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.to_strum().fmt(f)
+    }
+}
+
+impl FromStr for RunOption {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        RunOptionInternal::from_str(s).map(Self::from_strum).map_err(|_| ())
     }
 }
 
