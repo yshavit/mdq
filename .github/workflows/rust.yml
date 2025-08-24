@@ -115,3 +115,17 @@ jobs:
             echo "::error title=pub-vis::some items marked pub are not actually public"
             exit 1
           fi
+
+  help-text:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate help text
+        run: cargo run -- --help > help.txt
+      - name: Check help text is committed
+        run: |
+          if ! git diff --exit-code help.txt; then
+            echo "::error title=help text::help.txt is out of date. Run 'cargo run -- --help > help.txt' and commit the result."
+            exit 1
+          fi
