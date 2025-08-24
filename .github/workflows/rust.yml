@@ -128,6 +128,8 @@ jobs:
     needs: build
     permissions:
       contents: read
+    env:
+      UNIQUE_PATH: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v4
 
@@ -135,13 +137,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: mdq-binary
-          path: /tmp/mdq-binary-${{ github.job }}
+          path: /tmp/mdq-binary-${{ env.UNIQUE_PATH }}
 
       - name: Make binary executable
-        run: chmod +x /tmp/mdq-binary-${{ github.job }}/mdq
+        run: chmod +x /tmp/mdq-binary-${{ env.UNIQUE_PATH }}/mdq
 
       - name: Generate help text
-        run: /tmp/mdq-binary-${{ github.job }}/mdq --help > help.txt
+        run: /tmp/mdq-binary-${{ env.UNIQUE_PATH }}/mdq --help > help.txt
       - name: Check help text is committed
         run: |
           if ! git diff --exit-code help.txt; then
