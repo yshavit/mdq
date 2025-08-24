@@ -31,6 +31,13 @@ jobs:
           done <<<"$(git status --porcelain)"
           exit "$exit_code"
 
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdq-binary
+          path: target/debug/mdq
+          retention-days: 1
+
   check:
     strategy:
       matrix:
@@ -123,8 +130,18 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: mdq-binary
+          path: /tmp/mdq-binary-${{ github.job }}
+
+      - name: Make binary executable
+        run: chmod +x /tmp/mdq-binary/mdq
+
       - name: Generate help text
-        run: cargo run -- --help > help.txt
+        run: /tmp/mdq-binary-${{ github.job }}/mdq --help > help.txt
       - name: Check help text is committed
         run: |
           if ! git diff --exit-code help.txt; then
