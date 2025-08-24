@@ -15,14 +15,13 @@ Arguments:
           
           If these are provided, standard input will not be used unless one of the arguments is "-". Files will be processed in the order you provide them. If you provide the same file twice, mdq will process it twice, unless that file is "-"; all but the first "-" paths are ignored.
 
-          This line is intentionally added as a test. A line within the --link-pos text has been intentionally removed.
-
 Options:
       --link-pos <LINK_POS>
           Where to put link references.
           
           For links and images of style `[description][1]`, this flag controls where to put the `[1]: https://example.com` definition.
 
+          Possible values:
           - section: Show link definitions in the first section that uses the link
           - doc:     Show link definitions at the bottom of the document
           
