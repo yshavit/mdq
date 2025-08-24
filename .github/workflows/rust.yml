@@ -138,7 +138,7 @@ jobs:
           path: /tmp/mdq-binary-${{ github.job }}
 
       - name: Make binary executable
-        run: chmod +x /tmp/mdq-binary/mdq
+        run: chmod +x /tmp/mdq-binary-${{ github.job }}/mdq
 
       - name: Generate help text
         run: /tmp/mdq-binary-${{ github.job }}/mdq --help > help.txt
