@@ -12,6 +12,18 @@ macro_rules! create_options_structs {
             clap $clap:tt
             pub $name:ident : $ty:ty
         ),* $(,)?
+        {
+            // Properties that work a bit differently in CliOptions vs RunOptions, so we just use the macro to specify
+            // the documentation.
+            $(#[$add_breaks_meta:meta])*
+            add_breaks,
+
+            $(#[$selectors_meta:meta])*
+            selectors,
+
+            $(#[$md_file_paths_meta:meta])*
+            markdown_file_paths,
+        }
     ) => {
         #[derive(Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Parser)]
         #[command(version, about, long_about = None)]
@@ -23,17 +35,8 @@ macro_rules! create_options_structs {
             pub(crate) $name: $ty,
             )*
 
-            // clap-only stuff:
-
-            /// Include breaks between elements in plain and markdown output mode.
-            ///
-            /// For plain, this will add a blank line between elements. For markdown, this will add a thematic break
-            /// ("-----") between elements.
-            ///
-            /// This has no effect in JSON output mode.
-            ///
-            /// This defaults to true for Markdown output, and false for plain text output.
-            // Note: this is a fake arg so we have explicit validation below to ensure it isn't invoked. Clap doesn't let us
+            $(#[$add_breaks_meta])*
+            // Note: this is a fake arg so, we have explicit validation below to ensure it isn't invoked. Clap doesn't let us
             // add boolean flags with 'no-' to disable, so I'm using this trick to fake that out. Basically, this fake arg is
             // only for the help text, and then --br and --no-br are fake but hidden args.
             #[arg(long = "[no]-br", action)]
@@ -55,20 +58,11 @@ macro_rules! create_options_structs {
             )]
             pub(crate) list_selector: Option<String>,
 
-            /// The selectors string
+            $(#[$selectors_meta])*
             #[arg(group = "selectors_group", value_name = "selectors")]
             pub(crate) selectors: Option<String>,
 
-            /// An optional list of Markdown files to parse, by path. If not provided, standard input will be used.
-            ///
-            /// If these are provided, mdq will act as if they were all concatenated into a single file. For example, if you
-            /// use --link-pos=doc, the link definitions for all input files will be at the very end of the output.
-            ///
-            /// A path of "-" represents standard input.
-            ///
-            /// If these are provided, standard input will not be used unless one of the arguments is "-". Files will be
-            /// processed in the order you provide them. If you provide the same file twice, mdq will process it twice, unless
-            /// that file is "-"; all but the first "-" paths are ignored.
+            $(#[$md_file_paths_meta])*
             #[arg()]
             pub(crate) markdown_file_paths: Vec<String>,
         }
@@ -81,12 +75,15 @@ macro_rules! create_options_structs {
             pub $name: $ty,
             )*
 
-            /// Whether to include breaks between elements. This is analogous to the `--[no-]br` option in the CLI
-            /// arguments.
+            $(#[$add_breaks_meta])*
+            ///
+            /// This is analogous to the `--[no-]br` option in the CLI arguments.
             pub add_breaks: Option<bool>,
 
+            $(#[$selectors_meta])*
             pub selectors: String,
 
+            $(#[$md_file_paths_meta])*
             pub markdown_file_paths: Vec<String>
         }
 
@@ -163,6 +160,33 @@ create_options_structs! {
     // See: tree.rs > Lookups::unknown_markdown.
     clap(long, hide = true)
     pub allow_unknown_markdown: bool,
+    {
+
+        /// Include breaks between elements in plain and markdown output mode.
+        ///
+        /// For plain, this will add a blank line between elements. For markdown, this will add a thematic break
+        /// ("-----") between elements.
+        ///
+        /// This has no effect in JSON output mode.
+        ///
+        /// This defaults to true for Markdown output, and false for plain text output.
+        add_breaks,
+
+        /// The selectors string
+        selectors,
+
+        /// An optional list of Markdown files to parse, by path. If not provided, standard input will be used.
+        ///
+        /// If these are provided, mdq will act as if they were all concatenated into a single file. For example, if you
+        /// use --link-pos=doc, the link definitions for all input files will be at the very end of the output.
+        ///
+        /// A path of "-" represents standard input.
+        ///
+        /// If these are provided, standard input will not be used unless one of the arguments is "-". Files will be
+        /// processed in the order you provide them. If you provide the same file twice, mdq will process it twice, unless
+        /// that file is "-"; all but the first "-" paths are ignored.
+        markdown_file_paths,
+    }
 }
 
 impl Default for RunOptions {
