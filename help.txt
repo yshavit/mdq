@@ -1,0 +1,79 @@
+Select and render specific elements in a Markdown document
+
+Usage: mdq [OPTIONS] [selectors] [MARKDOWN_FILE_PATHS]...
+
+Arguments:
+  [selectors]
+          The selectors string
+
+  [MARKDOWN_FILE_PATHS]...
+          An optional list of Markdown files to parse, by path. If not provided, standard input will be used.
+          
+          If these are provided, mdq will act as if they were all concatenated into a single file. For example, if you use --link-pos=doc, the link definitions for all input files will be at the very end of the output.
+          
+          A path of "-" represents standard input.
+          
+          If these are provided, standard input will not be used unless one of the arguments is "-". Files will be processed in the order you provide them. If you provide the same file twice, mdq will process it twice, unless that file is "-"; all but the first "-" paths are ignored.
+
+Options:
+      --link-pos <LINK_POS>
+          Where to put link references.
+          
+          For links and images of style `[description][1]`, this flag controls where to put the `[1]: https://example.com` definition.
+
+          Possible values:
+          - section: Show link definitions in the first section that uses the link
+          - doc:     Show link definitions at the bottom of the document
+          
+          [default: section]
+
+      --footnote-pos <FOOTNOTE_POS>
+          Where to put footnote references. Defaults to be same as --link-pos
+
+          Possible values:
+          - section: Show link definitions in the first section that uses the link
+          - doc:     Show link definitions at the bottom of the document
+
+  -l, --link-format <LINK_FORMAT>
+          Possible values:
+          - keep:         Keep links as they were in the original
+          - inline:       Turn all links into inlined form: `[link text](https://example.com)`
+          - never-inline: Never output `[inline](https://example.com)` links[default: never-inline]
+
+      --renumber-footnotes <RENUMBER_FOOTNOTES>
+          [default: true]
+          [possible values: true, false]
+
+  -o, --output <OUTPUT>
+          Specifies the output format. Defaults to markdown
+
+          Possible values:
+          - markdown: Output results as Markdown
+          - md:       Alias for markdown
+          - json:     Output results as JSON. Spans of inline elements (like within a single paragraph) will be rendered as a single string of Markdown, not as separate JSON elements
+          - plain:    Outputs just the plain text. This retrains the spacing between paragraphs and paragraph-like blocks (code blocks, block quotes, etc.) but removes all other formating, including inline formatting. Links are rendered as just their display text, and footnotes are removed entirely
+          
+          [default: markdown]
+
+      --wrap-width <WRAP_WIDTH>
+          The number of characters to wrap text at. This is only valid when the output format is markdown.
+          
+          Certain elements (like section headings and link definitions) will never be wrapped, and the wrapping will never break a word; it will only ever be along existing whitespace. In particular, this means the wrapping will never add hyphens, and it will never break URLs.
+
+  -q, --quiet
+          Quiet: do not print anything to stdout. The exit code will still be 0 if any elements match, and non-0 if none do
+
+      --[no]-br
+          Include breaks between elements in plain and markdown output mode.
+          
+          For plain, this will add a blank line between elements. For markdown, this will add a thematic break ("-----") between elements.
+          
+          This has no effect in JSON output mode.
+          
+          This defaults to true for Markdown output, and false for plain text output.
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version

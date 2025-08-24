@@ -31,6 +31,13 @@ jobs:
           done <<<"$(git status --porcelain)"
           exit "$exit_code"
 
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdq-binary
+          path: target/debug/mdq
+          retention-days: 1
+
   check:
     strategy:
       matrix:
@@ -113,5 +120,33 @@ jobs:
             echo "::notice title=pub-vis::all pub items are actually public"
           else
             echo "::error title=pub-vis::some items marked pub are not actually public"
+            exit 1
+          fi
+
+  help-text:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+    env:
+      UNIQUE_PATH: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: mdq-binary
+          path: /tmp/mdq-binary-${{ env.UNIQUE_PATH }}
+
+      - name: Make binary executable
+        run: chmod +x /tmp/mdq-binary-${{ env.UNIQUE_PATH }}/mdq
+
+      - name: Generate help text
+        run: /tmp/mdq-binary-${{ env.UNIQUE_PATH }}/mdq --help > help.txt
+      - name: Check help text is committed
+        run: |
+          if ! git diff --exit-code help.txt; then
+            echo "::error title=help text::help.txt is out of date. Run 'cargo run -- --help > help.txt' and commit the result."
             exit 1
           fi
