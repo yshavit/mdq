@@ -1,11 +1,13 @@
 use crate::output;
 use crate::output::{LinkTransform, ReferencePlacement};
 use clap::error::ErrorKind;
-use clap::{CommandFactory, Parser, ValueEnum};
+use clap::{ArgAction, CommandFactory, Parser, ValueEnum};
 use derive_builder::Builder;
-use paste::paste;
 use std::fmt::{Display, Formatter};
-use std::str::FromStr;
+
+pub(crate) const ADD_BREAKS_NAME: &str = "add_breaks";
+pub(crate) const FLAG_BR: &str = "br";
+pub(crate) const FLAG_NO_BR: &str = "no-br";
 
 macro_rules! create_options_structs {
     (
@@ -41,15 +43,15 @@ macro_rules! create_options_structs {
             // Note: this is a fake arg so, we have explicit validation below to ensure it isn't invoked. Clap doesn't let us
             // add boolean flags with 'no-' to disable, so I'm using this trick to fake that out. Basically, this fake arg is
             // only for the help text, and then --br and --no-br are fake but hidden args.
-            #[arg(long = "[no]-br", action)]
-            pub(crate) br_umbrella: bool,
+            #[arg(id = ADD_BREAKS_NAME, long = "br, --no-br", action=ArgAction::SetTrue)] // SetTrue omits "<ADD_BREAKS>" from the help text
+            pub(crate) add_breaks: Option<bool>,
 
             /// Negates the --br option.
-            #[arg(long, hide = true)]
+            #[arg(long = FLAG_BR, conflicts_with_all = ["no_br", "add_breaks"], hide = true)]
             pub(crate) br: bool,
 
             /// Negates the --br option.
-            #[arg(long, conflicts_with = "br", hide = true)]
+            #[arg(long = FLAG_NO_BR, conflicts_with_all = ["br", "add_breaks"], hide = true)]
             pub(crate) no_br: bool,
 
             #[arg(
@@ -67,28 +69,6 @@ macro_rules! create_options_structs {
             $(#[$md_file_paths_meta])*
             #[arg()]
             pub(crate) markdown_file_paths: Vec<String>,
-        }
-
-        paste! {
-            #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-            pub enum RunOption {
-                $(
-                $(#[$meta])*
-                [<$name:camel>],
-                )*
-                AddBreaks,
-                Selectors,
-            }
-
-            /// An internal, strum-enhanced version of [`RunOption`]. [`RunOption`] exposes the strum functionality
-            /// via thin wrappers, thus hiding the detail of the strum usage.
-            #[derive(strum::EnumIter, strum::EnumString, strum::Display)]
-            #[strum(serialize_all = "snake_case")]
-            enum RunOptionInternal {
-                $([<$name:camel>],)*
-                AddBreaks,
-                Selectors,
-            }
         }
 
         /// Options analogous to the mdq CLI's switches.
@@ -184,9 +164,10 @@ create_options_structs! {
     // See: tree.rs > Lookups::unknown_markdown.
     clap(long, hide = true)
     pub allow_unknown_markdown: bool,
+
     {
 
-        /// Include breaks between elements in plain and markdown output mode.
+        /// Include or exclude breaks between elements in plain and markdown output mode.
         ///
         /// For plain, this will add a blank line between elements. For markdown, this will add a thematic break
         /// ("-----") between elements.
@@ -210,35 +191,6 @@ create_options_structs! {
         /// processed in the order you provide them. If you provide the same file twice, mdq will process it twice, unless
         /// that file is "-"; all but the first "-" paths are ignored.
         markdown_file_paths,
-    }
-}
-
-impl RunOption {
-    fn to_strum(self) -> RunOptionInternal {
-        unsafe { std::mem::transmute(self) }
-    }
-
-    fn from_strum(internal: RunOptionInternal) -> Self {
-        unsafe { std::mem::transmute(internal) }
-    }
-
-    pub fn iter() -> impl Iterator<Item = Self> {
-        use strum::IntoEnumIterator;
-        RunOptionInternal::iter().map(Self::from_strum)
-    }
-}
-
-impl Display for RunOption {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        self.to_strum().fmt(f)
-    }
-}
-
-impl FromStr for RunOption {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        RunOptionInternal::from_str(s).map(Self::from_strum).map_err(|_| ())
     }
 }
 
@@ -275,6 +227,16 @@ impl From<&RunOptions> for output::MdWriterOptions {
     }
 }
 
+impl TryFrom<&[String]> for RunOptions {
+    type Error = String;
+
+    fn try_from(value: &[String]) -> Result<Self, Self::Error> {
+        CliOptions::try_parse_from(value)
+            .map(|c| c.into())
+            .map_err(|e| format!("{e}"))
+    }
+}
+
 impl RunOptions {
     pub fn should_add_breaks(&self) -> bool {
         self.add_breaks.unwrap_or(match self.output {
@@ -302,11 +264,11 @@ impl CliOptions {
             OutputFormat::Markdown | OutputFormat::Md => {}
             OutputFormat::Plain => {}
         }
-        if self.br_umbrella {
+        if self.add_breaks.is_some() {
             let _ = CliOptions::command()
                 .error(
                     ErrorKind::UnknownArgument,
-                    r"invalid argument '--[no]-br'; use '--br' or '--no-br'.",
+                    r"invalid switch; use either '--br' or '--no-br'.",
                 )
                 .print();
             return false;

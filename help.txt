@@ -63,8 +63,8 @@ Options:
   -q, --quiet
           Quiet: do not print anything to stdout. The exit code will still be 0 if any elements match, and non-0 if none do
 
-      --[no]-br
-          Include breaks between elements in plain and markdown output mode.
+      --br, --no-br
+          Include or exclude breaks between elements in plain and markdown output mode.
           
           For plain, this will add a blank line between elements. For markdown, this will add a thematic break ("-----") between elements.
           

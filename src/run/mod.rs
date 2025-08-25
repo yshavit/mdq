@@ -50,7 +50,9 @@
 //! # }
 //! ```
 mod cli;
+mod cli_option;
 mod run_main;
 
 pub use cli::*;
+pub use cli_option::*;
 pub use run_main::*;
