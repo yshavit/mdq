@@ -1,3 +1,4 @@
+pub(crate) mod enum_maker;
 pub(crate) mod number_assigner;
 pub(crate) mod output;
 pub(crate) mod str_utils;

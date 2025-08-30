@@ -1,8 +1,29 @@
-use crate::run::cli::ADD_BREAKS_NAME;
 use crate::run::{CliOptions, FLAG_BR, FLAG_NO_BR};
+use crate::util::enum_maker::make_enum;
 use clap::builder::ValueParser;
 use clap::Arg;
 use std::any::TypeId;
+
+make_enum! {
+    /// CLI options. Each corresponds to a flag in [`RunOptions`].
+    ///
+    /// [`RunOptions`]: crate::run::RunOptions
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[non_exhaustive]
+    pub enum CliOptionName {
+        Selectors("selectors"),
+        MarkdownFilePaths("markdown_file_paths"),
+
+        AddBreaks("add_breaks"),
+        FootnotePos("footnote_pos"),
+        LinkFormat("link_format"),
+        LinkPos("link_pos"),
+        Output("output"),
+        Quiet("quiet"),
+        RenumberFootnotes("renumber_footnotes"),
+        WrapWidth("wrap_width"),
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ValueFormat {
@@ -31,15 +52,15 @@ pub struct EnumVariant {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CliOption {
-    name: String,
+    name: CliOptionName,
     cli_switch: Option<String>,
     help: String,
     format: ValueFormat,
 }
 
 impl CliOption {
-    pub fn name(&self) -> &str {
-        &self.name
+    pub fn name(&self) -> CliOptionName {
+        self.name
     }
 
     pub fn cli_switch(&self) -> &Option<String> {
@@ -73,10 +94,11 @@ impl CliOption {
                 arg.get_id()
             );
         }
-        let name = arg.get_id().to_string();
+        let name_str = arg.get_id().to_string();
+        let name: CliOptionName = name_str.parse().expect(&name_str);
         let help = arg.get_long_help().map(|s| s.to_string()).unwrap_or(String::new());
         let format = match ValueParser::type_id(arg.get_value_parser()) {
-            _ if name == ADD_BREAKS_NAME => {
+            _ if name == CliOptionName::AddBreaks => {
                 // "add_breaks" is special, because it's really a dummy that stands in for either --br or --no-br.
                 ValueFormat::TriFlag {
                     flag_true: FLAG_BR,
@@ -126,11 +148,19 @@ impl CliOption {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
 
     #[test]
     fn all_args_handled() {
         for opt in CliOption::iter() {
             drop(opt); // we just want to make sure the iterator doesn't panic
         }
+    }
+
+    #[test]
+    fn no_extra_args() {
+        let all_variants: BTreeSet<_> = CliOptionName::iter().collect();
+        let option_variants: BTreeSet<_> = CliOption::iter().map(|o| o.name).collect();
+        assert_eq!(all_variants, option_variants);
     }
 }
