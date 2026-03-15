@@ -46,6 +46,8 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v4
+      - name: version
+        run: cargo version
       - name: cargo ${{ matrix.tool }}
         run: scripts/cargo_to_gh "$CHECK_TOOL"
         env:
