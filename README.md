@@ -56,7 +56,7 @@ To install mdq locally, any of these will work:
    <details>
    <summary>Mac users</summary>
       
-   Macs quarantine downloads from the internet by default. If you get an error saying that Apple cannot check the the binary for malicious software, you can remove this flag by running the following on the binary after extracting it from the artifact zip:
+   Macs quarantine downloads from the internet by default. If you get an error saying that Apple cannot check the binary for malicious software, you can remove this flag by running the following on the binary after extracting it from the artifact zip:
    ```bash
    xattr -d com.apple.quarantine mdq
    ```
