@@ -38,7 +38,9 @@ Options:
           Possible values:
           - keep:         Keep links as they were in the original
           - inline:       Turn all links into inlined form: `[link text](https://example.com)`
-          - never-inline: Never output `[inline](https://example.com)` links[default: never-inline]
+          - never-inline: Never output `[inline](https://example.com)` links
+          
+          [default: never-inline]
 
       --renumber-footnotes <RENUMBER_FOOTNOTES>
           [default: true]

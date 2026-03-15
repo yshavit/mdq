@@ -263,10 +263,11 @@ impl CliOptions {
 }
 
 /// Output formats, analogous to `--output` in the CLI.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
 #[non_exhaustive]
 pub enum OutputFormat {
     /// Output results as Markdown.
+    #[default]
     Markdown,
 
     /// Alias for markdown
@@ -310,12 +311,6 @@ pub enum OutputFormat {
     /// Here's an unordered list.
     /// ```
     Plain,
-}
-
-impl Default for OutputFormat {
-    fn default() -> Self {
-        Self::Markdown
-    }
 }
 
 impl Display for OutputFormat {
