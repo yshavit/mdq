@@ -1,5 +1,13 @@
 [given]
 md = '''
+### Preamble A
+
+Starts with H3.
+
+## Preamble B
+
+Starts with H2.
+
 # Alpha
 
 My first section.
@@ -41,6 +49,18 @@ Hello, world.
 # output separates them with a thematic break.
 cli_args = ["#"]
 output = '''
+### Preamble A
+
+Starts with H3.
+
+   -----
+
+## Preamble B
+
+Starts with H2.
+
+   -----
+
 # Alpha
 
 My first section.
@@ -63,4 +83,65 @@ output = '''
 # Bravo
 
 My second section.
+'''
+
+
+[expect."section minimum level"]
+cli_args = ['#{2,}']
+output = '''
+### Preamble A
+
+Starts with H3.
+
+   -----
+
+## Preamble B
+
+Starts with H2.
+
+   -----
+
+## Sub-section
+
+Hello, world.
+'''
+
+
+[expect."section maximum level"]
+cli_args = ['#{,2}']
+output = '''
+## Preamble B
+
+Starts with H2.
+
+   -----
+
+# Alpha
+
+My first section.
+
+## Sub-section
+
+Hello, world.
+
+   -----
+
+# Bravo
+
+My second section.
+'''
+
+
+[expect."section exact level"]
+cli_args = ['#{2}']
+output = '''
+## Preamble B
+
+Starts with H2.
+
+   -----
+
+## Sub-section
+
+Hello, world.
 '''

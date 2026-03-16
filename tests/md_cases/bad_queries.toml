@@ -157,7 +157,7 @@ output_err = '''Syntax error in select specifier:
 1 | #foo
   |  ^---
   |
-  = expected space
+  = expected end of input, space, or section options
 '''
 
 [expect."anchors in incorrect order"]
