@@ -23,6 +23,16 @@ impl From<SectionMatcher> for SectionSelector {
 
 impl TrySelector<Section> for SectionSelector {
     fn try_select(&self, _: &MdContext, item: Section) -> crate::select::Result<Select> {
+        if let Some(level_min) = self.level_min {
+            if item.depth < level_min {
+                return Ok(Select::Miss(item.into()));
+            }
+        }
+        if let Some(level_max) = self.level_max {
+            if item.depth > level_max {
+                return Ok(Select::Miss(item.into()));
+            }
+        }
         match self.matcher.match_replace_inlines(item.title) {
             Ok(replacements) => {
                 let result = Section {
@@ -30,16 +40,6 @@ impl TrySelector<Section> for SectionSelector {
                     depth: item.depth,
                     body: item.body,
                 };
-                if let Some(level_min) = self.level_min {
-                    if item.depth < level_min {
-                        return Ok(Select::Miss(result.into()));
-                    }
-                }
-                if let Some(level_max) = self.level_max {
-                    if item.depth > level_max {
-                        return Ok(Select::Miss(result.into()));
-                    }
-                }
                 Ok(make_select_result(result, replacements.matched_any))
             }
             Err(err) => Err(err.to_select_error("section")),
@@ -218,7 +218,7 @@ mod test {
     fn section_with_min_misses() {
         // #{2,}
         let section_matcher = SectionMatcher {
-            title: MatchReplace::build(|b| b),
+            title: MatchReplace::build(|b| b.match_regex(".*").replacement("X")),
             level_min: Some(2),
             level_max: None,
         };
@@ -274,7 +274,7 @@ mod test {
     fn section_with_max_misses() {
         // #{,2}
         let section_matcher = SectionMatcher {
-            title: MatchReplace::build(|b| b),
+            title: MatchReplace::build(|b| b.match_regex(".*").replacement("X")),
             level_min: None,
             level_max: Some(2),
         };
@@ -330,7 +330,7 @@ mod test {
     fn section_exact_level_misses() {
         // #{2}
         let section_matcher = SectionMatcher {
-            title: MatchReplace::build(|b| b),
+            title: MatchReplace::build(|b| b.match_regex(".*").replacement("X")),
             level_min: Some(2),
             level_max: Some(2),
         };
