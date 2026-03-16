@@ -32,6 +32,18 @@ pub struct ListItemMatcher {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SectionMatcher {
     pub title: MatchReplace,
+    /// The minimum level to match, inclusive. In other words, matches sections whose `h<n>` has $n ≥ level_min$.
+    ///
+    /// For example, `##` matches `level_min: 2` and `level_min: 3`, but not `level_min: 1`.
+    ///
+    /// If absent, all levels match (as far as `level_min` is concerned).
+    pub level_min: Option<u8>,
+    /// The max level to match, inclusive. In other words, matches sections whose `h<n>` has $n ≤ level_max$.
+    ///
+    /// For example, `##` matches `level_max: 1` and `level_max: 2`, but not `level_max: 3`.
+    ///
+    /// If absent, all levels match (as far as `level_max` is concerned).
+    pub level_max: Option<u8>,
 }
 
 /// matcher for both [`Selector::Link`] and [`Selector::Image`]

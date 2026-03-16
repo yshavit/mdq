@@ -43,6 +43,8 @@ mod test {
     fn section_replacement_matches_on_title() {
         let section_matcher = SectionMatcher {
             title: MatchReplace::build(|b| b.match_regex("Some").replacement("Great")),
+            level_min: None,
+            level_max: None,
         };
 
         let section = Section {
@@ -68,6 +70,8 @@ mod test {
     fn section_replacement_misses_on_title() {
         let section_matcher = SectionMatcher {
             title: MatchReplace::build(|b| b.match_regex("Unmatched").replacement("Great")),
+            level_min: None,
+            level_max: None,
         };
 
         let section = Section {
@@ -93,6 +97,8 @@ mod test {
     fn section_replacement_invalid_on_title() {
         let section_matcher = SectionMatcher {
             title: MatchReplace::build(|b| b.match_regex("crosses boundary").replacement("Broken")),
+            level_min: None,
+            level_max: None,
         };
 
         let section = Section {
@@ -116,6 +122,8 @@ mod test {
     fn section_regex_matches() {
         let section_matcher = SectionMatcher {
             title: MatchReplace::build(|b| b.match_regex("Great")),
+            level_min: None,
+            level_max: None,
         };
 
         let section = Section {
@@ -138,9 +146,16 @@ mod test {
     }
 
     #[test]
+    fn todo() {
+        todo!()
+    }
+
+    #[test]
     fn section_regex_doesnt_match() {
         let section_matcher = SectionMatcher {
             title: MatchReplace::build(|b| b.match_regex("Awesome")),
+            level_min: None,
+            level_max: None,
         };
 
         let section = Section {

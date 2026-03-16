@@ -20,7 +20,16 @@ selector_delim = _{ explicit_space | EOI }
 explicit_space = !{ " " } // making this a rule lets us have nicer error messages if the user doesn't include it
 
 select_section =  { section_start ~ PUSH_LITERAL("|") ~ #title = string }
-section_start  = @{ "#" ~ selector_delim }
+section_start  = ${ "#" ~ section_opts? ~ selector_delim }
+section_opts   = ${
+    "{"
+    ~ #level_min = section_num?
+    ~ #level_comma = section_comma?
+    ~ #level_max = section_num?
+    ~ "}"
+}
+section_num = @{ ('0' .. '9')+ }
+section_comma = @{ "," }
 
 select_list_item  =  { list_start ~ list_task_options? ~ PUSH_LITERAL("|") ~ #contents = string }
 list_start        = ${ (list_ordered | "-") ~ selector_delim }
