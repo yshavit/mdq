@@ -78,23 +78,26 @@ impl Selector {
                 let level_comma = level_comma.take().map_err(to_parse_error)?;
                 let mut level_max = parse_level(span, level_max)?;
 
-                // If both are set, there must be a comma; otherwise it's multi-digit, which isn't allowed.
-                // (Our rule of (0..9)+ should make this impossible, but let's check anyway.)
-                if level_min.is_some() && level_max.is_some() && level_comma.is_none() {
-                    return Err(to_parse_error("expected digit 1 - 6".to_string()));
-                }
-
-                // If there's no min or max, but there is a comma, that's an error on the comma.
-                // "#{,}"
-                if level_min.is_none() && level_max.is_none() && level_comma.is_some() {
-                    let comma_span = DetachedSpan::from(level_comma.unwrap().as_span());
-                    return Err(InnerParseError::Other(comma_span, "expected digit 1 - 6".to_string()));
-                }
-
-                // If only level_min is set, and there's no comma, set level_max = level_min
-                // This is e.g. "#{1}", so min == max (exact match)
-                if level_min.is_some() && level_max.is_none() && level_comma.is_none() {
-                    level_max = level_min;
+                // Check some special cases
+                match (level_min.is_some(), level_comma, level_max.is_some()) {
+                    (true, None, true) => {
+                        // If both are set, there must be a comma; otherwise it's multi-digit, which isn't allowed.
+                        // (Our rule of (0..9)+ should make this impossible, but let's check anyway.)
+                        // e.g.: #{12}
+                        return Err(to_parse_error("expected digit 1 - 6".to_string()));
+                    }
+                    (false, Some(level_comma), false) => {
+                        // If there's no min or max, but there is a comma, that's an error on the comma.
+                        // e.g.: "#{,}"
+                        let comma_span = DetachedSpan::from(level_comma.as_span());
+                        return Err(InnerParseError::Other(comma_span, "expected digit 1 - 6".to_string()));
+                    }
+                    (true, None, false) => {
+                        // If only level_min is set, and there's no comma, set level_max = level_min
+                        // e.g.: "#{1}"
+                        level_max = level_min;
+                    }
+                    _ => {}
                 }
 
                 Ok(Self::Section(SectionMatcher {
