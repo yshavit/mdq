@@ -76,6 +76,9 @@ macro_rules! composite_finder {
 
 composite_finder! { Section {
     title OnePair<'a>: ByTag,
+    level_min OnePair<'a>: ByTag,
+    level_comma OnePair<'a>: ByTag, // We only actually care if it's present, but this lets us also get its span
+    level_max OnePair<'a>: ByTag,
 }}
 composite_finder! { ListItem {
     list_ordered Present: ByRule,

@@ -1,6 +1,6 @@
 use crate::md_elem::elem::FrontMatterVariant;
 use crate::query::pest::Rule;
-use crate::query::traversal::{ByRule, OneOf, PairMatcher};
+use crate::query::traversal::{ByRule, OneOf, OnePair, PairMatcher};
 use crate::query::traversal_composites::{
     BlockQuoteTraverser, CodeBlockTraverser, FrontMatterTraverser, HtmlTraverser, LinkTraverser, ListItemTraverser,
     ParagraphTraverser, SectionResults, SectionTraverser, TableTraverser,
@@ -47,9 +47,64 @@ impl Selector {
 
         match as_rule {
             Rule::select_section => {
-                let SectionResults { title } = SectionTraverser::traverse(children);
+                let SectionResults {
+                    title,
+                    level_min,
+                    level_comma,
+                    level_max,
+                } = SectionTraverser::traverse(children);
                 let title = MatchReplace::try_from(title.take().map_err(to_parse_error)?)?;
-                Ok(Self::Section(SectionMatcher { title }))
+
+                fn parse_level(span: DetachedSpan, ast: OnePair) -> Result<Option<u8>, InnerParseError> {
+                    match ast.take().map_err(|es| InnerParseError::Other(span, es))? {
+                        None => Ok(None),
+                        Some(pair) => {
+                            let pair_span = DetachedSpan::from(pair.as_span());
+                            let val = pair.as_str();
+                            let try_u8: u8 = pair
+                                .as_str()
+                                .parse()
+                                .map_err(|_| InnerParseError::Other(pair_span, format!("not a valid number: {val}")))?;
+                            if try_u8 == 0 || try_u8 > 6 {
+                                Err(InnerParseError::Other(pair_span, "expected digit 1 - 6".to_string()))
+                            } else {
+                                Ok(Some(try_u8))
+                            }
+                        }
+                    }
+                }
+
+                let level_min = parse_level(span, level_min)?;
+                let level_comma = level_comma.take().map_err(to_parse_error)?;
+                let mut level_max = parse_level(span, level_max)?;
+
+                // Check some special cases
+                match (level_min.is_some(), level_comma, level_max.is_some()) {
+                    (true, None, true) => {
+                        // If both are set, there must be a comma; otherwise it's multi-digit, which isn't allowed.
+                        // (Our rule of (0..9)+ should make this impossible, but let's check anyway.)
+                        // e.g.: #{12}
+                        return Err(to_parse_error("expected digit 1 - 6".to_string()));
+                    }
+                    (false, Some(level_comma), false) => {
+                        // If there's no min or max, but there is a comma, that's an error on the comma.
+                        // e.g.: "#{,}"
+                        let comma_span = DetachedSpan::from(level_comma.as_span());
+                        return Err(InnerParseError::Other(comma_span, "expected digit 1 - 6".to_string()));
+                    }
+                    (true, None, false) => {
+                        // If only level_min is set, and there's no comma, set level_max = level_min
+                        // e.g.: "#{1}"
+                        level_max = level_min;
+                    }
+                    _ => {}
+                }
+
+                Ok(Self::Section(SectionMatcher {
+                    title,
+                    level_min,
+                    level_max,
+                }))
             }
             Rule::select_list_item => {
                 let res = ListItemTraverser::traverse(children);
@@ -238,6 +293,8 @@ mod tests {
                 "| #",
                 Selector::Section(SectionMatcher {
                     title: without_replace(Matcher::Any { explicit: false }),
+                    level_min: None,
+                    level_max: None,
                 }),
             )
         }
@@ -248,6 +305,8 @@ mod tests {
                 "# |",
                 Selector::Section(SectionMatcher {
                     title: without_replace(Matcher::Any { explicit: false }),
+                    level_min: None,
+                    level_max: None,
                 }),
             )
         }
@@ -259,6 +318,8 @@ mod tests {
                 Selector::Chain(vec![
                     Selector::Section(SectionMatcher {
                         title: without_replace(Matcher::Any { explicit: false }),
+                        level_min: None,
+                        level_max: None,
                     }),
                     Selector::Link(LinklikeMatcher {
                         display_matcher: without_replace(Matcher::Any { explicit: false }),
@@ -275,6 +336,8 @@ mod tests {
                 Selector::Chain(vec![
                     Selector::Section(SectionMatcher {
                         title: without_replace(Matcher::Any { explicit: false }),
+                        level_min: None,
+                        level_max: None,
                     }),
                     Selector::Link(LinklikeMatcher {
                         display_matcher: without_replace(Matcher::Any { explicit: false }),
@@ -287,6 +350,7 @@ mod tests {
 
     mod section {
         use super::*;
+        use indoc::indoc;
 
         #[test]
         fn section_no_matcher() {
@@ -294,6 +358,8 @@ mod tests {
                 "#",
                 Selector::Section(SectionMatcher {
                     title: without_replace(Matcher::Any { explicit: false }),
+                    level_min: None,
+                    level_max: None,
                 }),
             );
         }
@@ -304,7 +370,99 @@ mod tests {
                 "# foo",
                 Selector::Section(SectionMatcher {
                     title: matcher_text(false, "foo", false),
+                    level_min: None,
+                    level_max: None,
                 }),
+            );
+        }
+
+        #[test]
+        fn section_with_exact_level() {
+            find_selector(
+                "#{2}",
+                Selector::Section(SectionMatcher {
+                    title: without_replace(Matcher::Any { explicit: false }),
+                    level_min: Some(2),
+                    level_max: Some(2),
+                }),
+            );
+        }
+
+        #[test]
+        fn section_with_min_level_and_comma() {
+            find_selector(
+                "#{2,}",
+                Selector::Section(SectionMatcher {
+                    title: without_replace(Matcher::Any { explicit: false }),
+                    level_min: Some(2),
+                    level_max: None,
+                }),
+            );
+        }
+
+        #[test]
+        fn section_with_max_level() {
+            find_selector(
+                "#{,2}",
+                Selector::Section(SectionMatcher {
+                    title: without_replace(Matcher::Any { explicit: false }),
+                    level_min: None,
+                    level_max: Some(2),
+                }),
+            );
+        }
+
+        #[test]
+        fn section_with_just_comma() {
+            expect_parse_error(
+                "#{,}",
+                indoc! {r#"
+                     --> 1:3
+                      |
+                    1 | #{,}
+                      |   ^
+                      |
+                      = expected digit 1 - 6"#},
+            );
+        }
+
+        #[test]
+        fn section_with_level_and_matcher() {
+            find_selector(
+                "#{,2} fizz",
+                Selector::Section(SectionMatcher {
+                    title: matcher_text(false, "fizz", false),
+                    level_min: None,
+                    level_max: Some(2),
+                }),
+            );
+        }
+
+        #[test]
+        fn section_level_too_high() {
+            expect_parse_error(
+                "#{7}",
+                indoc! {r#"
+                     --> 1:3
+                      |
+                    1 | #{7}
+                      |   ^
+                      |
+                      = expected digit 1 - 6"#},
+            );
+        }
+
+        #[test]
+        fn section_level_multi_digit() {
+            expect_parse_error(
+                "#{11}",
+                indoc! {r#"
+                     --> 1:3
+                      |
+                    1 | #{11}
+                      |   ^^
+                      |
+                      = expected digit 1 - 6"#},
             );
         }
     }

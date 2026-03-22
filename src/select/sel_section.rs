@@ -7,18 +7,32 @@ use crate::select::{SectionMatcher, Select, TrySelector};
 #[derive(Debug, PartialEq)]
 pub(crate) struct SectionSelector {
     matcher: StringMatcher,
+    level_min: Option<u8>,
+    level_max: Option<u8>,
 }
 
 impl From<SectionMatcher> for SectionSelector {
     fn from(value: SectionMatcher) -> Self {
         Self {
             matcher: value.title.into(),
+            level_min: value.level_min,
+            level_max: value.level_max,
         }
     }
 }
 
 impl TrySelector<Section> for SectionSelector {
     fn try_select(&self, _: &MdContext, item: Section) -> crate::select::Result<Select> {
+        if let Some(level_min) = self.level_min {
+            if item.depth < level_min {
+                return Ok(Select::Miss(item.into()));
+            }
+        }
+        if let Some(level_max) = self.level_max {
+            if item.depth > level_max {
+                return Ok(Select::Miss(item.into()));
+            }
+        }
         match self.matcher.match_replace_inlines(item.title) {
             Ok(replacements) => {
                 let result = Section {
@@ -43,6 +57,8 @@ mod test {
     fn section_replacement_matches_on_title() {
         let section_matcher = SectionMatcher {
             title: MatchReplace::build(|b| b.match_regex("Some").replacement("Great")),
+            level_min: None,
+            level_max: None,
         };
 
         let section = Section {
@@ -68,6 +84,8 @@ mod test {
     fn section_replacement_misses_on_title() {
         let section_matcher = SectionMatcher {
             title: MatchReplace::build(|b| b.match_regex("Unmatched").replacement("Great")),
+            level_min: None,
+            level_max: None,
         };
 
         let section = Section {
@@ -93,6 +111,8 @@ mod test {
     fn section_replacement_invalid_on_title() {
         let section_matcher = SectionMatcher {
             title: MatchReplace::build(|b| b.match_regex("crosses boundary").replacement("Broken")),
+            level_min: None,
+            level_max: None,
         };
 
         let section = Section {
@@ -116,6 +136,8 @@ mod test {
     fn section_regex_matches() {
         let section_matcher = SectionMatcher {
             title: MatchReplace::build(|b| b.match_regex("Great")),
+            level_min: None,
+            level_max: None,
         };
 
         let section = Section {
@@ -141,6 +163,8 @@ mod test {
     fn section_regex_doesnt_match() {
         let section_matcher = SectionMatcher {
             title: MatchReplace::build(|b| b.match_regex("Awesome")),
+            level_min: None,
+            level_max: None,
         };
 
         let section = Section {
@@ -157,6 +181,174 @@ mod test {
             Select::Miss(MdElem::Section(Section {
                 depth: 1,
                 title: inlines!["Great title, Great section!"],
+                body: vec![],
+            })),
+        );
+    }
+
+    #[test]
+    fn section_with_min_matches() {
+        // #{2,}
+        let section_matcher = SectionMatcher {
+            title: MatchReplace::build(|b| b),
+            level_min: Some(2),
+            level_max: None,
+        };
+
+        let section = Section {
+            depth: 2,
+            title: inlines!["my title"],
+            body: vec![],
+        };
+
+        let section_selector = SectionSelector::from(section_matcher);
+        let matched = section_selector.try_select(&MdContext::default(), section).unwrap();
+
+        assert_eq!(
+            matched,
+            Select::Hit(vec![MdElem::Section(Section {
+                depth: 2,
+                title: inlines!["my title"],
+                body: vec![],
+            })]),
+        );
+    }
+
+    #[test]
+    fn section_with_min_misses() {
+        // #{2,}
+        let section_matcher = SectionMatcher {
+            title: MatchReplace::build(|b| b.match_regex(".*").replacement("X")),
+            level_min: Some(2),
+            level_max: None,
+        };
+
+        let section = Section {
+            depth: 1,
+            title: inlines!["my title"],
+            body: vec![],
+        };
+
+        let section_selector = SectionSelector::from(section_matcher);
+        let matched = section_selector.try_select(&MdContext::default(), section).unwrap();
+
+        assert_eq!(
+            matched,
+            Select::Miss(MdElem::Section(Section {
+                depth: 1,
+                title: inlines!["my title"],
+                body: vec![],
+            })),
+        );
+    }
+
+    #[test]
+    fn section_with_max_matches() {
+        // #{,2}
+        let section_matcher = SectionMatcher {
+            title: MatchReplace::build(|b| b),
+            level_min: None,
+            level_max: Some(2),
+        };
+
+        let section = Section {
+            depth: 2,
+            title: inlines!["my title"],
+            body: vec![],
+        };
+
+        let section_selector = SectionSelector::from(section_matcher);
+        let matched = section_selector.try_select(&MdContext::default(), section).unwrap();
+
+        assert_eq!(
+            matched,
+            Select::Hit(vec![MdElem::Section(Section {
+                depth: 2,
+                title: inlines!["my title"],
+                body: vec![],
+            })]),
+        );
+    }
+
+    #[test]
+    fn section_with_max_misses() {
+        // #{,2}
+        let section_matcher = SectionMatcher {
+            title: MatchReplace::build(|b| b.match_regex(".*").replacement("X")),
+            level_min: None,
+            level_max: Some(2),
+        };
+
+        let section = Section {
+            depth: 3,
+            title: inlines!["my title"],
+            body: vec![],
+        };
+
+        let section_selector = SectionSelector::from(section_matcher);
+        let matched = section_selector.try_select(&MdContext::default(), section).unwrap();
+
+        assert_eq!(
+            matched,
+            Select::Miss(MdElem::Section(Section {
+                depth: 3,
+                title: inlines!["my title"],
+                body: vec![],
+            })),
+        );
+    }
+
+    #[test]
+    fn section_exact_level_matches() {
+        // #{2}
+        let section_matcher = SectionMatcher {
+            title: MatchReplace::build(|b| b),
+            level_min: Some(2),
+            level_max: Some(2),
+        };
+
+        let section = Section {
+            depth: 2,
+            title: inlines!["my title"],
+            body: vec![],
+        };
+
+        let section_selector = SectionSelector::from(section_matcher);
+        let matched = section_selector.try_select(&MdContext::default(), section).unwrap();
+
+        assert_eq!(
+            matched,
+            Select::Hit(vec![MdElem::Section(Section {
+                depth: 2,
+                title: inlines!["my title"],
+                body: vec![],
+            })]),
+        );
+    }
+
+    #[test]
+    fn section_exact_level_misses() {
+        // #{2}
+        let section_matcher = SectionMatcher {
+            title: MatchReplace::build(|b| b.match_regex(".*").replacement("X")),
+            level_min: Some(2),
+            level_max: Some(2),
+        };
+
+        let section = Section {
+            depth: 1,
+            title: inlines!["my title"],
+            body: vec![],
+        };
+
+        let section_selector = SectionSelector::from(section_matcher);
+        let matched = section_selector.try_select(&MdContext::default(), section).unwrap();
+
+        assert_eq!(
+            matched,
+            Select::Miss(MdElem::Section(Section {
+                depth: 1,
+                title: inlines!["my title"],
                 body: vec![],
             })),
         );
