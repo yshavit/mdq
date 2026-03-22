@@ -28,10 +28,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
-# for attestations
 permissions:
-  id-token: write
-  attestations: write
   contents: read
 
 jobs:
@@ -86,6 +83,10 @@ jobs:
 
   build:
     needs: build-targets
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     strategy:
       matrix:
         target: ${{ fromJSON(needs.build-targets.outputs.names) }}

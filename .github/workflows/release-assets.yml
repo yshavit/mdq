@@ -22,10 +22,7 @@ on:
         type: string
         required: false
 
-# for attestations in build-release.yml
 permissions:
-  id-token: write
-  attestations: write
   contents: write # needed for viewing and uploading to the draft release
 
 jobs:
@@ -91,6 +88,10 @@ jobs:
 
   build:
     needs: validate
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/build-release.yml
     secrets: inherit
     with:

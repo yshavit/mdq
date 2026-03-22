@@ -18,9 +18,14 @@ env:
   DOCKER_RC_TAG: "yshavit/mdq:${{ inputs.version }}-rc"
   DOCKER_PUBLISH_TAG: "yshavit/mdq:${{ inputs.version }}"
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
     env:
       GH_TOKEN: ${{ github.token }}
     outputs:
@@ -65,6 +70,7 @@ jobs:
     environment: Docker Hub
     needs: verify
     runs-on: ubuntu-latest
+    permissions: { }
     steps:
 
       - name: Log in to Docker Hub
@@ -172,4 +178,3 @@ jobs:
 
       - name: Publish
         run: cargo publish
-

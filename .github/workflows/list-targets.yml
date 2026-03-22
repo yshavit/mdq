@@ -16,6 +16,8 @@ on:
         value: ${{ jobs.list-targets.outputs.rust_target_by_target }}
 
 
+permissions: { }
+
 jobs:
   list-targets:
     runs-on: ubuntu-latest
