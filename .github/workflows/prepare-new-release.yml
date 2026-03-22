@@ -41,7 +41,7 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v0.6.2
         with:
           ref: ${{ github.event.inputs.base_ref }}
 
@@ -108,7 +108,7 @@ jobs:
     needs: [ create_draft, upload_assets ]
     steps:
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v0.6.2
         with:
           ref: pending-releases/${{ env.RELEASE_VERSION }}
 

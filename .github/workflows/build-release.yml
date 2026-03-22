@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v0.6.2
         with:
           ref: ${{ inputs.branch_name }}
 
@@ -62,19 +62,19 @@ jobs:
           DOCKER_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 #v4.0.0
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PAT }}
 
       - name: Gather metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf #v6.0.0
         with:
           images: ${{ vars.DOCKERHUB_USERNAME }}/mdq
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 #v7.0.0
         with:
           context: .
           push: true
@@ -108,13 +108,13 @@ jobs:
       - name: rustc version
         run: rustc --version --verbose
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v0.6.2
         with:
           ref: ${{ inputs.branch_name }}
 
       - name: "Cache cargo"
         id: cache-cargo
-        uses: "actions/cache@v4"
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 #v5.0.4
         with:
           path: |
             ~/.cargo/bin/
@@ -158,12 +158,12 @@ jobs:
         run: chmod +x "$BUILD_FILE_PATH"
 
       - name: Attest Build Provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 #v4.1.0
         with:
           subject-path: ${{ env.BUILD_FILE_PATH }}
 
       - name: upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f #v7.0.0
         with:
           if-no-files-found: error
           name: mdq-${{ matrix.target }}

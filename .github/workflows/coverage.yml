@@ -12,10 +12,10 @@ jobs:
       CARGO_TERM_COLOR: always
     steps:
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v0.6.2
 
       - name: install cargo-tarpaulin
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@06203676c62f0d3c765be3f2fcfbebbcb02d09f5 #v2.69.6
         with:
           tool: cargo-tarpaulin
 
