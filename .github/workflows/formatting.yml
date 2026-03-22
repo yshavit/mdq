@@ -5,6 +5,9 @@ on:
   pull_request:
     branches: [ "main", "feature/*" ]
 
+permissions:
+  contents: read
+
 jobs:
   newlines:
     runs-on: ubuntu-latest

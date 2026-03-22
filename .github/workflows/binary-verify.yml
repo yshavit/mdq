@@ -35,6 +35,7 @@ jobs:
   dispatch-targets:
     needs: list-targets
     runs-on: ubuntu-latest
+    permissions: { }
     outputs:
       windows: ${{ steps.run.outputs.windows }}
       non-windows: ${{ steps.run.outputs.non-windows }}
@@ -139,6 +140,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    permissions: { }
     steps:
       - name: Calculate tag
         id: tag
