@@ -47,7 +47,7 @@ fn generate_integ_test_cases(out_dir: &String) -> Result<(), String> {
             });
 
             out.write("const FILES: [(&str, &str); ");
-            out.write(&format!("{}", &spec_file_parsed.given.get_files_count()));
+            out.write(&format!("{}", spec_file_parsed.given.get_files_count()));
             out.write("] = [");
             if let Some(files) = &spec_file_parsed.given.files {
                 out.with_indent(|out| {
@@ -216,7 +216,7 @@ impl Case {
         out.with_indent(|out| {
             out.write("Case {");
             out.with_indent(|out| {
-                out.writeln(&format!("cli_args: {:?},", &self.cli_args));
+                out.writeln(&format!("cli_args: {:?},", self.cli_args));
                 out.writeln(&format!("expect_output_json: {},", self.output_json));
                 if self.expect_output.is_empty() {
                     out.writeln("expect_output: \"\",");

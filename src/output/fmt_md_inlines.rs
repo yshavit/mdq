@@ -366,11 +366,10 @@ impl<'md> MdInlinesWriter<'md> {
                 '[' => {
                     unbalanced_opening_brackets.push(index);
                 }
-                ']' => {
-                    if unbalanced_opening_brackets.pop().is_none() {
-                        unbalanced_closing_brackets.push(index);
-                    }
+                ']' if unbalanced_opening_brackets.pop().is_none() => {
+                    unbalanced_closing_brackets.push(index);
                 }
+                ']' => {}
                 _ => (),
             };
         });
