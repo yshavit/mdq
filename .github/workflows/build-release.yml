@@ -115,7 +115,7 @@ jobs:
 
       - name: "Cache cargo"
         id: cache-cargo
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 #v5.0.4
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 #v5.0.4
         with:
           path: |
             ~/.cargo/bin/

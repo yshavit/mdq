@@ -434,7 +434,7 @@ impl<'md> MdWriterState<'_, 'md> {
         match index {
             None => std::fmt::Write::write_str(&mut counting_writer, "- ").unwrap(),
             Some(i) => {
-                std::fmt::Write::write_fmt(&mut counting_writer, format_args!("{}. ", &i)).unwrap();
+                std::fmt::Write::write_fmt(&mut counting_writer, format_args!("{}. ", i)).unwrap();
             }
         };
         if let Some(checked) = &item.checked {
